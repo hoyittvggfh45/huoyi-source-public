@@ -1,0 +1,19 @@
+{
+  "kind": "slo-unprotected-bundle",
+  "customer_id": "CUST-20260819162254-CD137B",
+  "product_id": "9a653f08ad3312a93836f9b0",
+  "package_id": "pkg-4ddd74f50aab4970ea460114",
+  "license_id": "license-2fef645b7518f59bfe3fab37",
+  "version": "sha256-r2-mixed-pinned-067b1e6f0623dadc",
+  "source_bundle_sha256": "24829c70cce01a5d82942f3cc42db169ef8517b288f6062b5eeac9aa466b8d2c",
+  "source": "decrypted payload.bin (AES-256-GCM) via local device credentials; byte-exact to signed source_bundle_sha256",
+  "file_count": 1413,
+  "total_bytes": 18920521,
+  "python_files": 164,
+  "python_syntax_ok": 164,
+  "python_syntax_fail": 0,
+  "python_syntax_fail_list": [],
+  "protected_assets_cross_verified": "153/153",
+  "built_at": "2026-08-19T20:13:18.050365+00:00",
+  "protection": "none (no .slo-protected, no .sloasset, no license checks)"
+}

@@ -1,0 +1,5 @@
+name: "zaka_one_stop_source_crack_shield"
+title: "一条龙写源破解破盾 (Zaka Write-Source + Reverse + CF-Ares)"
+description: "End-to-end pipeline for a user-provided site, app or API: triage the obstacle, pass the feasibility gate, extract data, restore encrypted or signed interfaces, handle Cloudflare shields with CF-Ares cookie fixation, write a TVBox source, and verify it with strict playback simulation. Includes a 2026-10 GitHub supplement on shield bypass tooling: curl_cffi and httpcloak TLS/JA4 fingerprint impersonation, Camoufox engine-level stealth browsing, FlareSolverr and trawl clearance solver services, Turnstile solving, and cf_clearance reuse rules. Includes a 2026-10 GitHub supplement on XBPQ declarative spider rules for MacCMS sites: the full field table, the && anchor truncation and [替换:] syntax, {cateId}/{catePg}/{area}/{by}/{class}/{year}/{wd} placeholders, the two category formats, filter-to-URL binding, fixed MacCMS search endpoints, and translating XBPQ rules into Python spiders."
+category: "Work and knowledge"
+include_in_prompt: true

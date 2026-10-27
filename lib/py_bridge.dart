@@ -1,0 +1,140 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:flutter/services.dart';
+
+import 'core_bridge.dart';
+
+class PyRuntimeStatus {
+  const PyRuntimeStatus({
+    required this.available,
+    this.python = '',
+    this.detail = '',
+  });
+
+  final bool available;
+  final String python;
+  final String detail;
+
+  String get notReadyMessage =>
+      'Python 运行时未就绪：当前安装包未包含可用的 CPython 运行时。'
+      '该站已导入并可见，但需要使用带 Python 桥的安装包打开。'
+      '${detail.isEmpty ? '' : '（$detail）'}';
+}
+
+class PyValidation {
+  const PyValidation({
+    required this.ok,
+    required this.hasSpider,
+    required this.missing,
+    required this.error,
+  });
+
+  final bool ok;
+  final bool hasSpider;
+  final List<String> missing;
+  final String error;
+
+  factory PyValidation.fromJson(Map<String, dynamic> json) => PyValidation(
+    ok: json['ok'] == true,
+    hasSpider: json['hasSpider'] == true,
+    missing: (json['missing'] as List? ?? const [])
+        .map((value) => value.toString())
+        .toList(),
+    error: json['error'] as String? ?? '',
+  );
+}
+
+class PyBridge {
+  PyBridge._();
+
+  static const _channel = MethodChannel('huoyi/pybridge');
+  static PyRuntimeStatus? _statusCache;
+
+  static Future<PyRuntimeStatus> status({bool force = false}) async {
+    if (!force && _statusCache != null) return _statusCache!;
+    final status = await _probe();
+    _statusCache = status;
+    return status;
+  }
+
+  static Future<PyRuntimeStatus> _probe() async {
+    if (!Platform.isAndroid && !Platform.isIOS) {
+      return const PyRuntimeStatus(
+        available: false,
+        detail: '非 Android/iOS 平台',
+      );
+    }
+    try {
+      final raw = await _channel.invokeMethod<String>('status');
+      final decoded = jsonDecode(raw ?? '{}') as Map<String, dynamic>;
+      if (decoded['available'] == true) {
+        return PyRuntimeStatus(
+          available: true,
+          python: decoded['python'] as String? ?? '',
+        );
+      }
+      return const PyRuntimeStatus(available: false, detail: '桥未报告可用');
+    } on MissingPluginException {
+      return const PyRuntimeStatus(available: false, detail: '安装包未集成 Python 桥');
+    } on PlatformException catch (error) {
+      return PyRuntimeStatus(
+        available: false,
+        detail: error.message ?? '桥启动失败',
+      );
+    } catch (error) {
+      return PyRuntimeStatus(available: false, detail: error.toString());
+    }
+  }
+
+  static Future<void> ensureReady() async {
+    final status = await PyBridge.status();
+    if (!status.available) throw AppFailure(status.notReadyMessage);
+  }
+
+  static Future<PyValidation?> validate(String source) async {
+    final status = await PyBridge.status();
+    if (!status.available) return null;
+    try {
+      final raw = await _channel.invokeMethod<String>('validate', {
+        'source': source,
+      });
+      return PyValidation.fromJson(
+        Map<String, dynamic>.from(jsonDecode(raw ?? '{}') as Map),
+      );
+    } on PlatformException catch (error) {
+      throw AppFailure('蜘蛛校验失败：${error.message ?? error.code}');
+    }
+  }
+
+  static Future<Map<String, dynamic>> call(
+    String path,
+    Map<String, dynamic> request,
+  ) async {
+    await ensureReady();
+    try {
+      final raw = await _channel
+          .invokeMethod<String>('call', {
+            'path': path,
+            'request': jsonEncode(request),
+          })
+          .timeout(const Duration(seconds: 70));
+      final decoded = Map<String, dynamic>.from(jsonDecode(raw ?? '{}') as Map);
+      if (decoded['ok'] != true) {
+        throw AppFailure('py 蜘蛛执行失败：${decoded['error'] ?? '未知错误'}');
+      }
+      final data = decoded['data'];
+      return data is Map
+          ? Map<String, dynamic>.from(data)
+          : <String, dynamic>{};
+    } on PlatformException catch (error) {
+      throw AppFailure('py 蜘蛛执行失败：${error.message ?? error.code}');
+    }
+  }
+
+  static Future<void> dispose(String path) async {
+    try {
+      await _channel.invokeMethod<String>('dispose', {'path': path});
+    } catch (_) {}
+  }
+}

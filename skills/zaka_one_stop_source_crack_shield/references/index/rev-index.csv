@@ -1,0 +1,123 @@
+name,type,skill_md_lines,ref_files,ref_lines,desc,trig
+re-address-space,atomic,101,0,0,> 地址空间换算统一处理：PIE/ASLR 基址确定、RVA/VA 转换、loader offset（固件加载地址 vs 链接地址）、 跨工具地址对齐（Ghidra/angr/frida/gdb）。 触发词：PIE、ASLR、基址、RVA、VA、loader offset、地址换算、重定位地址、gdb算地址、angr地址。,PIE、ASLR、基址、RVA、VA、loader offset、地址换算、重定位地址、gdb算地址、angr地址。
+re-ai-attack,atomic,152,3,144,> AI 模型安全评估与取证（行为层）：extraction assessment（API 黑盒提取评估）、 fingerprint verification（行为指纹与归属验证）、privacy leakage evaluation（成员推断/隐私泄露评估）、 robustness evaluation（对抗鲁棒性评估）。 触发词：API模型窃取、黑盒模型复制、模型指纹、成员推断、对抗样本、行为水印、模型安全评估、隐私泄露评估。,API模型窃取、黑盒模型复制、模型指纹、成员推断、对抗样本、行为水印、模型安全评估、隐私泄露评估。
+re-ai-model,atomic,167,0,0,> AI 模型文件逆向与静态分析：ONNX/PyTorch/Safetensors/TFLite 格式解析、 网络结构还原、权重提取、文件级水印分析（权重 pattern/metadata/tensor hash/embedding 异常）。 触发词：模型文件、权重提取、ONNX解析、safetensors、pth分析、pt文件、模型结构还原、文件级水印,模型文件、权重提取、ONNX解析、safetensors、pth分析、pt文件、模型结构还原、文件级水印
+re-ai-triage,atomic,69,0,0,> AI 模型分析第一入口（分流器）：识别输入形态——模型文件走文件层逆向（re-ai-model）、 仅有 API 走行为层评估（re-ai-attack）、恶意行为走恶意分析。 触发词：AI模型分析、AI模型安全、模型文件、模型泄露、模型逆向、模型分析入口。,AI模型分析、AI模型安全、模型文件、模型泄露、模型逆向、模型分析入口。
+re-analyze,entry,118,11,1252,> 逆向分析唯一入口。流程：环境探测(probe.sh) → 偏好询问(分析目标/反编译器/深度/报告/平台) → 任务识别(triage.md) → 编排调用大类网关。 触发词：分析、逆向、reverse、RE、帮我看看这个文件、这个样本是干什么的、 脱壳、找密钥、破解、固件分析、恶意软件分析、analyze this binary。,分析、逆向、reverse、RE、帮我看看这个文件、这个样本是干什么的、 脱壳、找密钥、破解、固件分析、恶意软件分析、analyze this binary。
+re-android-crypto,atomic,105,0,0,> Android 加密体系审计（crypto audit）：AndroidKeyStore 密钥体系分析（别名/算法/用途/硬件背书）、 Cipher/KeyInfo 审计、加密调用点 hook（Frida 拦截密钥别名与用途）。 触发词：Keystore、AndroidKeyStore、Cipher、KeyInfo、StrongBox、加密审计、crypto hook、密钥别名。,Keystore、AndroidKeyStore、Cipher、KeyInfo、StrongBox、加密审计、crypto hook、密钥别名。
+re-android-native,atomic,144,2,72,> Android 原生库 JNI 逆向：so 提取、JNI 注册还原、Native 逻辑分析。 触发词：JNI、.so、Android native、xhook、IDA so,JNI、.so、Android native、xhook、IDA so
+re-angr,atomic,134,2,186,angr 符号执行：符号化输入、求解。触发词：angr、符号执行、自动解题、constraint,angr、符号执行、自动解题、constraint
+re-anti-analysis,gateway,202,0,0,> 反分析对抗网关。编排：壳识别 → 简单壳脱壳 → 强壳脱壳 → 反混淆。,
+re-anti-cheat,atomic,107,0,0,> 反作弊对抗分析：EAC/BattlEye 驱动、内存校验、检测机制还原。 触发词：反作弊、EAC、BattlEye、内存校验、anti-cheat,反作弊、EAC、BattlEye、内存校验、anti-cheat
+re-apk,atomic,134,2,145,> APK 静态分析：jadx/apktool、manifest、smali、加固识别。 触发词：apk、android逆向、jadx、smali、dex,apk、android逆向、jadx、smali、dex
+re-arm,atomic,135,0,0,> ARM 架构逆向（非 Android）：Cortex-M/A 向量表、Thumb/ARM 切换、AAPCS 调用约定、位置相关代码重定位、MMIO 外设寄存器交叉。 触发词：ARM、arm32、Cortex-M、Cortex-A、Thumb、AAPCS、嵌入式逆向、裸机固件、stm32、向量表。,ARM、arm32、Cortex-M、Cortex-A、Thumb、AAPCS、嵌入式逆向、裸机固件、stm32、向量表。
+re-attribution,atomic,121,2,106,> 威胁归因方法论：钻石模型、基础设施图谱、置信度分级与归因报告。 触发词：归因、APT、attribution、攻击者身份、基础设施图谱、钻石模型、威胁组织。,归因、APT、attribution、攻击者身份、基础设施图谱、钻石模型、威胁组织。
+re-automotive,atomic,180,2,315,> 汽车逆向：CAN 总线、ECU 固件、AUTOSAR Classic（RTE/runnable/BSW）与 Adaptive（执行管理/清单）。 触发词：汽车、CAN、ECU、车载、OBD、UDS、AUTOSAR、RTE、runnable、SWC、BSW、E_OS_ACCESS、 Adaptive、ARA、Execution Management、Function Group、Machine State、Execution Manifest,汽车、CAN、ECU、车载、OBD、UDS、AUTOSAR、RTE、runnable、SWC、BSW、E_OS_ACCESS、 Adaptive、ARA、Execution Management、Function Group、Machine State、Execution Manifest
+re-behavior,atomic,179,0,0,> 恶意行为分析：持久化、注入、进程树、文件/注册表、ATT&CK 映射。 触发词：行为分析、持久化、注册表、进程注入、它在干什么,行为分析、持久化、注册表、进程注入、它在干什么
+re-binary-core,gateway,154,0,0,> 软件逆向核心网关（公共底座）。编排：初勘 → 格式解析 → 反编译 → 调试/跟踪 → 内存。,
+re-binaryninja,atomic,120,2,128,> Binary Ninja 工作流：MLIL、脚本 API。触发词：Binary Ninja、binaryninja、bn、MLIL,Binary Ninja、binaryninja、bn、MLIL
+re-blockchain,atomic,148,0,0,> EVM 智能合约逆向：字节码反编译、漏洞分析。 触发词：智能合约、EVM、Solidity、字节码、合约漏洞、ABI、Solana、Move、BPF,智能合约、EVM、Solidity、字节码、合约漏洞、ABI、Solana、Move、BPF
+re-browser-ext,atomic,120,2,124,> 浏览器扩展逆向：权限清单、恶意行为定位、混淆还原、上架审查绕过面。 触发词：浏览器扩展、Chrome扩展、Firefox扩展、恶意扩展、extension。,浏览器扩展、Chrome扩展、Firefox扩展、恶意扩展、extension。
+re-console,atomic,160,0,0,> 现代主机与复古平台逆向：Switch NSO/NPDM 容器与加密分区、PS4/PS5 ORBIS 结构、SDK 库指纹；复古 ROM 头/卡带格式/存档与 Cheat 码。 触发词：主机逆向、Switch、NSO、NPDM、PS4、PS5、ORBIS、Xbox、复古、ROM、NES、GBA、模拟器、Cheat。,主机逆向、Switch、NSO、NPDM、PS4、PS5、ORBIS、Xbox、复古、ROM、NES、GBA、模拟器、Cheat。
+re-cpp-abi,atomic,106,0,0,> 现代 C++ 二进制逆向：RTTI/异常/虚表恢复、ABI 识别、mangling 解码。 触发词：C++逆向、RTTI、虚表恢复、异常处理、C++ ABI、mangling、C++反编译。,C++逆向、RTTI、虚表恢复、异常处理、C++ ABI、mangling、C++反编译。
+re-cracking,gateway,70,0,0,> 软件破解网关。编排：带壳先脱壳 → 授权定位 → 补丁/注册机。,
+re-crash-triage,atomic,129,0,0,> 崩溃/漏洞样本分析：确定性复现、ASAN/UBSAN 报告解读、输入最小化 (afl-tmin/cmin)、gdb 回溯定位、rr 录制重放、PoC 产出。 触发词：崩溃、crash、ASAN、UAF、堆溢出、越界、段错误、segfault、 core dump、PoC、漏洞分析、崩溃分析。,崩溃、crash、ASAN、UAF、堆溢出、越界、段错误、segfault、 core dump、PoC、漏洞分析、崩溃分析。
+re-crypto-decrypt,atomic,120,0,0,> 加密数据还原：定位解密函数、写解密脚本。 触发词：解密、decrypt、还原数据、解密流量,解密、decrypt、还原数据、解密流量
+re-crypto-id,atomic,139,0,0,> 加密算法识别：常量表指纹、自定义加密模式。 触发词：加密识别、AES、XOR、算法指纹、custom encryption,加密识别、AES、XOR、算法指纹、custom encryption
+re-crypto-keys,atomic,124,0,0,> 密钥与口令提取：硬编码、内存搜索、资源。 触发词：找密钥、硬编码、key extraction、口令,找密钥、硬编码、key extraction、口令
+re-ctf,gateway,69,0,0,> CTF 实践网关。编排：题型识别 → 简单题直接 [[re-binary-core]] → 需自动化 [[re-angr]]/[[re-z3]] → 混淆 [[re-deobfuscate]]。,
+re-deobfuscate,atomic,126,0,0,反混淆：花指令、控制流平坦化、字符串加密。触发词：反混淆、花指令、控制流平坦化、字符串解密、obfuscation,反混淆、花指令、控制流平坦化、字符串解密、obfuscation
+re-disk-forensics,atomic,150,0,0,> 磁盘/文件系统取证：删除恢复、时间线、可疑文件定位。 触发词：磁盘取证、文件系统、删除恢复、时间线、ext4、NTFS,磁盘取证、文件系统、删除恢复、时间线、ext4、NTFS
+re-doc-malware,atomic,139,2,134,> 恶意文档分析：PDF/Office 武器化、宏链、文档漏洞利用、载荷提取。 触发词：恶意文档、钓鱼文档、PDF恶意、宏文档、docm、文档漏洞、恶意附件。,恶意文档、钓鱼文档、PDF恶意、宏文档、docm、文档漏洞、恶意附件。
+re-dotnet,atomic,131,0,0,.NET CIL 逆向：dnSpy/ILSpy 反编译、de4dot 去混淆、ConfuserEx。触发词：.NET、dnSpy、ILSpy、de4dot、CIL、ConfuserEx,.NET、dnSpy、ILSpy、de4dot、CIL、ConfuserEx
+re-drm,atomic,114,2,276,> DRM 分析：PlayReady/Widevine 实现、许可证流程、解密器还原。 触发词：DRM、PlayReady、Widevine、许可证、内容保护,DRM、PlayReady、Widevine、许可证、内容保护
+re-ebpf,atomic,120,0,0,> eBPF 程序逆向与对抗分析：BPF-64 指令集、progs/maps 关联、bpftool 反汇编、跟踪取证/恶意样本/EDR 对抗三用途。 触发词：eBPF、BPF、bpftool、bcc、libbpf、xlated、BPF 指令、bpf hook、EDR 对抗、tracepoint、kprobe。,eBPF、BPF、bpftool、bcc、libbpf、xlated、BPF 指令、bpf hook、EDR 对抗、tracepoint、kprobe。
+re-electron,atomic,170,0,0,> Electron 桌面应用逆向：asar 解包、主/渲染进程 JS、V8 字节码（.jsc）边界、CDP 动态调试、反调试对抗。 触发词：Electron、asar、桌面应用逆向、.jsc、V8 快照、CDP、ELECTRON_RUN_AS_NODE、devtools 检测。,Electron、asar、桌面应用逆向、.jsc、V8 快照、CDP、ELECTRON_RUN_AS_NODE、devtools 检测。
+re-emulation,atomic,115,2,156,> 模拟执行：Unicorn/Qiling 框架。触发词：Unicorn、Qiling、模拟执行、emulate、无硬件运行,Unicorn、Qiling、模拟执行、emulate、无硬件运行
+re-evasion,atomic,116,0,0,> 检测规避/EDR 对抗分析：AMSI/ETW 绕过、无文件、lolbin 链。 触发词：规避、evasion、AMSI、ETW、无文件、lolbin、EDR绕过,规避、evasion、AMSI、ETW、无文件、lolbin、EDR绕过
+re-exploit,atomic,131,0,0,> 利用开发：ROP 链构造、堆利用。 触发词：ROP、堆利用、fastbin、tcache、利用开发、exploit,ROP、堆利用、fastbin、tcache、利用开发、exploit
+re-feedback,gateway,58,3,89,> 经验反馈元网关。三源收集（会话复盘/文章扫描/手动输入）→ 蒸馏脱敏 → 归域 → 三档处理（发表 issue/本地入库/不入库）。 触发词：反馈经验、经验入库、提交经验、经验复盘、心得沉淀、lessons learned。,反馈经验、经验入库、提交经验、经验复盘、心得沉淀、lessons learned。
+re-fileless,atomic,118,0,0,> 无文件恶意软件：内存执行、持久化、PowerShell 链。 触发词：无文件、fileless、内存执行、PowerShell 无文件、注册表持久化,无文件、fileless、内存执行、PowerShell 无文件、注册表持久化
+re-firmware,gateway,51,0,0,> 固件/嵌入式/硬件分析网关。编排：提取 → rootfs → 仿真 → 硬件接口。,
+re-flutter,atomic,163,0,0,Flutter/Dart AOT 逆向：libapp.so 快照分区解析、符号还原、Dart VM 动态分析。触发词：Flutter、Dart、libapp.so、AOT snapshot、kernel_blob、flutter_assets、Dart VM,Flutter、Dart、libapp.so、AOT snapshot、kernel_blob、flutter_assets、Dart VM
+re-forensics,gateway,56,0,0,> 内存取证/威胁情报网关。编排：转储来源 → 内存取证 → 线索提取 → 情报关联。,
+re-format-elf,atomic,139,2,301,> ELF 格式解析：ehdr/phdr/shdr、GOT/PLT、init_array、符号恢复。 触发词：ELF、解析so、dynamic section,ELF、解析so、dynamic section
+re-format-macho,atomic,132,2,340,> Mach-O 格式解析：mach_header、LC_*、segment、dyld 信息。 触发词：Mach-O、解析mac程序、dyld,Mach-O、解析mac程序、dyld
+re-format-pe,atomic,186,0,0,> PE 格式解析：DOS/NT 头、节表、导入导出、TLS 回调、Rich Header、证书表。 触发词：PE格式、解析exe、section表、Delphi、VB6、vmt、MSVBVM60、RTTI、老程序,PE格式、解析exe、section表、Delphi、VB6、vmt、MSVBVM60、RTTI、老程序
+re-fp-runtime,atomic,111,2,252,> 函数式语言运行时逆向（Haskell/OCaml）：闭包/堆对象模型、调用约定、数据流优先策略。 触发词：Haskell逆向、OCaml逆向、GHC RTS、thunk、STG、OCaml runtime、闭包、函数式产物。,Haskell逆向、OCaml逆向、GHC RTS、thunk、STG、OCaml runtime、闭包、函数式产物。
+re-frida,atomic,166,1,224,> Frida 动态插桩（桌面+移动统一）。 触发词：frida、hook、插桩、绕过、spawn,frida、hook、插桩、绕过、spawn
+re-frida-script-author,atomic,122,2,109,> Frida 脚本生成方法论：目标特征 → 模板选择 → 改写 → 验证。独立于执行插桩（re-frida）。 触发词：生成Frida脚本、写hook脚本、frida脚本怎么写、写个hook、脚本生成。,生成Frida脚本、写hook脚本、frida脚本怎么写、写个hook、脚本生成。
+re-fuzzing,atomic,155,0,0,> 覆盖率引导模糊测试：AFL++/libFuzzer/honggfuzz、插桩与语料初始化、 afl-fuzz 运行参数、覆盖率(afl-cov)、字典/结构化输入。 触发词：fuzz、模糊测试、AFL、afl-fuzz、libFuzzer、honggfuzz、 覆盖率、corpus、语料、dictionary、挖洞、fuzzing。,fuzz、模糊测试、AFL、afl-fuzz、libFuzzer、honggfuzz、 覆盖率、corpus、语料、dictionary、挖洞、fuzzing。
+re-fw-emulate,atomic,123,2,156,> 固件仿真：QEMU 用户态/全系统。 触发词：仿真、QEMU、firmadyne、跑固件,仿真、QEMU、firmadyne、跑固件
+re-fw-extract,atomic,170,0,0,> 固件提取与解包：binwalk/unblob、magic 扫描、字节序。 触发词：固件、binwalk、解包固件、firmware、IoT、MCU、8051、AVR、PIC、MSP430、Intel HEX、.hex,固件、binwalk、解包固件、firmware、IoT、MCU、8051、AVR、PIC、MSP430、Intel HEX、.hex
+re-fw-rootfs,atomic,126,0,0,> 固件文件系统分析：rootfs、配置、密钥、启动脚本。 触发词：rootfs、文件系统分析、squashfs、cramfs、配置文件,rootfs、文件系统分析、squashfs、cramfs、配置文件
+re-game,atomic,209,0,0,> 游戏逆向：Unity/Unreal、Cheat Engine、Lua 脚本引擎、图形 Shader。触发词：游戏逆向、Unity、Unreal、Cheat Engine、内存修改、反作弊、Lua、LuaJIT、.luac、.jsc、脚本引擎、Shader、着色器、SPIR-V、DXIL、DXBC、GLSL,游戏逆向、Unity、Unreal、Cheat Engine、内存修改、反作弊、Lua、LuaJIT、.luac、.jsc、脚本引擎、Shader、着色器、SPIR-V、DXIL、DXBC、GLSL
+re-gdb,atomic,136,2,177,> GDB/pwndbg/gef 调试：attach、断点、内存读写。 触发词：gdb、调试、pwndbg、attach,gdb、调试、pwndbg、attach
+re-ghidra,atomic,129,2,157,> Ghidra 工作流：导入→自动分析→反编译→脚本化。 触发词：Ghidra、反编译、headless,Ghidra、反编译、headless
+re-go,atomic,142,0,0,Go 二进制逆向：符号保留、字符串表、goroutine。触发词：Go、golang、Go二进制、goroutine、go build,Go、golang、Go二进制、goroutine、go build
+re-hardware-io,atomic,119,2,159,> 硬件接口：JTAG/UART/flash 读取。 触发词：JTAG、UART、串口、flash芯片、硬件提取、逻辑分析仪,JTAG、UART、串口、flash芯片、硬件提取、逻辑分析仪
+re-harmonyos,atomic,104,0,0,> 鸿蒙（HarmonyOS）应用逆向：hap/hsp/har 包结构、ArkTS 字节码（.abc、ArkCompiler）分析。 触发词：鸿蒙、HarmonyOS、hap、ArkTS、abc 字节码、方舟编译器,鸿蒙、HarmonyOS、hap、ArkTS、abc 字节码、方舟编译器
+re-hunting,atomic,121,2,100,> 威胁狩猎方法论：假设驱动、遥测源选择、基线对比与验证闭环。 触发词：威胁狩猎、狩猎、hunting、假设驱动、遥测分析、异常检测。,威胁狩猎、狩猎、hunting、假设驱动、遥测分析、异常检测。
+re-hw-chip,atomic,120,0,0,> 物理层硬件逆向：去封装、裸片分析、探针与 FIB、PCB 电路分析、硬件木马检测。 触发词：芯片逆向、去封装、decapping、PCB、硬件木马、电路分析、裸片、FIB、侧信道、SPA、DPA、故障注入、时钟毛刺、电压毛刺。,芯片逆向、去封装、decapping、PCB、硬件木马、电路分析、裸片、FIB、侧信道、SPA、DPA、故障注入、时钟毛刺、电压毛刺。
+re-hybrid-app,atomic,185,0,0,> Flutter/React Native 混合应用逆向。 触发词：Flutter、React Native、混合应用、dart、libapp.so、Hermes、Hermes 字节码、hbc、RN bundle、index.android.bundle、NativeModules、TurboModule、Metro,Flutter、React Native、混合应用、dart、libapp.so、Hermes、Hermes 字节码、hbc、RN bundle、index.android.bundle、NativeModules、TurboModule、Metro
+re-hypervisor,atomic,170,9,1213,> 虚拟化逆向：VT-x/SVM、hypervisor 检测、VMCS/EPT 分析， 以及 Xen / QNX Hypervisor / Jailhouse / ACRN / Bao / Hyper-V·VMBus / XtratuM / LynxSecure / Quest-V 的分区与 vdev 语义。 触发词：hypervisor、VT-x、SVM、虚拟化检测、EPT、Xen、grant table、event channel、 Jailhouse、cell、ACRN、ivshmem、Bao、shmem_id、vdev、GPA/HPA、 Hyper-V、VMBus、VSC、VSP、GP,hypervisor、VT-x、SVM、虚拟化检测、EPT、Xen、grant table、event channel、 Jailhouse、cell、ACRN、ivshmem、Bao、shmem_id、vdev、GPA/HPA、 Hyper-V、VMBus、VSC、VSP、GPADL、SR-IOV、XtratuM、XM_CF、LynxSecure、Quest-V、sandbox kernel
+re-ics,atomic,115,0,0,> 工控协议逆向：Modbus/DNP3/OPC UA。 触发词：工控、ICS、Modbus、DNP3、OPC UA、SCADA、PLC,工控、ICS、Modbus、DNP3、OPC UA、SCADA、PLC
+re-ida,atomic,119,2,137,> IDA 工作流：导入→FLIRT→Hex-Rays→idapython。 触发词：IDA、Hex-Rays、idapython,IDA、Hex-Rays、idapython
+re-imports,atomic,119,0,0,> 导入导出表与库指纹：IAT/EAT、DLL/so 指纹、FLIRT 思路。 触发词：导入表、IAT、库指纹、链接了哪些库,导入表、IAT、库指纹、链接了哪些库
+re-ioc,atomic,118,0,0,> IOC 提取与 YARA 规则、报告结构。 触发词：IOC、YARA、写规则、分析报告、hash列表,IOC、YARA、写规则、分析报告、hash列表
+re-ios,atomic,123,2,138,> iOS 应用分析：Mach-O、class-dump、越狱环境。 触发词：ios逆向、ipa、class-dump、越狱,ios逆向、ipa、class-dump、越狱
+re-ios-jb,atomic,151,0,0,> iOS 越狱逆向环境：越狱检测识别与绕过、tweak 分析与开发。 触发词：越狱、jailbreak、tweak、Theos、LLDB 远程,越狱、jailbreak、tweak、Theos、LLDB 远程
+re-iot-proto,atomic,211,0,0,> 物联网协议：MQTT/CoAP/BLE/Zigbee；BLE 链路层（广播解析/配对加密）与 NFC/智能卡（ISO14443/APDU/MIFARE）。 触发词：MQTT、CoAP、BLE、Zigbee、物联网协议、IoT协议、BLE链路、BLE嗅探、广播解析、配对加密、GATT、NFC、智能卡、MIFARE、APDU、ISO14443,MQTT、CoAP、BLE、Zigbee、物联网协议、IoT协议、BLE链路、BLE嗅探、广播解析、配对加密、GATT、NFC、智能卡、MIFARE、APDU、ISO14443
+re-java,atomic,126,0,0,Java 字节码逆向：CFR/JD-GUI、jar 解包、Java 加固。触发词：Java、jar、字节码、JD-GUI、CFR、class文件,Java、jar、字节码、JD-GUI、CFR、class文件
+re-javacard,atomic,128,0,0,> Java Card / SIM 卡 applet 逆向：CAP 文件组件解析（规范 12 组件）、CAP 字节码（Java 子集）还原、AID 与安装参数、process(APDU) 分派。 触发词：Java Card、javacard、CAP 文件、SIM 卡、USIM、applet、AID、银行卡、JCVM。,Java Card、javacard、CAP 文件、SIM 卡、USIM、applet、AID、银行卡、JCVM。
+re-kernel,atomic,178,23,3568,> 内核逆向（跨平台）：Windows 驱动（.sys/IRP/SSDT）、Linux 内核模块（.ko/ET_REL/LKM/rootkit）、 macOS KEXT 与 System Extension/DriverKit、Android GKI/vendor module、seL4（capability 系统）、 Fuchsia/Zircon（handle 模型 + DFv2 用户态驱动框架）、FreeBSD（linker sets/SYSINIT/KLD）、 illumos/Solaris（DDI/DKI、dev_ops/cb_ops）、OpenBSD（KARL/autoconf/pl,内核、驱动、.sys、.ko、LKM、kext、dext、rootkit、内核模块、IRP、GKI、内核扩展、 seL4、capability、CSpace、CNode、capDL、CAmkES、MCS、Fuchsia、Zircon、handle、DFv2、driver host、FIDL、 FreeBSD、KLD、SYSINIT、linker set、illumos、Solaris、DDI、de
+re-keygen,atomic,121,2,120,注册机算法还原。触发词：注册机、keygen、算法还原、序列号生成,注册机、keygen、算法还原、序列号生成
+re-license,atomic,121,2,144,授权验证逻辑分析：注册校验定位。触发词：注册码、授权验证、license、序列号校验、破解定位,注册码、授权验证、license、序列号校验、破解定位
+re-lldb,atomic,131,2,150,> lldb 调试（macOS/iOS）：attach、expr、image。 触发词：lldb、macOS调试、iOS调试,lldb、macOS调试、iOS调试
+re-loader,atomic,120,0,0,> 加载器/投放器分析：多层下载、内存加载、模块拼接。 触发词：加载器、loader、dropper、投放器、内存加载、模块拼接,加载器、loader、dropper、投放器、内存加载、模块拼接
+re-macos,atomic,120,2,118,> macOS 原生应用逆向：App Bundle/签名公证、entitlements、沙箱与 TCC、钥匙串与 Secure Enclave。 触发词：macOS逆向、mac app、entitlements、Secure Enclave、钥匙串、TCC、codesign、公证。,macOS逆向、mac app、entitlements、Secure Enclave、钥匙串、TCC、codesign、公证。
+re-malware,gateway,52,0,0,> 恶意软件分析网关。编排：默认沙箱 → 静态初勘 → 行为分析 → C2/协议 → IOC/报告。,
+re-managed,gateway,62,0,0,> 托管代码逆向网关。编排：识别运行时 → 反编译 → 去混淆 → 恶意场景转 [[re-malware]]。,
+re-mem-forensics,atomic,121,0,0,> Volatility 3 内存取证：进程/内核对象/网络/凭据线索。 触发词：内存取证、Volatility、memdump分析、进程列表、mimikatz线索,内存取证、Volatility、memdump分析、进程列表、mimikatz线索
+re-memdump,atomic,141,2,145,> 内存转储与提取：默认转储优先(gcore)，直读特例。 触发词：内存转储、dump内存、找密钥、DEX提取,内存转储、dump内存、找密钥、DEX提取
+re-mips,atomic,117,0,0,> MIPS 架构逆向与路由器固件分析方法论：延迟槽、$gp 调用约定、大小端判断、httpd 定位。 触发词：MIPS、mipsel、路由器固件、嵌入式、延迟槽、big-endian、大端、小端、httpd、busybox,MIPS、mipsel、路由器固件、嵌入式、延迟槽、big-endian、大端、小端、httpd、busybox
+re-mobile,gateway,69,1,11,> 移动应用分析网关。编排：APK 静态 → iOS → 动态 Frida → 原生库。,
+re-mobile-forensics,atomic,122,2,101,> 移动设备取证：Android/iOS 备份解析、应用数据提取、删除恢复与时间线。 触发词：移动取证、手机取证、ADB备份、iTunes备份、手机数据提取。,移动取证、手机取证、ADB备份、iTunes备份、手机数据提取。
+re-mobile-pack,atomic,120,0,0,> Android 加固脱壳专项：乐固/360/梆梆/爱加密、DEX 恢复。 触发词：脱壳、Android加固、DEX脱壳、乐固、梆梆、360加固、爱加密,脱壳、Android加固、DEX脱壳、乐固、梆梆、360加固、爱加密
+re-netcap,atomic,149,2,154,> 网络流量捕获：tcpdump/Wireshark/抓包。 触发词：抓包、tcpdump、wireshark、流量分析、pcap,抓包、tcpdump、wireshark、流量分析、pcap
+re-nim,atomic,115,2,212,> Nim 编译产物逆向：运行时识别、NimString 结构、异常与 GC 路径。 触发词：Nim逆向、nim、NimString、NimMain、nim 产物。,Nim逆向、nim、NimString、NimMain、nim 产物。
+re-packer-id,atomic,134,0,0,壳与混淆器识别：签名/节名/EP/熵。触发词：查壳、加壳识别、packer、壳名、UPX,查壳、加壳识别、packer、壳名、UPX
+re-patching,atomic,113,0,0,补丁制作：字节级 patch、指令重写。触发词：打补丁、patch、修改跳转、绕过验证、crack,打补丁、patch、修改跳转、绕过验证、crack
+re-plugin-dev,atomic,108,0,0,> Ghidra/IDA 插件开发：脚本→插件工程化。 触发词：插件开发、Ghidra插件、IDA插件、插件工程,插件开发、Ghidra插件、IDA插件、插件工程
+re-proto-rev,atomic,141,0,0,> 协议状态机重建：Scapy 解析、消息结构。 触发词：协议逆向、状态机、scapy、自定义协议,协议逆向、状态机、scapy、自定义协议
+re-protocol,gateway,67,0,0,> 协议逆向网关。编排：捕获 → 加密识别 → 密钥 → 解密 → 状态机重建。,
+re-pwn,atomic,144,0,0,> CTF pwn 入门：栈溢出、格式化字符串、ret2libc。 触发词：pwn、栈溢出、格式化字符串、ret2libc、ROP、shellcode 注入,pwn、栈溢出、格式化字符串、ret2libc、ROP、shellcode 注入
+re-python,atomic,115,2,293,> Python 打包/混淆样本分析：PyInstaller/PyArmor/Nuitka/Cython 解包、pyc 版本识别与反编译。 触发词：Python打包、PyInstaller、PyArmor、pyc、python exe、Python 样本、打包样本。,Python打包、PyInstaller、PyArmor、pyc、python exe、Python 样本、打包样本。
+re-radare2,atomic,145,2,152,> rizin/radare2 工作流：命令行分析、pdf、V 模式。 触发词：radare2、rizin、rz、r2,radare2、rizin、rz、r2
+re-ransomware,atomic,104,0,0,> 勒索软件分析：加密识别、勒索信、解密恢复思路。 触发词：勒索、ransomware、加密文件、勒索信、解密恢复,勒索、ransomware、加密文件、勒索信、解密恢复
+re-riscv,atomic,134,0,0,> RISC-V 架构逆向：RV32/RV64、压缩指令（RVC）、gp 相对寻址、ABI 与 ecall 系统调用约定、工具链指纹。 触发词：RISC-V、riscv、RV32、RV64、RVC、压缩指令、ecall、ESP32-C3、GD32V。,RISC-V、riscv、RV32、RV64、RVC、压缩指令、ecall、ESP32-C3、GD32V。
+re-rtos,atomic,198,14,1852,RTOS 结构分析：FreeRTOS/ThreadX/Zephyr/RT-Thread/VxWorks/QNX/RTEMS/NuttX/eCos/µC-OS/SYS-BIOS/SAFERTOS/CMSIS-RTX5/T-Kernel/TOPPERS/OSE/INTEGRITY/ARINC 653/PikeOS/Deos 运行模型判定、任务表与 TCB 定位、内核对象还原、按任务拆分反编译。触发词：RTOS、FreeRTOS、ThreadX、Zephyr、VxWorks、QNX、RTEMS、NuttX、eCos、µC/OS、Micrium、SYS/BIOS、SAFERTOS、CMSIS-RTX5,RTOS、FreeRTOS、ThreadX、Zephyr、VxWorks、QNX、RTEMS、NuttX、eCos、µC/OS、Micrium、SYS/BIOS、SAFERTOS、CMSIS-RTX5、T-Kernel、TOPPERS、ITRON、OSE、OSEck、Nucleus、INTEGRITY、ARINC 653、PikeOS、VxWorks 653、Deos、任务表、TCB、固件调度、M
+re-rust,atomic,124,0,0,Rust 二进制逆向：符号、monomorphization、所有权模式。触发词：Rust、rust、Rust二进制、cargo,Rust、rust、Rust二进制、cargo
+re-sample-acquire,atomic,142,4,277,"> 样本现场采集（从现象到可用样本）：目标没有独立进程、样本不落盘时，以「异常执行内存 + 到达该内存的执行上下文」为核心定位载体并运行时提取。 覆盖四种观测模型：Windows（VAD/线程/ETW）、Linux（VMA/BPF LSM）、macOS（Mach VM/Endpoint Security）、seL4（capability provenance）。 触发词：样本获取、现场采集、没有样本、只有现象、不落盘、无文件、注入、内存马、运行时捕获、内存提取样本。 English triggers: sample acquisition, live acquisition, no sampl","样本获取、现场采集、没有样本、只有现象、不落盘、无文件、注入、内存马、运行时捕获、内存提取样本。 English triggers: sample acquisition, live acquisition, no sample, fileless, injected code, memory-resident, runtime capture."
+re-sandbox,atomic,135,2,151,> 沙箱环境搭建（动态分析强制前置）。 触发词：沙箱、隔离环境、firejail、VM快照、安全运行,沙箱、隔离环境、firejail、VM快照、安全运行
+re-script-deob,atomic,155,0,0,脚本/宏去混淆：PowerShell、VBA、JavaScript。触发词：PowerShell混淆、VBA宏、JS去混淆、脚本解密、恶意脚本,PowerShell混淆、VBA宏、JS去混淆、脚本解密、恶意脚本
+re-sdr,atomic,120,2,136,> 射频逆向：信号采集、频谱分析、解调、帧同步与协议恢复、重放。 触发词：SDR、射频、信号分析、解调、RTL-SDR、HackRF、无线协议、遥测。,SDR、射频、信号分析、解调、RTL-SDR、HackRF、无线协议、遥测。
+re-shellcode,atomic,186,0,0,> Shellcode 分析：提取、解码循环、模拟执行。 触发词：shellcode、shell code、位置无关、解码循环、恶意载荷,shellcode、shell code、位置无关、解码循环、恶意载荷
+re-stego,atomic,119,2,98,> 隐写术检测与提取：文件尾附加、图片 LSB、音频与其他载体、提取验证。 触发词：隐写、stego、LSB、文件尾附加、隐写提取、图片隐写。,隐写、stego、LSB、文件尾附加、隐写提取、图片隐写。
+re-swift,atomic,120,2,228,> Swift 二进制逆向：mangling 解码、协议 witness table、闭包捕获、ObjC 互操作。 触发词：Swift逆向、swiftc、witness table、swift demangle、闭包捕获、Swift 产物。,Swift逆向、swiftc、witness table、swift demangle、闭包捕获、Swift 产物。
+re-tee,atomic,122,2,122,> TEE/TrustZone 逆向：OP-TEE 架构、可信应用（Trusted App）、secure storage、SMC 接口与设备密钥。 触发词：TEE、TrustZone、OP-TEE、可信应用、Trusted App、secure world、SMC、安全存储、secure storage、设备密钥,TEE、TrustZone、OP-TEE、可信应用、Trusted App、secure world、SMC、安全存储、secure storage、设备密钥
+re-ti,atomic,130,2,144,> 威胁情报查询与关联：VT/Any.run/hybrid-analysis、MISP。 触发词：威胁情报、VirusTotal、Any.run、沙箱查询、MISP、样本关联,威胁情报、VirusTotal、Any.run、沙箱查询、MISP、样本关联
+re-tls,atomic,137,0,0,> TLS/加密流量深度：指纹、密钥导出、TLS 1.3。 触发词：TLS、SSL、ClientHello、指纹、SSLKEYLOG、证书分析,TLS、SSL、ClientHello、指纹、SSLKEYLOG、证书分析
+re-tracing,atomic,118,2,158,> 系统调用/函数调用跟踪：strace/ltrace/dtruss。 触发词：strace、跟踪系统调用、ltrace、API监控,strace、跟踪系统调用、ltrace、API监控
+re-triage,atomic,145,0,0,> 文件初步勘察：file/哈希(sha256/md5)/熵/strings/架构识别。 触发词：先看看这文件、triage、初勘、这是什么文件、hash,先看看这文件、triage、初勘、这是什么文件、hash
+re-uefi,atomic,174,1,129,> UEFI/BIOS 固件：SEC/PEI/DXE/BDS 阶段判定、DXE 驱动、UEFI 模块、bootkit。 触发词：UEFI、BIOS、DXE、PEI、SEC、PEIM、HOB、bootkit、Secure Boot、EFI 固件、runtime driver,UEFI、BIOS、DXE、PEI、SEC、PEIM、HOB、bootkit、Secure Boot、EFI 固件、runtime driver
+re-unpack-advanced,atomic,105,0,0,强壳脱壳：VMProtect/Themida。触发词：VMProtect、Themida、强壳、虚拟化壳、手动脱壳,VMProtect、Themida、强壳、虚拟化壳、手动脱壳
+re-unpack-simple,atomic,106,0,0,压缩壳脱壳：UPX/ASPack/FSG。触发词：脱壳、unpack、UPX、esp定律、OEP,脱壳、unpack、UPX、esp定律、OEP
+re-variant,atomic,120,2,118,> 二进制变体/补丁对比：函数匹配、N-day 补丁 diff、变体溯源与相似度分析。 触发词：二进制对比、补丁对比、N-day、变体分析、BinDiff、函数匹配、样本相似。,二进制对比、补丁对比、N-day、变体分析、BinDiff、函数匹配、样本相似。
+re-vuln,gateway,70,0,0,> 漏洞挖掘网关。编排：目标与输入面识别 → 覆盖率引导 fuzzing → 崩溃分析 → 逆向定位 → 报告。,
+re-wasm,atomic,123,0,0,WASM 逆向：格式解析、wasm2wat、浏览器侧。触发词：WASM、wasm、WebAssembly、wat,WASM、wasm、WebAssembly、wat
+re-whitebox,atomic,113,0,0,> 白盒加密分析：白盒实现识别、密钥提取。 触发词：白盒、whitebox、白盒加密、密钥隐藏,白盒、whitebox、白盒加密、密钥隐藏
+re-windbg,atomic,121,2,169,> WinDbg 调试（Windows 用户态+内核）。触发词：WinDbg、windbg、内核调试、kd、!analyze,WinDbg、windbg、内核调试、kd、!analyze
+re-x64dbg,atomic,122,2,145,> x64dbg 调试（Windows）：attach、断点、Scylla。 触发词：x64dbg、Windows调试、Scylla,x64dbg、Windows调试、Scylla
+re-z3,atomic,104,0,0,Z3 约束求解：建模、密钥/flag 推导。触发词：z3、约束求解、solver、SMT,z3、约束求解、solver、SMT
+re-zig,atomic,123,2,198,> Zig 编译产物逆向：产物识别、comptime 展开、panic/错误处理路径、C ABI 边界。 触发词：Zig逆向、zig、comptime、zig 产物、panic。,Zig逆向、zig、comptime、zig 产物、panic。

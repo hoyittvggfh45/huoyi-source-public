@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>你好示例</title>
+<style>
+body { font-family: system-ui, sans-serif; padding: 24px; }
+li { margin: 8px 0; }
+.ok { color: green; }
+.bad { color: red; }
+</style>
+</head>
+<body>
+<h1>你好示例</h1>
+<p>演示迷你应用桥：存储、事件与网络 allowlist。</p>
+<ul id="results"></ul>
+<script>
+function line(text, ok) {
+  var li = document.createElement('li');
+  li.textContent = text;
+  li.className = ok ? 'ok' : 'bad';
+  document.getElementById('results').appendChild(li);
+}
+function ready() {
+  var bridge = window.jhminiapp;
+  bridge.on('ready', function (data) {
+    line('事件 ready 收到：' + JSON.stringify(data), true);
+  });
+  bridge.invoke('storage.set', { key: 'hello', value: 'world' }).then(function () {
+    return bridge.invoke('storage.get', { key: 'hello' });
+  }).then(function (value) {
+    line('存储往返：' + value, value === 'world');
+  }).catch(function (e) {
+    line('存储失败：' + e.message, false);
+  });
+  bridge.invoke('network.text', { url: 'https://example.com/' }).then(function () {
+    line('网络请求意外放行', false);
+  }).catch(function (e) {
+    line('网络请求被 allowlist 拒绝：' + e.message, true);
+  });
+}
+(function waitBridge(tries) {
+  if (window.jhminiapp) { ready(); return; }
+  if (tries <= 0) { line('桥未就绪', false); return; }
+  setTimeout(function () { waitBridge(tries - 1); }, 100);
+})(50);
+</script>
+</body>
+</html>

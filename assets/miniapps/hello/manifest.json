@@ -1,0 +1,1 @@
+{"description":"迷你应用桥演示","entry":"index.html","id":"hello","name":"你好示例","networkAllowlist":["example.org"],"permissions":["storage","network"],"renderer":"webview","version":"1.0.0","versionCode":1}

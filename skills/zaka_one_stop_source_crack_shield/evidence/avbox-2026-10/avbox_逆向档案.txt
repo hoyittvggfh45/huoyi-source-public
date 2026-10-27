@@ -1,0 +1,205 @@
+============================================================
+AvBox 聚合壳 App —— 逆向档案
+样本: 1792104062_鏆螔.apk (34.7 MB)
+整理时间: 2026-10-17
+============================================================
+
+【一句话结论】
+这个 App 本身没有源。它是个壳:全部内容都在它自己的一台私有网关后面,
+网关前面挂两道锁 —— 请求签名 + 响应体加密。签名逻辑被编译进 Dart 原生
+机器码里,不在 dex 里,也不在明文配置里。所以"扒它的接口做成 TVBox 插件"
+这条路,不把 Dart 快照反汇编掉是走不通的。
+
+
+------------------------------------------------------------
+一、包体结构
+------------------------------------------------------------
+打包方式      Flutter (Dart AOT)
+lib/arm64-v8a/libapp.so      11.1 MB    ← 全部业务逻辑在这
+lib/arm64-v8a/libflutter.so  11.6 MB
+lib/arm64-v8a/libijk*.so     ~6 MB      ← ijkplayer 播放内核
+java 层                      基本空壳,常规 dex 反编译拿不到业务代码
+
+判断依据:
+  libapp.so 里有 _kDartVmSnapshotInstructions / _kDartIsolateSnapshotData
+  以及 package:avbox/... 的 Dart 源文件路径 —— 典型的 Flutter release 包。
+
+
+------------------------------------------------------------
+二、业务模块(32 个,全部有独立 network/interceptor.dart)
+------------------------------------------------------------
+4hu     51cg    91av    91pron  aijav   akmh    cgw     djr
+hdb     hgsp    hhlz    hjsq    hsck    hxsp    insav   javdb
+jmtt    km      kpsp    lclf    live    lxs     mdtv    missav
+mmav    mmmh    mw      one     qysq    rryy    txvlog  zlt
+
+(另有一批模块名只在 Dart 源文件路径里出现、没有对应 HTTP 路由,
+ 比如 av91 / box / cg51 / fl2 / hu4 / pron91 / sp91 —— 它们是内嵌子页,
+ 不算独立站点。)
+
+每个模块的目录结构固定:
+  module/<站名>/network/interceptor.dart   ← 签名/请求拦截在这一层
+  module/<站名>/network/service.dart       ← 接口定义
+  module/<站名>/bean/                      ← 数据结构
+  module/<站名>/page/                      ← 页面
+  module/<站名>/router/                    ← 路由
+
+注意: 每个模块各自实现一份拦截器,意味着签名逻辑是复制粘贴到各模块的
+(而非集中一处)—— 对逆向是好消息,破开一处基本等于全破。
+
+
+------------------------------------------------------------
+三、HTTP 接口形态
+------------------------------------------------------------
+统一前缀:  /module/{站名}/{动作}
+
+动作全集(实测字符串里存在的)及其分布:
+  search   25 站      player   18 站      video    13 站
+  detail    6 站      read      5 站      actor     5 站
+  profile   3 站      gallery   2 站      classify  2 站
+  label     2 站      novel / seg / zone / creator / room / room1 /
+  room2 / topic / node / image / city / onlook  各 1 站
+
+可用的完整路由共 93 条,完整列表见同目录 routes.json。
+
+几个典型:
+  GET /module/javdb/search?wd=xxx
+  GET /module/missav/video?id=xxx
+  GET /module/4hu/player?id=xxx
+  GET /module/51cg/search?wd=xxx
+  GET /module/91av/actor?id=xxx
+
+
+------------------------------------------------------------
+四、网关(重点)
+------------------------------------------------------------
+后端是两套,不是一套:
+
+A) 域名池 —— HTTPS,14 台,轮换
+   api.3459381.com      api.61c76a0.com     api.6b18726.com
+   api.7d87e17.com      api.87735d5.com     api.b3d530f.com
+   api.b7f3192.com      api.c6dd5cc.com     api.c9wgdr.com
+   api.em1oifd0.com     api.0yhxyky2v099lb9.com
+   api.he0jys.com       api.j7y675.com      api-al.yuytyr.online
+
+B) IP 节点组 —— HTTP,固定 6868 端口,10 台
+   122.10.20.249:6868   38.46.10.2:6868     38.46.10.3:6868
+   38.46.10.4:6868      38.46.10.5:6868     38.46.10.6:6868
+   198.44.248.101:6868  198.44.248.102:6868
+   202.95.22.200:6868   202.95.22.201:6868  202.95.22.202:6868
+   202.95.22.203:6868   202.95.22.204:6868
+
+另外 172.247.132.138 是一台 Spring 骨架接口机,没有 /module 路由(返回标准 404)。
+
+实测行为(2026-10-17):
+  B 组全部节点 → HTTP 200 + {"code":400,"msg":"违规请求","data":null}
+                 不管带不带凭证、带不带签名、换不换 UA、连根路径 "/" 也一样
+  A 组多数    → HTTP 500 {"code":500,"message":"系统繁忙，请稍后重试"}
+  api.c9wgdr.com → 落到 nginx 默认页,任何路径都回 code:106 页面未找到
+
+结论: 网关对未通过签名校验的请求一律返回同一条固定报文,
+      不给任何区分度 —— 也就是说没法靠"试错看反馈"把签名猜出来。
+      这条路必须拿到算法本身。
+
+
+------------------------------------------------------------
+五、签名机制(已定位到形态,未解出算法)
+------------------------------------------------------------
+App 里硬编码的凭证:
+  368480924a6c78e2e8681551a7cf4c21
+
+请求参数形态(注意前缀的 & ,说明是往已有 query 后面追加):
+
+  &X-Auth-Key=368480924a6c78e2e8681551a7cf4c21
+  &X-Auth-TimeStamp=<秒级时间戳>
+  &X-Auth-Nonce=<随机串,源码里有 nonce 长度限制 7~13 的说法>
+
+  X-Auth-Sign                       ← 注意这一条没有 & 前缀,是请求头,不是 query
+  &sign=<摘要>
+  ;sign=<摘要>                     ← 两种连接符都存在,说明不同模块写法不同
+
+所以完整请求大致是:
+  GET /module/{站}/{动作}?<业务参数>&X-Auth-Key=..&X-Auth-TimeStamp=..&X-Auth-Nonce=..
+  Headers: X-Auth-Sign: <摘要>
+
+签名函数(在 Dart 快照里的符号名):
+  _generateSign@1304267197      ← 就是它
+  _nonce@1685101045
+  encode_sign
+  _Sha1@675075817
+
+相关源文件:
+  package:avbox/util/crypto_util.dart
+  package:avbox/util/str_util.dart
+  package:avbox/util/url_util.dart
+  package:avbox/module/<站名>/network/interceptor.dart
+
+已排除的方向(都试过,全部被拒):
+  md5 / sha1 / sha256 对 key、nonce、ts、path、完整 query 的各种拼接与排列
+  hmac-md5 / hmac-sha1 / hmac-sha256
+  摘要大小写两种形态
+  key 放 query、放 header、放签名输入三种位置
+  合计约 460 种组合 —— 全返回"违规请求"
+
+
+------------------------------------------------------------
+六、响应体加密(第二道锁)
+------------------------------------------------------------
+返回体结构:
+  {"code":..,"msg":"..","data":"<base64 密文>","cimg":"1","capi":"1"}
+
+  capi:1  = 接口数据加密已开启
+  cimg:1  = 图片加密已开启(图片另有一套,代码在 images/decrypt_image_byte.dart)
+
+实测样例(data 为空时也返回密文):
+  data = "CcGeG9jKs8g9j9K2BlvPBg=="     → 16 字节,正好一个 AES 分组
+
+已试密钥(全部解不出可读明文):
+  key 的 utf8 前 16 / 32 字节、key 的 hex 原始字节、md5(key) 的 utf8 与 raw 摘要
+模式: AES-128/256 的 ECB、CBC(IV=全零)、CBC(IV=key 前 16 字节)
+
+说明: 16 字节密文 + 无 padding 可读 → 密钥不是从 X-Auth-Key 直接派生的,
+      多半另有独立常量,埋在代码里。
+
+
+------------------------------------------------------------
+七、接下来要真的往下走,只有一条路
+------------------------------------------------------------
+做 Flutter AOT 反汇编,定位 _generateSign 的函数体,把它翻译成 Python。
+
+工具: blutter(开源 Flutter 逆向工具)
+命令: python3 blutter.py <解包目录>/lib/arm64-v8a <输出目录>
+
+前提: 它会下载对应版本的 Dart SDK 源码并**本地编译 Dart VM 的反汇编组件**,
+      这一步的峰值内存需求在 2 GB 以上,而且是多核并行编译。
+
+本次没做成的原因就是这个 —— 这台机器的可用内存不够跑那步编译,
+任务直接被打成内存超限(所以那一次扣 0 分)。
+
+要自己啃的话,找台 8 GB 内存以上的机器跑 blutter,
+拿到 asm 之后搜 _generateSign,函数体一般 20~40 行,
+里面能直接看到拼接顺序和用的摘要算法。
+
+破开之后能拿到的东西: 32 个站、93 条接口、一次通吃。
+在那之前,这套接口对任何外部脚本都是封死的。
+
+
+------------------------------------------------------------
+八、和 TVBox 的关系
+------------------------------------------------------------
+TvBox 要的是能直接出播放地址的接口。这个 App:
+  * 播放地址靠 /module/{站}/player 现取(同样在网关后面)
+  * 唯一在包里明文的真实源站只有两家: missav.ws、javdb.com
+  * missav.ws 现在 403(Cloudflare),missav.com 已退化成跳转页,
+    missav.tv 走一段 JS 挑战后拿到的是广告壳 —— 三家都不给内容
+  * javdb 可访问,但它是元数据站,只给磁力链和外链,不给 m3u8,
+    TVBox 播不了磁力
+
+所以即使绕开网关,也没有能直接接进 TVBox 的现成源。
+
+============================================================
+附:同目录文件
+  routes.json    93 条 HTTP 路由完整列表
+  mods.json      32 个模块名
+  avbox_probe.py 网关探测器(见脚本内注释)
+============================================================
