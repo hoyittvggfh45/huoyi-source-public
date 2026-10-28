@@ -63,8 +63,8 @@ func TestLegadoCheck(t *testing.T) {
 		t.Fatalf("js source should be unsupported js, got %+v", got)
 	}
 	jsonRule := LegadoSource{BookList: "$.data[*]"}
-	if got := legadoCheck(jsonRule); got.Supported || len(got.UnsupportedFields) != 1 || got.UnsupportedFields[0].Reason != "jsonpath" {
-		t.Fatalf("json source should be unsupported jsonpath, got %+v", got)
+	if got := legadoCheck(jsonRule); !got.Supported || len(got.UnsupportedFields) != 0 {
+		t.Fatalf("json lite source should be supported, got %+v", got)
 	}
 	nth := LegadoSource{BookList: "div:nth-child(2)"}
 	if got := legadoCheck(nth); got.Supported || len(got.UnsupportedFields) != 1 || got.UnsupportedFields[0].Reason != "nth" {

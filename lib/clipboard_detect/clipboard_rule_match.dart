@@ -27,7 +27,12 @@ ClipboardRuleMatch? matchClipboardRule(String? text) {
     if (parts.length >= 3) {
       final identifier = parts[1].trim();
       if (_passwordIdentifiers.contains(identifier)) {
-        final payload = parts.sublist(2).join('￥').trim();
+        final payload = parts
+            .sublist(2)
+            .join('￥')
+            .trim()
+            .replaceAll(RegExp(r'￥+$'), '')
+            .trim();
         switch (identifier) {
           case 'home_rule':
             return ClipboardRuleMatch(
@@ -49,6 +54,23 @@ ClipboardRuleMatch? matchClipboardRule(String? text) {
             );
         }
       }
+      for (final candidate in [
+        parts.sublist(2).join('￥'),
+        parts.sublist(1).join('￥'),
+      ]) {
+        final cleaned = candidate.replaceAll(RegExp(r'￥+$'), '').trim();
+        if (cleaned.isEmpty) continue;
+        try {
+          if (parseHikerMiniappRules(cleaned).isNotEmpty) {
+            return ClipboardRuleMatch(
+              kind: ClipboardMatchKind.hikerRuleText,
+              payload: cleaned,
+            );
+          }
+        } catch (_) {
+          continue;
+        }
+      }
     }
   }
   if (isCloudCodeShape(trimmed)) {
@@ -57,12 +79,16 @@ ClipboardRuleMatch? matchClipboardRule(String? text) {
       payload: trimmed,
     );
   }
-  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+  final bareJson = trimmed
+      .replaceAll(RegExp(r'^￥+'), '')
+      .replaceAll(RegExp(r'￥+$'), '')
+      .trim();
+  if (bareJson.startsWith('{') || bareJson.startsWith('[')) {
     try {
-      if (parseHikerMiniappRules(trimmed).isNotEmpty) {
+      if (parseHikerMiniappRules(bareJson).isNotEmpty) {
         return ClipboardRuleMatch(
           kind: ClipboardMatchKind.hikerRuleText,
-          payload: trimmed,
+          payload: bareJson,
         );
       }
     } catch (_) {

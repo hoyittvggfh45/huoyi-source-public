@@ -16,6 +16,8 @@ import 'download_picker.dart';
 import 'downloads_screen.dart';
 import 'local_store.dart';
 import 'models.dart';
+import 'parse_settings_screen.dart';
+import 'playback_parse.dart';
 import 'playback_queue.dart';
 import 'player_picker.dart';
 import 'remote_widgets.dart';
@@ -24,7 +26,6 @@ import 'sources_screen.dart';
 import 'episode_browser.dart';
 import 'follow_state.dart';
 import 'immersive_detail_view.dart';
-import 'ui_style.dart';
 import 'xigua/cross_source_search.dart';
 import 'watchroom/controller.dart';
 import 'watchroom/models.dart';
@@ -258,7 +259,11 @@ class _DetailScreenState extends State<DetailScreen> {
     }
   }
 
-  Future<void> _play(int index, {bool resume = false}) async {
+  Future<void> _play(
+    int index, {
+    bool resume = false,
+    bool fullscreen = false,
+  }) async {
     final detail = _detail;
     if (detail == null ||
         index < 0 ||
@@ -297,10 +302,92 @@ class _DetailScreenState extends State<DetailScreen> {
       repository: widget.repository,
       store: widget.store,
       queue: widget.queue,
+      startFullscreen: fullscreen,
     );
     if (mounted) {
       setState(() {});
     }
+  }
+
+  Future<void> _playFullscreen(int index) =>
+      _play(index, resume: true, fullscreen: true);
+
+  Future<void> _openParsePanel(int index) async {
+    final apis = await ParseInterfaceStore.loadEnabled();
+    if (!mounted) return;
+    if (apis.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('暂无可用解析接口'),
+          action: SnackBarAction(
+            label: '去添加',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const ParseSettingsScreen()),
+              );
+            },
+          ),
+        ),
+      );
+      return;
+    }
+    final selectedId = await ParseInterfaceStore.loadSelectedId();
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Text(
+                '解析线路',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+            ),
+            for (final api in apis)
+              ListTile(
+                title: Text(api.name),
+                trailing: api.id == selectedId
+                    ? const Icon(Icons.check_rounded)
+                    : null,
+                onTap: () async {
+                  Navigator.of(sheetContext).pop();
+                  await ParseInterfaceStore.saveSelectedId(api.id);
+                  if (!mounted) return;
+                  await _play(index, resume: true);
+                },
+              ),
+            ListTile(
+              title: const Text('不使用解析'),
+              trailing: selectedId.isEmpty
+                  ? const Icon(Icons.check_rounded)
+                  : null,
+              onTap: () async {
+                Navigator.of(sheetContext).pop();
+                await ParseInterfaceStore.saveSelectedId('');
+                if (!mounted) return;
+                await _play(index, resume: true);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.settings_outlined),
+              title: const Text('管理解析接口'),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const ParseSettingsScreen(),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _pushToWatchRoom() async {
@@ -516,8 +603,9 @@ class _DetailScreenState extends State<DetailScreen> {
     Drama drama,
     List<Episode> episodes,
     WatchEntry? watched,
-    int resumeIndex,
-  ) {
+    int resumeIndex, {
+    VoidCallback? onPushToWatchRoom,
+  }) {
     final backdrop = _immersiveBackdrop(drama);
     if (_loading || _error != null || episodes.isEmpty) {
       return Scaffold(
@@ -531,6 +619,7 @@ class _DetailScreenState extends State<DetailScreen> {
                   ImmersiveTopBar(
                     title: drama.title,
                     onBack: () => Navigator.of(context).maybePop(),
+                    onPushToWatchRoom: onPushToWatchRoom,
                   ),
                   Expanded(child: _episodeStatus()),
                 ],
@@ -593,11 +682,12 @@ class _DetailScreenState extends State<DetailScreen> {
           repository: widget.repository,
           store: widget.store,
         ),
-        onParse: () => _play(resumeIndex, resume: true),
-        onFullscreen: () => _play(resumeIndex, resume: true),
+        onParse: () => _openParsePanel(resumeIndex),
+        onFullscreen: () => _playFullscreen(resumeIndex),
         onLocateEpisode: _locateImmersiveEpisode,
         onToggleDescription: () =>
             setState(() => _expandedDescription = !_expandedDescription),
+        onPushToWatchRoom: onPushToWatchRoom,
       ),
     );
   }
@@ -620,7 +710,7 @@ class _DetailScreenState extends State<DetailScreen> {
               padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
               child: Text(
                 '视频来源',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
               ),
             ),
             for (final peer in drama.peers)
@@ -669,7 +759,6 @@ class _DetailScreenState extends State<DetailScreen> {
         widget.store.allowsSource(drama.source);
     final useImmersive =
         widget.applyVodStyle &&
-        vodDetailStyleNotifier.value == VodDetailStyle.immersive &&
         allowed &&
         !television &&
         MediaQuery.sizeOf(context).width < 960;
@@ -681,7 +770,15 @@ class _DetailScreenState extends State<DetailScreen> {
           const SingleActivator(LogicalKeyboardKey.goBack): () =>
               Navigator.of(context).maybePop(),
         },
-        child: _immersiveScaffold(drama, episodes, watched, resumeIndex),
+        child: _immersiveScaffold(
+          drama,
+          episodes,
+          watched,
+          resumeIndex,
+          onPushToWatchRoom: allowed
+              ? () => unawaited(_pushToWatchRoom())
+              : null,
+        ),
       );
     }
     return CallbackShortcuts(
@@ -1080,7 +1177,7 @@ class _DetailScreenState extends State<DetailScreen> {
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 19,
+                              fontSize: 12,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -1426,7 +1523,7 @@ class _DetailScreenState extends State<DetailScreen> {
                 if (drama.heat.isNotEmpty) '热度 ${drama.heat}',
                 if (drama.views.isNotEmpty) '播放 ${drama.views}',
               ].join(' · '),
-              style: TextStyle(color: colors.onSurfaceVariant, fontSize: 11.5),
+              style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
             ),
           ),
         if (_effectiveTags(drama).isNotEmpty)

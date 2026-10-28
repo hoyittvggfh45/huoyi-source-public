@@ -2,6 +2,8 @@ import 'dart:math';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../relay_cf/cf_relay_constants.dart';
+
 class RelaySettings {
   RelaySettings(this.preferences);
 
@@ -12,7 +14,12 @@ class RelaySettings {
 
   final SharedPreferences preferences;
 
-  String get url => preferences.getString(_urlKey) ?? '';
+  String get storedUrl => preferences.getString(_urlKey) ?? '';
+
+  String get url {
+    final stored = storedUrl;
+    return stored.isNotEmpty ? stored : cfRelayWsUrl;
+  }
 
   String get selfId => preferences.getString(_selfIdKey) ?? '';
 

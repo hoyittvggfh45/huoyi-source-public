@@ -99,7 +99,7 @@ void main() {
 
       await tester.tap(find.text('分类B'));
       await tester.pumpAndSettle();
-      expect(calls.last, ['list', '/b/1']);
+      expect(calls.last, ['list', 'https://example.invalid/b/1']);
 
       await tester.tap(find.byIcon(Icons.search_rounded));
       await tester.pump();

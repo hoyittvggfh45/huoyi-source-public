@@ -7,11 +7,13 @@ import '../core_bridge.dart';
 import '../local_store.dart';
 import '../models.dart';
 import '../relay/relay_settings.dart';
+import '../relay_cf/cf_relay_constants.dart';
 import '../tvbox_player_bridge.dart';
 import 'controller.dart';
 import 'models.dart';
 import 'player.dart';
 import 'room_fullscreen_page.dart';
+import '../playback_foreground.dart';
 
 class WatchRoomScreen extends StatefulWidget {
   const WatchRoomScreen({
@@ -27,7 +29,8 @@ class WatchRoomScreen extends StatefulWidget {
   State<WatchRoomScreen> createState() => _WatchRoomScreenState();
 }
 
-class _WatchRoomScreenState extends State<WatchRoomScreen> {
+class _WatchRoomScreenState extends State<WatchRoomScreen>
+    with WidgetsBindingObserver {
   final WatchRoomController _room = WatchRoomController.instance;
   final RoomPlayerHandle _player = RoomPlayerHandle();
   final TextEditingController _chatText = TextEditingController();
@@ -42,6 +45,7 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> {
   double _dragValue = 0;
   bool _autoFollow = false;
   bool _lastBroadcastPlaying = false;
+  bool _playbackServiceHeld = false;
   Timer? _syncTimer;
 
   @override
@@ -50,6 +54,7 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> {
     _autoFollow = RelaySettings(widget.store.preferences).autoFollow;
     _room.addListener(_onRoomChanged);
     _player.addListener(_onPlayerChanged);
+    WidgetsBinding.instance.addObserver(this);
     _player.onCompleted = _onCompleted;
     _syncTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       if (_room.isHost && _player.hasVideo && _player.playing) {
@@ -66,10 +71,35 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> {
     _syncTimer?.cancel();
     _room.removeListener(_onRoomChanged);
     _player.removeListener(_onPlayerChanged);
+    WidgetsBinding.instance.removeObserver(this);
+    if (_playbackServiceHeld) {
+      _playbackServiceHeld = false;
+      unawaited(PlaybackForeground.release());
+    }
     _player.dispose();
     _chatText.dispose();
     _roomNumber.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      if (!_playbackServiceHeld &&
+          shouldAcquirePlaybackService(
+            playing: _player.playing,
+            useTvbox: _player.useTvbox,
+          )) {
+        _playbackServiceHeld = true;
+        unawaited(PlaybackForeground.acquire('一起看 · ${_room.roomId}'));
+      }
+    } else if (state == AppLifecycleState.resumed) {
+      if (_playbackServiceHeld) {
+        _playbackServiceHeld = false;
+        unawaited(PlaybackForeground.release());
+      }
+    }
   }
 
   void _onRoomChanged() {
@@ -271,6 +301,23 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> {
     }
   }
 
+  Future<void> _joinPublicRoom() async {
+    setState(() {
+      _busy = true;
+      _entryError = null;
+    });
+    try {
+      await _room.joinPublicRoom(preferences: widget.store.preferences);
+      if (mounted) setState(() {});
+    } catch (error) {
+      if (mounted) {
+        setState(() => _entryError = error.toString());
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _leaveRoom() async {
     await _player.close();
     await _room.leaveRoom();
@@ -345,6 +392,12 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> {
           icon: const Icon(Icons.login_rounded),
           label: const Text('加入房间'),
         ),
+        const SizedBox(height: 12),
+        FilledButton.icon(
+          onPressed: _busy ? null : () => unawaited(_joinPublicRoom()),
+          icon: const Icon(Icons.group_rounded),
+          label: const Text('进入公用房间（$cfPublicRoomId）'),
+        ),
         if (_entryError != null) ...[
           const SizedBox(height: 12),
           Text(
@@ -360,7 +413,7 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> {
           ),
         ],
         const SizedBox(height: 12),
-        const Text('进房需要中转地址：先在设备互联互联网模式里填好中转地址。'),
+        const Text('公用房间无密码，知道号码即可进；新建与加入房间走内置中转，无需另填地址。'),
       ],
     );
   }

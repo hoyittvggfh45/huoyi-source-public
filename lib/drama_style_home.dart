@@ -22,6 +22,14 @@ List<({String title, List<Drama> items})> groupDramaSections(
   return sections;
 }
 
+String? theaterMetaLine(Drama drama) {
+  if (drama.heat.isNotEmpty) return drama.heat;
+  if (drama.views.isNotEmpty) return drama.views;
+  return null;
+}
+
+String theaterTagLine(Drama drama) => drama.tags.join(' · ');
+
 class DramaStyleHome extends StatelessWidget {
   const DramaStyleHome({
     super.key,
@@ -39,9 +47,13 @@ class DramaStyleHome extends StatelessWidget {
     required this.searchHint,
     required this.onSearchChanged,
     required this.onSearchSubmitted,
-    required this.onSectionSelected,
     required this.onMenuPressed,
     required this.onAccountPressed,
+    required this.onFilterPressed,
+    required this.onRankingsPressed,
+    required this.onNewPressed,
+    required this.filtersActive,
+    required this.newActive,
     this.onSettingsPressed,
     this.badgeOf,
   });
@@ -60,59 +72,42 @@ class DramaStyleHome extends StatelessWidget {
   final String searchHint;
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<String> onSearchSubmitted;
-  final ValueChanged<String> onSectionSelected;
   final VoidCallback onMenuPressed;
   final VoidCallback onAccountPressed;
+  final VoidCallback onFilterPressed;
+  final VoidCallback onRankingsPressed;
+  final VoidCallback onNewPressed;
+  final bool filtersActive;
+  final bool newActive;
   final VoidCallback? onSettingsPressed;
   final String? Function(Drama)? badgeOf;
 
-  String _tagText(Drama drama) {
-    final badge = badgeOf?.call(drama);
-    if (badge != null && badge.isNotEmpty) return badge;
-    if (drama.category.isNotEmpty) return drama.category;
-    if (drama.tags.isNotEmpty) return drama.tags.first;
-    return '';
-  }
-
-  Widget _sectionCard(Drama drama) {
-    return GestureDetector(
-      onTap: () => onOpenDrama(drama),
-      child: SizedBox(
-        width: 120,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              height: 160,
-              child: DramaCover(drama: drama, repository: repository),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              drama.title,
-              style: const TextStyle(fontSize: 13),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 2),
-            Text(
-              _tagText(drama),
-              style: const TextStyle(fontSize: 11.5),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
-      ),
+  Widget _filterChip(
+    BuildContext context, {
+    required String label,
+    required bool selected,
+    required VoidCallback onSelected,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    return ChoiceChip(
+      label: Text(label),
+      labelStyle: TextStyle(fontSize: 12, color: colors.onSurface),
+      selected: selected,
+      selectedColor: const Color(0xFFC8E6C9),
+      backgroundColor: colors.surfaceContainerHighest,
+      onSelected: (_) => onSelected(),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final sections = groupDramaSections(dramas, '全部');
+    final videos = dramas.where((drama) => drama.kind == 'video').toList();
+    final hasTags = videos.any((drama) => drama.tags.isNotEmpty);
     return LayoutBuilder(
       builder: (context, constraints) {
         final padding = constraints.maxWidth < 600 ? 16.0 : 24.0;
+        final tileWidth = (constraints.maxWidth - padding * 2 - 12) / 2;
         return CustomScrollView(
           slivers: [
             SliverToBoxAdapter(
@@ -219,14 +214,49 @@ class DramaStyleHome extends StatelessWidget {
                       final selected = category.id == selectedCategory;
                       return ChoiceChip(
                         label: Text(category.name),
+                        labelStyle: TextStyle(
+                          fontSize: 12,
+                          color: colors.onSurface,
+                        ),
                         selected: selected,
+                        selectedColor: const Color(0xFFC8E6C9),
+                        backgroundColor: colors.surfaceContainerHighest,
                         onSelected: (_) => onCategorySelected(category.id),
                       );
                     },
                   ),
                 ),
               ),
-            if (sections.isEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(padding, 8, padding, 4),
+                child: Row(
+                  children: [
+                    _filterChip(
+                      context,
+                      label: '筛选',
+                      selected: filtersActive,
+                      onSelected: onFilterPressed,
+                    ),
+                    const SizedBox(width: 8),
+                    _filterChip(
+                      context,
+                      label: '排行榜',
+                      selected: false,
+                      onSelected: onRankingsPressed,
+                    ),
+                    const SizedBox(width: 8),
+                    _filterChip(
+                      context,
+                      label: '新剧',
+                      selected: newActive,
+                      onSelected: onNewPressed,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (videos.isEmpty)
               const SliverToBoxAdapter(
                 child: StatusPanel(
                   title: '暂无可播短剧',
@@ -234,46 +264,30 @@ class DramaStyleHome extends StatelessWidget {
                 ),
               )
             else
-              for (final section in sections) ...[
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(padding, 20, padding, 8),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            section.title,
-                            style: const TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w800,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        IconButton(
-                          tooltip: '查看${section.title}',
-                          icon: const Icon(Icons.chevron_right_rounded),
-                          onPressed: () => onSectionSelected(section.title),
-                        ),
-                      ],
-                    ),
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(padding, 12, padding, 16),
+                sliver: SliverGrid(
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 16,
+                    mainAxisExtent: hasTags
+                        ? DramaTile.theaterExtentFor(context, tileWidth)
+                        : DramaTile.extentFor(context, tileWidth),
                   ),
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final drama = videos[index];
+                    return DramaTile(
+                      drama: drama,
+                      repository: repository,
+                      onTap: () => onOpenDrama(drama),
+                      subtitle: theaterMetaLine(drama),
+                      topBadge: badgeOf?.call(drama),
+                      tagText: theaterTagLine(drama),
+                    );
+                  }, childCount: videos.length),
                 ),
-                SliverToBoxAdapter(
-                  child: SizedBox(
-                    height: 226,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      padding: EdgeInsets.symmetric(horizontal: padding),
-                      itemCount: section.items.length,
-                      separatorBuilder: (_, _) => const SizedBox(width: 12),
-                      itemBuilder: (context, index) =>
-                          _sectionCard(section.items[index]),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             const SliverToBoxAdapter(child: SizedBox(height: 16)),
           ],
         );

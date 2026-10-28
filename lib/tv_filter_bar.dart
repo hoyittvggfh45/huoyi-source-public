@@ -44,7 +44,7 @@ class TvFilterBar extends StatelessWidget {
                     child: Text(
                       groups[i].name,
                       style: TextStyle(
-                        fontSize: 15,
+                        fontSize: 12,
                         fontWeight: FontWeight.w600,
                         color: scheme.onSurfaceVariant,
                       ),

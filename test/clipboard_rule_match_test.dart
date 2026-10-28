@@ -38,6 +38,35 @@ void main() {
     expect(matchClipboardRule('分享￥home_rule_v2￥no-at-sign'), isNull);
   });
 
+  test('trailing yen sign is stripped from v1 and v2 payloads', () {
+    final v1 = matchClipboardRule('分享￥home_rule￥${_ruleJson()}￥');
+    expect(v1, isNotNull);
+    expect(v1!.payload, _ruleJson());
+    final encoded = base64Encode(utf8.encode(_ruleJson(title: 'V2规则')));
+    final v2 = matchClipboardRule('分享￥home_rule_v2￥base64://@某规则@$encoded￥');
+    expect(v2, isNotNull);
+    expect(v2!.payload, _ruleJson(title: 'V2规则'));
+  });
+
+  test('unknown identifier with json payload still matches', () {
+    final match = matchClipboardRule('分享￥home_bookmark￥${_ruleJson()}');
+    expect(match, isNotNull);
+    expect(match!.kind, ClipboardMatchKind.hikerRuleText);
+    expect(match.payload, _ruleJson());
+  });
+
+  test('bare yen wrapped json matches', () {
+    final wrapped = matchClipboardRule('￥${_ruleJson()}￥');
+    expect(wrapped, isNotNull);
+    expect(wrapped!.payload, _ruleJson());
+    final trailing = matchClipboardRule('${_ruleJson()}￥');
+    expect(trailing, isNotNull);
+    expect(trailing!.payload, _ruleJson());
+    final leading = matchClipboardRule('￥${_ruleJson()}');
+    expect(leading, isNotNull);
+    expect(leading!.payload, _ruleJson());
+  });
+
   test('home_rule_url and home_sub match remote rule', () {
     final urlMatch = matchClipboardRule(
       '分享￥home_rule_url￥https://example.invalid/rules.json',

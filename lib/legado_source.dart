@@ -2,6 +2,9 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'legado_builtin_data.dart';
+import 'legado_gbk.dart';
+
 class LegadoSource {
   const LegadoSource({
     required this.name,
@@ -125,8 +128,59 @@ List<LegadoSource> parseLegadoSources(String text) {
   return parseLegadoSourcesReport(text).sources;
 }
 
+String decodeLegadoImportBytes(List<int> bytes) {
+  try {
+    return utf8.decode(bytes);
+  } on FormatException {
+    return decodeGbkBytes(bytes);
+  }
+}
+
+String legadoCheckReasonText(Map<String, dynamic> check) {
+  if (check['supported'] != false) return '';
+  final fields = check['unsupportedFields'];
+  if (fields is! List) return '';
+  const fieldNames = {
+    'bookList': '搜索列表',
+    'name': '书名',
+    'author': '作者',
+    'coverUrl': '封面',
+    'bookUrl': '书籍链接',
+    'intro': '简介',
+  };
+  const reasonNames = {
+    'xpath': 'XPath',
+    'js': 'JS',
+    'jsonpath': '高级 JSONPath',
+    'nth': ':nth 选择器',
+    'child': ':first-child/:last-child',
+  };
+  final parts = <String>[];
+  for (final item in fields) {
+    if (item is! Map<String, dynamic>) continue;
+    final field = (item['field'] ?? '').toString();
+    final reason = (item['reason'] ?? '').toString();
+    final fieldName = fieldNames[field] ?? field;
+    final reasonName = reasonNames[reason] ?? reason;
+    if (fieldName.isEmpty && reasonName.isEmpty) continue;
+    parts.add('$fieldName（$reasonName）');
+  }
+  return parts.join('、');
+}
+
 class LegadoStore {
   static const _key = 'legado_sources_v1';
+  static const _seededKey = 'legado_builtin_seeded_v1';
+
+  static Future<int> seedBuiltin() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(_seededKey) == true) return 0;
+    final before = await load();
+    final parsed = parseLegadoSources(builtinLegadoComicRulesJson);
+    final merged = await addAll(parsed);
+    await prefs.setBool(_seededKey, true);
+    return merged.length - before.length;
+  }
 
   static Future<List<LegadoSource>> load() async {
     final prefs = await SharedPreferences.getInstance();

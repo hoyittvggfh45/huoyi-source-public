@@ -3,6 +3,10 @@ import 'dart:io';
 
 import '../relay/relay_message.dart';
 
+class CfMailboxUnavailable extends HttpException {
+  CfMailboxUnavailable() : super('mailbox not configured');
+}
+
 class CfMailboxTicket {
   const CfMailboxTicket({
     required this.ticket,
@@ -56,6 +60,9 @@ class CfMailboxClient {
     }
     final response = await request.close();
     final text = await response.transform(utf8.decoder).join();
+    if (response.statusCode == 503) {
+      throw CfMailboxUnavailable();
+    }
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw HttpException(
         'mailbox $method $path failed: ${response.statusCode} $text',

@@ -15,8 +15,15 @@ void main() {
       expect(sources.map((s) => s.name), ['动漫啦', 'MangaDex', '拷贝漫画', '包子漫画']);
     });
 
-    test('小说与听书已删：改走开源阅读书源，不再内置源', () {
-      expect(ContentRegistry.sourcesFor(ContentSection.audio), isEmpty);
+    test('听书：听书网；小说仍走开源阅读书源，不再内置源', () {
+      expect(
+        ContentRegistry.sourcesFor(ContentSection.audio).map((s) => s.id),
+        ['tingshuwang'],
+      );
+      expect(
+        ContentRegistry.sourcesFor(ContentSection.audio).map((s) => s.name),
+        ['听书网'],
+      );
       expect(ContentRegistry.sourcesFor(ContentSection.novel), isEmpty);
     });
 
@@ -25,8 +32,8 @@ void main() {
         for (final section in ContentSection.values)
           ...ContentRegistry.sourcesFor(section),
       ];
-      expect(all, hasLength(4));
-      expect(all.map((s) => s.id).toSet(), hasLength(4));
+      expect(all, hasLength(5));
+      expect(all.map((s) => s.id).toSet(), hasLength(5));
       for (final section in ContentSection.values) {
         for (final source in ContentRegistry.sourcesFor(section)) {
           expect(source.section, section);

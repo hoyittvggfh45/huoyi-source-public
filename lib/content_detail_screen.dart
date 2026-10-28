@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'content_audio_player.dart';
 import 'content_models.dart';
 import 'content_readers.dart';
 import 'core_bridge.dart';
@@ -67,16 +68,20 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
   void _openChapter(int index) {
     final detail = _detail;
     if (detail == null) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ComicReaderScreen(
-          source: widget.source,
-          book: detail.book,
-          chapters: detail.chapters,
-          initialIndex: index,
-        ),
-      ),
-    );
+    final page = widget.source.section == ContentSection.audio
+        ? ContentAudioPlayerScreen(
+            source: widget.source,
+            book: detail.book,
+            chapters: detail.chapters,
+            initialIndex: index,
+          )
+        : ComicReaderScreen(
+            source: widget.source,
+            book: detail.book,
+            chapters: detail.chapters,
+            initialIndex: index,
+          );
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
   }
 
   @override
@@ -155,7 +160,7 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
                               book.remarks,
                               style: TextStyle(
                                 color: colors.onSurfaceVariant,
-                                fontSize: 11.5,
+                                fontSize: 12,
                               ),
                             ),
                           ],
@@ -166,7 +171,7 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
                             '${widget.source.section == ContentSection.audio ? '集' : '章'}',
                             style: TextStyle(
                               color: colors.onSurfaceVariant,
-                              fontSize: 11.5,
+                              fontSize: 12,
                             ),
                           ),
                         ],
@@ -184,7 +189,7 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
                     _detail!.note,
                     style: TextStyle(
                       color: colors.onSurfaceVariant,
-                      fontSize: 11.5,
+                      fontSize: 12,
                       height: 1.5,
                     ),
                   ),

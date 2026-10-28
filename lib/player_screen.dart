@@ -27,6 +27,7 @@ import 'local_store.dart';
 import 'models.dart';
 import 'playback_loader.dart';
 import 'playback_parse.dart';
+import 'playback_foreground.dart';
 import 'playback_preloader.dart';
 import 'playback_queue.dart';
 import 'playback_sniffer.dart';
@@ -35,7 +36,11 @@ import 'playback_error.dart';
 import 'player_backend.dart';
 import 'playback_preferences.dart';
 import 'player_controls.dart';
+import 'player_core.dart';
 import 'player_route.dart';
+import 'mdk_video_pane.dart';
+import 'network_speed.dart';
+import 'watchroom/push_to_watch_room.dart';
 import 'tvbox_video_pane.dart';
 import 'tvbox_player_bridge.dart';
 import 'player_interactions.dart';
@@ -65,6 +70,7 @@ class PlayerScreen extends StatefulWidget {
     this.videoBuilder,
     this.handoff,
     this.queue,
+    this.startFullscreen = false,
   });
   final DramaDetail detail;
   final int initialIndex;
@@ -76,6 +82,7 @@ class PlayerScreen extends StatefulWidget {
   final LocalStore store;
   final LanIncomingPlayback? handoff;
   final PlaybackQueue? queue;
+  final bool startFullscreen;
   @visibleForTesting
   final Player Function()? playerFactory;
   @visibleForTesting
@@ -105,6 +112,11 @@ class _PlayerScreenState extends State<PlayerScreen>
   PlaybackPlan? _tvboxPlan;
   double _tvboxStartPosition = 0;
   bool _tvboxAutoplay = true;
+  final _mdkHandle = MdkPlaybackHandle();
+  PlaybackPlan? _mdkPlan;
+  double _mdkStartPosition = 0;
+  bool _mdkAutoplay = true;
+  late PlayerCore _core;
   final _menuRevision = ValueNotifier<int>(0);
   final List<StreamSubscription<dynamic>> _subscriptions = [];
   final _recovery = PlaybackRecovery();
@@ -113,6 +125,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   double? _lanFirstPosition;
   String? _savedProgressKey;
   final _health = PlaybackHealth();
+  late final NetworkSpeedTracker _speedTracker;
   Timer? _saveTimer;
   Timer? _healthTimer;
   Timer? _errorTimer;
@@ -144,6 +157,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   bool _acceptErrors = false;
   bool _foreground = true;
   bool _playIntent = true;
+  bool _playbackServiceHeld = false;
   bool _showControlsOnPlaybackReady = true;
   bool _pendingError = false;
   bool _pictureInPictureSupported = false;
@@ -162,6 +176,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   double _resumePosition = 0;
   bool _rotating = false;
   bool _backPending = false;
+  bool _fullscreenApplied = false;
   bool _television = false;
   TelevisionDecoder _televisionDecoder = TelevisionDecoder.optimized;
   PlaybackOrientationMode _orientationMode = PlaybackOrientationMode.auto;
@@ -185,10 +200,33 @@ class _PlayerScreenState extends State<PlayerScreen>
       (widget.store.player == 'tvbox' || widget.store.player == 'fongmi') &&
       (_plan?.decryptionKey.isEmpty ?? true) &&
       _backendManager?.current != PlaybackBackend.main;
+  bool get _useExoCore =>
+      !_television && Platform.isAndroid && _core == PlayerCore.exo;
+  bool get _useMdkCore => !_television && _core == PlayerCore.mdk;
+  bool get _useNativeHandle => _useTvbox || _useExoCore;
+  Duration get _enginePosition => _useNativeHandle
+      ? _tvboxHandle.position
+      : _useMdkCore
+      ? _mdkHandle.position
+      : _player.state.position;
+  Duration get _engineDuration => _useNativeHandle
+      ? _tvboxHandle.duration
+      : _useMdkCore
+      ? _mdkHandle.duration
+      : _player.state.duration;
+  bool get _enginePlaying => _useNativeHandle
+      ? _tvboxHandle.playing
+      : _useMdkCore
+      ? _mdkHandle.playing
+      : _player.state.playing;
   VideoEnhancementController? get _enhancementForUi =>
       _enhancement.supported ? _enhancement : null;
   PlaybackPreferences get _preferences => PlaybackPreferences(
-    speed: _useTvbox ? _tvboxHandle.speed : _speed,
+    speed: _useNativeHandle
+        ? _tvboxHandle.speed
+        : _useMdkCore
+        ? _mdkHandle.speed
+        : _speed,
     quality: _requestedQuality,
     autoAdvance: _autoAdvance,
     danmaku: _danmakuEnabled,
@@ -209,15 +247,22 @@ class _PlayerScreenState extends State<PlayerScreen>
   String get _routeLabel => '线路 ${_currentRoute + 1}';
   String get _session => _plan?.session ?? '';
   double get _currentPosition =>
-      _useTvbox &&
+      _useNativeHandle &&
           _openedIndex == _index &&
           _tvboxHandle.position > Duration.zero
       ? _tvboxHandle.positionSeconds
+      : _useMdkCore &&
+            _openedIndex == _index &&
+            _mdkHandle.position > Duration.zero
+      ? _mdkHandle.positionSeconds
       : _openedIndex == _index && _player.state.position.inMilliseconds > 0
       ? _player.state.position.inMilliseconds / 1000
       : _resumePosition;
-  Duration get _seekFallbackPosition =>
-      _useTvbox ? _tvboxHandle.position : _player.state.position;
+  Duration get _seekFallbackPosition => _useNativeHandle
+      ? _tvboxHandle.position
+      : _useMdkCore
+      ? _mdkHandle.position
+      : _player.state.position;
 
   @override
   void initState() {
@@ -228,6 +273,8 @@ class _PlayerScreenState extends State<PlayerScreen>
     final preferences = widget.store.playbackPreferences;
     _speed = preferences.speed;
     _tvboxHandle.speed = preferences.speed;
+    _mdkHandle.speed = preferences.speed;
+    _core = PlayerCoreStorage.read(widget.store.preferences);
     _requestedQuality = preferences.quality;
     _autoAdvance = true;
     _danmakuEnabled = preferences.danmaku;
@@ -270,6 +317,9 @@ class _PlayerScreenState extends State<PlayerScreen>
     );
     _pictureQuality = PictureQualityApplier(_player)
       ..apply(preferences.pictureQuality);
+    _speedTracker = NetworkSpeedTracker(
+      sample: () => fetchMpvNetworkSpeedSample(_player),
+    );
     _interactions = PlayerInteractions(
       player: _player,
       available: () =>
@@ -391,17 +441,14 @@ class _PlayerScreenState extends State<PlayerScreen>
       (_) => _saveProgress(),
     );
     _healthTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      unawaited(_speedTracker.tick());
       if (!_closed &&
           _acceptErrors &&
           !_loading &&
           _error == null &&
           _health.stalled(
-            position: _useTvbox
-                ? _tvboxHandle.position
-                : _player.state.position,
-            playing:
-                (_useTvbox ? _tvboxHandle.playing : _player.state.playing) &&
-                _playIntent,
+            position: _enginePosition,
+            playing: _enginePlaying && _playIntent,
             foreground: _foreground,
             now: DateTime.now(),
           )) {
@@ -517,11 +564,11 @@ class _PlayerScreenState extends State<PlayerScreen>
     if (_pictureInPictureVisible ||
         _lifecycleState == AppLifecycleState.resumed) {
       _pictureInPictureExitTimer?.cancel();
-      _applyLifecycleVisibility(pauseWhenHidden: false);
+      _applyLifecycleVisibility();
       return;
     }
     _pictureInPictureExitTimer?.cancel();
-    _applyLifecycleVisibility(pauseWhenHidden: !delayHiddenPause);
+    _applyLifecycleVisibility();
     if (delayHiddenPause) {
       _pictureInPictureExitTimer = Timer(const Duration(milliseconds: 700), () {
         if (!_closed &&
@@ -533,7 +580,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
   }
 
-  void _applyLifecycleVisibility({bool pauseWhenHidden = true}) {
+  void _applyLifecycleVisibility() {
     final windowsInactive =
         Platform.isWindows && _lifecycleState == AppLifecycleState.inactive;
     final visible =
@@ -546,13 +593,22 @@ class _PlayerScreenState extends State<PlayerScreen>
     _syncPreload();
     _health.reset();
     if (!visible) _interactions.cancel();
-    if (pauseWhenHidden &&
-        !visible &&
+    if (!visible &&
         (_lifecycleState == AppLifecycleState.paused ||
             _lifecycleState == AppLifecycleState.hidden)) {
-      _playIntent = false;
-      unawaited(_player.pause());
       unawaited(_saveProgress(flush: true));
+      if (!_playbackServiceHeld &&
+          shouldAcquirePlaybackService(
+            playing: _enginePlaying,
+            useTvbox: _useNativeHandle,
+          )) {
+        _playbackServiceHeld = true;
+        unawaited(PlaybackForeground.acquire(widget.detail.drama.title));
+      }
+    }
+    if (visible && _playbackServiceHeld) {
+      _playbackServiceHeld = false;
+      unawaited(PlaybackForeground.release());
     }
     if (visible && _pendingError) {
       _queueRecovery();
@@ -824,6 +880,12 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
     _lastOrientation = orientation;
     _scheduleSystemUi();
+    if (widget.startFullscreen && !_fullscreenApplied) {
+      _fullscreenApplied = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_closed) _rotate();
+      });
+    }
   }
 
   void _scheduleSystemUi() {
@@ -957,6 +1019,35 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
   }
 
+  void _onMdkCompleted() {
+    if (_loading || _closed || !_acceptErrors || _error != null) return;
+    final duration = _mdkHandle.duration;
+    if (duration <= Duration.zero ||
+        _mdkHandle.position < duration - const Duration(seconds: 2)) {
+      _queueRecovery();
+    } else if (_autoAdvance &&
+        _foreground &&
+        !_panelOpen &&
+        _index + 1 < widget.detail.episodes.length) {
+      unawaited(_play(_index + 1, showControlsOnReady: false));
+    } else {
+      _playIntent = false;
+      _interactions.cancel();
+      unawaited(_mdkHandle.pause());
+      unawaited(_saveProgress(flush: true));
+    }
+  }
+
+  void _onMdkError(String message) {
+    if (_closed || _loading || _error != null) return;
+    if (mounted) {
+      setState(() {
+        _loading = false;
+        _error = message.isEmpty ? '播放失败' : message;
+      });
+    }
+  }
+
   void _onTvboxError(String message) {
     if (_closed || _loading || _error != null) return;
     final next = _backendManager?.nextBackend();
@@ -980,7 +1071,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     _handoffOwned = false;
     widget.handoff?.fail('接收端已操作播放');
     _interactions.cancel();
-    if (_useTvbox) {
+    if (_useNativeHandle) {
       _playIntent = !_tvboxHandle.playing;
       _health.reset();
       if (_playIntent && _tvboxHandle.completed) {
@@ -991,6 +1082,22 @@ class _PlayerScreenState extends State<PlayerScreen>
         unawaited(_tvboxHandle.play());
       } else {
         unawaited(_tvboxHandle.pause());
+      }
+      if (!_playIntent) unawaited(_saveProgress(flush: true));
+      _syncDanmaku();
+      return;
+    }
+    if (_useMdkCore) {
+      _playIntent = !_mdkHandle.playing;
+      _health.reset();
+      if (_playIntent && _mdkHandle.completed) {
+        unawaited(_play(_index));
+        return;
+      }
+      if (_playIntent) {
+        unawaited(_mdkHandle.play());
+      } else {
+        unawaited(_mdkHandle.pause());
       }
       if (!_playIntent) unawaited(_saveProgress(flush: true));
       _syncDanmaku();
@@ -1012,11 +1119,15 @@ class _PlayerScreenState extends State<PlayerScreen>
     if (_openedIndex < 0 || widget.store.profileEpoch != _profileEpoch) {
       return;
     }
-    final position = _useTvbox
+    final position = _useNativeHandle
         ? _tvboxHandle.positionSeconds
+        : _useMdkCore
+        ? _mdkHandle.positionSeconds
         : _player.state.position.inMilliseconds / 1000;
-    final duration = _useTvbox
+    final duration = _useNativeHandle
         ? _tvboxHandle.durationSeconds
+        : _useMdkCore
+        ? _mdkHandle.durationSeconds
         : _player.state.duration.inMilliseconds / 1000;
     if (position < .1) {
       return;
@@ -1229,13 +1340,15 @@ class _PlayerScreenState extends State<PlayerScreen>
         if (!continueChain) {
           _backendManager = null;
         }
-        final useTvboxForPlan = _useTvbox && plan.decryptionKey.isEmpty;
+        final useNativeForPlan =
+            (_useTvbox || _useExoCore) && plan.decryptionKey.isEmpty;
+        final useMdkForPlan = _useMdkCore && plan.decryptionKey.isEmpty;
         _backendManager ??= PlaybackBackendManager(
-          initial: useTvboxForPlan
+          initial: useNativeForPlan
               ? PlaybackBackend.tvbox
               : PlaybackBackend.main,
         );
-        if (!useTvboxForPlan && platform is NativePlayer) {
+        if (!useNativeForPlan && !useMdkForPlan && platform is NativePlayer) {
           if (Platform.isAndroid) {
             if (_televisionDecoderApplies) {
               final optimized =
@@ -1309,10 +1422,14 @@ class _PlayerScreenState extends State<PlayerScreen>
         _plan = plan;
         installed = true;
         _acceptErrors = true;
-        if (useTvboxForPlan) {
+        if (useNativeForPlan) {
           _tvboxPlan = plan;
           _tvboxStartPosition = position;
           _tvboxAutoplay = _foreground && _playIntent;
+        } else if (useMdkForPlan) {
+          _mdkPlan = plan;
+          _mdkStartPosition = position;
+          _mdkAutoplay = _foreground && _playIntent;
         } else {
           await _player.open(
             Media(
@@ -1329,10 +1446,12 @@ class _PlayerScreenState extends State<PlayerScreen>
           return;
         }
         _openedIndex = index;
-        if (!_useTvbox) _enhancement.mediaReady();
+        if (!_useNativeHandle && !_useMdkCore) _enhancement.mediaReady();
         _attachLanPlayback();
         _health.reset();
-        if (!_useTvbox) await _interactions.applySpeed();
+        if (!_useNativeHandle && !_useMdkCore) {
+          await _interactions.applySpeed();
+        }
         if (mounted && !_closed && ticket == _generation) {
           setState(() {
             _loading = false;
@@ -1389,8 +1508,30 @@ class _PlayerScreenState extends State<PlayerScreen>
     await _play(
       _index,
       position: position,
-      playWhenReady: quality == null || _error != null || _player.state.playing,
+      playWhenReady: quality == null || _error != null || _enginePlaying,
     );
+  }
+
+  Future<void> _openCoreDialog() async {
+    final next = await showPlayerCoreDialog(
+      context,
+      _core,
+      exoAvailable: Platform.isAndroid,
+    );
+    if (next == null || next == _core || _closed) return;
+    await _switchCore(next);
+  }
+
+  Future<void> _switchCore(PlayerCore next) async {
+    final position = _currentPosition;
+    final playing = _playIntent && _enginePlaying;
+    await PlayerCoreStorage.write(widget.store.preferences, next);
+    if (_closed) return;
+    setState(() {
+      _core = next;
+      _loading = true;
+    });
+    await _play(_index, position: position, playWhenReady: playing);
   }
 
   Future<void> _selectRoute(int route) async {
@@ -1398,9 +1539,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     if (route < 0 || route >= _routeCount || route == _currentRoute) return;
     final previous = _routeIndex;
     final position = _currentPosition;
-    final playing =
-        _playIntent &&
-        (_useTvbox ? _tvboxHandle.playing : _player.state.playing);
+    final playing = _playIntent && _enginePlaying;
     await _saveProgress(flush: true);
     setState(() => _routeIndex = route);
     await _play(
@@ -1670,7 +1809,8 @@ class _PlayerScreenState extends State<PlayerScreen>
     _syncPreload();
     _menuRevision.value++;
     await _interactions.applySpeed();
-    if (_useTvbox) unawaited(_tvboxHandle.setSpeed(_speed));
+    if (_useNativeHandle) unawaited(_tvboxHandle.setSpeed(_speed));
+    if (_useMdkCore) unawaited(_mdkHandle.setSpeed(_speed));
     if (qualityChanged && _plan?.local != true) {
       await _retry(quality: nextPreferences.quality);
     } else if (adBlockChanged && _plan?.local != true) {
@@ -1812,8 +1952,10 @@ class _PlayerScreenState extends State<PlayerScreen>
     _enhancement.ignorePerformance();
     var succeeded = false;
     try {
-      if (_useTvbox) {
+      if (_useNativeHandle) {
         await _tvboxHandle.seek(target);
+      } else if (_useMdkCore) {
+        await _mdkHandle.seek(target);
       } else {
         await _player.seek(target);
       }
@@ -1828,12 +1970,8 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   void _seek(int seconds) {
-    final desired =
-        (_useTvbox ? _tvboxHandle.position : _player.state.position) +
-        Duration(seconds: seconds);
-    final maxDuration = _useTvbox
-        ? _tvboxHandle.duration
-        : _player.state.duration;
+    final desired = _enginePosition + Duration(seconds: seconds);
+    final maxDuration = _engineDuration;
     final target = desired < Duration.zero
         ? Duration.zero
         : maxDuration > Duration.zero && desired > maxDuration
@@ -2065,6 +2203,10 @@ class _PlayerScreenState extends State<PlayerScreen>
   @override
   void dispose() {
     _closed = true;
+    if (_playbackServiceHeld) {
+      _playbackServiceHeld = false;
+      unawaited(PlaybackForeground.release());
+    }
     unawaited(_resetScreenBrightness());
     final enhancementClosed = _enhancement.close();
     LanController.current?.detachPlayback(_lanIdentity);
@@ -2076,6 +2218,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     WidgetsBinding.instance.removeObserver(this);
     _saveTimer?.cancel();
     _healthTimer?.cancel();
+    _speedTracker.dispose();
     _errorTimer?.cancel();
     _pictureInPictureExitTimer?.cancel();
     if (_pictureInPictureHandlerInstalled) {
@@ -2181,6 +2324,21 @@ class _PlayerScreenState extends State<PlayerScreen>
                       overflow: TextOverflow.ellipsis,
                     ),
                     actions: [
+                      IconButton(
+                        tooltip: '推送到一起看',
+                        onPressed: () => unawaited(
+                          pushDramaToWatchRoom(
+                            context,
+                            repository: widget.repository,
+                            store: widget.store,
+                            drama: widget.detail.drama,
+                            episodes: widget.detail.episodes,
+                            episodeIndex: _index,
+                          ),
+                        ),
+                        icon: const Icon(Icons.meeting_room_rounded),
+                      ),
+                      PlayerCoreBadge(core: _core, onTap: _openCoreDialog),
                       IconButton(
                         tooltip: '旋转与全屏',
                         onPressed: _rotate,
@@ -2338,6 +2496,7 @@ class _PlayerScreenState extends State<PlayerScreen>
             onFocusSurface: _playerFocus.requestFocus,
             onSeek: _seekTo,
             speed: _speed,
+            networkSpeed: _speedTracker.speedText,
             qualityLabel: _qualityLabel,
             routeLabel: _routeLabel,
             routeCount: _routeCount,
@@ -2354,6 +2513,7 @@ class _PlayerScreenState extends State<PlayerScreen>
             },
             onSpeed: () => _openPanel(PlayerMenuSection.speed),
             onQuality: () => _openPanel(PlayerMenuSection.quality),
+            onSettings: () => _openPanel(PlayerMenuSection.settings),
             onDanmaku: widget.detail.drama.source == 'hongguo'
                 ? _toggleDanmaku
                 : null,
@@ -2361,6 +2521,16 @@ class _PlayerScreenState extends State<PlayerScreen>
                 ? _retryDanmakuFromControls
                 : null,
             onPush: widget.mediaId == null ? _pushToDevice : null,
+            onPushToWatchRoom: () => unawaited(
+              pushDramaToWatchRoom(
+                context,
+                repository: widget.repository,
+                store: widget.store,
+                drama: widget.detail.drama,
+                episodes: widget.detail.episodes,
+                episodeIndex: _index,
+              ),
+            ),
             onPictureInPicture: _canUsePictureInPicture
                 ? _enterPictureInPicture
                 : null,
@@ -2378,6 +2548,8 @@ class _PlayerScreenState extends State<PlayerScreen>
                 : null,
             orientationMode: _orientationMode,
             onOrientationMode: _mobile ? _setOrientationMode : null,
+            core: _core,
+            onCoreTap: _openCoreDialog,
           );
     final layeredControls = Stack(
       fit: StackFit.expand,
@@ -2407,7 +2579,7 @@ class _PlayerScreenState extends State<PlayerScreen>
             children: [
               if (widget.videoBuilder != null)
                 widget.videoBuilder!(layeredControls)
-              else if (_useTvbox)
+              else if (_useNativeHandle)
                 TvboxVideoPane(
                   key: _tvboxPaneKey,
                   viewType: widget.store.player == 'fongmi'
@@ -2424,11 +2596,32 @@ class _PlayerScreenState extends State<PlayerScreen>
                   onFullscreen: _television ? null : _rotate,
                   isFullscreen: _showFullscreen,
                 )
+              else if (_useMdkCore)
+                MdkVideoPane(
+                  plan: _mdkPlan,
+                  startPosition: _mdkStartPosition,
+                  autoplay: _mdkAutoplay,
+                  handle: _mdkHandle,
+                  onCompleted: _onMdkCompleted,
+                  onError: _onMdkError,
+                  core: _core,
+                  onCoreTap: _openCoreDialog,
+                  title: title,
+                  onBack: _backToList,
+                  onFullscreen: _rotate,
+                  isFullscreen: _showFullscreen,
+                )
               else
                 Video(
                   controller: _video!,
                   fit: BoxFit.contain,
                   controls: (_) => layeredControls,
+                ),
+              if (_useExoCore && !hideOverlayForPictureInPicture)
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: PlayerCoreBadge(core: _core, onTap: _openCoreDialog),
                 ),
               if ((_loading || _error != null) &&
                   !hideOverlayForPictureInPicture)
@@ -2547,7 +2740,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                           children: [
                             Text(
                               _saveWarning!,
-                              style: const TextStyle(fontSize: 11.5),
+                              style: const TextStyle(fontSize: 12),
                             ),
                             TextButton(
                               onPressed: _saveProgress,
@@ -2561,7 +2754,8 @@ class _PlayerScreenState extends State<PlayerScreen>
                 ),
               if (_mobile &&
                   !_television &&
-                  !_useTvbox &&
+                  !_useNativeHandle &&
+                  !_useMdkCore &&
                   !hideOverlayForPictureInPicture &&
                   !((_loading || _error != null) && _showFullscreen))
                 Positioned(
@@ -2832,7 +3026,7 @@ class _PlayerScreenState extends State<PlayerScreen>
               padding: const EdgeInsets.only(top: 6),
               child: Text(
                 '当前集为 VIP 试看',
-                style: TextStyle(color: colors.error, fontSize: 11.5),
+                style: TextStyle(color: colors.error, fontSize: 12),
               ),
             ),
         ],

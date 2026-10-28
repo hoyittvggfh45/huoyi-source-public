@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:archive/archive.dart';
+import 'package:duanju_app/app_build.dart';
 import 'package:duanju_app/miniapp/bridge.dart';
 import 'package:duanju_app/miniapp/installer.dart';
 import 'package:duanju_app/miniapp/manifest.dart';
@@ -145,34 +146,71 @@ void main() {
     }
   });
 
-  test('bridge request maps response types and denies non-get', () async {
-    SharedPreferences.setMockInitialValues({});
-    final prefs = await SharedPreferences.getInstance();
-    final bridge = MiniAppBridge(
-      manifest: _manifest(),
-      storage: MiniAppStorage(prefs, 'hello'),
-      fetch: (_) async =>
-          MiniAppHttpResponse(status: 200, bytes: utf8.encode('{"ok":true}')),
-    );
-    expect(
-      await bridge.invoke('request', {
+  test(
+    'bridge request returns envelope and forwards headers and timeout',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      Uri? seenUri;
+      Map<String, String>? seenHeaders;
+      Duration? seenTimeout;
+      final bridge = MiniAppBridge(
+        manifest: _manifest(),
+        storage: MiniAppStorage(prefs, 'hello'),
+        fetch: (uri, {headers = const {}, timeout}) async {
+          seenUri = uri;
+          seenHeaders = headers;
+          seenTimeout = timeout;
+          return MiniAppHttpResponse(
+            status: 200,
+            bytes: utf8.encode('{"ok":true}'),
+            headers: {'content-type': 'application/json'},
+          );
+        },
+      );
+      final json = await bridge.invoke('request', {
         'url': 'https://example.org/x',
         'responseType': 'json',
-      }),
-      {'ok': true},
-    );
-    expect(
-      await bridge.invoke('request', {'url': 'https://example.org/x'}),
-      '{"ok":true}',
-    );
-    expect(
-      bridge.invoke('request', {
+        'headers': {'User-Agent': 'javryo-test', 'Host': 'example.org'},
+        'timeout': 15000,
+      });
+      expect(json, {
+        'statusCode': 200,
+        'headers': {'content-type': 'application/json'},
+        'data': {'ok': true},
+        'responseType': 'json',
         'url': 'https://example.org/x',
-        'method': 'POST',
-      }),
-      throwsA(isA<MiniAppDenied>()),
-    );
-  });
+        'byteLength': 11,
+      });
+      expect(seenUri.toString(), 'https://example.org/x');
+      expect(seenHeaders, {'User-Agent': 'javryo-test'});
+      expect(seenTimeout, const Duration(milliseconds: 15000));
+      expect(await bridge.invoke('request', {'url': 'https://example.org/x'}), {
+        'statusCode': 200,
+        'headers': {'content-type': 'application/json'},
+        'data': '{"ok":true}',
+        'responseType': 'text',
+        'url': 'https://example.org/x',
+        'byteLength': 11,
+      });
+      final bytes =
+          await bridge.invoke('request', {
+                'url': 'https://example.org/x',
+                'responseType': 'bytes',
+              })
+              as Map;
+      expect(bytes['statusCode'], 200);
+      expect(bytes['data'], base64Encode(utf8.encode('{"ok":true}')));
+      expect(bytes['responseType'], 'bytes');
+      expect(
+        bridge.invoke('request', {
+          'url': 'https://example.org/x',
+          'method': 'POST',
+        }),
+        throwsA(isA<MiniAppDenied>()),
+      );
+    },
+  );
 
   test('bridge getSystemInfo returns platform and app identity', () async {
     SharedPreferences.setMockInitialValues({});
@@ -185,7 +223,7 @@ void main() {
     expect(info, isA<Map>());
     final map = info as Map;
     expect(map['appSlug'], 'huoyi');
-    expect(map['appBuild'], 1);
+    expect(map['appBuild'], appBuild);
     expect(map['platform'], isNotEmpty);
   });
 

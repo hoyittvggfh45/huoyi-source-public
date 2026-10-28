@@ -39,6 +39,7 @@ import 'folder_catalog_screen.dart';
 import 'fullscreen_feed_screen.dart';
 import 'drama_style_home.dart';
 import 'ui_style.dart';
+import 'vod_detail_route.dart';
 import 'settings_screen.dart';
 import 'account_screen.dart';
 import 'downloads_screen.dart';
@@ -50,6 +51,7 @@ import 'local_store.dart';
 import 'models.dart';
 import 'remote_widgets.dart';
 import 'widgets.dart';
+import 'zone_settings_screen.dart';
 import 'vip_icon.dart';
 import 'search_input.dart';
 import 'source_picker_sheet.dart';
@@ -139,6 +141,7 @@ class _HomeScreenState extends State<HomeScreen> {
   )..load();
   final _changedSources = <String>{};
   final _selectedDramas = <String, Drama>{};
+  Set<String> _drawerCollapsedGroups = {};
   Timer? _cacheRefreshTimer;
   bool _refreshingUpdatedCache = false;
   bool _selectionMode = false;
@@ -158,6 +161,7 @@ class _HomeScreenState extends State<HomeScreen> {
     HomeZone.live => '直播',
     HomeZone.novel => '小说',
     HomeZone.comic => '漫画',
+    HomeZone.audio => '听书',
     _ => appName,
   };
 
@@ -378,37 +382,59 @@ class _HomeScreenState extends State<HomeScreen> {
   bool get _canSwitchSource =>
       _sectionSources.length + (_sourceGroups.length > 1 ? 1 : 0) > 1;
 
-  Future<void> _pickSource() async {
-    final groups = <SourcePickerGroup>[
-      if (_sourceGroups.length > 1)
-        const SourcePickerGroup(
-          title: '',
-          entries: [SourcePickerEntry(id: _allSourcesEntryId, name: '全部站源')],
+  List<SourcePickerGroup> _sourcePickerGroups() => [
+    if (_sourceGroups.length > 1)
+      const SourcePickerGroup(
+        title: '',
+        entries: [SourcePickerEntry(id: _allSourcesEntryId, name: '全部站源')],
+      ),
+    for (final group in SourceGroup.sectionGroups(_sectionSources))
+      if ((_catalogSection == SourceSite.sectionVideo
+          ? group.id != 'builtin:drama'
+          : group.id != 'builtin:video'))
+        SourcePickerGroup(
+          title: group.name,
+          entries: [
+            for (final site in group.sources)
+              SourcePickerEntry(id: site.id, name: site.name),
+          ],
         ),
-      for (final group in SourceGroup.sectionGroups(_sectionSources))
-        if ((_catalogSection == SourceSite.sectionVideo
-            ? group.id != 'builtin:drama'
-            : group.id != 'builtin:video'))
-          SourcePickerGroup(
-            title: group.name,
-            entries: [
-              for (final site in group.sources)
-                SourcePickerEntry(id: site.id, name: site.name),
-            ],
-          ),
-    ];
+  ];
+
+  String _sourcePickerSectionName() => _zone == HomeZone.midnight
+      ? '午夜'
+      : _catalogSection == SourceSite.sectionVideo
+      ? '点播'
+      : '短剧';
+
+  Future<void> _pickSource() async {
     final picked = await showSourcePickerSheet(
       context,
-      sectionName: _zone == HomeZone.midnight
-          ? '午夜'
-          : _catalogSection == SourceSite.sectionVideo
-          ? '点播'
-          : '短剧',
+      sectionName: _sourcePickerSectionName(),
       currentName: _group.name,
       currentId: _allSources ? _allSourcesEntryId : _source.id,
-      groups: groups,
+      groups: _sourcePickerGroups(),
     );
     if (picked == null || !mounted) return;
+    _applySourcePick(picked);
+  }
+
+  Future<void> _pickSourceCentered() async {
+    final picked = await showCenteredSourcePickerDialog(
+      context,
+      sectionName: _sourcePickerSectionName(),
+      currentName: _group.name,
+      currentId: _allSources ? _allSourcesEntryId : _source.id,
+      groups: _sourcePickerGroups(),
+    );
+    if (picked == null || !mounted) return;
+    if (_scaffoldKey.currentState?.isDrawerOpen == true) {
+      Navigator.of(context).pop();
+    }
+    _applySourcePick(picked);
+  }
+
+  void _applySourcePick(String picked) {
     if (picked == _allSourcesEntryId) {
       _changeGroup(_sourceGroups.firstWhere((group) => group.id == 'all'));
       return;
@@ -769,6 +795,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     unawaited(_loadMidnightActivated());
     unawaited(_loadCurrentVersion());
+    unawaited(_loadDrawerCollapsedGroups());
     _dramaStyle = dramaUiStyleNotifier.value;
     dramaUiStyleNotifier.addListener(_syncDramaStyle);
     unawaited(ensureDramaUiStyleLoaded());
@@ -1058,9 +1085,8 @@ class _HomeScreenState extends State<HomeScreen> {
       );
       return;
     }
-    if (!resume &&
-        _zone == HomeZone.vod &&
-        vodDetailStyleNotifier.value == VodDetailStyle.immersive) {
+    if (vodOpenAction(isVodZone: _zone == HomeZone.vod, resume: resume) ==
+        VodOpenAction.detail) {
       Navigator.of(context).push(
         MaterialPageRoute<void>(
           settings: const RouteSettings(name: 'detail'),
@@ -1092,10 +1118,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _setZone(HomeZone zone) {
     if (zone == _zone) return;
-    if ((zone == HomeZone.vod ||
-            zone == HomeZone.midnight ||
-            zone == HomeZone.live) &&
-        !_accessValid) {
+    if ((zone == HomeZone.midnight || zone == HomeZone.live) && !_accessValid) {
       unawaited(
         _promptAccessPassword().then((ok) {
           if (ok && mounted) {
@@ -1142,9 +1165,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _accessUnlockedAt = null;
         _accessLockTimer = null;
         if (!mounted ||
-            (_zone != HomeZone.vod &&
-                _zone != HomeZone.midnight &&
-                _zone != HomeZone.live)) {
+            (_zone != HomeZone.midnight && _zone != HomeZone.live)) {
           return;
         }
         unawaited(
@@ -1244,7 +1265,49 @@ class _HomeScreenState extends State<HomeScreen> {
     onTool: _onTool,
     onMinorProtectionChanged: _onMinorProtectionChanged,
     onVersionDoubleTap: _onVersionDoubleTap,
+    collapsedGroups: _drawerCollapsedGroups,
+    onGroupExpandedChanged: _onDrawerGroupExpandedChanged,
+    siteLabel: _isCatalogZone
+        ? '${_group.name} (${_group.sources.length})'
+        : null,
+    onSiteBoxTap: _isCatalogZone
+        ? () => unawaited(_pickSourceCentered())
+        : null,
   );
+
+  Future<void> _loadDrawerCollapsedGroups() async {
+    final collapsed = await loadDrawerCollapsedGroups();
+    if (mounted) setState(() => _drawerCollapsedGroups = collapsed);
+  }
+
+  void _onDrawerGroupExpandedChanged(String groupKey, bool expanded) {
+    setState(() {
+      if (expanded) {
+        _drawerCollapsedGroups.remove(groupKey);
+      } else {
+        _drawerCollapsedGroups.add(groupKey);
+      }
+    });
+    unawaited(saveDrawerCollapsedGroups(_drawerCollapsedGroups));
+  }
+
+  void _openZoneSettings() {
+    if (_zone == HomeZone.drama ||
+        _zone == HomeZone.vod ||
+        _zone == HomeZone.midnight ||
+        _zone == HomeZone.live) {
+      _pushTool(
+        ZoneSettingsScreen(
+          repository: widget.repository,
+          store: widget.store,
+          zone: _zone,
+          onHideMidnight: () => unawaited(_onMinorProtectionChanged(true)),
+        ),
+      );
+    } else {
+      _openSettings();
+    }
+  }
 
   void _openSettings() {
     _pushTool(
@@ -1291,13 +1354,17 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _onDramaSectionSelected(String title) {
-    final match = _categories
-        .where((category) => category.name == title)
-        .firstOrNull;
-    if (match != null && match.id != _category) {
-      _changeCategory(match.id);
-    }
+  void _toggleNewSort() {
+    final view = widget.store.catalogView;
+    final next = view.sort == CatalogSort.date
+        ? CatalogSort.source
+        : CatalogSort.date;
+    unawaited(
+      saveUserChange(
+        context,
+        () => widget.store.setCatalogView(view.copyWith(sort: next)),
+      ),
+    );
   }
 
   int? get _railIndex => switch (_zone) {
@@ -1684,7 +1751,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final colors = Theme.of(context).colorScheme;
     final wide = MediaQuery.sizeOf(context).width >= 840;
     final largeTitle = TextStyle(
-      fontSize: wide ? 22.5 : 28.5,
+      fontSize: 12,
       height: 1.1,
       fontWeight: FontWeight.w800,
       letterSpacing: 0,
@@ -1821,14 +1888,14 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(width: 8),
           ],
-          if (_zone == HomeZone.drama &&
-              !AppLayout.isTelevision(context) &&
-              wide)
+          if (!AppLayout.isTelevision(context) &&
+              (_isCatalogZone || _zone == HomeZone.live) &&
+              (_zone != HomeZone.drama || wide))
             GlassIconButton(
               key: const ValueKey('open-settings'),
               icon: LucideIcons.settings,
               tooltip: '设置',
-              onPressed: _openSettings,
+              onPressed: _openZoneSettings,
             ),
           GlassIconButton(
             key: const ValueKey('open-app-drawer'),
@@ -1909,10 +1976,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   searchHint: _searchHint,
                   onSearchChanged: _searchChanged,
                   onSearchSubmitted: _submitSearch,
-                  onSectionSelected: _onDramaSectionSelected,
+                  onFilterPressed: () => unawaited(_chooseCatalogView()),
+                  onRankingsPressed: _openRankings,
+                  onNewPressed: _toggleNewSort,
+                  filtersActive:
+                      widget.store.catalogView.sort != CatalogSort.source ||
+                      widget.store.catalogView.release.isNotEmpty,
+                  newActive: widget.store.catalogView.sort == CatalogSort.date,
                   onMenuPressed: _openDrawer,
                   onAccountPressed: () => _pushTool(const AccountScreen()),
-                  onSettingsPressed: _openSettings,
+                  onSettingsPressed: _openZoneSettings,
                   badgeOf: (drama) {
                     if (drama.isFolder) {
                       return drama.isTagFolder ? '标签' : '文件夹';
@@ -2040,12 +2113,13 @@ class _HomeScreenState extends State<HomeScreen> {
                                 : _openFullscreenFeed,
                             icon: const Icon(Icons.play_arrow_rounded),
                           ),
-                        if (_zone == HomeZone.drama && !television)
+                        if ((_isCatalogZone || _zone == HomeZone.live) &&
+                            !television)
                           IconButton(
                             key: const ValueKey('open-settings'),
                             tooltip: '设置',
                             icon: const Icon(Icons.settings_outlined),
-                            onPressed: _openSettings,
+                            onPressed: _openZoneSettings,
                           ),
                         if (!_showRecommendations &&
                             widget.store.canDownload &&
@@ -2241,6 +2315,9 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_zone == HomeZone.comic) {
       return const ContentZoneScreen(section: ContentSection.comic);
     }
+    if (_zone == HomeZone.audio) {
+      return const ContentZoneScreen(section: ContentSection.audio);
+    }
     if (_sectionSources.isEmpty) {
       return StatusPanel(
         title: _zone == HomeZone.midnight
@@ -2420,7 +2497,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       key: ValueKey('catalog-tag-${tag.id}'),
                       avatar: const Icon(Icons.label_outline_rounded, size: 16),
                       label: Text(tag.name),
-                      labelStyle: const TextStyle(fontSize: 7),
+                      labelStyle: const TextStyle(fontSize: 12),
+                      backgroundColor: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerHighest,
                       onPressed: () => _openTag(tag),
                     ),
                   ),
@@ -2438,9 +2518,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   padding: const EdgeInsets.only(right: 6),
                   child: ChoiceChip(
                     label: const Text('全部标签'),
-                    labelStyle: const TextStyle(fontSize: 7),
+                    labelStyle: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
                     selected: _tagLevel2 == null,
                     showCheckmark: false,
+                    selectedColor: const Color(0xFFC8E6C9),
+                    backgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest,
                     onSelected: (_) => _selectTagLevel2(null),
                   ),
                 ),
@@ -2450,9 +2537,16 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: ChoiceChip(
                       key: ValueKey('catalog-tag2-$tag'),
                       label: Text(tag),
-                      labelStyle: const TextStyle(fontSize: 7),
+                      labelStyle: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
                       selected: _tagLevel2 == tag,
                       showCheckmark: false,
+                      selectedColor: const Color(0xFFC8E6C9),
+                      backgroundColor: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerHighest,
                       onSelected: (_) =>
                           _selectTagLevel2(_tagLevel2 == tag ? null : tag),
                     ),
@@ -2473,9 +2567,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   padding: const EdgeInsets.only(right: 6),
                   child: ChoiceChip(
                     label: const Text('全部'),
-                    labelStyle: const TextStyle(fontSize: 7),
+                    labelStyle: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
                     selected: _tagLevel3 == null,
                     showCheckmark: false,
+                    selectedColor: const Color(0xFFC8E6C9),
+                    backgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest,
                     onSelected: (_) => _selectTagLevel3(null),
                   ),
                 ),
@@ -2485,9 +2586,16 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: ChoiceChip(
                       key: ValueKey('catalog-tag3-$tag'),
                       label: Text(tag),
-                      labelStyle: const TextStyle(fontSize: 7),
+                      labelStyle: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
                       selected: _tagLevel3 == tag,
                       showCheckmark: false,
+                      selectedColor: const Color(0xFFC8E6C9),
+                      backgroundColor: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerHighest,
                       onSelected: (_) =>
                           _selectTagLevel3(_tagLevel3 == tag ? null : tag),
                     ),
@@ -2679,7 +2787,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                               color: Theme.of(
                                                 context,
                                               ).colorScheme.onSurfaceVariant,
-                                              fontSize: 11.5,
+                                              fontSize: 12,
                                             ),
                                           ),
                                   ),
@@ -2723,7 +2831,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          fontSize: 15,
+                          fontSize: 12,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 0,
                         ),
@@ -2735,7 +2843,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontSize: 11.5,
+                          fontSize: 12,
                           color: colors.onSurfaceVariant,
                         ),
                       ),

@@ -362,7 +362,7 @@ class _PluginCenterScreenState extends State<PluginCenterScreen> {
             children: [
               CircleAvatar(
                 radius: 28,
-                child: Text(label, style: const TextStyle(fontSize: 21)),
+                child: Text(label, style: const TextStyle(fontSize: 12)),
               ),
               const SizedBox(height: 8),
               Text(

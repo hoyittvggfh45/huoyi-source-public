@@ -85,7 +85,7 @@ class AppBottomNavigation extends StatelessWidget {
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
-                                    fontSize: 11.5,
+                                    fontSize: 12,
                                     height: 1.2,
                                     fontWeight: index == selectedIndex
                                         ? FontWeight.w700

@@ -57,7 +57,7 @@ class VideoEnhancementSettings extends StatelessWidget {
         children: [
           Text(
             '画质增强',
-            style: television ? const TextStyle(fontSize: 19) : null,
+            style: television ? const TextStyle(fontSize: 12) : null,
           ),
           const SizedBox(height: 8),
           Wrap(

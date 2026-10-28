@@ -16,21 +16,37 @@ func (downloader *Downloader) resolveHongguoAppMedia(ctx context.Context, videoI
 	if !hongguoNumericID.MatchString(videoID) {
 		return providerMedia{}, errors.New("红果视频 ID 无效")
 	}
-	// 注册失败直接报错，不拿空设备号去撞空 body 再进负缓存。
 	if err := downloader.ensureHongguoDevice(ctx, ""); err != nil {
 		return providerMedia{}, err
 	}
 	if downloader.hongguoDeviceLimited() {
 		downloader.ensureHongguoDevice(ctx, downloader.hongguoDeviceID())
 	}
+	media, err := downloader.resolveHongguoAppMediaLine(ctx, videoID)
+	if err == nil {
+		return media, nil
+	}
+	if !errors.Is(err, errHongguoAppEmptyBody) {
+		return providerMedia{}, err
+	}
+	overseaCtx := context.WithValue(ctx, hongguoBaseURLOverrideKey{}, hongguoOverseaAppBaseURL)
+	media, overseaErr := downloader.resolveHongguoAppMediaLine(overseaCtx, videoID)
+	if overseaErr == nil {
+		return media, nil
+	}
+	if errors.Is(overseaErr, errHongguoAppEmptyBody) {
+		downloader.markHongguoPlayerSuspended()
+		return providerMedia{}, fmt.Errorf("红果 App 大陆线与海外线轮换后仍未返回有效数据，可能被限流: %w", overseaErr)
+	}
+	return providerMedia{}, overseaErr
+}
+
+func (downloader *Downloader) resolveHongguoAppMediaLine(ctx context.Context, videoID string) (providerMedia, error) {
 	payload := map[string]any{
 		"video_id": videoID, "content_type": 1,
 		"biz_param": map[string]any{"need_all_video_definition": true, "video_platform": 3},
 	}
 	var lastErr error
-	// 空 body 是设备对被限流的信号：先轮换设备对重试，轮换耗尽仍空才挂起。
-	// 每轮只发一次 video_model 请求（空 body 在请求层直接返回，不走重试退避），
-	// 避免单集多次取流喂给限流。
 	for attempt := 0; attempt <= hongguoDeviceRotations; attempt++ {
 		if attempt > 0 {
 			if err := downloader.ensureHongguoDevice(ctx, downloader.hongguoDeviceID()); err != nil {
@@ -75,8 +91,10 @@ func (downloader *Downloader) resolveHongguoAppMedia(ctx context.Context, videoI
 		downloader.clearHongguoDeviceLimited()
 		return selectHongguoAppMedia(model)
 	}
-	downloader.markHongguoPlayerSuspended()
-	return providerMedia{}, fmt.Errorf("红果 App 设备对可能被限流，轮换后仍未返回有效数据: %w", lastErr)
+	if lastErr != nil {
+		return providerMedia{}, lastErr
+	}
+	return providerMedia{}, errHongguoAppEmptyBody
 }
 
 func selectHongguoAppMedia(model map[string]any) (providerMedia, error) {

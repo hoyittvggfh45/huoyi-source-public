@@ -751,7 +751,7 @@ class _CustomSourceImportDialogState extends State<_CustomSourceImportDialog> {
               title: const Text('从网络地址导入'),
               subtitle: const Text(
                 '粘贴 TVBox 配置 / JSON / TXT 地址，核心自动抓取解析',
-                style: TextStyle(fontSize: 11.5),
+                style: TextStyle(fontSize: 12),
               ),
               value: !_fileMode,
               onChanged: (value) => setState(() => _fileMode = !value),
@@ -801,7 +801,7 @@ class _CustomSourceImportDialogState extends State<_CustomSourceImportDialog> {
                       const SizedBox(height: 10),
                       const Text(
                         '可选默认地址（点击填入，仍可手动修改）',
-                        style: TextStyle(fontSize: 11.5),
+                        style: TextStyle(fontSize: 12),
                       ),
                       const SizedBox(height: 6),
                       Wrap(
@@ -823,7 +823,7 @@ class _CustomSourceImportDialogState extends State<_CustomSourceImportDialog> {
                         child: Text(
                           '遥控器：输入完成后按确认键直接导入；'
                           '按方向键可离开输入框选择其它按钮。',
-                          style: TextStyle(fontSize: 11.5),
+                          style: TextStyle(fontSize: 12),
                         ),
                       ),
                   ],

@@ -615,17 +615,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           if (style != DramaUiStyle.drama)
             ListTile(
-              leading: const Icon(Icons.ondemand_video_outlined),
-              title: const Text('点播区 UI 风格'),
-              subtitle: ValueListenableBuilder<VodDetailStyle>(
-                valueListenable: vodDetailStyleNotifier,
-                builder: (context, style, _) => Text(style.label),
-              ),
-              trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: () => unawaited(chooseVodDetailStyle(context)),
-            ),
-          if (style != DramaUiStyle.drama)
-            ListTile(
               leading: const Icon(Icons.person_outline),
               title: const Text('账号'),
               subtitle: ValueListenableBuilder<HongguoAccount?>(
@@ -994,7 +983,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       title: Text(
         title,
         style: TextStyle(
-          fontSize: 16.5,
+          fontSize: 12,
           letterSpacing: 0,
           color: onTap == null && trailing == null
               ? colors.onSurface.withValues(alpha: .4)
@@ -1055,16 +1044,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: '短剧区风格',
             detail: style.label,
             onTap: () => unawaited(chooseDramaUiStyle(context)),
-          ),
-          ValueListenableBuilder<VodDetailStyle>(
-            valueListenable: vodDetailStyleNotifier,
-            builder: (context, vodStyle, _) => _glassRow(
-              icon: Icons.ondemand_video_outlined,
-              color: const Color(0xFFFF9F0A),
-              title: '点播区 UI 风格',
-              detail: vodStyle.label,
-              onTap: () => unawaited(chooseVodDetailStyle(context)),
-            ),
           ),
           ValueListenableBuilder<HongguoAccount?>(
             valueListenable: hongguoAccountNotifier,

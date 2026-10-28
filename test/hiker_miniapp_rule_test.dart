@@ -129,7 +129,7 @@ void main() {
       expect(HikerMiniappRule.isJsScript(''), isFalse);
     });
 
-    test('engine json only carries the ten fields the Go engine reads', () {
+    test('engine json only carries the fields the Go engine reads', () {
       final rule = HikerMiniappRule.fromJson(
         jsonDecode(_stubRuleJson) as Map<String, dynamic>,
       );
@@ -145,6 +145,8 @@ void main() {
         'search_url',
         'ua',
         'preRule',
+        'last_chapter_rule',
+        'pages',
       });
       expect(engineJson['find_rule'], 'js: setResult([]);');
     });
@@ -175,6 +177,70 @@ void main() {
       final list = parseHikerMiniappRules('[$_stubRuleJson,$_stubRuleJson]');
       expect(list.length, 2);
       expect(parseHikerMiniappRules('{}'), isEmpty);
+    });
+
+    test('parseHikerMiniappRules strips bom fences and unwraps containers', () {
+      final bom = parseHikerMiniappRules('\uFEFF$_stubRuleJson');
+      expect(bom.length, 1);
+      final fenced = parseHikerMiniappRules('```json\n$_stubRuleJson\n```');
+      expect(fenced.length, 1);
+      final wrapped = parseHikerMiniappRules(
+        jsonEncode({
+          'data': [jsonDecode(_stubRuleJson)],
+        }),
+      );
+      expect(wrapped.length, 1);
+      expect(wrapped.first.title, '桩规则');
+      final records = parseHikerMiniappRules(
+        jsonEncode({
+          'records': [jsonDecode(_stubRuleJson)],
+        }),
+      );
+      expect(records.length, 1);
+    });
+
+    test('query string class urls stay paired with their names', () {
+      final rule = HikerMiniappRule.fromJson({
+        'title': '查串规则',
+        'url': 'https://example.invalid',
+        'class_name': '分类A&分类B',
+        'class_url':
+            'https://example.invalid/list?t=1&pg=fypage&https://example.invalid/other?t=2&pg=fypage',
+        'find_rule': 'js: setResult([]);',
+      });
+      expect(rule.categories.length, 2);
+      expect(
+        rule.categories[0].url,
+        'https://example.invalid/list?t=1&pg=fypage',
+      );
+      expect(
+        rule.categories[1].url,
+        'https://example.invalid/other?t=2&pg=fypage',
+      );
+    });
+
+    test('bare key class urls keep plain pairing', () {
+      final rule = HikerMiniappRule.fromJson({
+        'title': '键规则',
+        'url': 'https://example.invalid',
+        'class_name': '真人剧&漫剧',
+        'class_url': 'real-drama&comic-drama',
+        'find_rule': 'js: setResult([]);',
+      });
+      expect(
+        [for (final c in rule.categories) c.url],
+        ['real-drama', 'comic-drama'],
+      );
+    });
+
+    test('engine json carries last chapter rule', () {
+      final rule = HikerMiniappRule.fromJson({
+        'title': '懒规则',
+        'url': 'https://example.invalid',
+        'find_rule': 'js: setResult([]);',
+        'last_chapter_rule': 'js: setResult("x");',
+      });
+      expect(rule.toEngineJson()['last_chapter_rule'], 'js: setResult("x");');
     });
   });
 }

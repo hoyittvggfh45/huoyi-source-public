@@ -1,10 +1,13 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
 
 import 'lan_controller.dart';
+import 'network_speed.dart';
 import 'playback_preferences.dart';
+import 'player_core.dart';
 import 'player_interactions.dart';
 import 'widgets.dart';
 import 'video_enhancement.dart';
@@ -43,12 +46,17 @@ class PlayerControls extends StatefulWidget {
     this.onRetryDanmaku,
     this.onPush,
     this.onPictureInPicture,
+    this.onPushToWatchRoom,
+    this.onSettings,
     this.routeLabel = '',
     this.routeCount = 1,
     this.onRoute,
     this.enhancement,
     this.orientationMode,
     this.onOrientationMode,
+    this.networkSpeed,
+    this.core,
+    this.onCoreTap,
   });
 
   final Player player;
@@ -82,12 +90,17 @@ class PlayerControls extends StatefulWidget {
   final Future<void> Function()? onRetryDanmaku;
   final Future<void> Function()? onPush;
   final Future<void> Function()? onPictureInPicture;
+  final VoidCallback? onPushToWatchRoom;
+  final Future<void> Function()? onSettings;
   final String routeLabel;
   final int routeCount;
   final VoidCallback? onRoute;
   final VideoEnhancementController? enhancement;
   final PlaybackOrientationMode? orientationMode;
   final ValueChanged<PlaybackOrientationMode>? onOrientationMode;
+  final ValueListenable<String?>? networkSpeed;
+  final PlayerCore? core;
+  final VoidCallback? onCoreTap;
 
   @override
   State<PlayerControls> createState() => _PlayerControlsState();
@@ -415,7 +428,17 @@ class _PlayerControlsState extends State<PlayerControls> {
               )
             else
               const Spacer(),
+            if (widget.core != null && widget.onCoreTap != null)
+              PlayerCoreBadge(core: widget.core!, onTap: widget.onCoreTap!),
+            if (widget.networkSpeed != null)
+              networkSpeedLabel(widget.networkSpeed!),
             if (widget.onOrientationMode != null) _orientationMenu(),
+            if (widget.onPushToWatchRoom != null)
+              _overlayIconButton(
+                tooltip: '推送到一起看',
+                onPressed: widget.onPushToWatchRoom,
+                icon: Icons.meeting_room_rounded,
+              ),
             if (compact)
               _overlayIconButton(
                 tooltip: '旋转与全屏',
@@ -599,7 +622,7 @@ class _PlayerControlsState extends State<PlayerControls> {
     required double buffered,
   }) {
     final timeStyle = TextStyle(
-      fontSize: 11.5,
+      fontSize: 12,
       color: Colors.white.withValues(alpha: .82),
       fontFeatures: const [FontFeature.tabularFigures()],
     );
@@ -757,7 +780,7 @@ class _PlayerControlsState extends State<PlayerControls> {
                   child: DefaultTextStyle.merge(
                     style: TextStyle(
                       color: foreground,
-                      fontSize: 12.5,
+                      fontSize: 12,
                       height: 1,
                       fontWeight: FontWeight.w700,
                     ),
@@ -835,7 +858,7 @@ class _PlayerControlsState extends State<PlayerControls> {
         : Text(
             '弹',
             style: TextStyle(
-              fontSize: 13,
+              fontSize: 12,
               height: 1,
               fontWeight: FontWeight.w800,
               color: widget.danmakuEnabled
@@ -891,6 +914,13 @@ class _PlayerControlsState extends State<PlayerControls> {
           tooltip: '选集',
           icon: Icons.grid_view_rounded,
           onPressed: widget.enabled ? () => _panel(widget.onEpisodes) : null,
+        ),
+      if (widget.onSettings != null)
+        _toolIcon(
+          key: const ValueKey('player-settings'),
+          tooltip: '播放设置',
+          icon: Icons.tune_rounded,
+          onPressed: widget.enabled ? () => _panel(widget.onSettings!) : null,
         ),
       if (showCompare) _enhancementCompareButton(),
       if (showVolume)
@@ -957,6 +987,13 @@ class _PlayerControlsState extends State<PlayerControls> {
       if (routeTool != null) routeTool,
       if (widget.onPush != null)
         _lanPushTool(const ValueKey('fullscreen-lan-push')),
+      if (widget.onSettings != null)
+        _toolIcon(
+          key: const ValueKey('player-settings'),
+          tooltip: '播放设置',
+          icon: Icons.tune_rounded,
+          onPressed: widget.enabled ? () => _panel(widget.onSettings!) : null,
+        ),
       if (fullscreen)
         _toolIcon(
           key: const ValueKey('player-episodes'),
@@ -1069,7 +1106,7 @@ class _PlayerControlsState extends State<PlayerControls> {
                                 '${volume.round()}%',
                                 style: const TextStyle(
                                   color: Colors.white,
-                                  fontSize: 11.5,
+                                  fontSize: 12,
                                   fontFeatures: [FontFeature.tabularFigures()],
                                 ),
                               ),
@@ -1144,7 +1181,7 @@ class _PlayerControlsState extends State<PlayerControls> {
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 13,
+                fontSize: 12,
                 height: 1.2,
                 fontWeight: FontWeight.w600,
               ),
@@ -1191,7 +1228,7 @@ class _PlayerControlsState extends State<PlayerControls> {
                         '${PlayerInteractions.boostRate.toStringAsFixed(1)}x',
                         style: const TextStyle(
                           color: Colors.white70,
-                          fontSize: 11.5,
+                          fontSize: 12,
                           height: 1,
                           fontWeight: FontWeight.w500,
                         ),

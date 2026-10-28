@@ -14,6 +14,35 @@ class HikerMiniappFilter {
   final String url;
 }
 
+class HikerMiniappPage {
+  const HikerMiniappPage({required this.path, required this.rule});
+
+  final String path;
+  final String rule;
+
+  Map<String, dynamic> toJson() => {'path': path, 'rule': rule};
+}
+
+List<HikerMiniappPage> parseHikerMiniappPages(dynamic value) {
+  dynamic decoded = value;
+  if (decoded is String) {
+    try {
+      decoded = jsonDecode(decoded);
+    } catch (_) {
+      return const [];
+    }
+  }
+  if (decoded is! List) return const [];
+  final out = <HikerMiniappPage>[];
+  for (final item in decoded) {
+    if (item is! Map) continue;
+    final path = _asString(item['path']);
+    if (path.isEmpty) continue;
+    out.add(HikerMiniappPage(path: path, rule: _asString(item['rule'])));
+  }
+  return out;
+}
+
 class HikerMiniappRule {
   const HikerMiniappRule({
     required this.title,
@@ -41,6 +70,7 @@ class HikerMiniappRule {
     required this.ua,
     required this.preRule,
     required this.lastChapterRule,
+    this.pages = const [],
   });
 
   final String title;
@@ -68,8 +98,13 @@ class HikerMiniappRule {
   final String ua;
   final String preRule;
   final String lastChapterRule;
+  final List<HikerMiniappPage> pages;
 
   factory HikerMiniappRule.fromJson(Map<String, dynamic> json) {
+    final classNames = _splitAmp(_asString(json['class_name']));
+    final areaNames = _splitAmp(_asString(json['area_name']));
+    final sortNames = _splitAmp(_asString(json['sort_name']));
+    final yearNames = _splitAmp(_asString(json['year_name']));
     return HikerMiniappRule(
       title: _asString(json['title']),
       author: _asString(json['author']),
@@ -77,14 +112,14 @@ class HikerMiniappRule {
       type: _asString(json['type']),
       url: _asString(json['url']),
       colType: _asString(json['col_type']),
-      classNames: _splitAmp(_asString(json['class_name'])),
-      classUrls: _splitAmp(_asString(json['class_url'])),
-      areaNames: _splitAmp(_asString(json['area_name'])),
-      areaUrls: _splitAmp(_asString(json['area_url'])),
-      sortNames: _splitAmp(_asString(json['sort_name'])),
-      yearNames: _splitAmp(_asString(json['year_name'])),
-      sortUrls: _splitAmp(_asString(json['sort_url'])),
-      yearUrls: _splitAmp(_asString(json['year_url'])),
+      classNames: classNames,
+      classUrls: _splitUrlList(_asString(json['class_url']), classNames.length),
+      areaNames: areaNames,
+      areaUrls: _splitUrlList(_asString(json['area_url']), areaNames.length),
+      sortNames: sortNames,
+      yearNames: yearNames,
+      sortUrls: _splitUrlList(_asString(json['sort_url']), sortNames.length),
+      yearUrls: _splitUrlList(_asString(json['year_url']), yearNames.length),
       findRule: _asString(json['find_rule']),
       searchFind: _asString(json['searchFind']),
       searchUrl: _asString(json['search_url']),
@@ -96,6 +131,7 @@ class HikerMiniappRule {
       ua: _asString(json['ua']),
       preRule: _asString(json['preRule']),
       lastChapterRule: _asString(json['last_chapter_rule']),
+      pages: parseHikerMiniappPages(json['pages']),
     );
   }
 
@@ -110,6 +146,8 @@ class HikerMiniappRule {
     'search_url': searchUrl,
     'ua': ua,
     'preRule': preRule,
+    'last_chapter_rule': lastChapterRule,
+    'pages': [for (final page in pages) page.toJson()],
   };
 
   Map<String, dynamic> toJson() => {
@@ -138,6 +176,7 @@ class HikerMiniappRule {
     'ua': ua,
     'preRule': preRule,
     'last_chapter_rule': lastChapterRule,
+    'pages': [for (final page in pages) page.toJson()],
   };
 
   String get id => title.isEmpty ? url : title;
@@ -168,12 +207,32 @@ class HikerMiniappRule {
 }
 
 List<HikerMiniappRule> parseHikerMiniappRules(String text) {
-  final decoded = jsonDecode(text);
-  final rawItems = decoded is List
-      ? decoded
-      : decoded is Map
-      ? [decoded]
-      : <dynamic>[];
+  var cleaned = text.trim();
+  if (cleaned.startsWith('\uFEFF')) cleaned = cleaned.substring(1);
+  if (cleaned.startsWith('```')) {
+    final lines = cleaned.split('\n');
+    final body = lines.sublist(1).join('\n').trim();
+    cleaned = body.endsWith('```')
+        ? body.substring(0, body.length - 3).trim()
+        : body;
+  }
+  final decoded = jsonDecode(cleaned);
+  List<dynamic> rawItems;
+  if (decoded is List) {
+    rawItems = decoded;
+  } else if (decoded is Map) {
+    List<dynamic>? wrapped;
+    for (final key in ['rules', 'data', 'records', 'items', 'list']) {
+      final value = decoded[key];
+      if (value is List) {
+        wrapped = value;
+        break;
+      }
+    }
+    rawItems = wrapped ?? [decoded];
+  } else {
+    rawItems = <dynamic>[];
+  }
   final out = <HikerMiniappRule>[];
   for (final item in rawItems) {
     if (item is Map<String, dynamic>) {
@@ -195,6 +254,25 @@ List<String> _splitAmp(String value) {
   return [
     for (final part in value.split('&')) part.trim(),
   ].where((part) => part.isNotEmpty).toList();
+}
+
+List<String> _splitUrlList(String value, int expectedCount) {
+  final plain = _splitAmp(value);
+  if (expectedCount <= 0 || plain.length == expectedCount) return plain;
+  final merged = <String>[];
+  for (final part in value.split('&')) {
+    final piece = part.trim();
+    if (piece.isEmpty) continue;
+    if (merged.isEmpty ||
+        piece.startsWith('http://') ||
+        piece.startsWith('https://') ||
+        piece.startsWith('/')) {
+      merged.add(piece);
+    } else {
+      merged[merged.length - 1] = '${merged.last}&$piece';
+    }
+  }
+  return merged;
 }
 
 List<HikerMiniappFilter> _pairFilters(List<String> names, List<String> urls) {

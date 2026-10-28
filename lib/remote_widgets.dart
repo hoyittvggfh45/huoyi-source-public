@@ -229,7 +229,7 @@ class RemoteButton extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              fontSize: 15.5,
+              fontSize: 12,
               color: onPressed == null
                   ? Theme.of(context).disabledColor
                   : Theme.of(context).colorScheme.onSurface,
@@ -868,7 +868,7 @@ class RemoteListTile extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontSize: 16,
+                      fontSize: 12,
                       height: 1.3,
                       fontWeight: FontWeight.w600,
                     ),
@@ -879,7 +879,7 @@ class RemoteListTile extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 12.5,
+                        fontSize: 12,
                         height: 1.3,
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
@@ -938,7 +938,7 @@ class RemoteEpisodeButton extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: compact ? 12.5 : 18,
+                fontSize: 12,
                 fontWeight: current ? FontWeight.w700 : FontWeight.w500,
               ),
             ),

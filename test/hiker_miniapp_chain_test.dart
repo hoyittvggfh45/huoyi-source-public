@@ -84,4 +84,77 @@ void main() {
       );
     });
   });
+
+  group('url resolution', () {
+    test(
+      'root relative and protocol relative refs resolve against http base',
+      () {
+        expect(
+          resolveHikerUrl('https://example.invalid/a/b', '/x/y'),
+          'https://example.invalid/x/y',
+        );
+        expect(
+          resolveHikerUrl('https://example.invalid/a/b', '//cdn.invalid/x.jpg'),
+          'https://cdn.invalid/x.jpg',
+        );
+        expect(
+          resolveHikerUrl('http://example.invalid/a', '/x'),
+          'http://example.invalid/x',
+        );
+      },
+    );
+
+    test(
+      'bare keys, hiker links and non http bases pass through unchanged',
+      () {
+        expect(resolveHikerUrl('https://example.invalid', 'real'), 'real');
+        expect(
+          resolveHikerUrl('https://example.invalid', 'hiker://empty'),
+          'hiker://empty',
+        );
+        expect(
+          resolveHikerUrl('https://example.invalid', 'https://other.invalid/x'),
+          'https://other.invalid/x',
+        );
+        expect(resolveHikerUrl('hiker://empty##', '/x'), '/x');
+        expect(resolveHikerUrl('', '/x'), '/x');
+        expect(resolveHikerUrl('https://example.invalid', ''), '');
+      },
+    );
+
+    test('result walker resolves url fields and leaves other fields alone', () {
+      final resolved = resolveHikerResultUrls([
+        {
+          'title': '卡',
+          'url': '/d/1',
+          'pic_url': '/p/1.jpg',
+          'desc': '/not-a-link',
+          'nested': {'playUrl': '/m/1.m3u8'},
+        },
+        'plain',
+      ], 'https://example.invalid/list');
+      final items = resolved as List;
+      final first = items.first as Map;
+      expect(first['url'], 'https://example.invalid/d/1');
+      expect(first['pic_url'], 'https://example.invalid/p/1.jpg');
+      expect(first['desc'], '/not-a-link');
+      expect(
+        (first['nested'] as Map)['playUrl'],
+        'https://example.invalid/m/1.m3u8',
+      );
+      expect(items[1], 'plain');
+    });
+
+    test('result walker decodes json strings before resolving', () {
+      final resolved = resolveHikerResultUrls(
+        '[{"title":"卡","url":"/d/2"}]',
+        'https://example.invalid',
+      );
+      expect((resolved as List).first['url'], 'https://example.invalid/d/2');
+      expect(
+        resolveHikerResultUrls('not json', 'https://example.invalid'),
+        'not json',
+      );
+    });
+  });
 }

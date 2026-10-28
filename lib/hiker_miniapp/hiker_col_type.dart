@@ -83,11 +83,18 @@ HikerColLayout hikerColLayout(String colType) {
   }
   final entry = _hikerColTable[code];
   if (entry == null) {
-    return HikerColLayout(
-      kind: HikerColKind.unknown,
-      columns: 1,
-      blurBackground: blur,
-    );
+    var columns = 3;
+    if (code.contains('_4_') || code.endsWith('_4')) {
+      columns = 4;
+    } else if (code.contains('_2_') || code.endsWith('_2')) {
+      columns = 2;
+    }
+    final kind = code.contains('movie') || code.contains('pic')
+        ? HikerColKind.movie
+        : code.contains('icon') || code.contains('avatar')
+        ? HikerColKind.icon
+        : HikerColKind.unknown;
+    return HikerColLayout(kind: kind, columns: columns, blurBackground: blur);
   }
   final columns = 12 ~/ entry.span;
   return HikerColLayout(

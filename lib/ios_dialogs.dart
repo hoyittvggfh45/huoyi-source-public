@@ -32,7 +32,12 @@ Future<T?> showChoiceSheet<T>(
     return showDialog<T>(
       context: context,
       builder: (context) => SimpleDialog(
-        title: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis),
+        title: Text(
+          title,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 12),
+        ),
         children: [
           for (final choice in choices)
             SimpleDialogOption(
@@ -84,8 +89,15 @@ Future<T?> showChoiceSheet<T>(
         primaryColor: colors.primary,
       ),
       child: CupertinoActionSheet(
-        title: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis),
-        message: message == null ? null : Text(message),
+        title: Text(
+          title,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 12),
+        ),
+        message: message == null
+            ? null
+            : Text(message, style: const TextStyle(fontSize: 12)),
         actions: [
           for (final choice in choices)
             CupertinoActionSheetAction(
@@ -114,6 +126,7 @@ Future<T?> showChoiceSheet<T>(
                       textAlign: TextAlign.center,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12),
                     ),
                   ),
                   SizedBox(
@@ -132,7 +145,7 @@ Future<T?> showChoiceSheet<T>(
         ],
         cancelButton: CupertinoActionSheetAction(
           onPressed: () => Navigator.pop(sheetContext),
-          child: const Text('取消'),
+          child: const Text('取消', style: TextStyle(fontSize: 12)),
         ),
       ),
     ),
@@ -151,17 +164,17 @@ Future<bool> confirmAction(
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(title),
+        title: Text(title, style: const TextStyle(fontSize: 12)),
         content: Text(message),
         actions: [
           TextButton(
             autofocus: AppLayout.isTelevision(context),
             onPressed: () => Navigator.pop(context, false),
-            child: Text(cancel),
+            child: Text(cancel, style: const TextStyle(fontSize: 12)),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text(confirm),
+            child: Text(confirm, style: const TextStyle(fontSize: 12)),
           ),
         ],
       ),
@@ -176,21 +189,21 @@ Future<bool> confirmAction(
         primaryColor: Theme.of(context).colorScheme.primary,
       ),
       child: CupertinoAlertDialog(
-        title: Text(title),
+        title: Text(title, style: const TextStyle(fontSize: 12)),
         content: Padding(
           padding: const EdgeInsets.only(top: 6),
-          child: Text(message),
+          child: Text(message, style: const TextStyle(fontSize: 12)),
         ),
         actions: [
           CupertinoDialogAction(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(cancel),
+            child: Text(cancel, style: const TextStyle(fontSize: 12)),
           ),
           CupertinoDialogAction(
             isDefaultAction: !destructive,
             isDestructiveAction: destructive,
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(confirm),
+            child: Text(confirm, style: const TextStyle(fontSize: 12)),
           ),
         ],
       ),
@@ -293,7 +306,7 @@ class PullDownButton extends StatelessWidget {
               trailing: entry.icon == null ? null : Icon(entry.icon, size: 20),
               isDestructiveAction: entry.destructive,
               onPressed: entry.onPressed,
-              child: Text(entry.label),
+              child: Text(entry.label, style: const TextStyle(fontSize: 12)),
             ),
           ],
         ],

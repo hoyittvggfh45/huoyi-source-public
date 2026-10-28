@@ -8,7 +8,7 @@ class BuildVariant:
 
     @property
     def name(self):
-        return '火蚁短剧' if self.all_sources else '短剧视界'
+        return '红蚁TV' if self.all_sources else '短剧视界'
 
     @property
     def slug(self):
@@ -40,7 +40,7 @@ class BuildVariant:
 
 def add_variant_argument(parser):
     parser.add_argument('--all-sources', action='store_true',
-                        help='构建包含全部站源的火蚁短剧；默认构建仅红果的短剧视界')
+                        help='构建包含全部站源的红蚁TV；默认构建仅红果的短剧视界')
 
 
 def pubspec_build_number(root):

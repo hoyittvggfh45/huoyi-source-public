@@ -1,7 +1,7 @@
 name: duanju_app
 description: 独立运行的多端短剧应用
 publish_to: none
-version: 1.0.1+2
+version: 1.0.2+3
 
 environment:
   sdk: '>=3.12.0 <4.0.0'
@@ -28,6 +28,8 @@ dependencies:
   lucide_icons_flutter: 3.1.20
   wakelock_plus: ^1.8.0
   webview_flutter: ^4.14.1
+  fvp: ^0.39.1
+  video_player: ^2.14.1
 dev_dependencies:
   flutter_test:
     sdk: flutter

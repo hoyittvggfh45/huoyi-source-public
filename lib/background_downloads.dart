@@ -10,6 +10,7 @@ import 'core_bridge.dart';
 import 'local_store.dart';
 import 'media_library.dart';
 import 'app_build.dart';
+import 'playback_policy.dart';
 
 @pragma('vm:entry-point')
 void downloadServiceEntry() {
@@ -93,9 +94,18 @@ class DownloadTaskHandler extends TaskHandler {
       final jobs = await repository.downloads();
       final active = jobs.where((job) => job.active).toList();
       final work = await repository.workLease('', '');
+      final playback = await readPlaybackFlag();
+      if (playback.active) {
+        _idle = 0;
+        await FlutterForegroundTask.updateService(
+          notificationTitle: appName,
+          notificationText: playbackNotificationText(playback.title),
+        );
+        return;
+      }
       if (active.isEmpty && work == 0) {
         _idle++;
-        if (_idle >= 5) {
+        if (shouldStopIdleService(playbackActive: false, idlePolls: _idle)) {
           await FlutterForegroundTask.stopService();
           return;
         }

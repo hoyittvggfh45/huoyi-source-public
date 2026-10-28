@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:duanju_app/legado_source.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -97,6 +99,58 @@ void main() {
         '{"bookSourceName":"A","bookSourceUrl":"https://a.example","searchUrl":"https://a.example/s"}',
       ).length,
       1,
+    );
+  });
+
+  test('json api source file parses with rules intact', () {
+    const text =
+        '{"bookSourceName":"JsonApi","bookSourceUrl":"https://j.example","searchUrl":"https://j.example/s?key={{key}}","ruleSearch":{"bookList":"\$.data.list[*]","name":"\$.title","author":"\$.author","bookUrl":"\$.url"},"ruleToc":{"tocList":"\$.data.toc[*]","chapterName":"\$.name","chapterUrl":"\$.link"},"ruleContent":{"content":"\$.data.content"}}';
+    final report = parseLegadoSourcesReport(text);
+    expect(report.sources.length, 1);
+    expect(report.sources.first.name, 'JsonApi');
+    expect(report.sources.first.rawJson, contains('bookList'));
+    expect(report.dropped, isEmpty);
+  });
+
+  test('gbk import bytes fall back to gbk decode', () {
+    final bytes = <int>[
+      ...'[{"bookSourceName":"'.codeUnits,
+      0xB2,
+      0xE2,
+      0xCA,
+      0xD4,
+      0xCA,
+      0xE9,
+      0xD4,
+      0xB4,
+      ...'","bookSourceUrl":"https://g.example","searchUrl":"https://g.example/s"}]'
+          .codeUnits,
+    ];
+    expect(() => utf8.decode(bytes), throwsA(isA<FormatException>()));
+    final decoded = decodeLegadoImportBytes(bytes);
+    final report = parseLegadoSourcesReport(decoded);
+    expect(report.sources.length, 1);
+    expect(report.sources.first.name, '测试书源');
+  });
+
+  test('utf8 import bytes unchanged', () {
+    const text =
+        '[{"bookSourceName":"U","bookSourceUrl":"https://u.example","searchUrl":"https://u.example/s"}]';
+    expect(decodeLegadoImportBytes(text.codeUnits), text);
+  });
+
+  test('check reason text', () {
+    expect(legadoCheckReasonText({'supported': true}), '');
+    expect(
+      legadoCheckReasonText({
+        'supported': false,
+        'unsupportedFields': [
+          {'field': 'bookList', 'rule': '//div', 'reason': 'xpath'},
+          {'field': 'name', 'rule': '@js:x', 'reason': 'js'},
+          {'field': 'intro', 'rule': '\$..x', 'reason': 'jsonpath'},
+        ],
+      }),
+      '搜索列表（XPath）、书名（JS）、简介（高级 JSONPath）',
     );
   });
 }

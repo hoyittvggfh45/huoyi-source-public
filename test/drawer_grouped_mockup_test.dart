@@ -47,7 +47,7 @@ class MockupGroupedDrawer extends StatelessWidget {
               children: [
                 Text(
                   '红蚁TV',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
                 ),
                 SizedBox(height: 4),
                 Text('当前版本 1.0.0'),

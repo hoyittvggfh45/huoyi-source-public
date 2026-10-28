@@ -12,7 +12,9 @@ import 'app_theme.dart';
 import 'live_playback.dart';
 import 'live_sources.dart';
 import 'live_store.dart';
+import 'playback_foreground.dart';
 import 'package:duanju_app/xigua/player_controls.dart';
+import 'package:duanju_app/network_speed.dart';
 import 'package:duanju_app/xigua/player_interactions.dart';
 import 'package:duanju_app/xigua/television_controls.dart';
 import 'widgets.dart';
@@ -37,10 +39,14 @@ class LivePlayerScreen extends StatefulWidget {
   State<LivePlayerScreen> createState() => _LivePlayerScreenState();
 }
 
-class _LivePlayerScreenState extends State<LivePlayerScreen> {
+class _LivePlayerScreenState extends State<LivePlayerScreen>
+    with WidgetsBindingObserver {
   late final PlayerInteractions _interactions;
+  late final NetworkSpeedTracker _speedTracker;
+  StreamSubscription<Duration>? _positionSubscription;
   final _focus = FocusNode();
   bool _panel = false;
+  bool _playbackServiceHeld = false;
   bool _immersed = false;
   AppOrientationController? _orientationController;
   bool _television = false;
@@ -50,9 +56,26 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
   LivePlaybackController get _playback => widget.playback;
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      if (!_playbackServiceHeld && (_playback.player?.state.playing ?? false)) {
+        _playbackServiceHeld = true;
+        unawaited(PlaybackForeground.acquire(_playback.channel?.name ?? '直播'));
+      }
+    } else if (state == AppLifecycleState.resumed) {
+      if (_playbackServiceHeld) {
+        _playbackServiceHeld = false;
+        unawaited(PlaybackForeground.release());
+      }
+    }
+  }
+
+  @override
   void initState() {
     super.initState();
     _playback.addListener(_changed);
+    WidgetsBinding.instance.addObserver(this);
     _interactions = PlayerInteractions(
       player: _playback.player!,
       available: () => !_panel && _playback.error == null,
@@ -64,6 +87,16 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
       onEpisode: _switchHint,
       onSeek: (duration) async {},
     );
+    _speedTracker = NetworkSpeedTracker(
+      sample: () async {
+        final player = _playback.player;
+        if (player == null) return null;
+        return fetchMpvNetworkSpeedSample(player);
+      },
+    );
+    _positionSubscription = _playback.player!.stream.position.listen((_) {
+      unawaited(_speedTracker.tick());
+    });
     if (Platform.isAndroid) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
       _immersed = true;
@@ -116,6 +149,13 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
   @override
   void dispose() {
     _playback.removeListener(_changed);
+    WidgetsBinding.instance.removeObserver(this);
+    if (_playbackServiceHeld) {
+      _playbackServiceHeld = false;
+      unawaited(PlaybackForeground.release());
+    }
+    _positionSubscription?.cancel();
+    _speedTracker.dispose();
     _interactions.dispose();
     _focus.dispose();
     unawaited(
@@ -329,6 +369,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
             onFocusSurface: _focus.requestFocus,
             onSeek: (duration) async {},
             speed: 1,
+            networkSpeed: _speedTracker.speedText,
             qualityLabel: channel != null && channel.urls.length > 1
                 ? '线路 ${channel.urls.length}'
                 : '线路',

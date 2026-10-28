@@ -276,7 +276,7 @@ double _glassMenuWidth<T>(
       text: TextSpan(
         text: data,
         style: (label.style ?? fallback).copyWith(
-          fontSize: 13,
+          fontSize: 12,
           fontWeight: entry.selected ? FontWeight.w700 : FontWeight.w500,
         ),
       ),
@@ -499,7 +499,7 @@ class _GlassMenuItem<T> extends StatelessWidget {
                 Expanded(
                   child: DefaultTextStyle.merge(
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: 12,
                       fontWeight: entry.selected
                           ? FontWeight.w700
                           : FontWeight.w500,
@@ -627,7 +627,7 @@ class GlassBottomNavigation extends StatelessWidget {
                               AnimatedDefaultTextStyle(
                                 duration: const Duration(milliseconds: 160),
                                 style: TextStyle(
-                                  fontSize: 10.5,
+                                  fontSize: 12,
                                   height: 1.1,
                                   fontWeight: index == selectedIndex
                                       ? FontWeight.w700

@@ -17,6 +17,10 @@ import (
 
 const hongguoAppBaseURL = "https://api5-normal-sinfonlineb.fqnovel.com"
 
+const hongguoOverseaAppBaseURL = "https://api5-normal-sinfonlinea.fqnovel.com"
+
+type hongguoBaseURLOverrideKey struct{}
+
 const hongguoAppUserAgent = "com.phoenix.read/73532 (Linux; U; Android 16; zh_CN; 25053RT47C; Build/BP2A.250605.031.A3; Cronet/TTNetVersion:04657795 2026-01-23 QuicVersion:c67e9834 2025-09-08)"
 
 type hongguoCatalogCursor struct {
@@ -195,6 +199,9 @@ func (downloader *Downloader) hongguoAppRequestInternal(ctx context.Context, met
 	client.mu.Lock()
 	base, deviceID, installID := client.baseURL, client.state.DeviceID, client.state.InstallID
 	client.mu.Unlock()
+	if override, ok := ctx.Value(hongguoBaseURLOverrideKey{}).(string); ok && override != "" {
+		base = override
+	}
 	query := hongguoAppQuery(deviceID, installID)
 	for key, values := range extra {
 		query[key] = append([]string(nil), values...)

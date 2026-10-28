@@ -23,11 +23,13 @@ class HikerMiniappHomeScreen extends StatefulWidget {
 
 class _HikerMiniappHomeScreenState extends State<HikerMiniappHomeScreen> {
   var _categoryIndex = 0;
+  var _navSid = '';
   var _page = 1;
   var _loading = true;
   var _loadingMore = false;
   String? _error;
   var _cards = <HikerMiniappCard>[];
+  var _navs = <HikerMiniappNav>[];
   var _searchMode = false;
   var _searching = false;
   var _searchCards = <HikerMiniappCard>[];
@@ -60,14 +62,16 @@ class _HikerMiniappHomeScreenState extends State<HikerMiniappHomeScreen> {
     }
     try {
       final page = reset ? 1 : _page + 1;
-      final cards = await widget.engine.home(
+      final result = await widget.engine.home(
         categoryIndex: _categoryIndex,
         page: page,
+        categorySid: _navSid.isEmpty ? null : _navSid,
       );
       if (!mounted) return;
       setState(() {
         _page = page;
-        _cards = reset ? cards : [..._cards, ...cards];
+        _cards = reset ? result.cards : [..._cards, ...result.cards];
+        if (reset) _navs = result.navs;
         _loading = false;
         _loadingMore = false;
       });
@@ -168,6 +172,30 @@ class _HikerMiniappHomeScreenState extends State<HikerMiniappHomeScreen> {
                       onSelected: (_) {
                         if (_categoryIndex == index) return;
                         setState(() => _categoryIndex = index);
+                        unawaited(_load(reset: true));
+                      },
+                    ),
+                  );
+                },
+              ),
+            ),
+          if (_navs.length > 1)
+            SizedBox(
+              height: 44,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: _navs.length,
+                itemBuilder: (context, index) {
+                  final nav = _navs[index];
+                  final selected = nav.sid == _navSid;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: ChoiceChip(
+                      label: Text(nav.title),
+                      selected: selected,
+                      onSelected: (_) {
+                        if (_navSid == nav.sid) return;
+                        setState(() => _navSid = nav.sid);
                         unawaited(_load(reset: true));
                       },
                     ),

@@ -13,6 +13,7 @@ import 'app_update.dart';
 import 'app_layout.dart';
 import 'app_orientation.dart';
 import 'app_theme.dart';
+import 'playback_foreground.dart';
 import 'tv_theme.dart';
 import 'home_screen.dart';
 import 'hongguo_account.dart';
@@ -28,6 +29,7 @@ import 'video_enhancement_assets.dart';
 
 Future<void> main(List<String> arguments) async {
   WidgetsFlutterBinding.ensureInitialized();
+  unawaited(PlaybackForeground.clearStaleFlag());
   runApp(const BootSplash());
   await Future<void>.delayed(const Duration(seconds: 4));
   if (Platform.isAndroid) {
@@ -254,7 +256,10 @@ class _AppBootstrapState extends State<AppBootstrap>
   @override
   Widget build(BuildContext context) {
     if (signatureCheckEnforced && _signatureOk == false) {
-      return const MaterialApp(home: TamperScreen());
+      return MaterialApp(
+        theme: AppTheme.platformLight,
+        home: const TamperScreen(),
+      );
     }
     return DuanjuApp(
       repository: repository,
@@ -370,7 +375,7 @@ class DuanjuApp extends StatelessWidget {
                     Text(
                       bootstrapError ?? '正在打开$appName',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 17),
+                      style: const TextStyle(fontSize: 12),
                     ),
                     const SizedBox(height: 24),
                     if (bootstrapError == null)

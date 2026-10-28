@@ -99,7 +99,7 @@ void main() {
   test('bridge network checks permission then allowlist', () async {
     var fetched = 0;
     final bridge = await _bridge(
-      fetch: (_) async {
+      fetch: (_, {headers = const {}, timeout}) async {
         fetched++;
         return MiniAppHttpResponse(
           status: 200,
@@ -128,7 +128,7 @@ void main() {
     var fetched = 0;
     final bridge = await _bridge(
       allowlist: const [],
-      fetch: (_) async {
+      fetch: (_, {headers = const {}, timeout}) async {
         fetched++;
         return MiniAppHttpResponse(
           status: 200,

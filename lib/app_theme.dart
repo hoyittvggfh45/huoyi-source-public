@@ -101,6 +101,23 @@ abstract final class AppTheme {
       useMaterial3: true,
       brightness: brightness,
       colorScheme: scheme,
+      textTheme: const TextTheme(
+        displayLarge: TextStyle(fontSize: 12),
+        displayMedium: TextStyle(fontSize: 12),
+        displaySmall: TextStyle(fontSize: 12),
+        headlineLarge: TextStyle(fontSize: 12),
+        headlineMedium: TextStyle(fontSize: 12),
+        headlineSmall: TextStyle(fontSize: 12),
+        titleLarge: TextStyle(fontSize: 12),
+        titleMedium: TextStyle(fontSize: 12),
+        titleSmall: TextStyle(fontSize: 12),
+        bodyLarge: TextStyle(fontSize: 12),
+        bodyMedium: TextStyle(fontSize: 12),
+        bodySmall: TextStyle(fontSize: 12),
+        labelLarge: TextStyle(fontSize: 12),
+        labelMedium: TextStyle(fontSize: 12),
+        labelSmall: TextStyle(fontSize: 12),
+      ),
       scaffoldBackgroundColor: background,
       appBarTheme: AppBarTheme(
         backgroundColor: background,
@@ -206,7 +223,7 @@ abstract final class AppTheme {
         elevation: 0,
         centerTitle: true,
         titleTextStyle: TextStyle(
-          fontSize: 16.5,
+          fontSize: 12,
           fontWeight: FontWeight.w600,
           letterSpacing: 0,
           color: label,
@@ -239,7 +256,7 @@ abstract final class AppTheme {
               ),
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
         labelStyle: TextStyle(
-          fontSize: 13,
+          fontSize: 12,
           fontWeight: FontWeight.w600,
           letterSpacing: 0,
           color: WidgetStateColor.resolveWith(
@@ -248,7 +265,7 @@ abstract final class AppTheme {
           ),
         ),
         secondaryLabelStyle: TextStyle(
-          fontSize: 13,
+          fontSize: 12,
           fontWeight: FontWeight.w600,
           color: background,
         ),
@@ -275,7 +292,7 @@ abstract final class AppTheme {
           shape: const StadiumBorder(),
           minimumSize: const Size(64, 50),
           textStyle: const TextStyle(
-            fontSize: 16.5,
+            fontSize: 12,
             fontWeight: FontWeight.w600,
             letterSpacing: 0,
           ),
@@ -291,7 +308,7 @@ abstract final class AppTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           shape: const StadiumBorder(),
-          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+          textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
         ),
       ),
       cardTheme: CardThemeData(
@@ -308,11 +325,7 @@ abstract final class AppTheme {
       listTileTheme: ListTileThemeData(
         iconColor: secondary,
         shape: continuous,
-        titleTextStyle: TextStyle(
-          fontSize: 16.5,
-          letterSpacing: 0,
-          color: label,
-        ),
+        titleTextStyle: TextStyle(fontSize: 12, letterSpacing: 0, color: label),
         subtitleTextStyle: TextStyle(fontSize: 12, color: secondary),
       ),
       dialogTheme: DialogThemeData(
@@ -339,7 +352,7 @@ abstract final class AppTheme {
         backgroundColor: dark
             ? const Color(0xFF2C2C2E)
             : const Color(0xFF1C1C1E),
-        contentTextStyle: const TextStyle(color: Colors.white, fontSize: 14),
+        contentTextStyle: const TextStyle(color: Colors.white, fontSize: 12),
         actionTextColor: primary,
         shape: continuous,
         elevation: 0,
@@ -357,15 +370,29 @@ abstract final class AppTheme {
     );
     return base.copyWith(
       textTheme: base.textTheme.copyWith(
+        displayLarge: base.textTheme.displayLarge?.copyWith(fontSize: 12),
+        displayMedium: base.textTheme.displayMedium?.copyWith(fontSize: 12),
+        displaySmall: base.textTheme.displaySmall?.copyWith(fontSize: 12),
+        headlineLarge: base.textTheme.headlineLarge?.copyWith(fontSize: 12),
+        headlineMedium: base.textTheme.headlineMedium?.copyWith(fontSize: 12),
+        headlineSmall: base.textTheme.headlineSmall?.copyWith(fontSize: 12),
         titleLarge: base.textTheme.titleLarge?.copyWith(
-          fontSize: 21,
+          fontSize: 12,
           fontWeight: FontWeight.w700,
           letterSpacing: 0,
         ),
         titleMedium: base.textTheme.titleMedium?.copyWith(
+          fontSize: 12,
           fontWeight: FontWeight.w600,
           letterSpacing: 0,
         ),
+        titleSmall: base.textTheme.titleSmall?.copyWith(fontSize: 12),
+        bodyLarge: base.textTheme.bodyLarge?.copyWith(fontSize: 12),
+        bodyMedium: base.textTheme.bodyMedium?.copyWith(fontSize: 12),
+        bodySmall: base.textTheme.bodySmall?.copyWith(fontSize: 12),
+        labelLarge: base.textTheme.labelLarge?.copyWith(fontSize: 12),
+        labelMedium: base.textTheme.labelMedium?.copyWith(fontSize: 12),
+        labelSmall: base.textTheme.labelSmall?.copyWith(fontSize: 12),
       ),
     );
   }

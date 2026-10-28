@@ -58,14 +58,23 @@ void main() {
     expect(layout.blurBackground, isTrue);
   });
 
-  test('unknown and empty codes fall back to one unknown column', () {
-    final unknown = hikerColLayout('movie_9');
-    expect(unknown.kind, HikerColKind.unknown);
-    expect(unknown.columns, 1);
-    expect(unknown.blurBackground, isFalse);
+  test('unknown codes fall back to a grid instead of a list column', () {
+    final movieUnknown = hikerColLayout('movie_9');
+    expect(movieUnknown.kind, HikerColKind.movie);
+    expect(movieUnknown.columns, 3);
+    expect(movieUnknown.blurBackground, isFalse);
     final empty = hikerColLayout('');
     expect(empty.kind, HikerColKind.unknown);
-    expect(empty.columns, 1);
+    expect(empty.columns, 3);
+  });
+
+  test('unknown codes infer grid columns from the numeric suffix', () {
+    expect(hikerColLayout('movie_3_vertical_pic').columns, 3);
+    expect(hikerColLayout('pic_4_round').columns, 4);
+    expect(hikerColLayout('movie_2_card').columns, 2);
+    expect(hikerColLayout('movie_1_vertical_pic_card').columns, 3);
+    expect(hikerColLayout('movie_3_vertical_pic').kind, HikerColKind.movie);
+    expect(hikerColLayout('icon_9').kind, HikerColKind.icon);
   });
 
   test('aspect ratio follows kind', () {

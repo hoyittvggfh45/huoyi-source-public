@@ -476,7 +476,7 @@ class _LiveScreenState extends State<LiveScreen> {
                       _groupName,
                       style: const TextStyle(
                         color: Color(0xCCFFFFFF),
-                        fontSize: 11.5,
+                        fontSize: 12,
                       ),
                     ),
                   ),
@@ -507,7 +507,7 @@ class _LiveScreenState extends State<LiveScreen> {
               channel.number,
               style: const TextStyle(
                 color: Color(0xB3FFFFFF),
-                fontSize: 11.5,
+                fontSize: 12,
                 fontFeatures: [FontFeature.tabularFigures()],
               ),
             ),
@@ -529,7 +529,7 @@ class _LiveScreenState extends State<LiveScreen> {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: Color(0xB3FFFFFF),
-                    fontSize: 11.5,
+                    fontSize: 12,
                   ),
                 ),
               ),
@@ -538,10 +538,7 @@ class _LiveScreenState extends State<LiveScreen> {
             if (channel.urls.length > 1)
               Text(
                 '线路 ${channel.urls.length}',
-                style: const TextStyle(
-                  color: Color(0xB3FFFFFF),
-                  fontSize: 11.5,
-                ),
+                style: const TextStyle(color: Color(0xB3FFFFFF), fontSize: 12),
               ),
             // 内嵌播放器此前只能靠点视频区域进全屏，没有可见入口；点播详情页
             // 的顶部播放器一直有显式全屏按钮，这里补上以保持一致。
@@ -659,7 +656,7 @@ class _LiveScreenState extends State<LiveScreen> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.titleMedium?.copyWith(
-                          fontSize: 16.5,
+                          fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -708,7 +705,7 @@ class _LiveScreenState extends State<LiveScreen> {
     child: Text(
       'TV',
       style: theme.textTheme.titleLarge?.copyWith(
-        fontSize: 19,
+        fontSize: 12,
         fontWeight: FontWeight.bold,
       ),
     ),

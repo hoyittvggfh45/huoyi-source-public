@@ -29,7 +29,7 @@ class PictureQualityPanel extends StatelessWidget {
   }) => television
       ? ChoiceChip(
           key: ValueKey(id),
-          label: Text(label, style: const TextStyle(fontSize: 14)),
+          label: Text(label, style: const TextStyle(fontSize: 12)),
           selected: selected,
           onSelected: busy ? null : (_) => action(),
         )
@@ -52,7 +52,7 @@ class PictureQualityPanel extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('画质档', style: television ? const TextStyle(fontSize: 19) : null),
+        Text('画质档', style: television ? const TextStyle(fontSize: 12) : null),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,

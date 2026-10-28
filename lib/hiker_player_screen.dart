@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+
+import 'playback_foreground.dart';
 
 class HikerEpisode {
   const HikerEpisode({
@@ -13,6 +17,8 @@ class HikerEpisode {
   final String url;
   final Map<String, String> headers;
 }
+
+String stripHikerPlayFragment(String url) => url.split('#').first;
 
 class HikerPlayerScreen extends StatefulWidget {
   const HikerPlayerScreen({
@@ -30,10 +36,14 @@ class HikerPlayerScreen extends StatefulWidget {
   State<HikerPlayerScreen> createState() => _HikerPlayerScreenState();
 }
 
-class _HikerPlayerScreenState extends State<HikerPlayerScreen> {
+class _HikerPlayerScreenState extends State<HikerPlayerScreen>
+    with WidgetsBindingObserver {
   late final Player _player;
   late final VideoController _controller;
   late int _index;
+  StreamSubscription<String>? _errorSubscription;
+  String? _error;
+  bool _playbackServiceHeld = false;
 
   @override
   void initState() {
@@ -48,20 +58,57 @@ class _HikerPlayerScreenState extends State<HikerPlayerScreen> {
         enableHardwareAcceleration: true,
       ),
     );
+    _errorSubscription = _player.stream.error.listen((message) {
+      if (mounted) setState(() => _error = message);
+    });
+    WidgetsBinding.instance.addObserver(this);
     _open(_index);
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      if (!_playbackServiceHeld && _player.state.playing) {
+        _playbackServiceHeld = true;
+        final title = widget.title.isEmpty
+            ? widget.episodes[_index].title
+            : widget.title;
+        unawaited(PlaybackForeground.acquire(title));
+      }
+    } else if (state == AppLifecycleState.resumed) {
+      if (_playbackServiceHeld) {
+        _playbackServiceHeld = false;
+        unawaited(PlaybackForeground.release());
+      }
+    }
+  }
+
+  @override
   void dispose() {
+    _errorSubscription?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    if (_playbackServiceHeld) {
+      _playbackServiceHeld = false;
+      unawaited(PlaybackForeground.release());
+    }
     _player.dispose();
     super.dispose();
   }
 
   Future<void> _open(int index) async {
-    setState(() => _index = index);
+    setState(() {
+      _index = index;
+      _error = null;
+    });
     final episode = widget.episodes[index];
-    await _player.open(Media(episode.url, httpHeaders: episode.headers));
-    await _player.play();
+    final playUrl = stripHikerPlayFragment(episode.url);
+    try {
+      await _player.open(Media(playUrl, httpHeaders: episode.headers));
+      await _player.play();
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    }
   }
 
   @override
@@ -91,6 +138,14 @@ class _HikerPlayerScreenState extends State<HikerPlayerScreen> {
               style: const TextStyle(color: Colors.white),
             ),
           ),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              child: Text(
+                '播放失败：$_error',
+                style: const TextStyle(color: Colors.redAccent),
+              ),
+            ),
           Expanded(
             child: ListView.builder(
               itemCount: widget.episodes.length,

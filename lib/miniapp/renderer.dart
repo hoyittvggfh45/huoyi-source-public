@@ -13,9 +13,11 @@ import '../hiker_player_screen.dart';
 import '../local_store.dart';
 import '../models.dart';
 import '../playback_launch_screen.dart';
+import '../playback_parse.dart';
 import 'bridge.dart';
 import 'manifest.dart';
 import 'permissions.dart';
+import 'source_shapes.dart';
 import 'storage.dart';
 
 String injectMiniAppBootstrap(String html, String script) {
@@ -181,16 +183,36 @@ class _MiniAppScreenState extends State<MiniAppScreen> {
     }
   }
 
-  Future<MiniAppHttpResponse> _fetch(Uri uri) async {
+  Future<MiniAppHttpResponse> _fetch(
+    Uri uri, {
+    Map<String, String> headers = const {},
+    Duration? timeout,
+  }) async {
     final client = HttpClient();
     try {
       final request = await client.getUrl(uri);
-      final response = await request.close();
+      headers.forEach((key, value) {
+        try {
+          request.headers.set(key, value);
+        } catch (_) {}
+      });
+      final pending = request.close();
+      final response = timeout == null
+          ? await pending
+          : await pending.timeout(timeout);
       final bytes = await response.fold<List<int>>(
         [],
         (acc, chunk) => acc..addAll(chunk),
       );
-      return MiniAppHttpResponse(status: response.statusCode, bytes: bytes);
+      final responseHeaders = <String, String>{};
+      response.headers.forEach((name, values) {
+        responseHeaders[name] = values.join(', ');
+      });
+      return MiniAppHttpResponse(
+        status: response.statusCode,
+        bytes: bytes,
+        headers: responseHeaders,
+      );
     } finally {
       client.close();
     }
@@ -304,11 +326,46 @@ class _MiniAppHostImpl extends MiniAppHost {
   }
 
   String _sourceId(Map<String, Object?> params) {
-    for (final key in ['source', 'key', 'site', 'id']) {
+    for (final key in ['siteKey', 'source', 'key', 'site', 'id']) {
       final value = params[key];
       if (value is String && value.isNotEmpty) return value;
     }
     return '';
+  }
+
+  String _dramaId(Map<String, Object?> params) {
+    for (final key in ['id', 'vodId', 'vod_id', 'dramaId']) {
+      final value = params[key];
+      if (value is String && value.isNotEmpty) return value;
+    }
+    return '';
+  }
+
+  int _pageNumber(Map<String, Object?> params) {
+    final raw = params['page'];
+    if (raw is int && raw > 0) return raw;
+    if (raw is String) {
+      final parsed = int.tryParse(raw);
+      if (parsed != null && parsed > 0) return parsed;
+    }
+    return 1;
+  }
+
+  Map<String, String> _stringMap(Object? raw) {
+    if (raw is! Map) return const {};
+    final result = <String, String>{};
+    raw.forEach((key, value) {
+      if (value != null) result[key.toString()] = value.toString();
+    });
+    return result;
+  }
+
+  SourceSite _vodSite(String sourceId) {
+    final site = _vodSources.where((entry) => entry.id == sourceId).firstOrNull;
+    if (site == null) {
+      throw MiniAppDenied('采集源不可用：$sourceId');
+    }
+    return site;
   }
 
   @override
@@ -350,10 +407,15 @@ class _MiniAppHostImpl extends MiniAppHost {
       category: category?.id ?? '',
     );
     return {
+      'classes': [
+        for (final entry in categories)
+          {'type_id': entry.id, 'type_name': entry.name},
+      ],
       'class': [
         for (final entry in categories) {'id': entry.id, 'name': entry.name},
       ],
-      'list': [for (final drama in page.items) drama.toJson()],
+      'filters': const <String, Object?>{},
+      'list': [for (final drama in page.items) miniappVodJson(drama)],
     };
   }
 
@@ -364,31 +426,120 @@ class _MiniAppHostImpl extends MiniAppHost {
       throw const MiniAppDenied('采集源不可用');
     }
     final sourceId = _sourceId(params);
-    final dramaId = [params['vodId'], params['vod_id'], params['dramaId']]
-        .whereType<String>()
-        .firstWhere((value) => value.isNotEmpty, orElse: () => '');
+    final dramaId = _dramaId(params);
     if (sourceId.isEmpty || dramaId.isEmpty) {
       throw const MiniAppDenied('source.detail 需要站源与剧集 id');
     }
     final detail = await repository.detail(
       Drama(id: dramaId, source: sourceId, title: ''),
     );
+    return miniappDetailJson(detail);
+  }
+
+  @override
+  Future<Map<String, Object?>> sourceCategory(
+    Map<String, Object?> params,
+  ) async {
+    final repository = _repository;
+    if (_store == null || repository == null) {
+      throw const MiniAppDenied('采集源不可用');
+    }
+    final sourceId = _sourceId(params);
+    if (sourceId.isEmpty) {
+      throw const MiniAppDenied('source.category 需要站源');
+    }
+    _vodSite(sourceId);
+    final tid =
+        params['tid']?.toString() ?? params['category']?.toString() ?? '';
+    final page = _pageNumber(params);
+    final result = await repository.catalog(
+      sourceId,
+      category: tid,
+      page: page,
+      filters: _stringMap(params['ext']),
+    );
     return {
-      'id': detail.drama.id,
-      'source': detail.drama.source,
-      'title': detail.drama.title,
-      'cover': detail.drama.cover,
-      'description': detail.drama.description,
-      'episodes': [
-        for (final episode in detail.episodes)
-          {
-            'id': episode.id,
-            'title': episode.title,
-            'number': episode.number,
-            'vip': episode.vip,
-          },
-      ],
+      'list': [for (final drama in result.items) miniappVodJson(drama)],
+      'page': page,
+      'pagecount': miniappPageCount(result.hasMore, page),
+      'size': result.items.length,
     };
+  }
+
+  @override
+  Future<Map<String, Object?>> sourceSearch(Map<String, Object?> params) async {
+    final repository = _repository;
+    if (_store == null || repository == null) {
+      throw const MiniAppDenied('采集源不可用');
+    }
+    final sourceId = _sourceId(params);
+    final keyword =
+        params['wd']?.toString() ?? params['keyword']?.toString() ?? '';
+    if (sourceId.isEmpty || keyword.isEmpty) {
+      throw const MiniAppDenied('source.search 需要站源与关键词');
+    }
+    _vodSite(sourceId);
+    final page = _pageNumber(params);
+    if (page > 1) {
+      return {
+        'list': const <Map<String, Object?>>[],
+        'page': page,
+        'pagecount': page,
+        'size': 0,
+      };
+    }
+    final results = await repository.searchAcross([sourceId], keyword);
+    return {
+      'list': [for (final drama in results.items) miniappVodJson(drama)],
+      'page': page,
+      'pagecount': page,
+      'size': results.items.length,
+    };
+  }
+
+  @override
+  Future<Map<String, Object?>> sourcePlay(Map<String, Object?> params) async {
+    final repository = _repository;
+    if (_store == null || repository == null) {
+      throw const MiniAppDenied('采集源不可用');
+    }
+    final sourceId = _sourceId(params);
+    final flag = params['flag']?.toString() ?? '';
+    final id = _dramaId(params);
+    if (sourceId.isEmpty || id.isEmpty) {
+      throw const MiniAppDenied('source.play 需要站源与剧集 id');
+    }
+    _vodSite(sourceId);
+    try {
+      final plan = await repository.resolve(
+        Drama(id: '', source: sourceId, title: ''),
+        Episode({'id': id, 'flag': flag}, 1),
+      );
+      if (plan.url.isEmpty) throw StateError('empty plan');
+      return {
+        'url': plan.url,
+        'header': plan.headers,
+        'parse': plan.needsParse ? '1' : '0',
+        'jx': '0',
+        'flag': flag,
+        'key': sourceId,
+        'playUrl': plan.originalUrl,
+      };
+    } catch (error) {
+      if (id.startsWith('http://') || id.startsWith('https://')) {
+        final parse = miniappLooksLikeMedia(id) ? '0' : '1';
+        return {
+          'url': id,
+          'header': const <String, String>{},
+          'parse': parse,
+          'jx': '0',
+          'flag': flag,
+          'key': sourceId,
+          'playUrl': '',
+        };
+      }
+      rethrow;
+    }
   }
 
   @override
@@ -403,15 +554,51 @@ class _MiniAppHostImpl extends MiniAppHost {
           (key, value) => headers[key.toString()] = value.toString(),
         );
       }
+      var playUrl = url;
+      var playHeaders = headers;
+      final needsParse =
+          params['parse']?.toString() == '1' ||
+          params['jx']?.toString() == '1' ||
+          params['sniff'] == true;
+      if (needsParse) {
+        final repository = _repository;
+        if (repository == null) {
+          throw const MiniAppDenied('播放器不可用');
+        }
+        final context = _context;
+        final apis = await ParseInterfaceStore.loadEnabled();
+        final plan = await repository.resolveParse(
+          PlaybackPlan(url: url, headers: headers),
+          apis,
+        );
+        if (plan.url.isEmpty || (plan.url == url && plan.needsParse)) {
+          throw const MiniAppDenied('解析未返回可播地址');
+        }
+        playUrl = plan.url;
+        playHeaders = plan.headers.isEmpty ? headers : plan.headers;
+        await Navigator.of(context).push<void>(
+          MaterialPageRoute<void>(
+            builder: (_) => HikerPlayerScreen(
+              title: title,
+              episodes: [
+                HikerEpisode(title: title, url: playUrl, headers: playHeaders),
+              ],
+            ),
+          ),
+        );
+        return {'route': '/player', 'url': playUrl};
+      }
       await Navigator.of(_context).push<void>(
         MaterialPageRoute<void>(
           builder: (_) => HikerPlayerScreen(
             title: title,
-            episodes: [HikerEpisode(title: title, url: url, headers: headers)],
+            episodes: [
+              HikerEpisode(title: title, url: playUrl, headers: playHeaders),
+            ],
           ),
         ),
       );
-      return {'route': '/player', 'url': url};
+      return {'route': '/player', 'url': playUrl};
     }
     final repository = _repository;
     final store = _store;
@@ -419,9 +606,7 @@ class _MiniAppHostImpl extends MiniAppHost {
       throw const MiniAppDenied('播放器不可用');
     }
     final sourceId = _sourceId(params);
-    final dramaId = [params['vodId'], params['vod_id'], params['dramaId']]
-        .whereType<String>()
-        .firstWhere((value) => value.isNotEmpty, orElse: () => '');
+    final dramaId = _dramaId(params);
     if (sourceId.isEmpty || dramaId.isEmpty) {
       throw const MiniAppDenied('player.open 需要 url 或站源剧集参数');
     }

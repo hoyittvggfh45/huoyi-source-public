@@ -27,14 +27,19 @@ import 'package:duanju_app/follow_state.dart';
 import 'package:duanju_app/glass_panel.dart';
 import 'package:duanju_app/jar_bridge.dart';
 import 'package:duanju_app/local_store.dart';
+import 'package:duanju_app/mdk_video_pane.dart';
 import 'package:duanju_app/models.dart';
+import 'package:duanju_app/player_core.dart';
+import 'package:duanju_app/tvbox_video_pane.dart';
 import 'package:duanju_app/playback_launch_screen.dart';
 import 'package:duanju_app/playback_loader.dart';
 import 'package:duanju_app/playback_parse.dart';
+import 'package:duanju_app/playback_foreground.dart';
 import 'package:duanju_app/playback_preloader.dart';
 import 'package:duanju_app/playback_recovery.dart';
 import 'package:duanju_app/playback_preferences.dart';
 import 'package:duanju_app/xigua/player_controls.dart';
+import 'package:duanju_app/network_speed.dart';
 import 'package:duanju_app/xigua/player_interactions.dart';
 import 'package:duanju_app/xigua/player_menu.dart';
 import 'package:duanju_app/xigua/recommendation_service.dart';
@@ -67,6 +72,7 @@ class XiguaPlayerScreen extends StatefulWidget {
     this.videoBuilder,
     this.handoff,
     this.searchKeyword = '',
+    this.startFullscreen = false,
   });
   final DramaDetail detail;
   final int initialIndex;
@@ -78,6 +84,7 @@ class XiguaPlayerScreen extends StatefulWidget {
   final LocalStore store;
   final LanIncomingPlayback? handoff;
   final String searchKeyword;
+  final bool startFullscreen;
   @visibleForTesting
   final Player Function()? playerFactory;
   @visibleForTesting
@@ -89,6 +96,7 @@ class XiguaPlayerScreen extends StatefulWidget {
 class _PlayerScreenState extends State<XiguaPlayerScreen>
     with WidgetsBindingObserver {
   late final Player _player;
+  late final NetworkSpeedTracker _speedTracker;
   VideoController? _video;
   bool _surfaceOutput = false;
   bool _surfaceFailed = false;
@@ -143,6 +151,7 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
   bool _acceptErrors = false;
   bool _foreground = true;
   bool _playIntent = true;
+  bool _playbackServiceHeld = false;
   bool _showControlsOnPlaybackReady = true;
   bool _pendingError = false;
   bool _pictureInPictureSupported = false;
@@ -157,6 +166,15 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
   String? _error;
   String? _saveWarning;
   PlaybackPlan? _plan;
+  late PlayerCore _core;
+  final _tvboxHandle = TvboxPlaybackHandle();
+  PlaybackPlan? _tvboxPlan;
+  double _tvboxStartPosition = 0;
+  bool _tvboxAutoplay = true;
+  final _mdkHandle = MdkPlaybackHandle();
+  PlaybackPlan? _mdkPlan;
+  double _mdkStartPosition = 0;
+  bool _mdkAutoplay = true;
   List<Drama> _recommendations = const [];
   bool _recommendationLoading = false;
   String _recommendationKeyword = '';
@@ -171,7 +189,27 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
   double _aspectRatio = 9 / 16;
   double _resumePosition = 0;
   bool _rotating = false;
+  bool _fullscreenApplied = false;
   bool _television = false;
+  bool get _useExoCore =>
+      !_television && Platform.isAndroid && _core == PlayerCore.exo;
+  bool get _useMdkCore => !_television && _core == PlayerCore.mdk;
+  bool get _useNativeHandle => _useExoCore;
+  Duration get _enginePosition => _useNativeHandle
+      ? _tvboxHandle.position
+      : _useMdkCore
+      ? _mdkHandle.position
+      : _player.state.position;
+  Duration get _engineDuration => _useNativeHandle
+      ? _tvboxHandle.duration
+      : _useMdkCore
+      ? _mdkHandle.duration
+      : _player.state.duration;
+  bool get _enginePlaying => _useNativeHandle
+      ? _tvboxHandle.playing
+      : _useMdkCore
+      ? _mdkHandle.playing
+      : _player.state.playing;
   bool _brightnessAdjusted = false;
   double? _cachedBrightness;
   AppOrientationController? _orientationController;
@@ -202,7 +240,15 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
       : '${_requestedQuality}P';
   String get _session => _plan?.session ?? '';
   double get _currentPosition =>
-      _openedIndex == _index && _player.state.position.inMilliseconds > 0
+      _useNativeHandle &&
+          _openedIndex == _index &&
+          _tvboxHandle.position > Duration.zero
+      ? _tvboxHandle.positionSeconds
+      : _useMdkCore &&
+            _openedIndex == _index &&
+            _mdkHandle.position > Duration.zero
+      ? _mdkHandle.positionSeconds
+      : _openedIndex == _index && _player.state.position.inMilliseconds > 0
       ? _player.state.position.inMilliseconds / 1000
       : _resumePosition;
 
@@ -273,6 +319,9 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
     _profileEpoch = widget.handoff?.profileEpoch ?? widget.store.profileEpoch;
     final preferences = widget.store.playbackPreferences;
     _speed = preferences.speed;
+    _core = PlayerCoreStorage.read(widget.store.preferences);
+    _tvboxHandle.speed = preferences.speed;
+    _mdkHandle.speed = preferences.speed;
     _requestedQuality = preferences.quality;
     _autoAdvance = preferences.autoAdvance;
     _danmakuEnabled = preferences.danmaku;
@@ -291,6 +340,9 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
             logLevel: MPVLogLevel.error,
           ),
         );
+    _speedTracker = NetworkSpeedTracker(
+      sample: () => fetchMpvNetworkSpeedSample(_player),
+    );
     _surfaceOutput = androidSurfaceViewSupported && widget.videoBuilder == null;
     _video = widget.videoBuilder == null && !_surfaceOutput
         ? VideoController(
@@ -425,6 +477,7 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
       (_) => _saveProgress(),
     );
     _healthTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      unawaited(_speedTracker.tick());
       if (!_closed &&
           _acceptErrors &&
           !_loading &&
@@ -620,11 +673,11 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
     unawaited(_syncPictureInPictureParams());
     if (_pictureInPictureVisible || _lifecycleOnScreen) {
       _pictureInPictureExitTimer?.cancel();
-      _applyLifecycleVisibility(pauseWhenHidden: false);
+      _applyLifecycleVisibility();
       return;
     }
     _pictureInPictureExitTimer?.cancel();
-    _applyLifecycleVisibility(pauseWhenHidden: !delayHiddenPause);
+    _applyLifecycleVisibility();
     if (delayHiddenPause) {
       _pictureInPictureExitTimer = Timer(const Duration(milliseconds: 700), () {
         if (!_closed && !_pictureInPictureVisible && !_lifecycleOnScreen) {
@@ -638,7 +691,7 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
       _lifecycleState == AppLifecycleState.resumed ||
       _lifecycleState == AppLifecycleState.inactive;
 
-  void _applyLifecycleVisibility({bool pauseWhenHidden = true}) {
+  void _applyLifecycleVisibility() {
     final visible = _lifecycleOnScreen || _pictureInPictureVisible;
     _foreground = visible;
     _enhancement.setForeground(_foreground);
@@ -647,13 +700,22 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
     _syncScreenAwake();
     _health.reset();
     if (!visible) _interactions.cancel();
-    if (pauseWhenHidden &&
-        !visible &&
+    if (!visible &&
         (_lifecycleState == AppLifecycleState.paused ||
             _lifecycleState == AppLifecycleState.hidden)) {
-      _playIntent = false;
-      unawaited(_player.pause());
       unawaited(_saveProgress(flush: true));
+      if (!_playbackServiceHeld &&
+          shouldAcquirePlaybackService(
+            playing: _enginePlaying,
+            useTvbox: _useNativeHandle,
+          )) {
+        _playbackServiceHeld = true;
+        unawaited(PlaybackForeground.acquire(widget.detail.drama.title));
+      }
+    }
+    if (visible && _playbackServiceHeld) {
+      _playbackServiceHeld = false;
+      unawaited(PlaybackForeground.release());
     }
     if (visible && _pendingError) {
       _queueRecovery();
@@ -1004,6 +1066,12 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
     }
     _lastOrientation = orientation;
     _scheduleSystemUi();
+    if (widget.startFullscreen && !_fullscreenApplied) {
+      _fullscreenApplied = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_closed) _rotate();
+      });
+    }
   }
 
   void _scheduleSystemUi() {
@@ -1102,11 +1170,125 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
     await _play(_index, position: position, recoveryAction: action);
   }
 
+  void _onTvboxCompleted() {
+    if (_loading || _closed || !_acceptErrors || _error != null) return;
+    final duration = _tvboxHandle.duration;
+    if (duration <= Duration.zero ||
+        _tvboxHandle.position < duration - const Duration(seconds: 2)) {
+      _queueRecovery();
+    } else if (_sleepTimer.consumeFinishEpisode()) {
+      _watchSession.completeEpisode();
+      _expireSleepTimer();
+    } else if (_autoAdvance &&
+        _foreground &&
+        !_panelOpen &&
+        _index + 1 < widget.detail.episodes.length) {
+      _watchSession.completeEpisode();
+      _play(_index + 1, showControlsOnReady: false);
+    } else {
+      _watchSession.completeEpisode();
+      _playIntent = false;
+      _interactions.cancel();
+      unawaited(_tvboxHandle.pause());
+      unawaited(_saveProgress(flush: true));
+    }
+  }
+
+  void _onMdkCompleted() {
+    if (_loading || _closed || !_acceptErrors || _error != null) return;
+    final duration = _mdkHandle.duration;
+    if (duration <= Duration.zero ||
+        _mdkHandle.position < duration - const Duration(seconds: 2)) {
+      _queueRecovery();
+    } else if (_sleepTimer.consumeFinishEpisode()) {
+      _watchSession.completeEpisode();
+      _expireSleepTimer();
+    } else if (_autoAdvance &&
+        _foreground &&
+        !_panelOpen &&
+        _index + 1 < widget.detail.episodes.length) {
+      _watchSession.completeEpisode();
+      _play(_index + 1, showControlsOnReady: false);
+    } else {
+      _watchSession.completeEpisode();
+      _playIntent = false;
+      _interactions.cancel();
+      unawaited(_mdkHandle.pause());
+      unawaited(_saveProgress(flush: true));
+    }
+  }
+
+  void _onPaneError(String message) {
+    if (_closed || _loading || _error != null) return;
+    if (mounted) {
+      setState(() {
+        _loading = false;
+        _error = message.isEmpty ? '播放失败' : message;
+      });
+    }
+  }
+
+  Future<void> _openCoreDialog() async {
+    final next = await showPlayerCoreDialog(
+      context,
+      _core,
+      exoAvailable: Platform.isAndroid,
+    );
+    if (next == null || next == _core || _closed) return;
+    await _switchCore(next);
+  }
+
+  Future<void> _switchCore(PlayerCore next) async {
+    final position = _currentPosition;
+    final playing = _playIntent && _enginePlaying;
+    await PlayerCoreStorage.write(widget.store.preferences, next);
+    if (_closed) return;
+    setState(() {
+      _core = next;
+      _loading = true;
+    });
+    await _play(_index, position: position, playWhenReady: playing);
+  }
+
   void _togglePlayback() {
     if (_closed || _loading || _error != null) return;
     _handoffOwned = false;
     widget.handoff?.fail('接收端已操作播放');
     _interactions.cancel();
+    if (_useNativeHandle) {
+      _playIntent = !_tvboxHandle.playing;
+      if (_playIntent) _enhancement.mediaReady();
+      _health.reset();
+      if (_playIntent && _tvboxHandle.completed) {
+        unawaited(_play(_index));
+        return;
+      }
+      if (_playIntent) {
+        unawaited(_tvboxHandle.play());
+      } else {
+        unawaited(_tvboxHandle.pause());
+      }
+      if (!_playIntent) unawaited(_saveProgress(flush: true));
+      _syncDanmaku();
+      return;
+    }
+    if (_useMdkCore) {
+      _playIntent = !_mdkHandle.playing;
+      if (_playIntent) _enhancement.mediaReady();
+      _health.reset();
+      if (_playIntent && _mdkHandle.completed) {
+        unawaited(_play(_index));
+        return;
+      }
+      if (_playIntent) {
+        unawaited(_mdkHandle.play());
+      } else {
+        unawaited(_mdkHandle.pause());
+      }
+      if (!_playIntent) unawaited(_saveProgress(flush: true));
+      _syncDanmaku();
+      return;
+    }
     _playIntent = !_player.state.playing;
     if (_playIntent) _enhancement.mediaReady();
     _health.reset();
@@ -1124,8 +1306,8 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
       return;
     }
     _syncWatchSession();
-    final position = _player.state.position.inMilliseconds / 1000;
-    final duration = _player.state.duration.inMilliseconds / 1000;
+    final position = _enginePosition.inMilliseconds / 1000;
+    final duration = _engineDuration.inMilliseconds / 1000;
     if (position < .1) {
       return;
     }
@@ -1367,16 +1549,26 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
         _plan = plan;
         installed = true;
         _acceptErrors = true;
-        await _player.open(
-          Media(
-            plan.url,
-            httpHeaders: plan.headers,
-            start: position > 0
-                ? Duration(milliseconds: (position * 1000).round())
-                : null,
-          ),
-          play: _foreground && _playIntent,
-        );
+        if (_useExoCore && plan.decryptionKey.isEmpty) {
+          _tvboxPlan = plan;
+          _tvboxStartPosition = position;
+          _tvboxAutoplay = _foreground && _playIntent;
+        } else if (_useMdkCore && plan.decryptionKey.isEmpty) {
+          _mdkPlan = plan;
+          _mdkStartPosition = position;
+          _mdkAutoplay = _foreground && _playIntent;
+        } else {
+          await _player.open(
+            Media(
+              plan.url,
+              httpHeaders: plan.headers,
+              start: position > 0
+                  ? Duration(milliseconds: (position * 1000).round())
+                  : null,
+            ),
+            play: _foreground && _playIntent,
+          );
+        }
         if (_closed || ticket != _generation) {
           return;
         }
@@ -1443,7 +1635,7 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
     await _play(
       _index,
       position: position,
-      playWhenReady: quality == null || _error != null || _player.state.playing,
+      playWhenReady: quality == null || _error != null || _enginePlaying,
     );
   }
 
@@ -1529,6 +1721,8 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
     _syncPreload();
     _menuRevision.value++;
     await _interactions.applySpeed();
+    if (_useNativeHandle) unawaited(_tvboxHandle.setSpeed(_speed));
+    if (_useMdkCore) unawaited(_mdkHandle.setSpeed(_speed));
     if (qualityChanged && _plan?.local != true) {
       await _retry(quality: nextPreferences.quality);
     }
@@ -1656,20 +1850,26 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
     _enhancement.ignorePerformance();
     var succeeded = false;
     try {
-      await _player.seek(target);
+      if (_useNativeHandle) {
+        await _tvboxHandle.seek(target);
+      } else if (_useMdkCore) {
+        await _mdkHandle.seek(target);
+      } else {
+        await _player.seek(target);
+      }
       succeeded = true;
     } catch (_) {
       _notice('跳转失败，请重试');
     } finally {
       if (!_closed && ticket == _seekSequence && generation == _generation) {
-        _danmaku.endSeek(succeeded ? target : _player.state.position);
+        _danmaku.endSeek(succeeded ? target : _enginePosition);
       }
     }
   }
 
   void _seek(int seconds) {
-    final desired = _player.state.position + Duration(seconds: seconds);
-    final maxDuration = _player.state.duration;
+    final desired = _enginePosition + Duration(seconds: seconds);
+    final maxDuration = _engineDuration;
     final target = desired < Duration.zero
         ? Duration.zero
         : maxDuration > Duration.zero && desired > maxDuration
@@ -1830,6 +2030,10 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
   @override
   void dispose() {
     _watchSession.setPlaying(false);
+    if (_playbackServiceHeld) {
+      _playbackServiceHeld = false;
+      unawaited(PlaybackForeground.release());
+    }
     _sleepTimer.removeListener(_sleepTimerChanged);
     _sleepTimer.dispose();
     _closed = true;
@@ -1847,6 +2051,7 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
     _saveTimer?.cancel();
     _coalesceTimer?.cancel();
     _healthTimer?.cancel();
+    _speedTracker.dispose();
     _errorTimer?.cancel();
     _recommendationProgressTimer?.cancel();
     _recommendationProgressTimer = null;
@@ -1971,6 +2176,7 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
                       overflow: TextOverflow.ellipsis,
                     ),
                     actions: [
+                      PlayerCoreBadge(core: _core, onTap: _openCoreDialog),
                       IconButton(
                         tooltip: '旋转与全屏',
                         onPressed: _rotate,
@@ -2087,6 +2293,7 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
             onFocusSurface: _playerFocus.requestFocus,
             onSeek: _seekTo,
             speed: _speed,
+            networkSpeed: _speedTracker.speedText,
             qualityLabel: _qualityLabel,
             showBufferingMessage: false,
             showDanmaku: widget.detail.drama.source == 'hongguo',
@@ -2095,6 +2302,7 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
             onEpisodes: () => _openPanel(PlayerMenuSection.episodes),
             onSpeed: () => _openPanel(PlayerMenuSection.speed),
             onQuality: () => _openPanel(PlayerMenuSection.quality),
+            onSettings: () => _openPanel(PlayerMenuSection.settings),
             onSleepTimer: _showSleepTimer,
             sleepTimerLabel: _sleepTimer.label,
             onDanmaku: widget.detail.drama.source == 'hongguo'
@@ -2111,6 +2319,8 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
             onNext: _index + 1 < widget.detail.episodes.length
                 ? () => _play(_index + 1)
                 : null,
+            core: _core,
+            onCoreTap: _openCoreDialog,
           );
     final layeredControls = Stack(
       fit: StackFit.expand,
@@ -2154,6 +2364,34 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
             children: [
               if (widget.videoBuilder != null)
                 widget.videoBuilder!(layeredControls)
+              else if (_useExoCore)
+                TvboxVideoPane(
+                  plan: _tvboxPlan,
+                  startPosition: _tvboxStartPosition,
+                  autoplay: _tvboxAutoplay,
+                  decoderMode: TelevisionDecoder.optimized,
+                  handle: _tvboxHandle,
+                  onCompleted: _onTvboxCompleted,
+                  onError: _onPaneError,
+                  onBack: _back,
+                  onFullscreen: _rotate,
+                  isFullscreen: _showFullscreen,
+                )
+              else if (_useMdkCore)
+                MdkVideoPane(
+                  plan: _mdkPlan,
+                  startPosition: _mdkStartPosition,
+                  autoplay: _mdkAutoplay,
+                  handle: _mdkHandle,
+                  onCompleted: _onMdkCompleted,
+                  onError: _onPaneError,
+                  core: _core,
+                  onCoreTap: _openCoreDialog,
+                  title: title,
+                  onBack: _back,
+                  onFullscreen: _rotate,
+                  isFullscreen: _showFullscreen,
+                )
               else if (_surfaceOutput) ...[
                 const ColoredBox(color: Colors.black),
                 _videoSurfaceHost(settled),
@@ -2164,6 +2402,12 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
                   fit: BoxFit.contain,
                   wakelock: false,
                   controls: (_) => layeredControls,
+                ),
+              if (_useExoCore && !hideOverlayForPictureInPicture)
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: PlayerCoreBadge(core: _core, onTap: _openCoreDialog),
                 ),
               if (_error != null && !hideOverlayForPictureInPicture)
                 ColoredBox(
@@ -2248,7 +2492,7 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
                           children: [
                             Text(
                               _saveWarning!,
-                              style: const TextStyle(fontSize: 11.5),
+                              style: const TextStyle(fontSize: 12),
                             ),
                             TextButton(
                               onPressed: _saveProgress,
@@ -2397,7 +2641,7 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
                               Text(
                                 drama.title,
                                 style: const TextStyle(
-                                  fontSize: 13,
+                                  fontSize: 12,
                                   fontWeight: FontWeight.w600,
                                   height: 1.3,
                                 ),
@@ -2448,7 +2692,7 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
     ),
     child: Text(
       label,
-      style: TextStyle(fontSize: 10.5, color: accent, height: 1.4),
+      style: TextStyle(fontSize: 12, color: accent, height: 1.4),
     ),
   );
 

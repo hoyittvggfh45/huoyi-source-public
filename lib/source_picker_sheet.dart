@@ -36,6 +36,105 @@ Future<String?> showSourcePickerSheet(
   ),
 );
 
+Future<String?> showCenteredSourcePickerDialog(
+  BuildContext context, {
+  required String sectionName,
+  required String currentName,
+  required String currentId,
+  required List<SourcePickerGroup> groups,
+}) => showDialog<String>(
+  context: context,
+  builder: (context) => CenteredSourcePickerDialog(
+    sectionName: sectionName,
+    currentName: currentName,
+    currentId: currentId,
+    groups: groups,
+  ),
+);
+
+class CenteredSourcePickerDialog extends StatelessWidget {
+  const CenteredSourcePickerDialog({
+    super.key,
+    required this.sectionName,
+    required this.currentName,
+    required this.currentId,
+    required this.groups,
+  });
+
+  final String sectionName;
+  final String currentName;
+  final String currentId;
+  final List<SourcePickerGroup> groups;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return Dialog(
+      key: const ValueKey('centered-source-picker'),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 48),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 560,
+          maxHeight: MediaQuery.sizeOf(context).height * 0.7,
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('切换$sectionName源', style: theme.textTheme.titleLarge),
+              const SizedBox(height: 4),
+              Text(
+                '当前：$currentName',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colors.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 16),
+              for (final group in groups) ...[
+                if (group.title.isNotEmpty) ...[
+                  Text(
+                    '${group.title}（${group.entries.length}）',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final entry in group.entries)
+                      ChoiceChip(
+                        key: ValueKey('centered-source-${entry.id}'),
+                        label: Text(entry.name),
+                        selected: entry.id == currentId,
+                        onSelected: (_) => Navigator.pop(context, entry.id),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+              ],
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  key: const ValueKey('centered-source-close'),
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('关闭'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class SourcePickerSheet extends StatefulWidget {
   const SourcePickerSheet({
     super.key,

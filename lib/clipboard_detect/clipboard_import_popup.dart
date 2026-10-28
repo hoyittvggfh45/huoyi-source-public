@@ -62,7 +62,7 @@ Future<bool> showClipboardImportDialog(
       body = '剪贴板检测到小程序安装包链接，是否立即下载安装？';
       cloudOnly = false;
     case ClipboardMatchKind.cloudCode:
-      body = '检测到云口令，暂不支持导入它家云口令';
+      body = '检测到云口令，当前版本无法解析云口令（未接入云口令解析服务），暂不能导入';
       cloudOnly = true;
   }
   final result = await showDialog<bool>(
@@ -95,7 +95,12 @@ Future<bool> showClipboardImportDialog(
 Future<({List<HikerRule> merged, int imported})> importHikerRulesFromText(
   String text,
 ) async {
-  final rules = parseHikerMiniappRules(text);
+  late final List<HikerMiniappRule> rules;
+  try {
+    rules = parseHikerMiniappRules(text);
+  } catch (_) {
+    throw const ClipboardImportFailure('规则 JSON 解析失败');
+  }
   if (rules.isEmpty) {
     throw const ClipboardImportFailure('未解析出规则');
   }

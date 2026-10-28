@@ -6,6 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../relay/relay_channel.dart';
 import '../relay/relay_message.dart';
 import '../relay/relay_settings.dart';
+import '../relay_cf/cf_relay_client.dart';
+import '../relay_cf/cf_relay_constants.dart';
 import 'models.dart';
 
 class WatchRoomController extends ChangeNotifier {
@@ -72,7 +74,7 @@ class WatchRoomController extends ChangeNotifier {
   }) async {
     await leaveRoom();
     final deviceId = await settings.ensureDeviceId();
-    final relayChannel = channel ?? RelayChannel();
+    final relayChannel = channel ?? CfRelayClient();
     _channel = relayChannel;
     _deviceId = deviceId;
     roomId = room;
@@ -106,9 +108,6 @@ class WatchRoomController extends ChangeNotifier {
     RelayChannel? channel,
   }) async {
     final settings = RelaySettings(preferences);
-    if (settings.url.isEmpty) {
-      throw StateError('请先在设备互联互联网模式里填写中转地址');
-    }
     await _bindChannel(
       settings: settings,
       room: settings.randomPairId(),
@@ -123,15 +122,25 @@ class WatchRoomController extends ChangeNotifier {
     RelayChannel? channel,
   }) async {
     final settings = RelaySettings(preferences);
-    if (settings.url.isEmpty) {
-      throw StateError('请先在设备互联互联网模式里填写中转地址');
-    }
     if (room.isEmpty) {
       throw StateError('房间号不能为空');
     }
     await _bindChannel(
       settings: settings,
       room: room,
+      creator: false,
+      channel: channel,
+    );
+  }
+
+  Future<void> joinPublicRoom({
+    required SharedPreferences preferences,
+    RelayChannel? channel,
+  }) async {
+    final settings = RelaySettings(preferences);
+    await _bindChannel(
+      settings: settings,
+      room: cfPublicRoomId,
       creator: false,
       channel: channel,
     );

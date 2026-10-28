@@ -25,6 +25,7 @@ class HikerMiniappDetailScreen extends StatefulWidget {
 class _HikerMiniappDetailScreenState extends State<HikerMiniappDetailScreen> {
   HikerMiniappDetail? _detail;
   var _loading = true;
+  var _resolving = false;
   String? _error;
 
   @override
@@ -52,6 +53,39 @@ class _HikerMiniappDetailScreenState extends State<HikerMiniappDetailScreen> {
         _loading = false;
       });
     }
+  }
+
+  Future<void> _playEpisode(
+    HikerMiniappDetail detail,
+    HikerPlayLine line,
+    int index,
+  ) async {
+    final episode = line.episodes[index];
+    var episodes = line.episodes;
+    if (widget.engine.rule.lastChapterRule.trim().isNotEmpty) {
+      setState(() => _resolving = true);
+      try {
+        final resolved = await widget.engine.resolvePlayUrl(episode.url);
+        if (resolved != episode.url) {
+          episodes = [
+            for (var i = 0; i < line.episodes.length; i++)
+              if (i == index)
+                HikerMiniappEpisode(
+                  title: line.episodes[i].title,
+                  url: resolved,
+                  desc: line.episodes[i].desc,
+                  img: line.episodes[i].img,
+                )
+              else
+                line.episodes[i],
+          ];
+        }
+      } finally {
+        if (mounted) setState(() => _resolving = false);
+      }
+    }
+    if (!mounted) return;
+    widget.onPlay(detail.title, episodes, index);
   }
 
   @override
@@ -159,7 +193,7 @@ class _HikerMiniappDetailScreenState extends State<HikerMiniappDetailScreen> {
               return ActionChip(
                 label: Text(entry.value.title),
                 onPressed: () =>
-                    widget.onPlay(detail.title, line.episodes, entry.key),
+                    unawaited(_playEpisode(detail, line, entry.key)),
               );
             }).toList(),
           ),
@@ -214,6 +248,14 @@ class _HikerMiniappDetailScreenState extends State<HikerMiniappDetailScreen> {
         ),
       );
     }
-    return ListView(children: children);
+    return Stack(
+      children: [
+        ListView(children: children),
+        if (_resolving) ...[
+          const ModalBarrier(dismissible: false, color: Colors.black38),
+          const Center(child: CircularProgressIndicator()),
+        ],
+      ],
+    );
   }
 }

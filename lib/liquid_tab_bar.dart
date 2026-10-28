@@ -295,7 +295,7 @@ class _TabButton extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 10,
+                fontSize: 12,
                 height: 1.1,
                 letterSpacing: 0,
                 fontWeight: selected ? FontWeight.w700 : FontWeight.w500,

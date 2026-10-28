@@ -2,12 +2,12 @@ import 'cf_relay_client.dart';
 import 'cf_relay_constants.dart';
 
 Future<CfRelayClient> joinPublicRoom({
-  required String baseUrl,
+  String? baseUrl,
   required String deviceId,
 }) async {
   final client = CfRelayClient();
   await client.connect(
-    url: baseUrl,
+    url: baseUrl ?? cfRelayWsUrl,
     channelId: cfPublicRoomId,
     senderId: deviceId,
   );

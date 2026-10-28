@@ -3,7 +3,12 @@ import 'dart:convert';
 
 import 'package:duanju_app/relay/relay_channel.dart';
 import 'package:duanju_app/relay/relay_message.dart';
+import 'package:duanju_app/relay/relay_settings.dart';
+import 'package:duanju_app/relay_cf/cf_relay_client.dart';
+import 'package:duanju_app/relay_cf/cf_relay_constants.dart';
+import 'package:duanju_app/watchroom/controller.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class FakeRelaySocket implements RelaySocket {
   FakeRelaySocket();
@@ -52,6 +57,59 @@ void main() {
     expect(decoded.payload['text'], 'hi');
     expect(() => RelayMessage.decode('{"type":"chat"}'), throwsFormatException);
     expect(() => RelayMessage.decode('[]'), throwsFormatException);
+  });
+
+  test('relay settings fall back to the built-in relay', () async {
+    SharedPreferences.setMockInitialValues({});
+    final settings = RelaySettings(await SharedPreferences.getInstance());
+    expect(settings.storedUrl, '');
+    expect(settings.url, cfRelayWsUrl);
+    await settings.setUrl('wss://relay.example.com');
+    expect(settings.storedUrl, 'wss://relay.example.com');
+    expect(settings.url, 'wss://relay.example.com');
+  });
+
+  test('cf relay client builds the room url from the base address', () async {
+    final socket = FakeRelaySocket();
+    Uri? requested;
+    final client = CfRelayClient(
+      connector: (uri) async {
+        requested = uri;
+        return socket;
+      },
+    );
+    await client.connect(
+      url: cfRelayWsUrl,
+      channelId: cfPublicRoomId,
+      senderId: 'device-a',
+    );
+    expect(client.connected, isTrue);
+    expect(
+      requested.toString(),
+      '$cfRelayWsUrl/room/$cfPublicRoomId?sender=device-a',
+    );
+    await client.disconnect();
+    client.dispose();
+  });
+
+  test('watchroom controller creates a room over the built-in relay', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final socket = FakeRelaySocket();
+    Uri? requested;
+    final channel = CfRelayClient(
+      connector: (uri) async {
+        requested = uri;
+        return socket;
+      },
+    );
+    final room = WatchRoomController.instance;
+    await room.createRoom(preferences: prefs, channel: channel);
+    expect(room.inRoom, isTrue);
+    expect(room.roomId, isNotEmpty);
+    expect(requested.toString(), contains('/room/${room.roomId}?sender='));
+    await room.leaveRoom();
+    expect(room.inRoom, isFalse);
   });
 
   test('file assembler reassembles chunks in any order', () {

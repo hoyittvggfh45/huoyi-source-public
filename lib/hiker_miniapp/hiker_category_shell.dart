@@ -40,7 +40,8 @@ class HikerCategoryShell extends StatefulWidget {
   State<HikerCategoryShell> createState() => _HikerCategoryShellState();
 }
 
-class _HikerCategoryShellState extends State<HikerCategoryShell> {
+class _HikerCategoryShellState extends State<HikerCategoryShell>
+    with WidgetsBindingObserver {
   late var _tab = widget.initialTab;
   late List<HikerMiniappRule> _rules;
   bool _clipboardAutoChecked = false;
@@ -51,9 +52,25 @@ class _HikerCategoryShellState extends State<HikerCategoryShell> {
   void initState() {
     super.initState();
     _rules = List.of(widget.hikerRules);
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkClipboard(auto: true);
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (ModalRoute.of(context)?.isCurrent != true) return;
+      _clipboardAutoChecked = false;
+      _checkClipboard(auto: true);
+    }
   }
 
   void _showHikerMessage(String message) {
@@ -66,12 +83,17 @@ class _HikerCategoryShellState extends State<HikerCategoryShell> {
   Future<void> _importHikerRule() async {
     final picked = await FilePicker.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['json'],
+      allowedExtensions: ['json', 'hiker'],
     );
     if (picked.isEmpty) return;
     try {
       final bytes = await picked.single.readAsBytes();
-      final imported = parseHikerMiniappRules(utf8.decode(bytes));
+      var text = utf8.decode(bytes);
+      final match = matchClipboardRule(text);
+      if (match != null && match.kind == ClipboardMatchKind.hikerRuleText) {
+        text = match.payload;
+      }
+      final imported = parseHikerMiniappRules(text);
       if (imported.isEmpty) {
         _showHikerMessage('文件里没有解析出规则');
         return;
@@ -154,7 +176,9 @@ class _HikerCategoryShellState extends State<HikerCategoryShell> {
       if (auto && await isClipboardPrompted(text)) return;
       if (!mounted) return;
       final confirmed = await showClipboardImportDialog(context, match);
-      await markClipboardPrompted(text);
+      if (confirmed || match.kind == ClipboardMatchKind.cloudCode) {
+        await markClipboardPrompted(text);
+      }
       if (!confirmed || !mounted) return;
       switch (match.kind) {
         case ClipboardMatchKind.hikerRuleText:
@@ -277,13 +301,18 @@ class _HikerCategoryShellState extends State<HikerCategoryShell> {
           ),
         ),
         Expanded(
-          child: ListView.builder(
+          child: GridView.builder(
+            padding: const EdgeInsets.all(8),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              childAspectRatio: 1.2,
+              crossAxisSpacing: 8,
+              mainAxisSpacing: 8,
+            ),
             itemCount: rules.length,
             itemBuilder: (context, index) {
               final rule = rules[index];
-              return ListTile(
-                title: Text(rule.title.isEmpty ? rule.url : rule.title),
-                subtitle: Text(rule.type),
+              return InkWell(
                 onTap: () {
                   Navigator.of(context).push<void>(
                     MaterialPageRoute<void>(
@@ -297,6 +326,26 @@ class _HikerCategoryShellState extends State<HikerCategoryShell> {
                     ),
                   );
                 },
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      rule.title.isEmpty ? rule.url : rule.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                    ),
+                    if (rule.type.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        rule.type,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ],
+                ),
               );
             },
           ),

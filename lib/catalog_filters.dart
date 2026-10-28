@@ -66,6 +66,7 @@ class _CatalogFiltersState extends State<CatalogFilters> {
   @override
   Widget build(BuildContext context) {
     final television = AppLayout.isTelevision(context);
+    final scheme = Theme.of(context).colorScheme;
     return SizedBox(
       height: television
           ? 64
@@ -112,12 +113,11 @@ class _CatalogFiltersState extends State<CatalogFilters> {
                               label: Text(entry.name),
                               selected: entry.id == widget.category,
                               showCheckmark: false,
-                              selectedColor: const Color(0xFF4E7A57),
+                              selectedColor: const Color(0xFFC8E6C9),
+                              backgroundColor: scheme.surfaceContainerHighest,
                               labelStyle: TextStyle(
-                                fontSize: 7,
-                                color: entry.id == widget.category
-                                    ? Colors.white
-                                    : Theme.of(context).colorScheme.onSurface,
+                                fontSize: 12,
+                                color: scheme.onSurface,
                               ),
                               onSelected: (_) => widget.onCategory(entry.id),
                             ),
@@ -172,7 +172,7 @@ class CatalogFilterRows extends StatelessWidget {
                     child: Text(
                       group.name,
                       style: TextStyle(
-                        fontSize: 7,
+                        fontSize: 12,
                         fontWeight: FontWeight.w600,
                         color: scheme.onSurfaceVariant,
                       ),
@@ -212,12 +212,9 @@ class CatalogFilterRows extends StatelessWidget {
         label: Text(label),
         selected: isSelected,
         showCheckmark: false,
-        selectedColor: const Color(0xFF4E7A57),
-        backgroundColor: Colors.white,
-        labelStyle: TextStyle(
-          fontSize: 7,
-          color: isSelected ? Colors.white : scheme.onSurface,
-        ),
+        selectedColor: const Color(0xFFC8E6C9),
+        backgroundColor: scheme.surfaceContainerHighest,
+        labelStyle: TextStyle(fontSize: 12, color: scheme.onSurface),
         side: BorderSide.none,
         onSelected: (_) => onSelected(group.key, id),
       ),

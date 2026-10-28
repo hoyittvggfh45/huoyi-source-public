@@ -344,7 +344,7 @@ class _EpisodeBrowserState extends State<EpisodeBrowser> {
               side: BorderSide(
                 color: selected ? colors.primary : colors.outlineVariant,
               ),
-              textStyle: const TextStyle(fontSize: 11.5),
+              textStyle: const TextStyle(fontSize: 12),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(7),
               ),

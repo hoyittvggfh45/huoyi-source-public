@@ -46,6 +46,29 @@ class _StubHost extends MiniAppHost {
   }
 
   @override
+  Future<Map<String, Object?>> sourceCategory(
+    Map<String, Object?> params,
+  ) async {
+    calls.add('source.category');
+    lastParams = params;
+    return {'list': [], 'page': 1, 'pagecount': 1, 'size': 0};
+  }
+
+  @override
+  Future<Map<String, Object?>> sourceSearch(Map<String, Object?> params) async {
+    calls.add('source.search');
+    lastParams = params;
+    return {'list': [], 'page': 1, 'pagecount': 1, 'size': 0};
+  }
+
+  @override
+  Future<Map<String, Object?>> sourcePlay(Map<String, Object?> params) async {
+    calls.add('source.play');
+    lastParams = params;
+    return {'url': 'https://x/play.m3u8', 'parse': '0'};
+  }
+
+  @override
   Future<Map<String, Object?>> playerOpen(Map<String, Object?> params) async {
     calls.add('player.open');
     lastParams = params;
@@ -263,14 +286,14 @@ void main() {
     expect(host.lastUrl, 'detail.html');
     expect(await bridge.invoke('navigateBack', {}), {'moved': true});
     expect(await bridge.invoke('log', {'message': 'hello'}), isTrue);
-    expect(await bridge.invoke('version', {}), 2);
+    expect(await bridge.invoke('version', {}), 4);
     final info = await bridge.invoke('getSystemInfo', {}) as Map;
-    expect(info['version'], 2);
-    expect(info['sdkVersion'], 2);
+    expect(info['version'], 4);
+    expect(info['sdkVersion'], 4);
     expect(info['appId'], 'bridge');
     expect(info['permissions'], contains('ui'));
     final env = await bridge.invoke('env.getSystemInfo', {}) as Map;
-    expect(env['sdkVersion'], 2);
+    expect(env['sdkVersion'], 4);
     expect(host.calls, containsAll(['ui.toast:hi', 'ui.loading:wait']));
   });
 
@@ -283,9 +306,53 @@ void main() {
     expect(host.lastParams, {'source': 'custom:x'});
     await bridge.invoke('source.detail', {'source': 'custom:x', 'id': 'v1'});
     expect(host.lastParams, {'source': 'custom:x', 'id': 'v1'});
+    await bridge.invoke('source.category', {
+      'siteKey': 'custom:x',
+      'tid': 'c1',
+      'page': 1,
+    });
+    expect(host.lastParams, {'siteKey': 'custom:x', 'tid': 'c1', 'page': 1});
+    await bridge.invoke('source.search', {'siteKey': 'custom:x', 'wd': '剧'});
+    expect(host.lastParams, {'siteKey': 'custom:x', 'wd': '剧'});
+    await bridge.invoke('source.play', {
+      'siteKey': 'custom:x',
+      'flag': '线路1',
+      'id': 'ep1',
+    });
+    expect(host.lastParams, {
+      'siteKey': 'custom:x',
+      'flag': '线路1',
+      'id': 'ep1',
+    });
+    expect(
+      host.calls,
+      containsAll(['source.category', 'source.search', 'source.play']),
+    );
     await bridge.invoke('player.open', {'url': 'https://x/y.m3u8'});
     expect(host.lastParams, {'url': 'https://x/y.m3u8'});
     expect(host.calls, contains('player.open'));
+  });
+
+  test('bridge home string param coerces to siteKey', () async {
+    final host = _StubHost();
+    final bridge = await _bridge(['source'], host: host);
+    final replies = <Object?>[];
+    final errors = <String?>[];
+    final wired = MiniAppBridge(
+      manifest: _manifest(['source']),
+      storage: bridge.storage,
+      host: host,
+      onReply: (id, result, error) {
+        replies.add(result);
+        errors.add(error);
+      },
+    );
+    await wired.handleMessage(
+      '{"type":"invoke","id":7,"api":"source.home","params":"custom:x"}',
+    );
+    expect(errors.single, isNull);
+    expect(host.lastParams, {'siteKey': 'custom:x'});
+    expect(host.calls, contains('source.home'));
   });
 
   test('bridge denies deferred apis with not-provided message', () async {
@@ -352,7 +419,7 @@ void main() {
         isA<MiniAppDenied>().having(
           (error) => error.message,
           'message',
-          contains('本版未提供'),
+          contains('source is not available'),
         ),
       ),
     );

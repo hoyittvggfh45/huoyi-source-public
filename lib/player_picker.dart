@@ -50,6 +50,7 @@ Route<T> buildPlayerRoute<T>(
   LanIncomingPlayback? handoff,
   String searchKeyword = '',
   PlaybackQueue? queue,
+  bool startFullscreen = false,
 }) {
   if (selectedPlayer(store) == AppPlayer.tvbox && Platform.isAndroid) {
     return playerRoute(
@@ -63,6 +64,7 @@ Route<T> buildPlayerRoute<T>(
             repository: repository,
             store: store,
             queue: queue,
+            startFullscreen: startFullscreen,
           ),
         )
         as Route<T>;
@@ -81,6 +83,7 @@ Route<T> buildPlayerRoute<T>(
             repository: repository,
             store: store,
             searchKeyword: searchKeyword,
+            startFullscreen: startFullscreen,
           ),
         )
         as Route<T>;
@@ -97,6 +100,7 @@ Route<T> buildPlayerRoute<T>(
           repository: repository,
           store: store,
           queue: queue,
+          startFullscreen: startFullscreen,
         ),
       )
       as Route<T>;
@@ -115,6 +119,7 @@ Future<T?> pushPlayer<T>(
   LanIncomingPlayback? handoff,
   String searchKeyword = '',
   PlaybackQueue? queue,
+  bool startFullscreen = false,
 }) => Navigator.of(context).push<T>(
   buildPlayerRoute<T>(
     context,
@@ -129,6 +134,7 @@ Future<T?> pushPlayer<T>(
     store: store,
     searchKeyword: searchKeyword,
     queue: queue,
+    startFullscreen: startFullscreen,
   ),
 );
 

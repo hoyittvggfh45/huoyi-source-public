@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 enum HikerChainExtractor { selector, text, html, attribute }
 
 class HikerChainStep {
@@ -88,3 +90,55 @@ bool isPlayableHikerUrl(String url) =>
 
 String hikerPageUrl(String template, int page) =>
     template.replaceAll('fypage', page.toString());
+
+String resolveHikerUrl(String base, String ref) {
+  final value = ref.trim();
+  if (value.isEmpty || !value.startsWith('/')) return ref;
+  final baseUri = Uri.tryParse(base.trim());
+  if (baseUri == null ||
+      !(baseUri.scheme == 'http' || baseUri.scheme == 'https')) {
+    return ref;
+  }
+  return baseUri.resolve(value).toString();
+}
+
+const _hikerUrlKeys = {
+  'url',
+  'href',
+  'pic',
+  'pic_url',
+  'img',
+  'src',
+  'cover',
+  'image',
+  'playUrl',
+  'play_url',
+  'videoUrl',
+};
+
+dynamic resolveHikerResultUrls(dynamic raw, String base) {
+  if (raw is String) {
+    try {
+      return resolveHikerResultUrls(jsonDecode(raw), base);
+    } catch (_) {
+      return raw;
+    }
+  }
+  if (raw is Map) {
+    final map = <String, dynamic>{};
+    for (final entry in raw.entries) {
+      final key = entry.key.toString();
+      final value = entry.value;
+      if (value is String && _hikerUrlKeys.contains(key)) {
+        map[key] = resolveHikerUrl(base, value);
+      } else {
+        map[key] = resolveHikerResultUrls(value, base);
+      }
+    }
+    return map;
+  }
+  if (raw is List) {
+    return [for (final item in raw) resolveHikerResultUrls(item, base)];
+  }
+  return raw;
+}

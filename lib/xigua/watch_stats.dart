@@ -293,7 +293,7 @@ class WatchStatsPanel extends StatelessWidget {
                     child: Text(
                       '观看统计',
                       style: TextStyle(
-                        fontSize: 15,
+                        fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -306,7 +306,7 @@ class WatchStatsPanel extends StatelessWidget {
                   Text(
                     '仅本机记录',
                     style: TextStyle(
-                      fontSize: 11.5,
+                      fontSize: 12,
                       color: scheme.onSurfaceVariant,
                     ),
                   ),
@@ -402,7 +402,7 @@ class WatchStatsPanel extends StatelessWidget {
                                       ? '今天'
                                       : '周${'一二三四五六日'[item.$1.weekday - 1]}',
                                   style: TextStyle(
-                                    fontSize: 10.5,
+                                    fontSize: 12,
                                     color: scheme.onSurfaceVariant,
                                   ),
                                 ),
@@ -450,7 +450,7 @@ class WatchStatsPanel extends StatelessWidget {
                                 formatWatchDuration(source.value),
                                 textAlign: TextAlign.end,
                                 style: TextStyle(
-                                  fontSize: 11.5,
+                                  fontSize: 12,
                                   color: scheme.onSurfaceVariant,
                                 ),
                               ),
@@ -490,14 +490,14 @@ class _MetricTile extends StatelessWidget {
         children: [
           Text(
             label,
-            style: TextStyle(fontSize: 11.5, color: scheme.onSurfaceVariant),
+            style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
           ),
           const SizedBox(height: 2),
           Text(
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
           ),
         ],
       ),

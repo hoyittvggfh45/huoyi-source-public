@@ -1,8 +1,34 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app_build.dart';
 
-enum HomeZone { drama, vod, midnight, live, novel, comic }
+const drawerCollapsedGroupsKey = 'drawer_collapsed_groups_v1';
+const drawerGroupVideo = 'video';
+const drawerGroupReading = 'reading';
+const drawerGroupMiniApp = 'miniapp';
+const drawerGroupTools = 'tools';
+
+Future<Set<String>> loadDrawerCollapsedGroups() async {
+  try {
+    final preferences = await SharedPreferences.getInstance();
+    return preferences.getStringList(drawerCollapsedGroupsKey)?.toSet() ?? {};
+  } catch (_) {
+    return {};
+  }
+}
+
+Future<void> saveDrawerCollapsedGroups(Set<String> collapsed) async {
+  try {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setStringList(
+      drawerCollapsedGroupsKey,
+      collapsed.toList(),
+    );
+  } catch (_) {}
+}
+
+enum HomeZone { drama, vod, midnight, live, novel, comic, audio }
 
 enum AppDrawerTool {
   sources,
@@ -32,6 +58,10 @@ class AppDrawer extends StatelessWidget {
     required this.onTool,
     required this.onMinorProtectionChanged,
     required this.onVersionDoubleTap,
+    this.collapsedGroups,
+    this.onGroupExpandedChanged,
+    this.siteLabel,
+    this.onSiteBoxTap,
   });
 
   final HomeZone zone;
@@ -44,20 +74,10 @@ class AppDrawer extends StatelessWidget {
   final ValueChanged<AppDrawerTool> onTool;
   final ValueChanged<bool> onMinorProtectionChanged;
   final VoidCallback onVersionDoubleTap;
-
-  Widget _sectionLabel(BuildContext context, String label) {
-    final colors = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: colors.onSurfaceVariant,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
+  final Set<String>? collapsedGroups;
+  final void Function(String groupKey, bool expanded)? onGroupExpandedChanged;
+  final String? siteLabel;
+  final VoidCallback? onSiteBoxTap;
 
   Widget _moduleTile({
     required IconData icon,
@@ -87,10 +107,17 @@ class AppDrawer extends StatelessWidget {
     );
   }
 
-  Widget _group({required String title, required List<Widget> children}) {
+  Widget _group({
+    required String groupKey,
+    required String title,
+    required List<Widget> children,
+  }) {
     return ExpansionTile(
+      key: ValueKey('drawer-group-$groupKey'),
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-      initiallyExpanded: true,
+      initiallyExpanded: !(collapsedGroups?.contains(groupKey) ?? false),
+      onExpansionChanged: (expanded) =>
+          onGroupExpandedChanged?.call(groupKey, expanded),
       children: children,
     );
   }
@@ -111,12 +138,54 @@ class AppDrawer extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                Text(
-                  appName,
-                  style: const TextStyle(
-                    fontSize: 21,
-                    fontWeight: FontWeight.w800,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        appName,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    if (siteLabel != null && onSiteBoxTap != null) ...[
+                      const SizedBox(width: 8),
+                      InkWell(
+                        key: const ValueKey('drawer-site-box'),
+                        onTap: onSiteBoxTap,
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: colors.outlineVariant),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  siteLabel!,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 2),
+                              const Icon(Icons.expand_more_rounded, size: 16),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
                 if (versionSubtitle != null) ...[
                   const SizedBox(height: 4),
@@ -126,6 +195,7 @@ class AppDrawer extends StatelessWidget {
             ),
           ),
           _group(
+            groupKey: drawerGroupVideo,
             title: '影视区',
             children: [
               _moduleTile(
@@ -162,6 +232,7 @@ class AppDrawer extends StatelessWidget {
             ],
           ),
           _group(
+            groupKey: drawerGroupReading,
             title: '阅读',
             children: [
               _moduleTile(
@@ -176,9 +247,16 @@ class AppDrawer extends StatelessWidget {
                 selected: zone == HomeZone.comic,
                 onTap: () => onZoneSelected(HomeZone.comic),
               ),
+              _moduleTile(
+                icon: Icons.headphones_rounded,
+                label: '听书',
+                selected: zone == HomeZone.audio,
+                onTap: () => onZoneSelected(HomeZone.audio),
+              ),
             ],
           ),
           _group(
+            groupKey: drawerGroupMiniApp,
             title: '小程序',
             children: [
               _moduleTile(
@@ -196,82 +274,86 @@ class AppDrawer extends StatelessWidget {
             ],
           ),
           const Divider(),
-          _toolTile(
-            icon: Icons.list_rounded,
-            label: '站源管理',
-            onTap: () => onTool(AppDrawerTool.sources),
+          _group(
+            groupKey: drawerGroupTools,
+            title: '工具',
+            children: [
+              _toolTile(
+                icon: Icons.list_rounded,
+                label: '站源管理',
+                onTap: () => onTool(AppDrawerTool.sources),
+              ),
+              _toolTile(
+                icon: Icons.dns_rounded,
+                label: '内容源管理',
+                onTap: () => onTool(AppDrawerTool.contentSources),
+              ),
+              _toolTile(
+                icon: Icons.settings_outlined,
+                label: '设置',
+                onTap: () => onTool(AppDrawerTool.settings),
+              ),
+              _toolTile(
+                icon: Icons.play_circle_rounded,
+                label: '播放器选择',
+                onTap: () => onTool(AppDrawerTool.player),
+              ),
+              _toolTile(
+                icon: Icons.web_asset_rounded,
+                label: '内置站管理',
+                onTap: () => onTool(AppDrawerTool.builtinSites),
+              ),
+              InkWell(
+                onTap: () => onTool(AppDrawerTool.appUpdate),
+                onDoubleTap: onVersionDoubleTap,
+                child: ListTile(
+                  leading: const Icon(Icons.system_update_rounded),
+                  title: const Text('软件更新'),
+                  subtitle: versionSubtitle,
+                ),
+              ),
+              _toolTile(
+                icon: Icons.download_rounded,
+                label: '导入中心',
+                onTap: () => onTool(AppDrawerTool.importCenter),
+              ),
+              _toolTile(
+                icon: Icons.link_rounded,
+                label: '解析接口',
+                onTap: () => onTool(AppDrawerTool.parse),
+              ),
+              _toolTile(
+                icon: Icons.verified_user_rounded,
+                label: '站点验证',
+                onTap: () => onTool(AppDrawerTool.clearance),
+              ),
+              _toolTile(
+                icon: Icons.vpn_key_rounded,
+                label: '代理内核',
+                onTap: () => onTool(AppDrawerTool.proxyKernel),
+              ),
+              _toolTile(
+                icon: Icons.devices_rounded,
+                label: '设备互联',
+                onTap: () => onTool(AppDrawerTool.lanSync),
+              ),
+              _toolTile(
+                icon: Icons.code_rounded,
+                label: '蜘蛛规则编辑器',
+                onTap: () => onTool(AppDrawerTool.ruleEditor),
+              ),
+              if (midnightActivated)
+                SwitchListTile(
+                  secondary: const Icon(Icons.shield_rounded),
+                  title: const Text('未成年保护'),
+                  subtitle: const Text('开启后隐藏午夜区'),
+                  value: false,
+                  onChanged: (value) {
+                    if (value) onMinorProtectionChanged(true);
+                  },
+                ),
+            ],
           ),
-          _toolTile(
-            icon: Icons.dns_rounded,
-            label: '内容源管理',
-            onTap: () => onTool(AppDrawerTool.contentSources),
-          ),
-          _toolTile(
-            icon: Icons.settings_outlined,
-            label: '设置',
-            onTap: () => onTool(AppDrawerTool.settings),
-          ),
-          const Divider(),
-          _sectionLabel(context, '工具'),
-          _toolTile(
-            icon: Icons.play_circle_rounded,
-            label: '播放器选择',
-            onTap: () => onTool(AppDrawerTool.player),
-          ),
-          _toolTile(
-            icon: Icons.web_asset_rounded,
-            label: '内置站管理',
-            onTap: () => onTool(AppDrawerTool.builtinSites),
-          ),
-          InkWell(
-            onTap: () => onTool(AppDrawerTool.appUpdate),
-            onDoubleTap: onVersionDoubleTap,
-            child: ListTile(
-              leading: const Icon(Icons.system_update_rounded),
-              title: const Text('软件更新'),
-              subtitle: versionSubtitle,
-            ),
-          ),
-          _toolTile(
-            icon: Icons.download_rounded,
-            label: '导入中心',
-            onTap: () => onTool(AppDrawerTool.importCenter),
-          ),
-          _toolTile(
-            icon: Icons.link_rounded,
-            label: '解析接口',
-            onTap: () => onTool(AppDrawerTool.parse),
-          ),
-          _toolTile(
-            icon: Icons.verified_user_rounded,
-            label: '站点验证',
-            onTap: () => onTool(AppDrawerTool.clearance),
-          ),
-          _toolTile(
-            icon: Icons.vpn_key_rounded,
-            label: '代理内核',
-            onTap: () => onTool(AppDrawerTool.proxyKernel),
-          ),
-          _toolTile(
-            icon: Icons.devices_rounded,
-            label: '设备互联',
-            onTap: () => onTool(AppDrawerTool.lanSync),
-          ),
-          _toolTile(
-            icon: Icons.code_rounded,
-            label: '蜘蛛规则编辑器',
-            onTap: () => onTool(AppDrawerTool.ruleEditor),
-          ),
-          if (midnightActivated)
-            SwitchListTile(
-              secondary: const Icon(Icons.shield_rounded),
-              title: const Text('未成年保护'),
-              subtitle: const Text('开启后隐藏午夜区'),
-              value: false,
-              onChanged: (value) {
-                if (value) onMinorProtectionChanged(true);
-              },
-            ),
         ],
       ),
     );

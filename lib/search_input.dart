@@ -284,7 +284,7 @@ class _SearchInputState extends State<SearchInput> {
                             ),
                           ),
                           const SizedBox(width: 2),
-                          const Text('全部源', style: TextStyle(fontSize: 11.5)),
+                          const Text('全部源', style: TextStyle(fontSize: 12)),
                         ],
                       ),
                     ),

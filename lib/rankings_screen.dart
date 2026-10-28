@@ -400,7 +400,7 @@ class _RankingsScreenState extends State<RankingsScreen> {
                                       child: Text(
                                         '${item.rank}',
                                         style: TextStyle(
-                                          fontSize: 22.5,
+                                          fontSize: 12,
                                           fontWeight: FontWeight.w800,
                                           color: item.rank <= 3
                                               ? Theme.of(

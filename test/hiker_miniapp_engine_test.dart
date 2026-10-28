@@ -98,15 +98,30 @@ void main() {
         ];
       },
     );
-    final cards = await engine.home();
-    expect(cards.length, 1);
-    expect(cards.first.title, '卡一');
-    expect(cards.first.url, 'https://example.invalid/1');
-    expect(cards.first.pic, 'https://example.invalid/1.jpg');
-    expect(cards.first.desc, '共 10 集');
-    expect(cards.first.tag, '真人剧');
+    final home = await engine.home();
+    expect(home.cards.length, 1);
+    expect(home.cards.first.title, '卡一');
+    expect(home.cards.first.url, 'https://example.invalid/1');
+    expect(home.cards.first.pic, 'https://example.invalid/1.jpg');
+    expect(home.cards.first.desc, '共 10 集');
+    expect(home.cards.first.tag, '真人剧');
+    expect(home.navs, isEmpty);
     expect(calls.first[0], 'list');
-    expect(calls.first[1], '/latest/1');
+    expect(calls.first[1], 'https://example.invalid/latest/1');
+  });
+
+  test('home resolves root relative card links against rule url', () async {
+    final engine = HikerMiniappEngine(
+      rule: _rule(),
+      run: (ruleJson, action, input) async {
+        return [
+          {'title': '相对卡', 'href': '/detail/9', 'img': '/covers/9.jpg'},
+        ];
+      },
+    );
+    final home = await engine.home();
+    expect(home.cards.first.url, 'https://example.invalid/detail/9');
+    expect(home.cards.first.pic, 'https://example.invalid/covers/9.jpg');
   });
 
   test('home second category and page substitute into the input url', () async {
@@ -119,7 +134,7 @@ void main() {
       },
     );
     await engine.home(categoryIndex: 1, page: 4);
-    expect(seen, '/hot/4');
+    expect(seen, 'https://example.invalid/hot/4');
   });
 
   test('home normalizes map data lists and raw json strings', () async {
@@ -133,7 +148,7 @@ void main() {
         };
       },
     );
-    expect((await mapEngine.home()).first.title, '卡A');
+    expect((await mapEngine.home()).cards.first.title, '卡A');
     final stringEngine = HikerMiniappEngine(
       rule: _rule(),
       run: (ruleJson, action, input) async {
@@ -142,7 +157,7 @@ void main() {
         ]);
       },
     );
-    expect((await stringEngine.home()).first.title, '卡B');
+    expect((await stringEngine.home()).cards.first.title, '卡B');
   });
 
   test('search passes the keyword through as input', () async {
@@ -187,6 +202,100 @@ void main() {
       expect(detail.unavailable.first.playable, isFalse);
       expect(detail.stills.length, 2);
       expect(detail.stills.first, 'https://example.invalid/still1.jpg');
+    },
+  );
+
+  test('detail resolves relative episode links into playable lines', () async {
+    final engine = HikerMiniappEngine(
+      rule: _rule(),
+      run: (ruleJson, action, input) async {
+        return [
+          {
+            'title': '相对剧',
+            'col_type': 'movie_1_vertical_pic_blur',
+            'url': 'https://example.invalid/detail/1',
+            'pic_url': '/poster.jpg',
+          },
+          {'title': '播放线路：在线播放', 'col_type': 'text_center_1'},
+          {'title': '第1集', 'col_type': 'text_1', 'url': '/play/1.m3u8'},
+          {
+            'title': '第2集',
+            'col_type': 'text_1',
+            'url': 'https://example.invalid/play/2.m3u8',
+          },
+          {
+            'title': '剧照',
+            'col_type': 'pic_1',
+            'pic_url': '/still.jpg',
+            'url': 'hiker://empty',
+          },
+        ];
+      },
+    );
+    final detail = await engine.detail('/detail/1');
+    expect(detail.poster, 'https://example.invalid/poster.jpg');
+    expect(detail.lines.length, 1);
+    expect(detail.lines.first.episodes.length, 2);
+    expect(
+      detail.lines.first.episodes.first.url,
+      'https://example.invalid/play/1.m3u8',
+    );
+    expect(detail.unavailable, isEmpty);
+    expect(detail.stills, ['https://example.invalid/still.jpg']);
+  });
+
+  test('resolvePlayUrl returns raw url without last chapter rule', () async {
+    final engine = HikerMiniappEngine(
+      rule: _rule(),
+      run: (ruleJson, action, input) async => 'https://example.invalid/x',
+    );
+    expect(
+      await engine.resolvePlayUrl('https://example.invalid/play/1'),
+      'https://example.invalid/play/1',
+    );
+  });
+
+  test(
+    'resolvePlayUrl uses engine play result and falls back on error',
+    () async {
+      final lazyRule = HikerMiniappRule.fromJson({
+        'title': '懒规则',
+        'type': '2',
+        'url': 'https://example.invalid',
+        'col_type': 'movie_3',
+        'find_rule': 'js: setResult([]);',
+        'searchFind': 'js: setResult([]);',
+        'detail_find_rule': 'js: setResult([]);',
+        'last_chapter_rule':
+            'js: setResult("https://example.invalid/real.m3u8");',
+      });
+      var calls = 0;
+      final okEngine = HikerMiniappEngine(
+        rule: lazyRule,
+        run: (ruleJson, action, input) async {
+          calls++;
+          expect(action, 'play');
+          expect(input, 'https://example.invalid/play/1');
+          final decoded = jsonDecode(ruleJson) as Map<String, dynamic>;
+          expect(decoded['last_chapter_rule'], contains('setResult'));
+          return 'https://example.invalid/real.m3u8';
+        },
+      );
+      expect(
+        await okEngine.resolvePlayUrl('https://example.invalid/play/1'),
+        'https://example.invalid/real.m3u8',
+      );
+      expect(calls, 1);
+      final failingEngine = HikerMiniappEngine(
+        rule: lazyRule,
+        run: (ruleJson, action, input) async {
+          throw StateError('engine down');
+        },
+      );
+      expect(
+        await failingEngine.resolvePlayUrl('https://example.invalid/play/1'),
+        'https://example.invalid/play/1',
+      );
     },
   );
 

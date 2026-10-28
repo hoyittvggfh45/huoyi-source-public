@@ -27,6 +27,7 @@ class HikerRule {
     this.sdetailColType = '',
     this.sdetailFindRule = '',
     this.lastChapterRule = '',
+    this.pages = const [],
   });
 
   final String title;
@@ -52,6 +53,7 @@ class HikerRule {
   final String sdetailColType;
   final String sdetailFindRule;
   final String lastChapterRule;
+  final List<Map<String, dynamic>> pages;
 
   factory HikerRule.fromJson(Map<String, dynamic> json) => HikerRule(
     title: json['title'] as String? ?? '',
@@ -77,6 +79,7 @@ class HikerRule {
     sdetailColType: json['sdetail_col_type'] as String? ?? '',
     sdetailFindRule: json['sdetail_find_rule'] as String? ?? '',
     lastChapterRule: json['last_chapter_rule'] as String? ?? '',
+    pages: _pagesFromJson(json['pages']),
   );
 
   Map<String, dynamic> toJson() => {
@@ -103,9 +106,31 @@ class HikerRule {
     'sdetail_col_type': sdetailColType,
     'sdetail_find_rule': sdetailFindRule,
     'last_chapter_rule': lastChapterRule,
+    'pages': pages,
   };
 
   String get id => title.isEmpty ? url : title;
+}
+
+List<Map<String, dynamic>> _pagesFromJson(dynamic value) {
+  dynamic decoded = value;
+  if (decoded is String) {
+    try {
+      decoded = jsonDecode(decoded);
+    } catch (_) {
+      return const [];
+    }
+  }
+  if (decoded is! List) return const [];
+  final out = <Map<String, dynamic>>[];
+  for (final item in decoded) {
+    if (item is Map) {
+      final path = item['path']?.toString() ?? '';
+      if (path.isEmpty) continue;
+      out.add({'path': path, 'rule': item['rule']?.toString() ?? ''});
+    }
+  }
+  return out;
 }
 
 ({String identifier, String payload})? parseHikerPassword(String text) {

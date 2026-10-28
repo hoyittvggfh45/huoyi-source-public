@@ -157,7 +157,7 @@ class DramaCover extends StatelessWidget {
             bottom: 9,
             child: Text(
               '共 ${drama.episodes} 集',
-              style: const TextStyle(color: Colors.white, fontSize: 11.5),
+              style: const TextStyle(color: Colors.white, fontSize: 12),
             ),
           ),
         if (drama.vip)
@@ -174,7 +174,7 @@ class DramaCover extends StatelessWidget {
                 'VIP',
                 style: TextStyle(
                   color: Color(0xFF40300D),
-                  fontSize: 10.5,
+                  fontSize: 12,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -337,6 +337,8 @@ class DramaTile extends StatelessWidget {
     this.onFocus,
     this.actions,
     this.badge,
+    this.topBadge,
+    this.tagText,
     this.selected,
     this.onMore,
     this.onLongPress,
@@ -349,6 +351,8 @@ class DramaTile extends StatelessWidget {
   final VoidCallback? onFocus;
   final Widget? actions;
   final String? badge;
+  final String? topBadge;
+  final String? tagText;
   final bool? selected;
   final VoidCallback? onMore;
   final VoidCallback? onLongPress;
@@ -369,6 +373,9 @@ class DramaTile extends StatelessWidget {
       (width * 1.5 + 13 + titleHeight(context) + subtitleHeight(context))
           .ceilToDouble();
 
+  static double theaterExtentFor(BuildContext context, double width) =>
+      extentFor(context, width) + subtitleHeight(context) + 4;
+
   @override
   Widget build(BuildContext context) {
     final television = AppLayout.isTelevision(context);
@@ -381,6 +388,31 @@ class DramaTile extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               DramaCover(drama: drama, repository: repository),
+              if (topBadge != null && topBadge!.isNotEmpty)
+                Positioned(
+                  left: 8,
+                  top: drama.vip ? 34 : 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      topBadge!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onPrimary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
               if (badge != null && badge!.isNotEmpty)
                 Positioned(
                   left: 6,
@@ -402,7 +434,7 @@ class DramaTile extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 11.5,
+                          fontSize: 12,
                         ),
                       ),
                     ),
@@ -449,7 +481,7 @@ class DramaTile extends StatelessWidget {
               style: TextStyle(
                 fontWeight: FontWeight.w600,
                 height: 1.3,
-                fontSize: television ? 17 : 13,
+                fontSize: 12,
               ),
             ),
           ),
@@ -464,13 +496,30 @@ class DramaTile extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: television ? 14 : 11.5,
+                fontSize: 12,
                 height: 1.3,
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ),
         ),
+        if (tagText != null && tagText!.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 4, left: 2, right: 2),
+            child: SizedBox(
+              height: subtitleHeight(context),
+              child: Text(
+                tagText!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.3,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ),
       ],
     );
     if (television) {

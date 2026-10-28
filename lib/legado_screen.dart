@@ -48,6 +48,7 @@ class _LegadoScreenState extends State<LegadoScreen> {
   }
 
   Future<void> _refresh() async {
+    await LegadoStore.seedBuiltin();
     final sources = await LegadoStore.load();
     final localBooks = await LocalBookStore.load();
     if (mounted) {
@@ -60,7 +61,13 @@ class _LegadoScreenState extends State<LegadoScreen> {
     if (sources.isNotEmpty) unawaited(_checkSources(sources));
   }
 
+  String _searchUnsupportedReason = '';
+
   bool _legadoCheckUnsupported(dynamic result) {
+    return _legadoCheckMap(result)?['supported'] == false;
+  }
+
+  Map<String, dynamic>? _legadoCheckMap(dynamic result) {
     Map<String, dynamic>? map;
     if (result is Map<String, dynamic>) {
       map = result;
@@ -70,7 +77,7 @@ class _LegadoScreenState extends State<LegadoScreen> {
         if (decoded is Map<String, dynamic>) map = decoded;
       } catch (_) {}
     }
-    return map != null && map['supported'] == false;
+    return map;
   }
 
   Future<void> _checkSources(List<LegadoSource> sources) async {
@@ -214,7 +221,7 @@ class _LegadoScreenState extends State<LegadoScreen> {
               const Expanded(
                 child: Text(
                   '本地书架',
-                  style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                 ),
               ),
               IconButton(
@@ -251,7 +258,7 @@ class _LegadoScreenState extends State<LegadoScreen> {
               padding: const EdgeInsets.all(16),
               child: SelectableText(
                 _content.isEmpty ? '正文为空' : _content,
-                style: const TextStyle(fontSize: 16.5, height: 1.7),
+                style: const TextStyle(fontSize: 12, height: 1.7),
               ),
             ),
             _ =>
@@ -292,7 +299,7 @@ class _LegadoScreenState extends State<LegadoScreen> {
     final file = picked.first;
     try {
       final bytes = await file.readAsBytes();
-      final report = parseLegadoSourcesReport(utf8.decode(bytes));
+      final report = parseLegadoSourcesReport(decodeLegadoImportBytes(bytes));
       await _applyImport(report);
     } catch (e) {
       if (mounted) {
@@ -370,6 +377,7 @@ class _LegadoScreenState extends State<LegadoScreen> {
       _error = '';
       _mode = 'books';
       _searchUnsupported = false;
+      _searchUnsupportedReason = '';
     });
     try {
       final result = await widget.repository.legadoRun(
@@ -379,6 +387,7 @@ class _LegadoScreenState extends State<LegadoScreen> {
       );
       final books = _toMaps(result);
       var unsupported = false;
+      var reason = '';
       if (books.isEmpty) {
         try {
           final check = await widget.repository.legadoRun(
@@ -386,7 +395,11 @@ class _LegadoScreenState extends State<LegadoScreen> {
             'check',
             '',
           );
-          unsupported = _legadoCheckUnsupported(check);
+          final map = _legadoCheckMap(check);
+          unsupported = map?['supported'] == false;
+          if (unsupported && map != null) {
+            reason = legadoCheckReasonText(map);
+          }
         } catch (_) {}
       }
       if (mounted) {
@@ -395,6 +408,7 @@ class _LegadoScreenState extends State<LegadoScreen> {
           _busy = false;
           _searched = true;
           _searchUnsupported = unsupported;
+          _searchUnsupportedReason = reason;
         });
       }
     } catch (e) {
@@ -550,7 +564,7 @@ class _LegadoScreenState extends State<LegadoScreen> {
                               child: Text(
                                 '规则暂不支持',
                                 style: TextStyle(
-                                  fontSize: 10,
+                                  fontSize: 12,
                                   color: Colors.red,
                                 ),
                               ),
@@ -563,6 +577,7 @@ class _LegadoScreenState extends State<LegadoScreen> {
                         _books = [];
                         _searched = false;
                         _searchUnsupported = false;
+                        _searchUnsupportedReason = '';
                       }),
                     ),
                   ),
@@ -586,21 +601,29 @@ class _LegadoScreenState extends State<LegadoScreen> {
           ),
         Expanded(
           child: switch (_mode) {
-            'toc' => ListView.builder(
-              itemCount: _chapters.length,
-              itemBuilder: (_, i) {
-                final chapter = _chapters[i];
-                return ListTile(
-                  title: Text((chapter['title'] ?? '').toString()),
-                  onTap: () => _openChapter(chapter),
-                );
-              },
-            ),
+            'toc' =>
+              _chapters.isEmpty && !_busy && _error.isEmpty
+                  ? const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Text('没有读到目录，可能是目录规则暂不支持，换个书源试试'),
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: _chapters.length,
+                      itemBuilder: (_, i) {
+                        final chapter = _chapters[i];
+                        return ListTile(
+                          title: Text((chapter['title'] ?? '').toString()),
+                          onTap: () => _openChapter(chapter),
+                        );
+                      },
+                    ),
             'read' => SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: SelectableText(
                 _content.isEmpty ? '正文为空' : _content,
-                style: const TextStyle(fontSize: 16.5, height: 1.7),
+                style: const TextStyle(fontSize: 12, height: 1.7),
               ),
             ),
             _ =>
@@ -610,7 +633,9 @@ class _LegadoScreenState extends State<LegadoScreen> {
                         padding: const EdgeInsets.all(24),
                         child: Text(
                           _searchUnsupported
-                              ? '该书源含本版引擎暂不支持的规则（XPath / JS / JSON 接口等），换 CSS 规则源试试'
+                              ? (_searchUnsupportedReason.isNotEmpty
+                                    ? '该书源含本版引擎暂不支持的规则（$_searchUnsupportedReason），换个书源试试'
+                                    : '该书源含本版引擎暂不支持的规则，换个书源试试')
                               : '没有搜到相关书籍，换个书名或换个书源试试',
                         ),
                       ),

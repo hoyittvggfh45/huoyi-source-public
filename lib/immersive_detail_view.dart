@@ -4,10 +4,16 @@ import 'episode_browser.dart';
 import 'models.dart';
 
 class ImmersiveTopBar extends StatelessWidget {
-  const ImmersiveTopBar({super.key, required this.title, required this.onBack});
+  const ImmersiveTopBar({
+    super.key,
+    required this.title,
+    required this.onBack,
+    this.onPushToWatchRoom,
+  });
 
   final String title;
   final VoidCallback onBack;
+  final VoidCallback? onPushToWatchRoom;
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +35,7 @@ class ImmersiveTopBar extends StatelessWidget {
                 '返回',
                 style: TextStyle(
                   color: Colors.black87,
-                  fontSize: 14,
+                  fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -43,11 +49,33 @@ class ImmersiveTopBar extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 19,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),
             ),
           ),
+          if (onPushToWatchRoom != null) ...[
+            const SizedBox(width: 12),
+            Tooltip(
+              message: '推送到一起看',
+              child: InkWell(
+                onTap: onPushToWatchRoom,
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.85),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Icon(
+                    Icons.meeting_room_rounded,
+                    color: Colors.black87,
+                    size: 20,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -86,6 +114,7 @@ class ImmersiveDetailView extends StatelessWidget {
     required this.onFullscreen,
     required this.onLocateEpisode,
     required this.onToggleDescription,
+    this.onPushToWatchRoom,
   });
 
   final Drama drama;
@@ -117,6 +146,7 @@ class ImmersiveDetailView extends StatelessWidget {
   final VoidCallback onFullscreen;
   final ValueChanged<int> onLocateEpisode;
   final VoidCallback onToggleDescription;
+  final VoidCallback? onPushToWatchRoom;
 
   String get _updateLabel =>
       drama.releaseStatus.isNotEmpty && drama.releaseStatus != 'unknown'
@@ -137,7 +167,11 @@ class ImmersiveDetailView extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                ImmersiveTopBar(title: drama.title, onBack: onBack),
+                ImmersiveTopBar(
+                  title: drama.title,
+                  onBack: onBack,
+                  onPushToWatchRoom: onPushToWatchRoom,
+                ),
                 Padding(
                   key: const ValueKey('immersive-player-card'),
                   padding: EdgeInsets.symmetric(horizontal: margin),
@@ -242,7 +276,7 @@ class ImmersiveDetailView extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 21,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -252,7 +286,7 @@ class ImmersiveDetailView extends StatelessWidget {
                   padding: EdgeInsets.fromLTRB(margin, 10, margin, 0),
                   child: Text(
                     '更新：$_updateLabel 来源：$sourceName 年份：暂无',
-                    style: const TextStyle(color: Colors.white70, fontSize: 13),
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
                   ),
                 ),
                 Padding(
@@ -260,7 +294,7 @@ class ImmersiveDetailView extends StatelessWidget {
                   padding: EdgeInsets.fromLTRB(margin, 6, margin, 0),
                   child: const Text(
                     '导演：暂无',
-                    style: TextStyle(color: Colors.white70, fontSize: 13),
+                    style: TextStyle(color: Colors.white70, fontSize: 12),
                   ),
                 ),
                 Padding(
@@ -268,7 +302,7 @@ class ImmersiveDetailView extends StatelessWidget {
                   padding: EdgeInsets.fromLTRB(margin, 6, margin, 0),
                   child: const Text(
                     '演员：暂无',
-                    style: TextStyle(color: Colors.white70, fontSize: 13),
+                    style: TextStyle(color: Colors.white70, fontSize: 12),
                   ),
                 ),
                 Padding(
@@ -287,7 +321,7 @@ class ImmersiveDetailView extends StatelessWidget {
                             : TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 14,
+                          fontSize: 12,
                           height: 1.6,
                         ),
                       ),
@@ -372,7 +406,7 @@ class ImmersiveDetailView extends StatelessWidget {
                         '视频来源',
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 15,
+                          fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -394,7 +428,7 @@ class ImmersiveDetailView extends StatelessWidget {
                             sourceName,
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 13,
+                              fontSize: 12,
                               fontWeight: FontWeight.w600,
                             ),
                           ),

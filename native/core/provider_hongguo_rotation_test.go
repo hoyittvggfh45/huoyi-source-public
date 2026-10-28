@@ -75,7 +75,7 @@ func TestHongguoAppMediaRotatesOnEmptyModel(t *testing.T) {
 }
 
 func TestHongguoAppMediaSuspendsOnlyAfterRotationsExhausted(t *testing.T) {
-	d, requests := hongguoRotationFixture(t, map[string]bool{"7": true, "1001": true, "1002": true, "1003": true}, nil, false)
+	d, requests := hongguoRotationFixture(t, map[string]bool{"7": true, "1001": true, "1002": true, "1003": true, "1004": true, "1005": true, "1006": true}, nil, false)
 	client := d.hongguoClient()
 	client.state.DeviceID, client.state.InstallID, client.state.Registered = "7", "8", true
 	if _, err := d.resolveHongguoAppMedia(context.Background(), "12345"); err == nil || !strings.Contains(err.Error(), "限流") {
@@ -93,7 +93,7 @@ func TestHongguoAppMediaSuspendsOnlyAfterRotationsExhausted(t *testing.T) {
 			registers++
 		}
 	}
-	if models != 1+hongguoDeviceRotations || registers != hongguoDeviceRotations {
+	if models != 2*(1+hongguoDeviceRotations) || registers != 2*hongguoDeviceRotations {
 		t.Fatal("unexpected rotation counts", *requests)
 	}
 }

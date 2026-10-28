@@ -20,7 +20,7 @@ class VipIcon extends StatelessWidget {
               textScaler: TextScaler.noScaling,
               style: TextStyle(
                 color: color,
-                fontSize: 11.5,
+                fontSize: 12,
                 fontWeight: FontWeight.w900,
                 letterSpacing: -.4,
               ),

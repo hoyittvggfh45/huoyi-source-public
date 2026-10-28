@@ -263,6 +263,7 @@ class RoomPlayerView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    handle.onCompleted = onCompleted;
     return ListenableBuilder(
       listenable: handle,
       builder: (context, _) {

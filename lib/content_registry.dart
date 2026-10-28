@@ -1,3 +1,4 @@
+import 'content_audio.dart';
 import 'content_baozimh.dart';
 import 'content_copymanga.dart';
 import 'content_dongmanla.dart';
@@ -15,6 +16,7 @@ class ContentRegistry {
     MangaDexSource(_http),
     CopymangaSource(_http),
     BaozimhSource(_http),
+    TingshuwangSource(_http),
   ];
 
   static List<ContentSource> sourcesFor(ContentSection section) => [

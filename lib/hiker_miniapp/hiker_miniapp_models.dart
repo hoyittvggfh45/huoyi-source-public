@@ -11,6 +11,14 @@ Map<String, dynamic> hikerAsMap(dynamic value) {
   return {};
 }
 
+String _stripHikerImageSuffix(String raw) {
+  final at = raw.indexOf('@Referer=');
+  if (at >= 0) return raw.substring(0, at);
+  return raw;
+}
+
+String _stripHtml(String raw) => raw.replaceAll(RegExp(r'<[^>]*>'), '').trim();
+
 String _mapString(Map<String, dynamic> map, List<String> keys) {
   for (final key in keys) {
     final value = map[key];
@@ -67,7 +75,10 @@ class HikerDetailItem {
   final String desc;
   final String actor;
 
-  String get image => picUrl.isNotEmpty ? picUrl : img;
+  String get image {
+    final raw = picUrl.isNotEmpty ? picUrl : img;
+    return _stripHikerImageSuffix(raw);
+  }
 
   bool get isPlayable => isPlayableHikerUrl(url);
 
@@ -209,9 +220,13 @@ class HikerMiniappDetail {
     String fallbackTitle = '',
   }) {
     final title = _mapString(map, ['title', 'name']);
-    final poster = _mapString(map, ['pic_url', 'pic', 'img', 'cover', 'image']);
+    final poster = _stripHikerImageSuffix(
+      _mapString(map, ['pic_url', 'pic', 'img', 'cover', 'image']),
+    );
     final actress = _mapString(map, ['actor', 'actress']);
-    final synopsis = _mapString(map, ['desc', 'description', 'synopsis']);
+    final synopsis = _stripHtml(
+      _mapString(map, ['desc', 'description', 'synopsis']),
+    );
     final episodesRaw = map['episodes'];
     final lines = <HikerPlayLine>[];
     if (episodesRaw is List) {
@@ -233,10 +248,10 @@ class HikerMiniappDetail {
     if (stillsRaw is List) {
       for (final e in stillsRaw) {
         if (e is String && e.trim().isNotEmpty) {
-          stills.add(e.trim());
+          stills.add(_stripHikerImageSuffix(e.trim()));
         } else if (e is Map) {
           final image = _mapString(hikerAsMap(e), ['pic_url', 'pic', 'img']);
-          if (image.isNotEmpty) stills.add(image);
+          if (image.isNotEmpty) stills.add(_stripHikerImageSuffix(image));
         }
       }
     }
@@ -296,6 +311,10 @@ class HikerMiniappDetail {
 
     for (var i = 0; i < items.length; i++) {
       final item = items[i];
+      if (item.colType == 'scroll_button' ||
+          item.url.startsWith('hiker://lazy?')) {
+        continue;
+      }
       if (item.isStillsMarker) continue;
       if (item.isLineMarker) {
         flush();
@@ -327,7 +346,7 @@ class HikerMiniappDetail {
           continue;
         }
         final text = item.desc.isNotEmpty ? item.desc : item.title;
-        if (text.isNotEmpty) synopsisParts.add(text);
+        if (text.isNotEmpty) synopsisParts.add(_stripHtml(text));
         continue;
       }
       if (i == headerIndex) continue;
@@ -337,7 +356,7 @@ class HikerMiniappDetail {
     flush();
     var synopsis = synopsisParts.join('\n');
     if (synopsis.isEmpty && header.desc.isNotEmpty) {
-      synopsis = header.desc;
+      synopsis = _stripHtml(header.desc);
     }
     return HikerMiniappDetail(
       items: items,
