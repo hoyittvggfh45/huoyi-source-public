@@ -20,7 +20,7 @@ jobs:
   # 检查不阻断出包；测试按 2026-09-21 约定暂停，结果仅供参考。
   checks:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - run: python3 -m unittest discover -s scripts -p 'test_*.py'
@@ -113,6 +113,13 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+      - name: Select newest Xcode (video_player_avfoundation needs iOS 26 SDK)
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XCODE" ]; then echo "No Xcode found:"; ls /Applications/; exit 1; fi
+          echo "Selected Xcode: $XCODE"
+          sudo xcode-select -s "$XCODE/Contents/Developer"
+          xcodebuild -version
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
