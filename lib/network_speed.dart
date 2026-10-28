@@ -91,7 +91,7 @@ double? computeNetworkSpeed(List<TimedMpvSample> samples) {
     final cacheEnd = timed.sample.cacheEndSeconds;
     if (cacheEnd == null) continue;
     if (previousEnd != null) {
-      final delta = cacheEnd - previousEnd!;
+      final delta = cacheEnd - previousEnd;
       if (delta >= 0 && delta <= 120) cumulative += delta;
     }
     previousEnd = cacheEnd;

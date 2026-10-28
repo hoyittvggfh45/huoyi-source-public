@@ -82,6 +82,7 @@ android {
     packaging {
         jniLibs {
             useLegacyPackaging = true
+            pickFirsts += "lib/arm64-v8a/libc++_shared.so"
         }
     }
 }
