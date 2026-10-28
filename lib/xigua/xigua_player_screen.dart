@@ -11,6 +11,8 @@ import 'package:window_manager/window_manager.dart';
 import 'package:duanju_app/app_layout.dart';
 import 'package:duanju_app/app_notice.dart';
 import 'package:duanju_app/app_orientation.dart';
+import 'package:duanju_app/home_screen.dart';
+import 'package:duanju_app/player_back.dart';
 import 'package:duanju_app/tv_theme.dart';
 import 'package:duanju_app/xigua/android_video_surface.dart';
 import 'package:duanju_app/catalog_sort.dart';
@@ -1808,16 +1810,20 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
       return;
     }
     _lastBackAt = now;
+    final navigator = Navigator.of(context);
     if (_showFullscreen && !_television) {
       _rotate();
+    } else if (_television) {
+      navigator.pop();
+    } else if (ModalRoute.of(context)?.isFirst ?? false) {
+      navigator.pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) =>
+              HomeScreen(repository: widget.repository, store: widget.store),
+        ),
+      );
     } else {
-      // 遥控 / 物理「返回」：只要下方还有路由（如视频列表页）就强制 pop 回去。
-      final navigator = Navigator.of(context);
-      if (ModalRoute.of(context)?.isFirst ?? false) {
-        navigator.maybePop();
-      } else {
-        navigator.pop();
-      }
+      navigator.popUntil(isBackToListStop);
     }
   }
 
@@ -1926,10 +1932,10 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
     final fullscreen = _showFullscreen;
     final pictureInPicture = _pictureInPictureVisible;
     return PopScope(
-      canPop: _television || !fullscreen,
+      canPop: _television,
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop && fullscreen && !_television) {
-          _rotate();
+        if (!didPop && !_television) {
+          _back();
         }
       },
       child: CallbackShortcuts(
@@ -2242,7 +2248,7 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
                           children: [
                             Text(
                               _saveWarning!,
-                              style: const TextStyle(fontSize: 11),
+                              style: const TextStyle(fontSize: 11.5),
                             ),
                             TextButton(
                               onPressed: _saveProgress,
@@ -2330,7 +2336,7 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
             label,
             style: TextStyle(
               color: selected ? colors.onSurface : colors.onSurfaceVariant,
-              fontSize: 11.5,
+              fontSize: 12,
               fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
             ),
           ),
@@ -2391,7 +2397,7 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
                               Text(
                                 drama.title,
                                 style: const TextStyle(
-                                  fontSize: 12.5,
+                                  fontSize: 13,
                                   fontWeight: FontWeight.w600,
                                   height: 1.3,
                                 ),
@@ -2442,7 +2448,7 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
     ),
     child: Text(
       label,
-      style: TextStyle(fontSize: 10, color: accent, height: 1.4),
+      style: TextStyle(fontSize: 10.5, color: accent, height: 1.4),
     ),
   );
 

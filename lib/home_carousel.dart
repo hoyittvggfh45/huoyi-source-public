@@ -136,7 +136,7 @@ class _HomeCarouselState extends State<HomeCarousel> {
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 14.5,
+                            fontSize: 15,
                             fontWeight: FontWeight.w700,
                           ),
                         ),

@@ -80,7 +80,7 @@ class _ParseSettingsScreenState extends State<ParseSettingsScreen> {
               padding: EdgeInsets.only(top: 12),
               child: Text(
                 '地址可含 {url} 占位符；不含时将原始播放页地址直接拼在后面。',
-                style: TextStyle(fontSize: 11),
+                style: TextStyle(fontSize: 11.5),
               ),
             ),
           ],

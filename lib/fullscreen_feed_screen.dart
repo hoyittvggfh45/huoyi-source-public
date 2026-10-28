@@ -157,7 +157,7 @@ class _FullscreenFeedScreenState extends State<FullscreenFeedScreen> {
                 children: [
                   const Text(
                     '流内设置',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
                   ),
                   ListTile(
                     leading: const Icon(Icons.video_settings_outlined),

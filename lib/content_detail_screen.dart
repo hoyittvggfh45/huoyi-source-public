@@ -155,7 +155,7 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
                               book.remarks,
                               style: TextStyle(
                                 color: colors.onSurfaceVariant,
-                                fontSize: 11,
+                                fontSize: 11.5,
                               ),
                             ),
                           ],
@@ -166,7 +166,7 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
                             '${widget.source.section == ContentSection.audio ? '集' : '章'}',
                             style: TextStyle(
                               color: colors.onSurfaceVariant,
-                              fontSize: 11,
+                              fontSize: 11.5,
                             ),
                           ),
                         ],
@@ -184,7 +184,7 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
                     _detail!.note,
                     style: TextStyle(
                       color: colors.onSurfaceVariant,
-                      fontSize: 11,
+                      fontSize: 11.5,
                       height: 1.5,
                     ),
                   ),

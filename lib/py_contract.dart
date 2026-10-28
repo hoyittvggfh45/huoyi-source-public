@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'models.dart';
 
 class PyContract {
@@ -46,6 +48,56 @@ class PyContract {
         ]
         .where((category) => category.id.isNotEmpty || category.name == '全部')
         .toList();
+  }
+
+  static Map<String, dynamic> filtersFromHome(Map<String, dynamic> home) {
+    final raw = home['filters'];
+    if (raw is Map) return Map<String, dynamic>.from(raw);
+    return const {};
+  }
+
+  static List<CatalogFilterGroup> filterGroupsForCategory(
+    Map<String, dynamic> filters,
+    String category,
+  ) {
+    final rows = <Object?>[];
+    final direct = filters[category];
+    if (direct is List) rows.addAll(direct);
+    if (rows.isEmpty) {
+      for (final key in const ['all', '']) {
+        final fallback = filters[key];
+        if (fallback is List) rows.addAll(fallback);
+      }
+    }
+    final groups = <CatalogFilterGroup>[];
+    for (final row in rows) {
+      if (row is! Map) continue;
+      final group = Map<String, dynamic>.from(row);
+      final key = _text(group['key']);
+      if (key.isEmpty) continue;
+      final options = <CatalogFilterOption>[];
+      for (final option in group['value'] as List? ?? const []) {
+        if (option is Map) {
+          final parsed = Map<String, dynamic>.from(option);
+          options.add(
+            CatalogFilterOption(
+              _text(parsed['v']),
+              _text(parsed['n']).isEmpty
+                  ? _text(parsed['v'])
+                  : _text(parsed['n']),
+            ),
+          );
+        }
+      }
+      groups.add(
+        CatalogFilterGroup(
+          key,
+          _text(group['name']).isEmpty ? key : _text(group['name']),
+          options,
+        ),
+      );
+    }
+    return groups;
   }
 
   static CatalogPage pageFromResult(
@@ -129,12 +181,35 @@ class PyContract {
       for (final entry in rawHeaders.entries) {
         headers[entry.key.toString()] = entry.value.toString();
       }
+    } else if (rawHeaders is String) {
+      final trimmed = rawHeaders.trim();
+      if (trimmed.startsWith('{')) {
+        try {
+          final decoded = jsonDecode(trimmed);
+          if (decoded is Map) {
+            for (final entry in decoded.entries) {
+              headers[entry.key.toString()] = entry.value.toString();
+            }
+          }
+        } catch (_) {}
+      }
+    } else if (rawHeaders is List) {
+      for (final row in rawHeaders) {
+        if (row is List && row.length >= 2) {
+          headers[row[0].toString()] = row[1].toString();
+        } else if (row is Map) {
+          final parsed = Map<String, dynamic>.from(row);
+          final key = parsed['key'] ?? parsed['name'];
+          final value = parsed['value'];
+          if (key != null && value != null) {
+            headers[key.toString()] = value.toString();
+          }
+        }
+      }
     }
     final needsParse = _parseFlag(result['parse']) || _parseFlag(result['jx']);
-    return PlaybackPlan(
-      url: _text(result['url']),
-      headers: headers,
-      needsParse: needsParse,
-    );
+    var url = _text(result['url']);
+    if (url.isEmpty) url = _text(result['playUrl']);
+    return PlaybackPlan(url: url, headers: headers, needsParse: needsParse);
   }
 }

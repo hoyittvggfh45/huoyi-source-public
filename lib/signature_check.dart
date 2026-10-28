@@ -43,7 +43,7 @@ class TamperScreen extends StatelessWidget {
               const Text(
                 '应用签名异常',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 8),
               const Text(

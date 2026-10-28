@@ -47,7 +47,7 @@ class VideoEnhancementSettings extends StatelessWidget {
       final preferences = controller.preferences;
       final colors = Theme.of(context).colorScheme;
       final helperStyle = TextStyle(
-        fontSize: 11.5,
+        fontSize: 12,
         color: colors.onSurfaceVariant,
         height: 1.5,
       );
@@ -57,7 +57,7 @@ class VideoEnhancementSettings extends StatelessWidget {
         children: [
           Text(
             '画质增强',
-            style: television ? const TextStyle(fontSize: 18) : null,
+            style: television ? const TextStyle(fontSize: 19) : null,
           ),
           const SizedBox(height: 8),
           Wrap(

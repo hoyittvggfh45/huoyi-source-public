@@ -36,16 +36,16 @@ void main() {
     expect(manifest.networkAllowlist, isEmpty);
   });
 
-  test('manifest rejects unknown permission after aliasing', () {
-    expect(
-      () => MiniAppManifest.fromJson({
-        'appId': 'ok',
-        'name': 'x',
-        'entry': 'index.html',
-        'permissions': ['root'],
-      }),
-      throwsFormatException,
-    );
+  test('manifest routes unknown permission to unsupportedPermissions', () {
+    final manifest = MiniAppManifest.fromJson({
+      'appId': 'ok',
+      'name': 'x',
+      'entry': 'index.html',
+      'permissions': ['root'],
+    });
+    expect(manifest.permissions, isEmpty);
+    expect(manifest.unsupportedPermissions, ['root']);
+    expect(manifest.unavailablePermissions, ['root']);
   });
 
   test('market json parses apps list and skips bad rows', () {
@@ -189,11 +189,24 @@ void main() {
     expect(map['platform'], isNotEmpty);
   });
 
-  test('bridge injection script exposes four compat groups', () {
-    final script = MiniAppBridge.injectionScript;
-    expect(script.contains('jhminiapp.request'), isTrue);
-    expect(script.contains('jhminiapp.storage'), isTrue);
-    expect(script.contains('jhminiapp.getSystemInfo'), isTrue);
-    expect(script.contains('jhminiapp.tv'), isTrue);
-  });
+  test(
+    'bridge injection script defines one ant object with jhminiapp alias',
+    () {
+      final script = MiniAppBridge.injectionScript;
+      expect(script.contains('if (window.ant) return;'), isTrue);
+      expect(script.contains('window.ant = core;'), isTrue);
+      expect(script.contains('window.jhminiapp = core;'), isTrue);
+      expect(script.contains('window.ant.request'), isTrue);
+      expect(script.contains('window.ant.storage'), isTrue);
+      expect(script.contains('window.ant.getSystemInfo'), isTrue);
+      expect(script.contains('window.ant.tv'), isTrue);
+      expect(script.contains('window.ant.ui'), isTrue);
+      expect(script.contains('window.ant.navigateTo'), isTrue);
+      expect(script.contains('window.ant.log'), isTrue);
+      expect(script.contains('window.ant.version'), isTrue);
+      expect(script.contains('window.ant.onShow'), isTrue);
+      expect(script.contains('window.ant.source'), isTrue);
+      expect(script.contains('window.ant.player'), isTrue);
+    },
+  );
 }

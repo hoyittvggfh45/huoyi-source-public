@@ -31,9 +31,9 @@ type LegadoSource struct {
 }
 
 type legadoRaw struct {
-	Name         string `json:"bookSourceName"`
-	URL          string `json:"bookSourceUrl"`
-	SearchURL    string `json:"searchUrl"`
+	Name         string            `json:"bookSourceName"`
+	URL          string            `json:"bookSourceUrl"`
+	SearchURL    string            `json:"searchUrl"`
 	RuleSearch   map[string]string `json:"ruleSearch"`
 	RuleBookInfo map[string]string `json:"ruleBookInfo"`
 	RuleToc      map[string]string `json:"ruleToc"`
@@ -219,17 +219,33 @@ func legadoHTMLToText(outer string) string {
 	return strings.Join(out, "\n")
 }
 
+func legadoSplitPostSuffix(rawURL string) (string, string, bool) {
+	for i := 0; i+1 < len(rawURL); i++ {
+		if rawURL[i] != ',' {
+			continue
+		}
+		j := i + 1
+		for j < len(rawURL) && (rawURL[j] == ' ' || rawURL[j] == '\t') {
+			j++
+		}
+		if j < len(rawURL) && rawURL[j] == '{' {
+			return rawURL[:i], rawURL[i+1:], true
+		}
+	}
+	return rawURL, "", false
+}
+
 func legadoSearch(src LegadoSource, keyword string, page int) (interface{}, error) {
 	if src.SearchURL == "" || src.BookList == "" {
 		return nil, fmt.Errorf("legado source missing searchUrl or bookList rule")
 	}
-	rawURL := src.SearchURL
+	rawURL := strings.TrimRight(src.SearchURL, " \t")
 	method := "GET"
 	body := ""
 	headers := map[string]string{}
-	if i := strings.Index(rawURL, ",{"); i >= 0 {
+	if base, suffix, ok := legadoSplitPostSuffix(rawURL); ok {
 		var opts map[string]interface{}
-		if json.Unmarshal([]byte(rawURL[i+1:]), &opts) == nil {
+		if json.Unmarshal([]byte(suffix), &opts) == nil {
 			if m, ok := opts["method"].(string); ok && m != "" {
 				method = strings.ToUpper(m)
 			}
@@ -244,7 +260,7 @@ func legadoSearch(src LegadoSource, keyword string, page int) (interface{}, erro
 				}
 			}
 		}
-		rawURL = rawURL[:i]
+		rawURL = base
 	}
 	sub := func(v string) string {
 		v = strings.ReplaceAll(v, "{{key}}", url.QueryEscape(keyword))
@@ -372,6 +388,74 @@ func legadoContent(src LegadoSource, chapterURL string) (interface{}, error) {
 	return map[string]string{"content": text}, nil
 }
 
+type legadoCheckField struct {
+	Field  string `json:"field"`
+	Rule   string `json:"rule"`
+	Reason string `json:"reason"`
+}
+
+type legadoCheckResult struct {
+	Supported         bool               `json:"supported"`
+	UnsupportedFields []legadoCheckField `json:"unsupportedFields"`
+}
+
+func legadoRuleUnsupportedReason(rule string) string {
+	t := strings.TrimSpace(rule)
+	if strings.HasPrefix(t, "//") {
+		return "xpath"
+	}
+	if strings.Contains(t, "@js:") {
+		return "js"
+	}
+	if strings.HasPrefix(t, "$") {
+		return "jsonpath"
+	}
+	if strings.Contains(t, ":nth-") {
+		return "nth"
+	}
+	if strings.Contains(t, ":first-child") || strings.Contains(t, ":last-child") {
+		return "child"
+	}
+	return ""
+}
+
+func legadoCheck(src LegadoSource) legadoCheckResult {
+	fields := []struct {
+		name string
+		rule string
+	}{
+		{"bookList", src.BookList},
+		{"name", src.NameRule},
+		{"author", src.AuthorRule},
+		{"coverUrl", src.CoverRule},
+		{"bookUrl", src.BookURLRule},
+		{"intro", src.IntroRule},
+	}
+	out := legadoCheckResult{Supported: true, UnsupportedFields: []legadoCheckField{}}
+	for _, f := range fields {
+		reason := ""
+		hasSupported := false
+		for _, alt := range strings.Split(f.rule, "||") {
+			alt = strings.TrimSpace(alt)
+			if alt == "" {
+				continue
+			}
+			if r := legadoRuleUnsupportedReason(alt); r != "" {
+				if reason == "" {
+					reason = r
+				}
+			} else {
+				hasSupported = true
+			}
+		}
+		if reason != "" && !hasSupported {
+			out.Supported = false
+			out.UnsupportedFields = append(out.UnsupportedFields, legadoCheckField{Field: f.name, Rule: f.rule, Reason: reason})
+		}
+	}
+	return out
+}
+
 func LegadoRunJSON(sourceJSON, action, input string) (string, error) {
 	src, err := legadoParseSource([]byte(sourceJSON))
 	if err != nil {
@@ -379,6 +463,8 @@ func LegadoRunJSON(sourceJSON, action, input string) (string, error) {
 	}
 	var result interface{}
 	switch action {
+	case "check":
+		result = legadoCheck(src)
 	case "search":
 		keyword := input
 		page := 1

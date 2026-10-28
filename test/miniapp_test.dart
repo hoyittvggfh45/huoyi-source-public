@@ -53,7 +53,7 @@ void main() {
     expect(manifest.networkAllowlist, ['example.org', 'api.example.com']);
   });
 
-  test('manifest rejects bad id, entry, renderer and permission', () {
+  test('manifest rejects bad id, entry and renderer', () {
     expect(
       () => MiniAppManifest.fromJson({
         'id': '../escape',
@@ -76,15 +76,6 @@ void main() {
         'name': 'x',
         'entry': 'index.html',
         'renderer': 'native',
-      }),
-      throwsFormatException,
-    );
-    expect(
-      () => MiniAppManifest.fromJson({
-        'id': 'ok',
-        'name': 'x',
-        'entry': 'index.html',
-        'permissions': ['root'],
       }),
       throwsFormatException,
     );

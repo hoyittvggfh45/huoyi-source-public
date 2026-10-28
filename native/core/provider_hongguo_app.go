@@ -46,17 +46,18 @@ type hongguoAppClient struct {
 	// appSuspendedUntil：玩家 App 接口（video_detail / video_model）当前「空 body 未下发
 	// 数据」时的短负缓存窗口。窗口内详情/取流直接跳过这条 3 次重试+退避的慢链、改走网页，
 	// 提速详情与播放页；窗口过后自动重试，App 恢复即可无缝切回。只由 /player/ 端点空 body 触发。
-	appSuspendedUntil   time.Time
-	baseURL             string
-	state               hongguoCatalogState
-	details             map[string]hongguoDetailEntry
-	pending             map[string]*hongguoDetailCall
-	searches            map[string]hongguoSearchEntry
-	searchPending       map[string]*hongguoSearchCall
-	suggestions         map[string]hongguoSuggestionEntry
-	suggestPending      map[string]*hongguoSuggestionCall
-	danmaku             map[string]hongguoDanmakuCacheEntry
-	danmakuPending      map[string]*hongguoDanmakuCall
+	appSuspendedUntil time.Time
+	baseURL           string
+	state             hongguoCatalogState
+	details           map[string]hongguoDetailEntry
+	pending           map[string]*hongguoDetailCall
+	searches          map[string]hongguoSearchEntry
+	searchPending     map[string]*hongguoSearchCall
+	suggestions       map[string]hongguoSuggestionEntry
+	suggestPending    map[string]*hongguoSuggestionCall
+	danmaku           map[string]hongguoDanmakuCacheEntry
+	danmakuPending    map[string]*hongguoDanmakuCall
+	webFallback       hongguoWebFallbackState
 }
 
 func (downloader *Downloader) hongguoClient() *hongguoAppClient {

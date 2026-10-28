@@ -27,27 +27,102 @@ class LegadoSource {
   }
 }
 
-List<LegadoSource> parseLegadoSources(String text) {
-  final decoded = jsonDecode(text);
-  final items = <Map<String, dynamic>>[];
+class LegadoDrop {
+  const LegadoDrop({required this.name, required this.reason});
+
+  final String name;
+  final String reason;
+
+  static const reasonMissingName = '无名';
+  static const reasonMissingSearchUrl = '无搜索地址';
+  static const reasonBadShape = '形状不支持';
+}
+
+class LegadoParseReport {
+  const LegadoParseReport({required this.sources, required this.dropped});
+
+  final List<LegadoSource> sources;
+  final List<LegadoDrop> dropped;
+}
+
+void _collectLegadoItems(
+  dynamic decoded,
+  List<LegadoSource> sources,
+  List<LegadoDrop> dropped,
+) {
   if (decoded is List) {
     for (final item in decoded) {
-      if (item is Map<String, dynamic>) items.add(item);
+      _collectLegadoItems(item, sources, dropped);
     }
-  } else if (decoded is Map<String, dynamic>) {
-    final inner = decoded['sources'];
-    if (inner is List) {
-      for (final item in inner) {
-        if (item is Map<String, dynamic>) items.add(item);
-      }
-    } else {
-      items.add(decoded);
-    }
+    return;
   }
-  return items
-      .map(LegadoSource.fromJson)
-      .where((s) => s.name.isNotEmpty && s.searchUrl.isNotEmpty)
-      .toList();
+  if (decoded is Map<String, dynamic>) {
+    for (final key in const ['sources', 'bookSources', 'data']) {
+      final inner = decoded[key];
+      if (inner is List) {
+        for (final item in inner) {
+          _collectLegadoItems(item, sources, dropped);
+        }
+        return;
+      }
+    }
+    final source = LegadoSource.fromJson(decoded);
+    if (source.name.isEmpty) {
+      dropped.add(
+        LegadoDrop(name: source.url, reason: LegadoDrop.reasonMissingName),
+      );
+    } else if (source.searchUrl.isEmpty) {
+      dropped.add(
+        LegadoDrop(
+          name: source.name,
+          reason: LegadoDrop.reasonMissingSearchUrl,
+        ),
+      );
+    } else {
+      sources.add(source);
+    }
+    return;
+  }
+  dropped.add(const LegadoDrop(name: '', reason: LegadoDrop.reasonBadShape));
+}
+
+LegadoParseReport _reportFromDecoded(dynamic decoded) {
+  final sources = <LegadoSource>[];
+  final dropped = <LegadoDrop>[];
+  _collectLegadoItems(decoded, sources, dropped);
+  return LegadoParseReport(sources: sources, dropped: dropped);
+}
+
+LegadoParseReport parseLegadoSourcesReport(String text) {
+  var cleaned = text;
+  while (cleaned.startsWith('\uFEFF')) {
+    cleaned = cleaned.substring(1);
+  }
+  try {
+    return _reportFromDecoded(jsonDecode(cleaned));
+  } catch (_) {
+    final sources = <LegadoSource>[];
+    final dropped = <LegadoDrop>[];
+    var anyLineOk = false;
+    for (final line in cleaned.split('\n')) {
+      final trimmed = line.trim();
+      if (trimmed.isEmpty) continue;
+      try {
+        final part = _reportFromDecoded(jsonDecode(trimmed));
+        sources.addAll(part.sources);
+        dropped.addAll(part.dropped);
+        anyLineOk = true;
+      } catch (_) {}
+    }
+    if (anyLineOk) {
+      return LegadoParseReport(sources: sources, dropped: dropped);
+    }
+    rethrow;
+  }
+}
+
+List<LegadoSource> parseLegadoSources(String text) {
+  return parseLegadoSourcesReport(text).sources;
 }
 
 class LegadoStore {

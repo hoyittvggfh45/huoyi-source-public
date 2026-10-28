@@ -51,6 +51,7 @@ class TvboxVideoPane extends StatefulWidget {
     required this.onCompleted,
     required this.onError,
     this.viewType = TvboxPlayerController.viewType,
+    this.onBack,
     this.onFullscreen,
     this.isFullscreen = false,
   });
@@ -63,6 +64,7 @@ class TvboxVideoPane extends StatefulWidget {
   final VoidCallback onCompleted;
   final ValueChanged<String> onError;
   final String viewType;
+  final VoidCallback? onBack;
   final VoidCallback? onFullscreen;
   final bool isFullscreen;
 
@@ -226,6 +228,16 @@ class _TvboxVideoPaneState extends State<TvboxVideoPane> {
             padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
             child: Row(
               children: [
+                if (widget.onBack != null)
+                  IconButton(
+                    key: const ValueKey('tvbox-back'),
+                    tooltip: '返回',
+                    icon: const Icon(
+                      Icons.arrow_back_rounded,
+                      color: Colors.white,
+                    ),
+                    onPressed: widget.onBack,
+                  ),
                 IconButton(
                   icon: Icon(
                     widget.handle.playing ? Icons.pause : Icons.play_arrow,

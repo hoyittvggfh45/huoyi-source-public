@@ -152,7 +152,7 @@ class _PlayerMenuState extends State<PlayerMenu> {
     final all = widget.section == PlayerMenuSection.settings;
     final colors = Theme.of(context).colorScheme;
     final helperStyle = TextStyle(
-      fontSize: 11.5,
+      fontSize: 12,
       color: colors.onSurfaceVariant,
       height: 1.5,
     );

@@ -335,7 +335,186 @@ class NativeRepository extends AppRepository {
   ) async {
     _authorize(source);
     final path = await _pySpiderPath(source);
-    return PyBridge.call(path, request);
+    final ext = SourceSite.importedSites[source]?.importExt ?? '';
+    final payload = ext.isEmpty ? request : {...request, 'extend': ext};
+    return PyBridge.call(path, payload);
+  }
+
+  Future<dynamic> _pyCallRaw(
+    String source,
+    Map<String, dynamic> request,
+  ) async {
+    _authorize(source);
+    final path = await _pySpiderPath(source);
+    final ext = SourceSite.importedSites[source]?.importExt ?? '';
+    final payload = ext.isEmpty ? request : {...request, 'extend': ext};
+    return PyBridge.callRaw(path, payload);
+  }
+
+  Future<Map<String, dynamic>> pyPing(String source) async =>
+      await _pyCall(source, {'action': 'ping'});
+
+  Future<List<String>> pyDependence(String source) async {
+    final data = await _pyCallRaw(source, {'action': 'dependence'});
+    return [for (final entry in data as List? ?? const []) entry.toString()];
+  }
+
+  Future<bool> pyIsVideoFormat(String source, String url) async {
+    final data = await _pyCallRaw(source, {'action': 'format', 'url': url});
+    return data == true;
+  }
+
+  Future<bool> pyManualVideoCheck(String source) async {
+    final data = await _pyCallRaw(source, {'action': 'check'});
+    return data == true;
+  }
+
+  Future<dynamic> pyAction(String source, String name) async =>
+      await _pyCallRaw(source, {'action': 'action', 'name': name});
+
+  Future<Map<String, dynamic>> pyProxy(String source, Object? param) async {
+    final data = await _pyCall(source, {'action': 'proxy', 'param': param});
+    return data;
+  }
+
+  Future<Map<String, dynamic>> pyHome(String source) async =>
+      await _pyCall(source, {'action': 'home'});
+
+  final _pyHomeFiltersCache = <String, Map<String, dynamic>>{};
+  final _pyFilledCache = <String, Set<String>>{};
+
+  Future<Set<String>> _pyFilledMethods(String source) async {
+    final cached = _pyFilledCache[source];
+    if (cached != null) return cached;
+    final ping = await pyPing(source);
+    final filled = {
+      for (final entry in ping['filled'] as List? ?? const []) entry.toString(),
+    };
+    _pyFilledCache[source] = filled;
+    return filled;
+  }
+
+  Future<List<CatalogFilterGroup>> _pyCategoryFilterGroups(
+    String source,
+    String category,
+  ) async {
+    if (category.isEmpty) return const [];
+    try {
+      var raw = _pyHomeFiltersCache[source];
+      if (raw == null) {
+        final home = await pyHome(source);
+        raw = PyContract.filtersFromHome(home);
+        _pyHomeFiltersCache[source] = raw;
+      }
+      return PyContract.filterGroupsForCategory(raw, category);
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<PlaybackPlan> _applyPyFormat(String source, PlaybackPlan plan) async {
+    if (plan.url.isEmpty) return plan;
+    try {
+      final filled = await _pyFilledMethods(source);
+      if (filled.contains('isVideoFormat')) return plan;
+      final isVideo = await pyIsVideoFormat(source, plan.url);
+      return plan.withNeedsParse(!isVideo);
+    } catch (_) {
+      return plan;
+    }
+  }
+
+  HttpServer? _pyProxyServer;
+
+  Future<HttpServer> _ensurePyProxyServer() async {
+    final existing = _pyProxyServer;
+    if (existing != null) return existing;
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    server.listen(_handlePyProxyRequest);
+    _pyProxyServer = server;
+    return server;
+  }
+
+  Object _pyProxyParam(String rest) {
+    if (rest.contains('=')) {
+      final map = <String, String>{};
+      for (final part in rest.split('&')) {
+        final eq = part.indexOf('=');
+        if (eq > 0) {
+          map[Uri.decodeComponent(part.substring(0, eq))] = Uri.decodeComponent(
+            part.substring(eq + 1),
+          );
+        }
+      }
+      if (map.isNotEmpty) return map;
+    }
+    return {'url': rest};
+  }
+
+  Future<String> _pyProxyLocalUrl(String source, String proxyUrl) async {
+    final server = await _ensurePyProxyServer();
+    final rest = proxyUrl.substring('proxy://'.length);
+    final payload = base64Url.encode(
+      utf8.encode(jsonEncode({'source': source, 'param': _pyProxyParam(rest)})),
+    );
+    return 'http://127.0.0.1:${server.port}/pyproxy?d=$payload';
+  }
+
+  Future<void> _handlePyProxyRequest(HttpRequest request) async {
+    try {
+      final payload = request.uri.queryParameters['d'] ?? '';
+      final decoded = jsonDecode(utf8.decode(base64Url.decode(payload))) as Map;
+      final source = decoded['source'] as String? ?? '';
+      final param = decoded['param'];
+      final result = await pyProxy(source, param);
+      final body = base64Decode(result['bodyBase64'] as String? ?? '');
+      request.response.statusCode = result['status'] as int? ?? 200;
+      request.response.headers.set(
+        HttpHeaders.contentTypeHeader,
+        result['mime'] as String? ?? 'application/octet-stream',
+      );
+      for (final entry in (result['headers'] as Map? ?? {}).entries) {
+        request.response.headers.set(
+          entry.key.toString(),
+          entry.value.toString(),
+        );
+      }
+      request.response.add(body);
+      await request.response.close();
+    } catch (error) {
+      request.response.statusCode = 500;
+      request.response.write('py proxy failed: $error');
+      await request.response.close();
+    }
+  }
+
+  Future<PlaybackPlan> _applyPyProxy(String source, PlaybackPlan plan) async {
+    if (!plan.url.startsWith('proxy://')) return plan;
+    try {
+      final local = await _pyProxyLocalUrl(source, plan.url);
+      return plan.withUrl(local);
+    } catch (error) {
+      throw AppFailure('本地代理服务启动失败：$error');
+    }
+  }
+
+  Future<PlaybackPlan> _pyResolvePlan(
+    String source,
+    String flag,
+    String playId,
+  ) async {
+    final result = await _pyCall(source, {
+      'action': 'resolve',
+      'flag': flag,
+      'playId': playId,
+    });
+    var plan = PyContract.planFromResult(result);
+    if (plan.url.isEmpty) {
+      throw AppFailure('py 蜘蛛未返回可播放地址');
+    }
+    plan = await _applyPyFormat(source, plan);
+    plan = await _applyPyProxy(source, plan);
+    return plan;
   }
 
   LocalStore? access;
@@ -1077,8 +1256,21 @@ class NativeRepository extends AppRepository {
         'page': page,
         'query': query,
         'category': category,
+        'filter': filters.isNotEmpty,
+        'extend': filters,
       });
-      return PyContract.pageFromResult(source, result, page: page);
+      final pageResult = PyContract.pageFromResult(source, result, page: page);
+      final groups = await _pyCategoryFilterGroups(source, category);
+      if (groups.isEmpty) return pageResult;
+      return CatalogPage(
+        pageResult.items,
+        hasMore: pageResult.hasMore,
+        warning: pageResult.warning,
+        page: pageResult.page,
+        fresh: pageResult.fresh,
+        tags: pageResult.tags,
+        filters: groups,
+      );
     }
     return CatalogPage.fromJson(
       await _read('catalog-$source', {
@@ -1336,16 +1528,11 @@ class NativeRepository extends AppRepository {
         adBlock: adBlock,
       );
       if (goPlan != null) return goPlan;
-      final result = await _pyCall(drama.source, {
-        'action': 'resolve',
-        'flag': episode.raw['flag'] as String? ?? '',
-        'playId': episode.raw['id'] as String? ?? episode.id,
-      });
-      final plan = PyContract.planFromResult(result);
-      if (plan.url.isEmpty) {
-        throw AppFailure('py 蜘蛛未返回可播放地址');
-      }
-      return plan;
+      return _pyResolvePlan(
+        drama.source,
+        episode.raw['flag'] as String? ?? '',
+        episode.raw['id'] as String? ?? episode.id,
+      );
     }
     final parseApis = await ParseInterfaceStore.loadEnabled();
     return PlaybackPlan.fromJson(
@@ -1564,16 +1751,11 @@ class NativeRepository extends AppRepository {
         force: true,
       );
       if (goPlan != null) return goPlan;
-      final result = await _pyCall(drama.source, {
-        'action': 'resolve',
-        'flag': episode.raw['flag'] as String? ?? '',
-        'playId': episode.raw['id'] as String? ?? episode.id,
-      });
-      final plan = PyContract.planFromResult(result);
-      if (plan.url.isEmpty) {
-        throw AppFailure('py 蜘蛛未返回可播放地址');
-      }
-      return plan;
+      return _pyResolvePlan(
+        drama.source,
+        episode.raw['flag'] as String? ?? '',
+        episode.raw['id'] as String? ?? episode.id,
+      );
     }
     final parseApis = await ParseInterfaceStore.loadEnabled();
     return PlaybackPlan.fromJson(

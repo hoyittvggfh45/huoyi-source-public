@@ -14,6 +14,19 @@ class HikerRule {
     required this.searchUrl,
     required this.ua,
     this.preRule = '',
+    this.className = '',
+    this.classUrl = '',
+    this.areaName = '',
+    this.areaUrl = '',
+    this.sortName = '',
+    this.sortUrl = '',
+    this.yearName = '',
+    this.yearUrl = '',
+    this.group = '',
+    this.detailColType = '',
+    this.sdetailColType = '',
+    this.sdetailFindRule = '',
+    this.lastChapterRule = '',
   });
 
   final String title;
@@ -26,6 +39,19 @@ class HikerRule {
   final String searchUrl;
   final String ua;
   final String preRule;
+  final String className;
+  final String classUrl;
+  final String areaName;
+  final String areaUrl;
+  final String sortName;
+  final String sortUrl;
+  final String yearName;
+  final String yearUrl;
+  final String group;
+  final String detailColType;
+  final String sdetailColType;
+  final String sdetailFindRule;
+  final String lastChapterRule;
 
   factory HikerRule.fromJson(Map<String, dynamic> json) => HikerRule(
     title: json['title'] as String? ?? '',
@@ -38,6 +64,19 @@ class HikerRule {
     searchUrl: json['search_url'] as String? ?? '',
     ua: json['ua'] as String? ?? '',
     preRule: json['preRule'] as String? ?? '',
+    className: json['class_name'] as String? ?? '',
+    classUrl: json['class_url'] as String? ?? '',
+    areaName: json['area_name'] as String? ?? '',
+    areaUrl: json['area_url'] as String? ?? '',
+    sortName: json['sort_name'] as String? ?? '',
+    sortUrl: json['sort_url'] as String? ?? '',
+    yearName: json['year_name'] as String? ?? '',
+    yearUrl: json['year_url'] as String? ?? '',
+    group: json['group'] as String? ?? '',
+    detailColType: json['detail_col_type'] as String? ?? '',
+    sdetailColType: json['sdetail_col_type'] as String? ?? '',
+    sdetailFindRule: json['sdetail_find_rule'] as String? ?? '',
+    lastChapterRule: json['last_chapter_rule'] as String? ?? '',
   );
 
   Map<String, dynamic> toJson() => {
@@ -51,6 +90,19 @@ class HikerRule {
     'search_url': searchUrl,
     'ua': ua,
     'preRule': preRule,
+    'class_name': className,
+    'class_url': classUrl,
+    'area_name': areaName,
+    'area_url': areaUrl,
+    'sort_name': sortName,
+    'sort_url': sortUrl,
+    'year_name': yearName,
+    'year_url': yearUrl,
+    'group': group,
+    'detail_col_type': detailColType,
+    'sdetail_col_type': sdetailColType,
+    'sdetail_find_rule': sdetailFindRule,
+    'last_chapter_rule': lastChapterRule,
   };
 
   String get id => title.isEmpty ? url : title;

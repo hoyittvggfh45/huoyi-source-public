@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
@@ -27,6 +28,8 @@ class _LegadoScreenState extends State<LegadoScreen> {
   String _mode = 'books';
   bool _busy = false;
   bool _searched = false;
+  bool _searchUnsupported = false;
+  final Set<String> _unsupportedIds = {};
   String _error = '';
   bool _localView = false;
   List<LocalBook> _localBooks = [];
@@ -54,6 +57,76 @@ class _LegadoScreenState extends State<LegadoScreen> {
         if (_selected == null && sources.isNotEmpty) _selected = sources.first;
       });
     }
+    if (sources.isNotEmpty) unawaited(_checkSources(sources));
+  }
+
+  bool _legadoCheckUnsupported(dynamic result) {
+    Map<String, dynamic>? map;
+    if (result is Map<String, dynamic>) {
+      map = result;
+    } else if (result is String) {
+      try {
+        final decoded = jsonDecode(result);
+        if (decoded is Map<String, dynamic>) map = decoded;
+      } catch (_) {}
+    }
+    return map != null && map['supported'] == false;
+  }
+
+  Future<void> _checkSources(List<LegadoSource> sources) async {
+    for (final source in sources) {
+      var unsupported = false;
+      try {
+        final result = await widget.repository.legadoRun(
+          source.rawJson,
+          'check',
+          '',
+        );
+        unsupported = _legadoCheckUnsupported(result);
+      } catch (_) {}
+      if (unsupported && mounted) {
+        setState(() => _unsupportedIds.add(source.id));
+      }
+    }
+  }
+
+  String _importMessage(int added, LegadoParseReport report, int duplicates) {
+    final counts = <String, int>{};
+    void bump(String reason) => counts[reason] = (counts[reason] ?? 0) + 1;
+    for (var i = 0; i < duplicates; i++) {
+      bump('重名');
+    }
+    for (final drop in report.dropped) {
+      bump(drop.reason);
+    }
+    final skipped = counts.values.fold(0, (a, b) => a + b);
+    if (added == 0 && skipped == 0) return '导入 0 条（未解析出书源）';
+    if (skipped == 0) return '导入 $added 条开源阅读书源';
+    final detail = counts.entries.map((e) => '${e.key} ${e.value}').join('、');
+    return '导入 $added 条，跳过 $skipped 条（$detail）';
+  }
+
+  Future<void> _applyImport(LegadoParseReport report) async {
+    final beforeIds = _sources.map((s) => s.id).toSet();
+    final merged = await LegadoStore.addAll(report.sources);
+    final addedSources = merged
+        .where((s) => !beforeIds.contains(s.id))
+        .toList();
+    final duplicates = report.sources.length - addedSources.length;
+    if (mounted) {
+      setState(() {
+        _sources = merged;
+        _selected ??= merged.isNotEmpty ? merged.first : null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _importMessage(addedSources.length, report, duplicates),
+          ),
+        ),
+      );
+    }
+    if (addedSources.isNotEmpty) unawaited(_checkSources(addedSources));
   }
 
   Future<void> _importLocalBook() async {
@@ -141,7 +214,7 @@ class _LegadoScreenState extends State<LegadoScreen> {
               const Expanded(
                 child: Text(
                   '本地书架',
-                  style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.bold),
                 ),
               ),
               IconButton(
@@ -178,7 +251,7 @@ class _LegadoScreenState extends State<LegadoScreen> {
               padding: const EdgeInsets.all(16),
               child: SelectableText(
                 _content.isEmpty ? '正文为空' : _content,
-                style: const TextStyle(fontSize: 15.5, height: 1.7),
+                style: const TextStyle(fontSize: 16.5, height: 1.7),
               ),
             ),
             _ =>
@@ -219,17 +292,8 @@ class _LegadoScreenState extends State<LegadoScreen> {
     final file = picked.first;
     try {
       final bytes = await file.readAsBytes();
-      final sources = parseLegadoSources(utf8.decode(bytes));
-      final merged = await LegadoStore.addAll(sources);
-      if (mounted) {
-        setState(() {
-          _sources = merged;
-          _selected ??= merged.isNotEmpty ? merged.first : null;
-        });
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('导入 ${sources.length} 条开源阅读书源')));
-      }
+      final report = parseLegadoSourcesReport(utf8.decode(bytes));
+      await _applyImport(report);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -247,7 +311,9 @@ class _LegadoScreenState extends State<LegadoScreen> {
         title: const Text('导入书源地址'),
         content: TextField(
           controller: controller,
-          decoration: const InputDecoration(hintText: '粘贴书源 JSON 地址'),
+          decoration: const InputDecoration(
+            hintText: '粘贴书源 JSON 地址（填地址，不是规则原文）',
+          ),
         ),
         actions: [
           TextButton(
@@ -265,17 +331,8 @@ class _LegadoScreenState extends State<LegadoScreen> {
     if (url == null || url.isEmpty) return;
     try {
       final text = await ContentHttp().get(url);
-      final sources = parseLegadoSources(text);
-      final merged = await LegadoStore.addAll(sources);
-      if (mounted) {
-        setState(() {
-          _sources = merged;
-          _selected ??= merged.isNotEmpty ? merged.first : null;
-        });
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('导入 ${sources.length} 条开源阅读书源')));
-      }
+      final report = parseLegadoSourcesReport(text);
+      await _applyImport(report);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -312,6 +369,7 @@ class _LegadoScreenState extends State<LegadoScreen> {
       _busy = true;
       _error = '';
       _mode = 'books';
+      _searchUnsupported = false;
     });
     try {
       final result = await widget.repository.legadoRun(
@@ -319,11 +377,24 @@ class _LegadoScreenState extends State<LegadoScreen> {
         'search',
         keyword,
       );
+      final books = _toMaps(result);
+      var unsupported = false;
+      if (books.isEmpty) {
+        try {
+          final check = await widget.repository.legadoRun(
+            source.rawJson,
+            'check',
+            '',
+          );
+          unsupported = _legadoCheckUnsupported(check);
+        } catch (_) {}
+      }
       if (mounted) {
         setState(() {
-          _books = _toMaps(result);
+          _books = books;
           _busy = false;
           _searched = true;
+          _searchUnsupported = unsupported;
         });
       }
     } catch (e) {
@@ -469,12 +540,29 @@ class _LegadoScreenState extends State<LegadoScreen> {
                   Padding(
                     padding: const EdgeInsets.only(right: 8, top: 8),
                     child: ChoiceChip(
-                      label: Text(source.name),
+                      label: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(source.name),
+                          if (_unsupportedIds.contains(source.id))
+                            const Padding(
+                              padding: EdgeInsets.only(left: 4),
+                              child: Text(
+                                '规则暂不支持',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.red,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                       selected: _selected?.id == source.id,
                       onSelected: (_) => setState(() {
                         _selected = source;
                         _books = [];
                         _searched = false;
+                        _searchUnsupported = false;
                       }),
                     ),
                   ),
@@ -512,15 +600,19 @@ class _LegadoScreenState extends State<LegadoScreen> {
               padding: const EdgeInsets.all(16),
               child: SelectableText(
                 _content.isEmpty ? '正文为空' : _content,
-                style: const TextStyle(fontSize: 15.5, height: 1.7),
+                style: const TextStyle(fontSize: 16.5, height: 1.7),
               ),
             ),
             _ =>
               _books.isEmpty && _searched && !_busy && _error.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Padding(
-                        padding: EdgeInsets.all(24),
-                        child: Text('没有搜到相关书籍，换个书名或换个书源试试'),
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          _searchUnsupported
+                              ? '该书源含本版引擎暂不支持的规则（XPath / JS / JSON 接口等），换 CSS 规则源试试'
+                              : '没有搜到相关书籍，换个书名或换个书源试试',
+                        ),
                       ),
                     )
                   : ListView.builder(

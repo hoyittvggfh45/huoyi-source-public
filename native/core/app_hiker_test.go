@@ -79,8 +79,8 @@ func TestHikerPdfFunctions(t *testing.T) {
 func TestHikerNanrenStyleFind(t *testing.T) {
 	srv := newTestServer(t)
 	rule := HikerRule{
-		URL:     "hiker://empty##",
-		PreRule: "initConfig({host: '" + srv.URL + "/'});",
+		URL:      "hiker://empty##",
+		PreRule:  "initConfig({host: '" + srv.URL + "/'});",
 		FindRule: "js:\nvar res = {};\nvar d = [];\nvar host = config.host;\nvar MY_URL = MY_URL.replace(\"hiker://empty##\", host);\nvar html = fetch(MY_URL);\nvar tabs = pdfa(html, 'body&&.row-item-title');\nvar conts = pdfa(html, 'body&&.row-item-content');\nfor (var i = 0; i < conts.length; i++) {\n    var list = pdfa(conts[i], '.row-item-content&&.item');\n    var title = pdfh(tabs[i], '.row-item-title&&Text');\n    d.push({title: title, url: 'hiker://empty', col_type: 'flex_button'});\n    for (var j = 0; j < list.length; j++) {\n        d.push({title: pdfh(list[j], 'a&&Text'), url: pd(list[j], 'a&&href'), col_type: 'flex_button'});\n    }\n}\nres.data = d;\nsetHomeResult(res);",
 	}
 	e := NewHikerEngine("")
@@ -112,5 +112,56 @@ func TestHikerListRule(t *testing.T) {
 	b, _ := json.Marshal(res)
 	if !strings.Contains(string(b), "A") {
 		t.Fatalf("list result missing A: %s", b)
+	}
+}
+
+func TestHikerAttrSelectors(t *testing.T) {
+	htmlText := `<html><body><div class="list"><a href="/play/1" data-id="7">One</a><a href="/read/2.mp4" data-id="8">Two</a><a href="/play/3">Three</a></div></body></html>`
+	if got := hikerParseArray(htmlText, "div.list&&a[href]"); len(got) != 3 {
+		t.Fatalf("want 3 for [href], got %d", len(got))
+	}
+	if got := hikerParseArray(htmlText, `div.list&&a[href="/play/1"]`); len(got) != 1 {
+		t.Fatalf("want 1 for exact attr, got %d", len(got))
+	}
+	if got := hikerParseArray(htmlText, `div.list&&a[href*="play"]`); len(got) != 2 {
+		t.Fatalf("want 2 for *= attr, got %d", len(got))
+	}
+	if got := hikerParseArray(htmlText, `div.list&&a[href^="/read"]`); len(got) != 1 {
+		t.Fatalf("want 1 for ^= attr, got %d", len(got))
+	}
+	if got := hikerParseArray(htmlText, `div.list&&a[href$=".mp4"]`); len(got) != 1 {
+		t.Fatalf("want 1 for $= attr, got %d", len(got))
+	}
+	if got := hikerParseArray(htmlText, `div.list&&a[data-id="8"]`); len(got) != 1 || !strings.Contains(got[0], "Two") {
+		t.Fatalf("want Two for data-id attr, got %v", got)
+	}
+	if got := hikerParseArray(htmlText, `div.list&&[data-id="7"]`); len(got) != 1 || !strings.Contains(got[0], "One") {
+		t.Fatalf("want One for tag-less attr, got %v", got)
+	}
+	if got := hikerParseSingle(htmlText, `div.list&&a[href*="play"]&&Text`); got != "One" {
+		t.Fatalf("want One for attr single text, got %q", got)
+	}
+}
+
+func TestHikerPositionalSelectors(t *testing.T) {
+	htmlText := `<html><body><ul><li>A</li><li>B</li><li>C</li></ul></body></html>`
+	if got := hikerParseArray(htmlText, "ul&&li:eq(1)"); len(got) != 1 || !strings.Contains(got[0], "B") {
+		t.Fatalf("want B for :eq(1), got %v", got)
+	}
+	if got := hikerParseArray(htmlText, "ul&&li:first"); len(got) != 1 || !strings.Contains(got[0], "A") {
+		t.Fatalf("want A for :first, got %v", got)
+	}
+	if got := hikerParseArray(htmlText, "ul&&li:last"); len(got) != 1 || !strings.Contains(got[0], "C") {
+		t.Fatalf("want C for :last, got %v", got)
+	}
+	if got := hikerParseArray(htmlText, "ul&&li:eq(9)"); len(got) != 0 {
+		t.Fatalf("want 0 for out of range :eq, got %d", len(got))
+	}
+	if got := hikerParseSingle(htmlText, "ul&&li:eq(2)&&Text"); got != "C" {
+		t.Fatalf("want C for :eq single text, got %q", got)
+	}
+	attrHtml := `<html><body><div class="list"><a href="/play/1">One</a><a href="/read/2">Two</a><a href="/play/3">Three</a></div></body></html>`
+	if got := hikerParseSingle(attrHtml, `div.list&&a[href*="play"]:eq(1)&&Text`); got != "Three" {
+		t.Fatalf("want Three for attr plus :eq, got %q", got)
 	}
 }

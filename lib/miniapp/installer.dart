@@ -117,12 +117,34 @@ class MiniAppInstaller {
     }
   }
 
+  Future<bool> _hasValidManifest(Directory dir) async {
+    try {
+      final manifestJson = await File(
+        p.join(dir.path, 'manifest.json'),
+      ).readAsString();
+      final decoded = jsonDecode(manifestJson);
+      if (decoded is! Map<String, Object?>) return false;
+      final manifest = MiniAppManifest.fromJson(decoded);
+      final entryExists = await File(p.join(dir.path, manifest.entry)).exists();
+      return entryExists;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<Directory> _manifestDirectory(Directory root) async {
-    if (await File(p.join(root.path, 'manifest.json')).exists()) return root;
-    await for (final entity in root.list()) {
-      if (entity is Directory &&
-          await File(p.join(entity.path, 'manifest.json')).exists()) {
-        return entity;
+    final queue = <({Directory dir, int depth})>[(dir: root, depth: 0)];
+    while (queue.isNotEmpty) {
+      final current = queue.removeAt(0);
+      if (await _hasValidManifest(current.dir)) return current.dir;
+      if (current.depth < 3) {
+        await for (final entity in current.dir.list()) {
+          if (entity is Directory) {
+            final name = p.basename(entity.path);
+            if (name.startsWith('.') || name == '__MACOSX') continue;
+            queue.add((dir: entity, depth: current.depth + 1));
+          }
+        }
       }
     }
     throw const FormatException('miniapp package has no manifest.json');

@@ -23,6 +23,9 @@ import 'widgets.dart';
 import 'sources_screen.dart';
 import 'episode_browser.dart';
 import 'follow_state.dart';
+import 'immersive_detail_view.dart';
+import 'ui_style.dart';
+import 'xigua/cross_source_search.dart';
 import 'watchroom/controller.dart';
 import 'watchroom/models.dart';
 import 'watchroom/room_screen.dart';
@@ -39,6 +42,7 @@ class DetailScreen extends StatefulWidget {
     required this.store,
     this.resumeOnOpen = false,
     this.downloadOnOpen = false,
+    this.applyVodStyle = false,
     this.onTagTap,
     this.queue,
   });
@@ -47,6 +51,7 @@ class DetailScreen extends StatefulWidget {
   final LocalStore store;
   final bool resumeOnOpen;
   final bool downloadOnOpen;
+  final bool applyVodStyle;
 
   /// 标签点击回调：以 sourceId + tagId 打开该标签的目录列表。
   /// TODO(shell): 目录侧标签列表入口由壳子代理提供并在构造 DetailScreen 时
@@ -69,6 +74,9 @@ class _DetailScreenState extends State<DetailScreen> {
   bool _episodesExpanded = false;
   final _episodeAnchor = GlobalKey();
   final _detailScroll = ScrollController();
+  final _immersiveScroll = ScrollController();
+  final _immersiveEpisodeKey = GlobalKey();
+  bool _reversed = false;
   final _playFocus = FocusNode(debugLabel: 'tv-detail-play');
   bool _initialActionHandled = false;
   late final int _profileEpoch;
@@ -100,6 +108,7 @@ class _DetailScreenState extends State<DetailScreen> {
   @override
   void dispose() {
     _detailScroll.dispose();
+    _immersiveScroll.dispose();
     _playFocus.dispose();
     widget.store.removeListener(_onStoreChanged);
     _generation++;
@@ -367,10 +376,12 @@ class _DetailScreenState extends State<DetailScreen> {
     }
     await Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
+        settings: const RouteSettings(name: 'detail'),
         builder: (_) => DetailScreen(
           drama: drama,
           repository: widget.repository,
           store: widget.store,
+          applyVodStyle: widget.applyVodStyle,
         ),
       ),
     );
@@ -385,10 +396,12 @@ class _DetailScreenState extends State<DetailScreen> {
     ];
     await Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
+        settings: const RouteSettings(name: 'detail'),
         builder: (_) => DetailScreen(
           drama: peer.withPeers(peers),
           repository: widget.repository,
           store: widget.store,
+          applyVodStyle: widget.applyVodStyle,
         ),
       ),
     );
@@ -413,7 +426,7 @@ class _DetailScreenState extends State<DetailScreen> {
                 style: TextStyle(
                   color: colors.primary,
                   fontWeight: FontWeight.w600,
-                  fontSize: 11.5,
+                  fontSize: 12,
                 ),
               ),
             ],
@@ -445,6 +458,205 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
+  String _engineName() => switch (selectedPlayer(widget.store)) {
+    AppPlayer.guo => 'mpv',
+    AppPlayer.tvbox => 'TVBox',
+    AppPlayer.fongmi => 'FongMi',
+    AppPlayer.xigua => '西瓜',
+  };
+
+  Widget _immersiveBackdrop(Drama drama) {
+    final detail = _detail;
+    final backdrop = detail?.backdrop ?? '';
+    final urls = <String>[
+      if (backdrop.isNotEmpty) backdrop,
+      for (final still in detail?.stills ?? const <String>[])
+        if (still.isNotEmpty && still != backdrop) still,
+    ];
+    if (urls.isEmpty) {
+      return DramaCover(drama: drama, repository: widget.repository, radius: 0);
+    }
+    final cover = Drama(
+      id: '${drama.id}#backdrop',
+      source: drama.source,
+      title: drama.title,
+      cover: urls.first,
+    );
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        AtmosphereBackground(
+          url: urls.first,
+          repository: widget.repository,
+          drama: cover,
+        ),
+        ImageFiltered(
+          imageFilter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          child: DramaCover(
+            key: ValueKey('immersive-backdrop-${urls.first}'),
+            drama: cover,
+            repository: widget.repository,
+            radius: 0,
+          ),
+        ),
+        const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Colors.black45, Colors.black87],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _immersiveScaffold(
+    Drama drama,
+    List<Episode> episodes,
+    WatchEntry? watched,
+    int resumeIndex,
+  ) {
+    final backdrop = _immersiveBackdrop(drama);
+    if (_loading || _error != null || episodes.isEmpty) {
+      return Scaffold(
+        body: Stack(
+          children: [
+            Positioned.fill(child: backdrop),
+            SafeArea(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ImmersiveTopBar(
+                    title: drama.title,
+                    onBack: () => Navigator.of(context).maybePop(),
+                  ),
+                  Expanded(child: _episodeStatus()),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    final displayEpisodes = _reversed ? episodes.reversed.toList() : episodes;
+    final start = _episodePage * episodePageSize;
+    final visibleEpisodes = displayEpisodes
+        .skip(start)
+        .take(episodePageSize)
+        .toList();
+    final currentNumber = watched?.episode;
+    final watchProgress = watched == null || watched.duration <= 0
+        ? 0.0
+        : (watched.position / watched.duration).clamp(0.0, 1.0);
+    return Scaffold(
+      body: ImmersiveDetailView(
+        drama: drama,
+        displayEpisodes: displayEpisodes,
+        visibleEpisodes: visibleEpisodes,
+        episodeStart: start,
+        episodePage: _episodePage,
+        currentNumber: currentNumber,
+        reversed: _reversed,
+        isFavorite: widget.store.following(drama.id) != null,
+        engineName: _engineName(),
+        sourceName: SourceSite.byId(drama.source).name,
+        peers: drama.peers,
+        poster: DramaCover(
+          drama: drama,
+          repository: widget.repository,
+          radius: 0,
+        ),
+        backdrop: backdrop,
+        scrollController: _immersiveScroll,
+        episodeSectionKey: _immersiveEpisodeKey,
+        expandedDescription: _expandedDescription,
+        watchProgress: watchProgress,
+        onBack: () => Navigator.of(context).maybePop(),
+        onPlayEpisode: (episode) {
+          final index = episodes.indexOf(episode);
+          if (index >= 0) _play(index);
+        },
+        onPlayResume: () => _play(resumeIndex, resume: true),
+        onToggleReverse: () => setState(() {
+          _reversed = !_reversed;
+          _episodePage = 0;
+        }),
+        onToggleFavorite: () =>
+            saveUserChange(context, () => widget.store.toggleFavorite(drama)),
+        onOpenSourcePanel: () => _openImmersiveSourcePanel(drama),
+        onDownload: _download,
+        onSearch: () => showCrossSourceSearch(
+          context,
+          drama: drama,
+          repository: widget.repository,
+          store: widget.store,
+        ),
+        onParse: () => _play(resumeIndex, resume: true),
+        onFullscreen: () => _play(resumeIndex, resume: true),
+        onLocateEpisode: _locateImmersiveEpisode,
+        onToggleDescription: () =>
+            setState(() => _expandedDescription = !_expandedDescription),
+      ),
+    );
+  }
+
+  void _openImmersiveSourcePanel(Drama drama) {
+    if (drama.peers.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('暂无其它来源')));
+      return;
+    }
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Text(
+                '视频来源',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+            ),
+            for (final peer in drama.peers)
+              ListTile(
+                leading: const Icon(Icons.play_arrow_rounded),
+                title: Text(
+                  peer.episodes > 0
+                      ? '${SourceSite.byId(peer.source).name} · ${peer.episodes} 集'
+                      : SourceSite.byId(peer.source).name,
+                ),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _openPeerSource(drama, peer);
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _locateImmersiveEpisode(int displayIndex) {
+    setState(() => _episodePage = displayIndex ~/ episodePageSize);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final target = _immersiveEpisodeKey.currentContext;
+      if (target != null) {
+        Scrollable.ensureVisible(
+          target,
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final drama = _detail?.drama ?? widget.drama;
@@ -455,6 +667,23 @@ class _DetailScreenState extends State<DetailScreen> {
     final allowed =
         widget.store.profileEpoch == _profileEpoch &&
         widget.store.allowsSource(drama.source);
+    final useImmersive =
+        widget.applyVodStyle &&
+        vodDetailStyleNotifier.value == VodDetailStyle.immersive &&
+        allowed &&
+        !television &&
+        MediaQuery.sizeOf(context).width < 960;
+    if (useImmersive) {
+      return CallbackShortcuts(
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.escape): () =>
+              Navigator.of(context).maybePop(),
+          const SingleActivator(LogicalKeyboardKey.goBack): () =>
+              Navigator.of(context).maybePop(),
+        },
+        child: _immersiveScaffold(drama, episodes, watched, resumeIndex),
+      );
+    }
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.escape): () =>
@@ -851,7 +1080,7 @@ class _DetailScreenState extends State<DetailScreen> {
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 18,
+                              fontSize: 19,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -862,7 +1091,7 @@ class _DetailScreenState extends State<DetailScreen> {
                                 '共 ${drama.episodes} 集',
                                 style: const TextStyle(
                                   color: Colors.white70,
-                                  fontSize: 11.5,
+                                  fontSize: 12,
                                 ),
                               ),
                             ),
@@ -982,10 +1211,12 @@ class _DetailScreenState extends State<DetailScreen> {
     }
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
+        settings: const RouteSettings(name: 'detail'),
         builder: (_) => DetailScreen(
           drama: target,
           repository: widget.repository,
           store: widget.store,
+          applyVodStyle: widget.applyVodStyle,
           onTagTap: widget.onTagTap,
           queue: PlaybackQueue.around(related, target),
         ),
@@ -1195,7 +1426,7 @@ class _DetailScreenState extends State<DetailScreen> {
                 if (drama.heat.isNotEmpty) '热度 ${drama.heat}',
                 if (drama.views.isNotEmpty) '播放 ${drama.views}',
               ].join(' · '),
-              style: TextStyle(color: colors.onSurfaceVariant, fontSize: 11),
+              style: TextStyle(color: colors.onSurfaceVariant, fontSize: 11.5),
             ),
           ),
         if (_effectiveTags(drama).isNotEmpty)

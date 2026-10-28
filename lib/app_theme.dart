@@ -206,7 +206,7 @@ abstract final class AppTheme {
         elevation: 0,
         centerTitle: true,
         titleTextStyle: TextStyle(
-          fontSize: 15.5,
+          fontSize: 16.5,
           fontWeight: FontWeight.w600,
           letterSpacing: 0,
           color: label,
@@ -239,7 +239,7 @@ abstract final class AppTheme {
               ),
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
         labelStyle: TextStyle(
-          fontSize: 12.5,
+          fontSize: 13,
           fontWeight: FontWeight.w600,
           letterSpacing: 0,
           color: WidgetStateColor.resolveWith(
@@ -248,7 +248,7 @@ abstract final class AppTheme {
           ),
         ),
         secondaryLabelStyle: TextStyle(
-          fontSize: 12.5,
+          fontSize: 13,
           fontWeight: FontWeight.w600,
           color: background,
         ),
@@ -275,7 +275,7 @@ abstract final class AppTheme {
           shape: const StadiumBorder(),
           minimumSize: const Size(64, 50),
           textStyle: const TextStyle(
-            fontSize: 15.5,
+            fontSize: 16.5,
             fontWeight: FontWeight.w600,
             letterSpacing: 0,
           ),
@@ -291,10 +291,7 @@ abstract final class AppTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           shape: const StadiumBorder(),
-          textStyle: const TextStyle(
-            fontSize: 14.5,
-            fontWeight: FontWeight.w500,
-          ),
+          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
         ),
       ),
       cardTheme: CardThemeData(
@@ -312,11 +309,11 @@ abstract final class AppTheme {
         iconColor: secondary,
         shape: continuous,
         titleTextStyle: TextStyle(
-          fontSize: 15.5,
+          fontSize: 16.5,
           letterSpacing: 0,
           color: label,
         ),
-        subtitleTextStyle: TextStyle(fontSize: 11.5, color: secondary),
+        subtitleTextStyle: TextStyle(fontSize: 12, color: secondary),
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: dark ? const Color(0xFF232325) : Colors.white,
@@ -342,7 +339,7 @@ abstract final class AppTheme {
         backgroundColor: dark
             ? const Color(0xFF2C2C2E)
             : const Color(0xFF1C1C1E),
-        contentTextStyle: const TextStyle(color: Colors.white, fontSize: 13.5),
+        contentTextStyle: const TextStyle(color: Colors.white, fontSize: 14),
         actionTextColor: primary,
         shape: continuous,
         elevation: 0,
@@ -361,7 +358,7 @@ abstract final class AppTheme {
     return base.copyWith(
       textTheme: base.textTheme.copyWith(
         titleLarge: base.textTheme.titleLarge?.copyWith(
-          fontSize: 20,
+          fontSize: 21,
           fontWeight: FontWeight.w700,
           letterSpacing: 0,
         ),

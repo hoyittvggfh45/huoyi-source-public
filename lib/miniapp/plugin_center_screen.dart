@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:path_provider/path_provider.dart';
 
+import '../core_bridge.dart';
 import '../local_store.dart';
 import 'installer.dart';
 import 'manifest.dart';
@@ -14,8 +15,9 @@ import 'renderer.dart';
 import 'storage.dart';
 
 class PluginCenterScreen extends StatefulWidget {
-  const PluginCenterScreen({super.key, required this.store});
+  const PluginCenterScreen({super.key, required this.store, this.repository});
   final LocalStore store;
+  final AppRepository? repository;
 
   @override
   State<PluginCenterScreen> createState() => _PluginCenterScreenState();
@@ -85,9 +87,17 @@ class _PluginCenterScreenState extends State<PluginCenterScreen> {
           manifest: manifest,
           directory: installer.directoryFor(manifest.id),
           storage: MiniAppStorage(widget.store.preferences, manifest.id),
+          store: widget.store,
+          repository: widget.repository,
         ),
       ),
     );
+  }
+
+  String _installedMessage(MiniAppManifest manifest, {String prefix = '已安装'}) {
+    final unavailable = manifest.unavailablePermissions;
+    if (unavailable.isEmpty) return '$prefix${manifest.name}';
+    return '$prefix${manifest.name}；以下权限本版未提供：${unavailable.join('、')}';
   }
 
   Future<void> _installFromDirectory() async {
@@ -102,8 +112,11 @@ class _PluginCenterScreenState extends State<PluginCenterScreen> {
     try {
       final manifestJson = await manifestFile.readAsString();
       final installer = _installer ?? MiniAppInstaller(await _root());
-      await installer.install(manifestJson: manifestJson, files: directory);
-      _showMessage('已安装');
+      final manifest = await installer.install(
+        manifestJson: manifestJson,
+        files: directory,
+      );
+      _showMessage(_installedMessage(manifest, prefix: '已安装'));
       await _refresh();
     } catch (error) {
       _showMessage('安装失败：$error');
@@ -116,14 +129,12 @@ class _PluginCenterScreenState extends State<PluginCenterScreen> {
       allowedExtensions: ['zip'],
     );
     if (picked.isEmpty) return;
-    final path = picked.single.path;
-    if (path == null) return;
     setState(() => _busy = true);
     try {
-      final bytes = await File(path).readAsBytes();
+      final bytes = await picked.single.readAsBytes();
       final installer = _installer ?? MiniAppInstaller(await _root());
       final manifest = await installer.installFromZip(bytes);
-      _showMessage('已安装${manifest.name}');
+      _showMessage(_installedMessage(manifest));
       await _refresh();
     } catch (error) {
       _showMessage('安装失败：$error');
@@ -144,9 +155,12 @@ class _PluginCenterScreenState extends State<PluginCenterScreen> {
       await File('${temp.path}/manifest.json').writeAsString(manifestJson);
       await File('${temp.path}/index.html').writeAsString(entry);
       final installer = _installer ?? MiniAppInstaller(await _root());
-      await installer.install(manifestJson: manifestJson, files: temp);
+      final manifest = await installer.install(
+        manifestJson: manifestJson,
+        files: temp,
+      );
       await temp.delete(recursive: true);
-      _showMessage('示例已安装');
+      _showMessage(_installedMessage(manifest, prefix: '示例已安装'));
       await _refresh();
     } catch (error) {
       _showMessage('安装示例失败：$error');
@@ -247,8 +261,9 @@ class _PluginCenterScreenState extends State<PluginCenterScreen> {
     try {
       final bytes = await MarketClient().downloadPackage(item);
       final installer = _installer ?? MiniAppInstaller(await _root());
-      await installer.installFromZip(bytes);
-      _showMessage('已安装${item.name}');
+      final manifest = await installer.installFromZip(bytes);
+      await _marketSettings.recordInstalled(item.appId, manifest.id);
+      _showMessage(_installedMessage(manifest));
       await _refresh();
     } catch (error) {
       _showMessage('安装失败：$error');
@@ -316,6 +331,12 @@ class _PluginCenterScreenState extends State<PluginCenterScreen> {
               icon: const Icon(Icons.folder_open_outlined),
               label: const Text('从目录安装'),
             ),
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: _installFromZip,
+              icon: const Icon(Icons.archive_outlined),
+              label: const Text('从压缩包安装'),
+            ),
           ],
         ),
       );
@@ -341,7 +362,7 @@ class _PluginCenterScreenState extends State<PluginCenterScreen> {
             children: [
               CircleAvatar(
                 radius: 28,
-                child: Text(label, style: const TextStyle(fontSize: 20)),
+                child: Text(label, style: const TextStyle(fontSize: 21)),
               ),
               const SizedBox(height: 8),
               Text(
@@ -351,6 +372,16 @@ class _PluginCenterScreenState extends State<PluginCenterScreen> {
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodySmall,
               ),
+              if (app.unavailablePermissions.isNotEmpty)
+                Text(
+                  '部分功能受限',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.tertiary,
+                  ),
+                ),
             ],
           ),
         );
@@ -360,6 +391,13 @@ class _PluginCenterScreenState extends State<PluginCenterScreen> {
 
   Widget _marketTab() {
     final installedIds = _apps.map((app) => app.id).toSet();
+    final installedMap = _marketSettings.installedIdMap;
+    bool isInstalled(MarketItem item) {
+      if (installedIds.contains(item.appId)) return true;
+      final mapped = installedMap[item.appId];
+      return mapped != null && installedIds.contains(mapped);
+    }
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -394,14 +432,14 @@ class _PluginCenterScreenState extends State<PluginCenterScreen> {
           if (_marketItems.isEmpty)
             const Text('点加载拉取市场条目')
           else
-            for (final item in _marketItems) _marketCard(item, installedIds),
+            for (final item in _marketItems)
+              _marketCard(item, isInstalled(item)),
         ],
       ],
     );
   }
 
-  Widget _marketCard(MarketItem item, Set<String> installedIds) {
-    final installed = installedIds.contains(item.appId);
+  Widget _marketCard(MarketItem item, bool installed) {
     final parts = [
       if (item.version.isNotEmpty) item.version,
       if (item.author.isNotEmpty) item.author,

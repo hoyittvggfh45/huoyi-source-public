@@ -63,7 +63,7 @@ Future<bool> ensureStorageAccess(BuildContext context) async {
               child: Text(
                 '需要存储权限',
                 style: const TextStyle(
-                  fontSize: 13.5,
+                  fontSize: 14,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -73,7 +73,7 @@ Future<bool> ensureStorageAccess(BuildContext context) async {
               child: Text(
                 'Android 限制应用只能写入自己的私有目录。要下载完整剧集并把视频导出、复制到所选文件夹，'
                 '请在系统设置中授予「所有文件访问」权限；授权后返回应用即可继续。',
-                style: TextStyle(fontSize: 12.5, height: 1.5),
+                style: TextStyle(fontSize: 13, height: 1.5),
               ),
             ),
             Align(

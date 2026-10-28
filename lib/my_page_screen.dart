@@ -92,6 +92,7 @@ class MyPageScreen extends StatelessWidget {
                     store: store,
                     hikerRun: repository.hikerRun,
                     hikerRules: rules,
+                    repository: repository,
                   ),
                 ),
               );

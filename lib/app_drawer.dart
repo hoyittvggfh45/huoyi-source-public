@@ -114,7 +114,7 @@ class AppDrawer extends StatelessWidget {
                 Text(
                   appName,
                   style: const TextStyle(
-                    fontSize: 20,
+                    fontSize: 21,
                     fontWeight: FontWeight.w800,
                   ),
                 ),

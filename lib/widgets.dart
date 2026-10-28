@@ -157,7 +157,7 @@ class DramaCover extends StatelessWidget {
             bottom: 9,
             child: Text(
               '共 ${drama.episodes} 集',
-              style: const TextStyle(color: Colors.white, fontSize: 11),
+              style: const TextStyle(color: Colors.white, fontSize: 11.5),
             ),
           ),
         if (drama.vip)
@@ -174,7 +174,7 @@ class DramaCover extends StatelessWidget {
                 'VIP',
                 style: TextStyle(
                   color: Color(0xFF40300D),
-                  fontSize: 10,
+                  fontSize: 10.5,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -402,7 +402,7 @@ class DramaTile extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 11,
+                          fontSize: 11.5,
                         ),
                       ),
                     ),
@@ -449,7 +449,7 @@ class DramaTile extends StatelessWidget {
               style: TextStyle(
                 fontWeight: FontWeight.w600,
                 height: 1.3,
-                fontSize: television ? 17 : 12.5,
+                fontSize: television ? 17 : 13,
               ),
             ),
           ),
@@ -464,7 +464,7 @@ class DramaTile extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: television ? 14 : 11,
+                fontSize: television ? 14 : 11.5,
                 height: 1.3,
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),

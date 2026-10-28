@@ -152,20 +152,25 @@ class _ImportCenterSectionState extends State<ImportCenterSection> {
     List<_PendingFile> pending, {
     required String title,
   }) async {
-    final selected = await showDialog<Set<int>>(
+    final selection = await showDialog<_ImportSelection>(
       context: context,
       builder: (_) => _ImportPreviewDialog(title: title, files: pending),
     );
-    if (selected == null || selected.isEmpty || !mounted) return;
+    if (selection == null || selection.indices.isEmpty || !mounted) return;
     final candidates = <ImportCandidate>[];
-    for (final index in selected) {
+    for (final index in selection.indices) {
       final file = pending[index];
       if (file.size > _maxImportBytes) {
         candidates.add(ImportCandidate(name: file.name, bytes: const []));
         continue;
       }
+      final isPy = file.name.toLowerCase().endsWith('.py');
       candidates.add(
-        ImportCandidate(name: file.name, bytes: await file.loadBytes()),
+        ImportCandidate(
+          name: file.name,
+          bytes: await file.loadBytes(),
+          ext: isPy ? selection.ext : '',
+        ),
       );
     }
     final report = await _engine.importAll(candidates);
@@ -314,7 +319,7 @@ class _ImportCenterSectionState extends State<ImportCenterSection> {
                   : 'Python 运行时：未就绪（py 站可见但打开会明确报错）',
               style: TextStyle(
                 color: status.available ? colors.primary : colors.error,
-                fontSize: 11.5,
+                fontSize: 12,
               ),
             );
           },
@@ -705,6 +710,13 @@ class _M3uImportSectionState extends State<M3uImportSection> {
   }
 }
 
+class _ImportSelection {
+  const _ImportSelection(this.indices, this.ext);
+
+  final Set<int> indices;
+  final String ext;
+}
+
 class _ImportPreviewDialog extends StatefulWidget {
   const _ImportPreviewDialog({required this.title, required this.files});
 
@@ -720,6 +732,13 @@ class _ImportPreviewDialogState extends State<_ImportPreviewDialog> {
     for (var i = 0; i < widget.files.length; i++)
       if (widget.files[i].size <= _maxImportBytes) i,
   };
+  final _extController = TextEditingController();
+
+  @override
+  void dispose() {
+    _extController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -756,6 +775,15 @@ class _ImportPreviewDialogState extends State<_ImportPreviewDialog> {
                   controlAffinity: ListTileControlAffinity.leading,
                   dense: true,
                 ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _extController,
+                decoration: const InputDecoration(
+                  labelText: '扩展参数（仅 py 源，init 用，可空）',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+              ),
             ],
           ),
         ),
@@ -768,7 +796,10 @@ class _ImportPreviewDialogState extends State<_ImportPreviewDialog> {
         FilledButton(
           onPressed: _selected.isEmpty
               ? null
-              : () => Navigator.pop(context, _selected),
+              : () => Navigator.pop(
+                  context,
+                  _ImportSelection(_selected, _extController.text.trim()),
+                ),
           child: Text('导入所选（${_selected.length}）'),
         ),
       ],

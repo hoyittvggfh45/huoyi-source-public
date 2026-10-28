@@ -265,7 +265,7 @@ class _ContentZoneScreenState extends State<ContentZoneScreen> {
                       Text(
                         _source?.name ?? '',
                         style: const TextStyle(
-                          fontSize: 14.5,
+                          fontSize: 15,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -288,7 +288,7 @@ class _ContentZoneScreenState extends State<ContentZoneScreen> {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: colors.onSurfaceVariant,
-                      fontSize: 11,
+                      fontSize: 11.5,
                     ),
                   ),
                 ),
@@ -444,7 +444,7 @@ class _ContentZoneScreenState extends State<ContentZoneScreen> {
                   book.title,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 11.5),
+                  style: const TextStyle(fontSize: 12),
                 ),
               ),
             ],
@@ -454,7 +454,7 @@ class _ContentZoneScreenState extends State<ContentZoneScreen> {
               book.remarks,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 10, color: colors.onSurfaceVariant),
+              style: TextStyle(fontSize: 10.5, color: colors.onSurfaceVariant),
             ),
         ],
       ),

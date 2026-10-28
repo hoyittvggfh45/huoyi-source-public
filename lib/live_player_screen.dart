@@ -41,6 +41,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
   late final PlayerInteractions _interactions;
   final _focus = FocusNode();
   bool _panel = false;
+  bool _immersed = false;
   AppOrientationController? _orientationController;
   bool _television = false;
   bool _landscape = true;
@@ -65,6 +66,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
     );
     if (Platform.isAndroid) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      _immersed = true;
     }
   }
 
@@ -148,6 +150,21 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
   void _exit() {
     widget.onExit();
     Navigator.maybePop(context);
+  }
+
+  void _liveBack() {
+    if (_television) {
+      _exit();
+      return;
+    }
+    if (_immersed) {
+      if (Platform.isAndroid) {
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      }
+      setState(() => _immersed = false);
+      return;
+    }
+    _exit();
   }
 
   String _switchHint(int direction) {
@@ -296,6 +313,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
             onBack: _exit,
           )
         : PlayerControls(
+            key: ValueKey('live-controls-$_immersed'),
             player: player,
             interactions: _interactions,
             enabled: error == null,
@@ -307,7 +325,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
             swipeEnabled: true,
             onRotate: _toggleRotate,
             onFullscreen: _exit,
-            onBack: _exit,
+            onBack: _liveBack,
             onFocusSurface: _focus.requestFocus,
             onSeek: (duration) async {},
             speed: 1,
@@ -323,45 +341,53 @@ class _LivePlayerScreenState extends State<LivePlayerScreen> {
             onPrevious: () => _playback.switchBy(-1),
             onNext: () => _playback.switchBy(1),
           );
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Theme(
-        data: AppTheme.dark,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (controller != null)
-              Video(
-                controller: controller,
-                fit: BoxFit.contain,
-                wakelock: false,
-                controls: (_) => const SizedBox.shrink(),
-              ),
-            if (error != null)
-              ColoredBox(
-                color: Colors.black.withValues(alpha: .82),
-                child: StatusPanel(
-                  title: '直播暂时中断',
-                  message: error,
-                  icon: Icons.wifi_off_rounded,
-                  action: '重新连接',
-                  onRetry: () => unawaited(_playback.retry()),
-                  secondaryAction: TextButton(
-                    onPressed: _selectChannel,
-                    child: const Text('换个频道'),
+    return PopScope(
+      canPop: television,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && !television) {
+          _liveBack();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: Theme(
+          data: AppTheme.dark,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (controller != null)
+                Video(
+                  controller: controller,
+                  fit: BoxFit.contain,
+                  wakelock: false,
+                  controls: (_) => const SizedBox.shrink(),
+                ),
+              if (error != null)
+                ColoredBox(
+                  color: Colors.black.withValues(alpha: .82),
+                  child: StatusPanel(
+                    title: '直播暂时中断',
+                    message: error,
+                    icon: Icons.wifi_off_rounded,
+                    action: '重新连接',
+                    onRetry: () => unawaited(_playback.retry()),
+                    secondaryAction: TextButton(
+                      onPressed: _selectChannel,
+                      child: const Text('换个频道'),
+                    ),
+                  ),
+                )
+              else if (_playback.loading)
+                const Center(
+                  child: SizedBox(
+                    width: 38,
+                    height: 38,
+                    child: CircularProgressIndicator(strokeWidth: 3),
                   ),
                 ),
-              )
-            else if (_playback.loading)
-              const Center(
-                child: SizedBox(
-                  width: 38,
-                  height: 38,
-                  child: CircularProgressIndicator(strokeWidth: 3),
-                ),
-              ),
-            if (error == null) Focus(focusNode: _focus, child: controls),
-          ],
+              if (error == null) Focus(focusNode: _focus, child: controls),
+            ],
+          ),
         ),
       ),
     );

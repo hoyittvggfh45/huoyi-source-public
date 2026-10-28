@@ -147,10 +147,31 @@ class MarketSettings {
   static const defaultUrl =
       'https://ghfast.top/https://raw.githubusercontent.com/ant-video/ant-video/refs/heads/main/mini-app/market/market.json';
   static const _key = 'miniapp.marketUrl';
+  static const _installedMapKey = 'miniapp.marketInstalledMap';
 
   final SharedPreferences preferences;
 
   String get url => preferences.getString(_key) ?? defaultUrl;
 
   Future<void> setUrl(String value) => preferences.setString(_key, value);
+
+  Map<String, String> get installedIdMap {
+    final raw = preferences.getString(_installedMapKey);
+    if (raw == null || raw.isEmpty) return {};
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return {};
+      return decoded.map(
+        (key, value) => MapEntry(key.toString(), value.toString()),
+      );
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<void> recordInstalled(String marketAppId, String manifestId) async {
+    final map = installedIdMap;
+    map[marketAppId] = manifestId;
+    await preferences.setString(_installedMapKey, jsonEncode(map));
+  }
 }

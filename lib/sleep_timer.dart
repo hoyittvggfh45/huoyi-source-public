@@ -193,7 +193,7 @@ Future<void> showSleepTimerSheet(
                               ? '睡眠定时 · ${controller.label}'
                               : '睡眠定时',
                           style: const TextStyle(
-                            fontSize: 13.5,
+                            fontSize: 14,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -210,7 +210,7 @@ Future<void> showSleepTimerSheet(
                             ),
                             child: Text(
                               option.label,
-                              style: const TextStyle(fontSize: 12.5),
+                              style: const TextStyle(fontSize: 13),
                             ),
                           ),
                         ),

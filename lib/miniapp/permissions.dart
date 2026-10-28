@@ -12,7 +12,21 @@ class MiniAppPermissions {
   static const navigation = 'navigation';
   static const player = 'player';
   static const source = 'source';
-  static const known = {network, storage, ui, navigation, player, source};
+  static const service = 'service';
+  static const node = 'node';
+  static const miniapp = 'miniapp';
+  static const known = {
+    network,
+    storage,
+    ui,
+    navigation,
+    player,
+    source,
+    service,
+    node,
+    miniapp,
+  };
+  static const supported = {network, storage, ui, navigation, player, source};
 
   const MiniAppPermissions(this.granted);
   final Set<String> granted;

@@ -12,6 +12,8 @@ import 'package:window_manager/window_manager.dart';
 import 'app_layout.dart';
 import 'app_orientation.dart';
 import 'app_theme.dart';
+import 'home_screen.dart';
+import 'player_back.dart';
 import 'atmosphere_background.dart';
 import 'tv_theme.dart';
 import 'core_bridge.dart';
@@ -159,6 +161,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   double _aspectRatio = 9 / 16;
   double _resumePosition = 0;
   bool _rotating = false;
+  bool _backPending = false;
   bool _television = false;
   TelevisionDecoder _televisionDecoder = TelevisionDecoder.optimized;
   PlaybackOrientationMode _orientationMode = PlaybackOrientationMode.auto;
@@ -1450,19 +1453,20 @@ class _PlayerScreenState extends State<PlayerScreen>
         await windowManager.setFullScreen(fullscreen);
       } else if (_mobile) {
         await (_orientationController?.setPlayback(
-              this,
-              fullscreen: fullscreen,
-              aspectRatio: _aspectRatio,
-              mode: _orientationMode,
-            ) ??
-            SystemChrome.setPreferredOrientations(
-              AppOrientationController.orientations(
-                television: _television,
-                fullscreen: fullscreen,
-                aspectRatio: _aspectRatio,
-                mode: _orientationMode,
-              ),
-            ));
+                  this,
+                  fullscreen: fullscreen,
+                  aspectRatio: _aspectRatio,
+                  mode: _orientationMode,
+                ) ??
+                SystemChrome.setPreferredOrientations(
+                  AppOrientationController.orientations(
+                    television: _television,
+                    fullscreen: fullscreen,
+                    aspectRatio: _aspectRatio,
+                    mode: _orientationMode,
+                  ),
+                ))
+            .timeout(const Duration(seconds: 2));
       }
     } catch (_) {
       if (mounted && !_closed) {
@@ -1476,6 +1480,12 @@ class _PlayerScreenState extends State<PlayerScreen>
       }
     } finally {
       _rotating = false;
+      if (_backPending) {
+        _backPending = false;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && !_closed) _backToList();
+        });
+      }
       if (mounted && !_closed) _scheduleSystemUi();
       if (!fullscreen && mounted && !_closed) {
         _scrollEpisodeStripToCurrent();
@@ -2001,15 +2011,41 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
   }
 
-  void _back() {
-    if (_pageFullscreen && !_television) {
-      _togglePageFullscreen();
+  void _backToList() {
+    if (_closed) return;
+    if (_episodePanelVisible && !_mobile) {
+      _toggleEpisodePanel();
       return;
     }
-    if (_showFullscreen && !_television) {
-      _rotate();
-    } else {
-      Navigator.of(context).pop();
+    final action = resolvePlayerBackAction(
+      panelOpen: _panelOpen,
+      pageFullscreen: _pageFullscreen,
+      fullscreen: _showFullscreen,
+      television: _television,
+      isFirstRoute: ModalRoute.of(context)?.isFirst ?? false,
+    );
+    switch (action) {
+      case PlayerBackAction.closePanel:
+        Navigator.of(context).pop();
+      case PlayerBackAction.backOnce:
+        Navigator.of(context).pop();
+      case PlayerBackAction.exitPageFullscreen:
+        _togglePageFullscreen();
+      case PlayerBackAction.exitFullscreen:
+        if (_rotating) {
+          _backPending = true;
+          return;
+        }
+        unawaited(_rotate());
+      case PlayerBackAction.backToList:
+        Navigator.of(context).popUntil(isBackToListStop);
+      case PlayerBackAction.toHome:
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute<void>(
+            builder: (_) =>
+                HomeScreen(repository: widget.repository, store: widget.store),
+          ),
+        );
     }
   }
 
@@ -2110,13 +2146,13 @@ class _PlayerScreenState extends State<PlayerScreen>
       canPop: _television,
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop && !_television) {
-          _back();
+          _backToList();
         }
       },
       child: CallbackShortcuts(
         bindings: {
-          const SingleActivator(LogicalKeyboardKey.escape): _back,
-          const SingleActivator(LogicalKeyboardKey.goBack): _back,
+          const SingleActivator(LogicalKeyboardKey.escape): _backToList,
+          const SingleActivator(LogicalKeyboardKey.goBack): _backToList,
         },
         child: Focus(
           focusNode: _playerFocus,
@@ -2280,7 +2316,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                 : null,
             onEpisodes: () => _televisionEpisodes(context),
             onSettings: () => _televisionSettings(context),
-            onBack: _back,
+            onBack: _backToList,
           )
         : PlayerControls(
             player: _player,
@@ -2297,8 +2333,8 @@ class _PlayerScreenState extends State<PlayerScreen>
             swipeEnabled: _mobile,
             onFullscreen: _rotate,
             onPageFullscreen: Platform.isWindows ? _togglePageFullscreen : null,
-            onExitFullscreen: _back,
-            onBack: _back,
+            onExitFullscreen: _backToList,
+            onBack: _backToList,
             onFocusSurface: _playerFocus.requestFocus,
             onSeek: _seekTo,
             speed: _speed,
@@ -2384,6 +2420,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                   handle: _tvboxHandle,
                   onCompleted: _onTvboxCompleted,
                   onError: _onTvboxError,
+                  onBack: _television ? null : _backToList,
                   onFullscreen: _television ? null : _rotate,
                   isFullscreen: _showFullscreen,
                 )
@@ -2510,13 +2547,47 @@ class _PlayerScreenState extends State<PlayerScreen>
                           children: [
                             Text(
                               _saveWarning!,
-                              style: const TextStyle(fontSize: 11),
+                              style: const TextStyle(fontSize: 11.5),
                             ),
                             TextButton(
                               onPressed: _saveProgress,
                               child: const Text('重试保存'),
                             ),
                           ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              if (_mobile &&
+                  !_television &&
+                  !_useTvbox &&
+                  !hideOverlayForPictureInPicture &&
+                  !((_loading || _error != null) && _showFullscreen))
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  child: SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: .36),
+                          borderRadius: BorderRadius.circular(22),
+                        ),
+                        child: IconButton(
+                          key: const ValueKey('player-permanent-back'),
+                          tooltip: '返回',
+                          constraints: const BoxConstraints.tightFor(
+                            width: 42,
+                            height: 42,
+                          ),
+                          padding: EdgeInsets.zero,
+                          onPressed: _backToList,
+                          icon: const Icon(
+                            Icons.arrow_back_rounded,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     ),
@@ -2631,7 +2702,7 @@ class _PlayerScreenState extends State<PlayerScreen>
             style: TextStyle(
               color: colors.primary,
               fontWeight: FontWeight.w600,
-              fontSize: 11.5,
+              fontSize: 12,
             ),
           ),
           const SizedBox(height: 8),
@@ -2761,7 +2832,7 @@ class _PlayerScreenState extends State<PlayerScreen>
               padding: const EdgeInsets.only(top: 6),
               child: Text(
                 '当前集为 VIP 试看',
-                style: TextStyle(color: colors.error, fontSize: 11),
+                style: TextStyle(color: colors.error, fontSize: 11.5),
               ),
             ),
         ],

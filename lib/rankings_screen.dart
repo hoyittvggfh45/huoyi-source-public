@@ -79,6 +79,7 @@ class _RankingsScreenState extends State<RankingsScreen> {
     Navigator.push<void>(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'detail'),
         builder: (_) => DetailScreen(
           drama: drama,
           repository: widget.repository,
@@ -399,7 +400,7 @@ class _RankingsScreenState extends State<RankingsScreen> {
                                       child: Text(
                                         '${item.rank}',
                                         style: TextStyle(
-                                          fontSize: 21.5,
+                                          fontSize: 22.5,
                                           fontWeight: FontWeight.w800,
                                           color: item.rank <= 3
                                               ? Theme.of(

@@ -319,5 +319,183 @@ class PySpiderHostTest(unittest.TestCase):
         self.assertIn("不支持的动作", result["error"])
 
 
+STRICT_FIXTURE = '''
+import base64
+
+
+class Spider:
+    def getName(self):
+        return "Strict站"
+
+    def getDependence(self):
+        return ["dep1"]
+
+    def init(self, extend=""):
+        self.ext = extend
+
+    def destroy(self):
+        return None
+
+    def homeContent(self, filter=None):
+        return {
+            "class": [{"type_id": "movie", "type_name": "电影"}],
+            "list": [],
+            "filters": {"movie": [{"key": "area", "name": "地区", "value": [{"n": "全部", "v": ""}, {"n": "大陆", "v": "大陆"}]}]},
+        }
+
+    def homeVideoContent(self):
+        return {"list": []}
+
+    def categoryContent(self, tid, pg, filter, extend):
+        return {"list": [], "page": pg, "page_type": type(pg).__name__, "filter": filter, "extend": extend, "ext_seen": getattr(self, "ext", None)}
+
+    def detailContent(self, ids):
+        return {"list": []}
+
+    def searchContent(self, key, quick, pg):
+        return {"list": [], "page_type": type(pg).__name__}
+
+    def playerContent(self, flag, id, vipFlags):
+        return {"parse": 0, "url": id, "header": {}}
+
+    def localProxy(self, param):
+        mode = param.get("mode") if isinstance(param, dict) else None
+        if mode == "b64":
+            return [200, "image/png", base64.b64encode(b"\\x89PNG").decode("ascii"), {}, 1]
+        if mode == "badbody":
+            return [200, "text/plain", 12345, {}]
+        if mode == "badheaders":
+            return [200, "text/plain", "ok", "notadict"]
+        return [200, "text/plain", "ok", {}]
+
+    def isVideoFormat(self, url):
+        return str(url).endswith(".m3u8")
+
+    def manualVideoCheck(self):
+        return True
+
+    def action(self, action):
+        return {"got": action}
+'''
+
+
+BAD_ARITY_FIXTURE = '''
+class Spider:
+    def getName(self):
+        return "BadArity站"
+
+    def init(self, extend=""):
+        return None
+
+    def homeContent(self, filter=None):
+        return {"class": [], "list": []}
+
+    def homeVideoContent(self):
+        return {"list": []}
+
+    def categoryContent(self, tid, pg, filter, extend):
+        if extend:
+            raise TypeError("categoryContent() takes 3 positional arguments but 4 were given")
+        return {"list": [], "page": pg}
+
+    def detailContent(self, ids):
+        return {"list": []}
+
+    def searchContent(self, key, quick, pg):
+        return {"list": []}
+
+    def playerContent(self, flag, id, vipFlags):
+        return {"parse": 0, "url": id, "header": {}}
+'''
+
+
+class PySpiderHostStrictTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.host = load_host()
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.spider_path = str(Path(cls.tmp.name) / "strict.py")
+        Path(cls.spider_path).write_text(STRICT_FIXTURE, encoding="utf-8")
+        cls.bad_path = str(Path(cls.tmp.name) / "badarity.py")
+        Path(cls.bad_path).write_text(BAD_ARITY_FIXTURE, encoding="utf-8")
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def call_on(self, path, request):
+        return json.loads(self.host.handle(path, json.dumps(request)))
+
+    def test_new_actions_direct_call(self):
+        result = self.call_on(self.spider_path, {"action": "dependence"})
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["data"], ["dep1"])
+        result = self.call_on(self.spider_path, {"action": "format", "url": "https://x.test/a.m3u8"})
+        self.assertTrue(result["ok"], result)
+        self.assertIs(result["data"], True)
+        result = self.call_on(self.spider_path, {"action": "format", "url": "https://x.test/page"})
+        self.assertTrue(result["ok"], result)
+        self.assertIs(result["data"], False)
+        result = self.call_on(self.spider_path, {"action": "check"})
+        self.assertTrue(result["ok"], result)
+        self.assertIs(result["data"], True)
+        result = self.call_on(self.spider_path, {"action": "action", "name": "fav"})
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["data"], {"got": "fav"})
+
+    def test_home_action_returns_filters(self):
+        result = self.call_on(self.spider_path, {"action": "home"})
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["data"]["filters"]["movie"][0]["key"], "area")
+
+    def test_pg_normalized_to_int(self):
+        result = self.call_on(self.spider_path, {"action": "catalog", "category": "movie", "page": "2"})
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["data"]["page_type"], "int")
+        self.assertEqual(result["data"]["page"], 2)
+        result = self.call_on(self.spider_path, {"action": "catalog", "query": "x", "page": 3})
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["data"]["page_type"], "int")
+
+    def test_filter_extend_passthrough(self):
+        result = self.call_on(self.spider_path, {
+            "action": "catalog", "category": "movie", "page": 1,
+            "filter": True, "extend": {"area": "大陆"},
+        })
+        self.assertTrue(result["ok"], result)
+        self.assertIs(result["data"]["filter"], True)
+        self.assertEqual(result["data"]["extend"], {"area": "大陆"})
+
+    def test_extend_fingerprint_reinit(self):
+        first = self.call_on(self.spider_path, {"action": "catalog", "category": "movie", "page": 1, "extend": "A"})
+        self.assertEqual(first["data"]["ext_seen"], "A")
+        second = self.call_on(self.spider_path, {"action": "catalog", "category": "movie", "page": 1, "extend": "B"})
+        self.assertEqual(second["data"]["ext_seen"], "B")
+        third = self.call_on(self.spider_path, {"action": "catalog", "category": "movie", "page": 1})
+        self.assertEqual(third["data"]["ext_seen"], "")
+
+    def test_proxy_five_item_base64(self):
+        result = self.call_on(self.spider_path, {"action": "proxy", "param": {"mode": "b64"}})
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(base64.b64decode(result["data"]["bodyBase64"]), b"\x89PNG")
+
+    def test_proxy_body_type_errors_loudly(self):
+        result = self.call_on(self.spider_path, {"action": "proxy", "param": {"mode": "badbody"}})
+        self.assertFalse(result["ok"])
+        self.assertIn("body", result["error"])
+
+    def test_proxy_headers_non_dict_tolerated(self):
+        result = self.call_on(self.spider_path, {"action": "proxy", "param": {"mode": "badheaders"}})
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["data"]["headers"], {})
+
+    def test_internal_arity_worded_error_propagates(self):
+        result = self.call_on(self.bad_path, {
+            "action": "catalog", "category": "movie", "page": 1, "extend": {"area": "大陆"},
+        })
+        self.assertFalse(result["ok"])
+        self.assertIn("takes 3 positional arguments", result["error"])
+
+
 if __name__ == "__main__":
     unittest.main()

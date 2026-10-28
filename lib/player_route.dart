@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 Route<void> playerRoute(Widget child) => PageRouteBuilder<void>(
+  settings: const RouteSettings(name: 'player'),
   opaque: true,
   transitionDuration: const Duration(milliseconds: 260),
   reverseTransitionDuration: const Duration(milliseconds: 220),

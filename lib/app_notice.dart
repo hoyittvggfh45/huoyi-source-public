@@ -183,7 +183,7 @@ class _NoticeViewState extends State<_NoticeView>
                                       maxLines: 3,
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
-                                        fontSize: 12.5,
+                                        fontSize: 13,
                                         height: 1.35,
                                         fontWeight: FontWeight.w500,
                                         color: theme.colorScheme.onSurface,
@@ -204,7 +204,7 @@ class _NoticeViewState extends State<_NoticeView>
                                         child: Text(
                                           widget.actionLabel!,
                                           style: TextStyle(
-                                            fontSize: 12.5,
+                                            fontSize: 13,
                                             height: 1.35,
                                             fontWeight: FontWeight.w700,
                                             color: theme.colorScheme.primary,

@@ -2,6 +2,7 @@ import ast
 import base64
 import hashlib
 import importlib.util
+import inspect
 import json
 import os
 import ssl
@@ -393,29 +394,28 @@ def _load_spider(path):
     return spider
 
 
-def _is_arity_error(error):
-    message = str(error)
-    return ("takes" in message or "missing" in message) and "argument" in message
-
-
 def _call_arity(func, args):
-    variants = []
-    current = tuple(args)
-    while True:
-        variants.append(current)
-        if not current:
-            break
-        current = current[:-1]
-    first_error = None
-    for variant in variants:
-        try:
-            return func(*variant)
-        except TypeError as error:
-            if not _is_arity_error(error):
-                raise
-            if first_error is None:
-                first_error = error
-    raise first_error
+    try:
+        params = list(inspect.signature(func).parameters.values())
+    except (TypeError, ValueError):
+        return func(*args)
+    kinds = {
+        inspect.Parameter.POSITIONAL_ONLY,
+        inspect.Parameter.POSITIONAL_OR_KEYWORD,
+    }
+    positional = [p for p in params if p.kind in kinds]
+    has_var = any(p.kind == inspect.Parameter.VAR_POSITIONAL for p in params)
+    if has_var or len(args) <= len(positional):
+        return func(*args)
+    return func(*args[: len(positional)])
+
+
+def _norm_pg(value):
+    try:
+        page = int(value)
+    except (TypeError, ValueError):
+        return 1
+    return page if page >= 1 else 1
 
 
 def _call_home(spider, request):
@@ -438,17 +438,31 @@ def _dispatch(spider, request):
         }
     if action == "categories":
         return _call_home(spider, request)
+    if action == "home":
+        result = _call_arity(spider.homeContent, (True,))
+        return result if isinstance(result, dict) else {"list": result}
+    if action == "dependence":
+        return spider.getDependence()
+    if action == "format":
+        return bool(spider.isVideoFormat(str(request.get("url") or "")))
+    if action == "check":
+        return bool(spider.manualVideoCheck())
+    if action == "action":
+        return spider.action(str(request.get("name") or ""))
     if action == "catalog":
         query = str(request.get("query") or "").strip()
-        page = request.get("page") or 1
+        page = _norm_pg(request.get("page") or 1)
         category = str(request.get("category") or "")
         extend = request.get("extend") or {}
         if query:
-            result = _call_arity(spider.searchContent, (query, False, str(page)))
+            result = _call_arity(spider.searchContent, (query, False, page))
             return result if isinstance(result, dict) else {"list": result}
         if category:
+            filter_flag = request.get("filter")
+            if filter_flag is None:
+                filter_flag = bool(extend)
             result = _call_arity(
-                spider.categoryContent, (category, page, None, extend)
+                spider.categoryContent, (category, page, filter_flag, extend)
             )
             return result if isinstance(result, dict) else {"list": result}
         home = _call_home(spider, request)
@@ -462,8 +476,8 @@ def _dispatch(spider, request):
         return home
     if action == "search":
         query = str(request.get("query") or "").strip()
-        page = request.get("page") or 1
-        result = _call_arity(spider.searchContent, (query, False, str(page)))
+        page = _norm_pg(request.get("page") or 1)
+        result = _call_arity(spider.searchContent, (query, False, page))
         return result if isinstance(result, dict) else {"list": result}
     if action == "detail":
         vod_id = str(request.get("vodId") or "")
@@ -485,12 +499,16 @@ def _dispatch(spider, request):
         result = _call_arity(spider.localProxy, (param,))
         if isinstance(result, (list, tuple)) and len(result) >= 3:
             body = result[2]
-            if isinstance(body, str):
+            if len(result) >= 5 and result[4] == 1:
+                if not isinstance(body, str):
+                    raise ValueError("localProxy base64 标志置位但 body 不是字符串")
+                body_bytes = base64.b64decode(body)
+            elif isinstance(body, str):
                 body_bytes = body.encode("utf-8")
             elif isinstance(body, bytes):
                 body_bytes = body
             else:
-                body_bytes = b""
+                raise ValueError("localProxy body 类型不支持")
             headers = result[3] if len(result) > 3 and isinstance(result[3], dict) else {}
             return {
                 "status": int(result[0]),
@@ -508,13 +526,23 @@ def handle(path, request_json):
         if not isinstance(request, dict):
             raise ValueError("请求格式不正确")
         spider = _load_spider(path)
+        extend = request.get("extend") or ""
+        if isinstance(extend, str):
+            extend_text = extend
+        else:
+            extend_text = json.dumps(extend, ensure_ascii=False, sort_keys=True)
+        if getattr(spider, "_huoyi_inited", False) and (
+            getattr(spider, "_huoyi_extend", None) != extend_text
+        ):
+            dispose(path)
+            spider = _load_spider(path)
         if not getattr(spider, "_huoyi_inited", False):
-            extend = request.get("extend") or ""
             try:
-                spider.init(extend if isinstance(extend, str) else json.dumps(extend))
+                spider.init(extend_text)
             except TypeError:
                 spider.init()
             spider._huoyi_inited = True
+            spider._huoyi_extend = extend_text
         data = _dispatch(spider, request)
         return json.dumps({"ok": True, "data": _jsonable(data)}, ensure_ascii=False)
     except Exception as error:  # noqa: BLE001

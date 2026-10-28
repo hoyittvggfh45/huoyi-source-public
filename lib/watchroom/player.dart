@@ -135,6 +135,22 @@ class RoomPlayerHandle extends ChangeNotifier {
           ),
         );
         _subscribePlayerStreams();
+        final platform = _player!.platform;
+        if (Platform.isAndroid &&
+            platform is NativePlayer &&
+            plan.decryptionKey.isNotEmpty) {
+          await platform.setProperty(
+            'demuxer-lavf-o',
+            [
+              'seg_max_retry=3',
+              'strict=experimental',
+              'allowed_extensions=ALL',
+              'protocol_whitelist=[http,https,tcp,tls,crypto,data,file]',
+              'decryption_key=${plan.decryptionKey}',
+            ].join(','),
+          );
+          await platform.setProperty('network-timeout', '20');
+        }
         await _player!.open(
           Media(
             plan.url,

@@ -89,14 +89,14 @@ class DramaStyleHome extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               drama.title,
-              style: const TextStyle(fontSize: 12.5),
+              style: const TextStyle(fontSize: 13),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 2),
             Text(
               _tagText(drama),
-              style: const TextStyle(fontSize: 11),
+              style: const TextStyle(fontSize: 11.5),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -244,7 +244,7 @@ class DramaStyleHome extends StatelessWidget {
                           child: Text(
                             section.title,
                             style: const TextStyle(
-                              fontSize: 16,
+                              fontSize: 17,
                               fontWeight: FontWeight.w800,
                             ),
                             maxLines: 1,

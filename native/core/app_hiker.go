@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,27 +16,27 @@ import (
 )
 
 type HikerRule struct {
-	Title           string `json:"title"`
-	Type            string `json:"type"`
-	URL             string `json:"url"`
-	ColType         string `json:"col_type"`
-	FindRule        string `json:"find_rule"`
-	SearchFind      string `json:"searchFind"`
-	DetailFindRule  string `json:"detail_find_rule"`
-	SearchURL       string `json:"search_url"`
-	UA              string `json:"ua"`
-	PreRule         string `json:"preRule"`
+	Title          string `json:"title"`
+	Type           string `json:"type"`
+	URL            string `json:"url"`
+	ColType        string `json:"col_type"`
+	FindRule       string `json:"find_rule"`
+	SearchFind     string `json:"searchFind"`
+	DetailFindRule string `json:"detail_find_rule"`
+	SearchURL      string `json:"search_url"`
+	UA             string `json:"ua"`
+	PreRule        string `json:"preRule"`
 }
 
 type HikerEngine struct {
-	rt       *goja.Runtime
-	result   interface{}
+	rt        *goja.Runtime
+	result    interface{}
 	hasResult bool
-	lastHTML string
-	vars     map[string]interface{}
-	config   map[string]interface{}
-	ua       string
-	client   *http.Client
+	lastHTML  string
+	vars      map[string]interface{}
+	config    map[string]interface{}
+	ua        string
+	client    *http.Client
 }
 
 func NewHikerEngine(ua string) *HikerEngine {
@@ -560,6 +561,104 @@ func hikerOuterHTML(n *html.Node) string {
 	return b.String()
 }
 
+type hikerAttrCond struct {
+	name string
+	op   string
+	val  string
+}
+
+func hikerParseAttrCond(inner string) hikerAttrCond {
+	inner = strings.TrimSpace(inner)
+	for _, op := range []string{"*=", "^=", "$=", "="} {
+		if i := strings.Index(inner, op); i >= 0 {
+			val := strings.Trim(strings.TrimSpace(inner[i+len(op):]), `"'`)
+			return hikerAttrCond{name: strings.TrimSpace(inner[:i]), op: op, val: val}
+		}
+	}
+	return hikerAttrCond{name: inner}
+}
+
+type hikerPositional struct {
+	kind  string
+	index int
+}
+
+func hikerSplitPositional(tok string) (string, []hikerPositional) {
+	var positions []hikerPositional
+	depth := 0
+	out := make([]byte, 0, len(tok))
+	i := 0
+	for i < len(tok) {
+		c := tok[i]
+		if c == '[' {
+			depth++
+			out = append(out, c)
+			i++
+			continue
+		}
+		if c == ']' && depth > 0 {
+			depth--
+			out = append(out, c)
+			i++
+			continue
+		}
+		if depth == 0 && c == ':' {
+			rest := tok[i:]
+			if strings.HasPrefix(rest, ":eq(") {
+				end := strings.Index(rest, ")")
+				if end >= 0 {
+					if idx, err := strconv.Atoi(strings.TrimSpace(rest[4:end])); err == nil {
+						positions = append(positions, hikerPositional{kind: "eq", index: idx})
+						i += end + 1
+						continue
+					}
+				}
+			} else if strings.HasPrefix(rest, ":first") {
+				after := rest[len(":first"):]
+				if after == "" || after[0] == '.' || after[0] == '#' || after[0] == '[' || after[0] == ':' {
+					positions = append(positions, hikerPositional{kind: "first"})
+					i += len(":first")
+					continue
+				}
+			} else if strings.HasPrefix(rest, ":last") {
+				after := rest[len(":last"):]
+				if after == "" || after[0] == '.' || after[0] == '#' || after[0] == '[' || after[0] == ':' {
+					positions = append(positions, hikerPositional{kind: "last"})
+					i += len(":last")
+					continue
+				}
+			}
+		}
+		out = append(out, c)
+		i++
+	}
+	return string(out), positions
+}
+
+func hikerApplyPositionals(nodes []*html.Node, positions []hikerPositional) []*html.Node {
+	for _, p := range positions {
+		if len(nodes) == 0 {
+			return nodes
+		}
+		switch p.kind {
+		case "first":
+			nodes = nodes[:1]
+		case "last":
+			nodes = nodes[len(nodes)-1:]
+		case "eq":
+			idx := p.index
+			if idx < 0 {
+				idx += len(nodes)
+			}
+			if idx < 0 || idx >= len(nodes) {
+				return nil
+			}
+			nodes = nodes[idx : idx+1]
+		}
+	}
+	return nodes
+}
+
 func hikerSelectAll(root *html.Node, selector string) []*html.Node {
 	selector = hikerStripPseudo(selector)
 	tokens := strings.Fields(selector)
@@ -568,12 +667,13 @@ func hikerSelectAll(root *html.Node, selector string) []*html.Node {
 	}
 	current := []*html.Node{root}
 	for _, tok := range tokens {
+		clean, positions := hikerSplitPositional(tok)
 		next := []*html.Node{}
 		for _, n := range current {
 			var walk func(*html.Node)
 			walk = func(x *html.Node) {
 				for c := x.FirstChild; c != nil; c = c.NextSibling {
-					if hikerMatch(c, tok) {
+					if hikerMatch(c, clean) {
 						next = append(next, c)
 					}
 					walk(c)
@@ -581,7 +681,7 @@ func hikerSelectAll(root *html.Node, selector string) []*html.Node {
 			}
 			walk(n)
 		}
-		current = next
+		current = hikerApplyPositionals(next, positions)
 		if len(current) == 0 {
 			return nil
 		}
@@ -633,10 +733,12 @@ func hikerMatch(n *html.Node, tok string) bool {
 	tag := ""
 	cls := ""
 	id := ""
+	conds := []hikerAttrCond{}
 	rest := tok
 	for len(rest) > 0 {
-		if rest[0] == '.' {
-			end := strings.IndexAny(rest[1:], ".#")
+		switch rest[0] {
+		case '.':
+			end := strings.IndexAny(rest[1:], ".#[")
 			if end < 0 {
 				cls = rest[1:]
 				rest = ""
@@ -644,8 +746,8 @@ func hikerMatch(n *html.Node, tok string) bool {
 				cls = rest[1 : 1+end]
 				rest = rest[1+end:]
 			}
-		} else if rest[0] == '#' {
-			end := strings.IndexAny(rest[1:], ".#")
+		case '#':
+			end := strings.IndexAny(rest[1:], ".#[")
 			if end < 0 {
 				id = rest[1:]
 				rest = ""
@@ -653,8 +755,16 @@ func hikerMatch(n *html.Node, tok string) bool {
 				id = rest[1 : 1+end]
 				rest = rest[1+end:]
 			}
-		} else {
-			end := strings.IndexAny(rest, ".#")
+		case '[':
+			end := strings.Index(rest, "]")
+			if end < 0 {
+				rest = ""
+			} else {
+				conds = append(conds, hikerParseAttrCond(rest[1:end]))
+				rest = rest[end+1:]
+			}
+		default:
+			end := strings.IndexAny(rest, ".#[")
 			if end < 0 {
 				tag = rest
 				rest = ""
@@ -687,6 +797,30 @@ func hikerMatch(n *html.Node, tok string) bool {
 		}
 		if !found {
 			return false
+		}
+	}
+	for _, c := range conds {
+		v, ok := hikerAttr(n, c.name)
+		if !ok {
+			return false
+		}
+		switch c.op {
+		case "=":
+			if v != c.val {
+				return false
+			}
+		case "*=":
+			if !strings.Contains(v, c.val) {
+				return false
+			}
+		case "^=":
+			if !strings.HasPrefix(v, c.val) {
+				return false
+			}
+		case "$=":
+			if !strings.HasSuffix(v, c.val) {
+				return false
+			}
 		}
 	}
 	if contains != "" && !strings.Contains(hikerNodeText(n), contains) {

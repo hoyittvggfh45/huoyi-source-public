@@ -46,7 +46,7 @@ class MockupGroupedDrawer extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 Text(
-                  '火蚁短剧',
+                  '红蚁TV',
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
                 ),
                 SizedBox(height: 4),

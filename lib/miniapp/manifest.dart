@@ -11,6 +11,7 @@ class MiniAppManifest {
     required this.description,
     required this.permissions,
     required this.networkAllowlist,
+    this.unsupportedPermissions = const [],
   });
 
   final String id;
@@ -22,6 +23,13 @@ class MiniAppManifest {
   final String description;
   final List<String> permissions;
   final List<String> networkAllowlist;
+  final List<String> unsupportedPermissions;
+
+  List<String> get unavailablePermissions => [
+    for (final permission in permissions)
+      if (!MiniAppPermissions.supported.contains(permission)) permission,
+    ...unsupportedPermissions,
+  ];
 
   factory MiniAppManifest.fromJson(Map<String, Object?> json) {
     var id = _string(json, 'id');
@@ -44,16 +52,20 @@ class MiniAppManifest {
     if (renderer != 'webview') {
       throw FormatException('miniapp renderer is not supported: $renderer');
     }
-    final permissions = _stringList(json, 'permissions')
+    final declared = _stringList(json, 'permissions')
         .map(
           (permission) => permission == 'navigate'
               ? MiniAppPermissions.navigation
               : permission,
         )
         .toList();
-    for (final permission in permissions) {
-      if (!MiniAppPermissions.known.contains(permission)) {
-        throw FormatException('miniapp unknown permission: $permission');
+    final permissions = <String>[];
+    final unsupportedPermissions = <String>[];
+    for (final permission in declared) {
+      if (MiniAppPermissions.known.contains(permission)) {
+        permissions.add(permission);
+      } else {
+        unsupportedPermissions.add(permission);
       }
     }
     return MiniAppManifest(
@@ -65,6 +77,7 @@ class MiniAppManifest {
       entry: entry,
       description: _string(json, 'description', fallback: ''),
       permissions: permissions,
+      unsupportedPermissions: unsupportedPermissions,
       networkAllowlist: _stringList(
         json,
         'networkAllowlist',

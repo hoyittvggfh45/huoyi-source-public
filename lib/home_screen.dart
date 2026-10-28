@@ -152,29 +152,24 @@ class _HomeScreenState extends State<HomeScreen> {
       _zone == HomeZone.vod ||
       _zone == HomeZone.midnight;
 
-  bool? get _adultFilter => switch (_zone) {
-    HomeZone.vod => false,
-    HomeZone.midnight => true,
-    _ => null,
-  };
-
   String get _zoneTitle => switch (_zone) {
+    HomeZone.vod => '点播',
+    HomeZone.midnight => '午夜区',
     HomeZone.live => '直播',
     HomeZone.novel => '小说',
     HomeZone.comic => '漫画',
     _ => appName,
   };
 
-  /// 当前分区（短剧 drama / 影视 video）内可见的站源：
-  /// 短剧只含上游原生站；影视含 v_ 影视站与导入配置站（自定义源）。
   List<SourceSite> get _sectionSources => [
     for (final site in widget.store.visibleSources)
-      if ((_catalogSection == SourceSite.sectionVideo
-              ? site.isVideoSection || site.origin == SourceSite.originConfig
-              : site.isDramaSection &&
-                    site.origin != SourceSite.originConfig) &&
-          (_adultFilter == null ||
-              isAdultSourceName(site.name) == _adultFilter))
+      if (_zone == HomeZone.vod
+          ? isVodZoneSource(site)
+          : _zone == HomeZone.midnight
+          ? isMidnightZoneSource(site)
+          : _catalogSection == SourceSite.sectionVideo
+          ? site.isVideoSection || site.origin == SourceSite.originConfig
+          : site.isDramaSection && site.origin != SourceSite.originConfig)
         site,
   ];
 
@@ -245,7 +240,7 @@ class _HomeScreenState extends State<HomeScreen> {
         : '搜索$names及本机剧库';
   }
 
-  String _categoryKey(String groupId) => '$_catalogSection:$groupId';
+  String _categoryKey(String groupId) => '$_zone:$groupId';
 
   String get _category => _categorySelections[_categoryKey(_group.id)] ?? '';
   List<CatalogCategory> get _categories => _browser.categories(_group);
@@ -777,6 +772,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _dramaStyle = dramaUiStyleNotifier.value;
     dramaUiStyleNotifier.addListener(_syncDramaStyle);
     unawaited(ensureDramaUiStyleLoaded());
+    unawaited(ensureVodDetailStyleLoaded());
   }
 
   void _syncDramaStyle() {
@@ -1048,11 +1044,31 @@ class _HomeScreenState extends State<HomeScreen> {
     if (download) {
       Navigator.of(context).push(
         MaterialPageRoute<void>(
+          settings: const RouteSettings(name: 'detail'),
           builder: (_) => DetailScreen(
             drama: drama,
             repository: widget.repository,
             store: widget.store,
             downloadOnOpen: true,
+            applyVodStyle: _zone == HomeZone.vod,
+            onTagTap: _handleDetailTagTap,
+            queue: contextQueue,
+          ),
+        ),
+      );
+      return;
+    }
+    if (!resume &&
+        _zone == HomeZone.vod &&
+        vodDetailStyleNotifier.value == VodDetailStyle.immersive) {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          settings: const RouteSettings(name: 'detail'),
+          builder: (_) => DetailScreen(
+            drama: drama,
+            repository: widget.repository,
+            store: widget.store,
+            applyVodStyle: true,
             onTagTap: _handleDetailTagTap,
             queue: contextQueue,
           ),
@@ -1332,6 +1348,7 @@ class _HomeScreenState extends State<HomeScreen> {
           hikerRun: widget.repository.hikerRun,
           hikerRules: rules,
           initialTab: tab,
+          repository: widget.repository,
         ),
       ),
     );
@@ -1667,7 +1684,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final colors = Theme.of(context).colorScheme;
     final wide = MediaQuery.sizeOf(context).width >= 840;
     final largeTitle = TextStyle(
-      fontSize: wide ? 21.5 : 27,
+      fontSize: wide ? 22.5 : 28.5,
       height: 1.1,
       fontWeight: FontWeight.w800,
       letterSpacing: 0,
@@ -2228,11 +2245,15 @@ class _HomeScreenState extends State<HomeScreen> {
       return StatusPanel(
         title: _zone == HomeZone.midnight
             ? '暂无显示中的午夜区站源'
+            : _zone == HomeZone.vod
+            ? '暂无显示中的点播站源（远程配置/py）'
             : _catalogSection == SourceSite.sectionVideo
             ? '暂无显示中的点播站源'
             : '暂无显示中的站源',
         message: widget.store.sources.isEmpty
             ? '请联系管理员为当前用户开放站源。'
+            : _zone == HomeZone.vod
+            ? '点播站源请到内容源管理导入远程配置或 py 站。'
             : '所有站源已在「源显示列表」中关闭，请到站源管理中重新开启。',
       );
     }
@@ -2658,7 +2679,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                               color: Theme.of(
                                                 context,
                                               ).colorScheme.onSurfaceVariant,
-                                              fontSize: 11,
+                                              fontSize: 11.5,
                                             ),
                                           ),
                                   ),
@@ -2702,7 +2723,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          fontSize: 14.5,
+                          fontSize: 15,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 0,
                         ),
@@ -2714,7 +2735,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: 11.5,
                           color: colors.onSurfaceVariant,
                         ),
                       ),

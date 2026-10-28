@@ -3,10 +3,15 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
 class HikerEpisode {
-  const HikerEpisode({required this.title, required this.url});
+  const HikerEpisode({
+    required this.title,
+    required this.url,
+    this.headers = const {},
+  });
 
   final String title;
   final String url;
+  final Map<String, String> headers;
 }
 
 class HikerPlayerScreen extends StatefulWidget {
@@ -54,7 +59,8 @@ class _HikerPlayerScreenState extends State<HikerPlayerScreen> {
 
   Future<void> _open(int index) async {
     setState(() => _index = index);
-    await _player.open(Media(widget.episodes[index].url));
+    final episode = widget.episodes[index];
+    await _player.open(Media(episode.url, httpHeaders: episode.headers));
     await _player.play();
   }
 

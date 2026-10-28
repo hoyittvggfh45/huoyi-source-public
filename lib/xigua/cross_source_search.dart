@@ -113,6 +113,7 @@ class _CrossSourceSearchSheetState extends State<CrossSourceSearchSheet> {
     Navigator.push(
       context,
       MaterialPageRoute<void>(
+        settings: const RouteSettings(name: 'detail'),
         builder: (_) => DetailScreen(
           drama: drama,
           repository: widget.repository,
@@ -158,7 +159,10 @@ class _CrossSourceSearchSheetState extends State<CrossSourceSearchSheet> {
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
               child: Text(
                 '按剧名搜索其他站源；同名剧可能存在不同季或合集，请确认分集后再播放。',
-                style: TextStyle(fontSize: 11, color: colors.onSurfaceVariant),
+                style: TextStyle(
+                  fontSize: 11.5,
+                  color: colors.onSurfaceVariant,
+                ),
               ),
             ),
             Flexible(
@@ -193,7 +197,7 @@ class _CrossSourceSearchSheetState extends State<CrossSourceSearchSheet> {
         dense: true,
         leading: Icon(Icons.error_outline_rounded, color: colors.error),
         title: Text('${search.site.name} 搜索失败'),
-        subtitle: const Text('点击重试', style: TextStyle(fontSize: 11)),
+        subtitle: const Text('点击重试', style: TextStyle(fontSize: 11.5)),
         onTap: () => _retry(search),
       );
     }

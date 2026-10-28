@@ -26,7 +26,7 @@ class PlayerStatusMessage extends StatelessWidget {
             textAlign: TextAlign.center,
             style: const TextStyle(
               color: Colors.white70,
-              fontSize: 12.5,
+              fontSize: 13,
               shadows: [
                 Shadow(color: Colors.black87, blurRadius: 6),
                 Shadow(color: Colors.black54, blurRadius: 12),
@@ -624,7 +624,7 @@ class _PlayerControlsState extends State<PlayerControls> {
     required double buffered,
   }) {
     final timeStyle = TextStyle(
-      fontSize: 11,
+      fontSize: 11.5,
       color: Colors.white.withValues(alpha: .82),
       fontFeatures: const [FontFeature.tabularFigures()],
     );
@@ -783,7 +783,7 @@ class _PlayerControlsState extends State<PlayerControls> {
                   child: DefaultTextStyle.merge(
                     style: TextStyle(
                       color: foreground,
-                      fontSize: 12,
+                      fontSize: 12.5,
                       height: 1,
                       fontWeight: FontWeight.w700,
                     ),
@@ -861,7 +861,7 @@ class _PlayerControlsState extends State<PlayerControls> {
         : Text(
             '弹',
             style: TextStyle(
-              fontSize: 12.5,
+              fontSize: 13,
               height: 1,
               fontWeight: FontWeight.w800,
               color: widget.danmakuEnabled
@@ -1074,7 +1074,7 @@ class _PlayerControlsState extends State<PlayerControls> {
                                 '${volume.round()}%',
                                 style: const TextStyle(
                                   color: Colors.white,
-                                  fontSize: 11,
+                                  fontSize: 11.5,
                                   fontFeatures: [FontFeature.tabularFigures()],
                                 ),
                               ),
@@ -1173,7 +1173,7 @@ class _PlayerControlsState extends State<PlayerControls> {
                               textAlign: TextAlign.center,
                               style: const TextStyle(
                                 color: Colors.white,
-                                fontSize: 12.5,
+                                fontSize: 13,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),

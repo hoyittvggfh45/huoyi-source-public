@@ -111,6 +111,14 @@ class PyBridge {
     String path,
     Map<String, dynamic> request,
   ) async {
+    final data = await callRaw(path, request);
+    return data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+  }
+
+  static Future<dynamic> callRaw(
+    String path,
+    Map<String, dynamic> request,
+  ) async {
     await ensureReady();
     try {
       final raw = await _channel
@@ -123,10 +131,7 @@ class PyBridge {
       if (decoded['ok'] != true) {
         throw AppFailure('py 蜘蛛执行失败：${decoded['error'] ?? '未知错误'}');
       }
-      final data = decoded['data'];
-      return data is Map
-          ? Map<String, dynamic>.from(data)
-          : <String, dynamic>{};
+      return decoded['data'];
     } on PlatformException catch (error) {
       throw AppFailure('py 蜘蛛执行失败：${error.message ?? error.code}');
     }

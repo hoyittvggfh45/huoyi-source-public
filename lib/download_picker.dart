@@ -131,7 +131,7 @@ class _DownloadPickerState extends State<DownloadPicker> {
                       '已选 ${_selected.length}',
                       style: TextStyle(
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        fontSize: 11,
+                        fontSize: 11.5,
                       ),
                     ),
                   ],
@@ -198,7 +198,7 @@ class _DownloadPickerState extends State<DownloadPicker> {
                   '保存源站原始视频；指定画质不可用时自动使用可用版本。',
                   style: TextStyle(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontSize: 11,
+                    fontSize: 11.5,
                   ),
                 ),
               ),
@@ -214,7 +214,7 @@ class _DownloadPickerState extends State<DownloadPicker> {
                     '已选 VIP 集可能只能下载试看内容。',
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.tertiary,
-                      fontSize: 11,
+                      fontSize: 11.5,
                     ),
                   ),
                 ),

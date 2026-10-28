@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+
 import '../app_build.dart';
 import 'manifest.dart';
 import 'permissions.dart';
@@ -14,6 +16,34 @@ class MiniAppHttpResponse {
 
 typedef MiniAppFetch = Future<MiniAppHttpResponse> Function(Uri uri);
 
+typedef MiniAppSourceList = Future<List<Map<String, Object?>>> Function();
+typedef MiniAppSourceCall =
+    Future<Map<String, Object?>> Function(Map<String, Object?> params);
+typedef MiniAppPlayerOpen =
+    Future<Map<String, Object?>> Function(Map<String, Object?> params);
+
+abstract class MiniAppHost {
+  Future<List<Map<String, Object?>>> sourceList() =>
+      throw const MiniAppDenied('source is not available');
+  Future<Map<String, Object?>> sourceHome(Map<String, Object?> params) =>
+      throw const MiniAppDenied('source is not available');
+  Future<Map<String, Object?>> sourceDetail(Map<String, Object?> params) =>
+      throw const MiniAppDenied('source is not available');
+  Future<Map<String, Object?>> playerOpen(Map<String, Object?> params) =>
+      throw const MiniAppDenied('player is not available');
+  void toast(String message) =>
+      throw const MiniAppDenied('ui is not available');
+  void showLoading(String message) =>
+      throw const MiniAppDenied('ui is not available');
+  void hideLoading() => throw const MiniAppDenied('ui is not available');
+  Future<int> actionSheet(List<String> options) =>
+      throw const MiniAppDenied('ui is not available');
+  Future<Object?> navigateTo(String url) =>
+      throw const MiniAppDenied('navigation is not available');
+  Future<bool> navigateBack() =>
+      throw const MiniAppDenied('navigation is not available');
+}
+
 class MiniAppBridge {
   MiniAppBridge({
     required this.manifest,
@@ -21,6 +51,7 @@ class MiniAppBridge {
     this.fetch,
     this.onReply,
     this.onEmit,
+    this.host,
   });
 
   final MiniAppManifest manifest;
@@ -28,9 +59,18 @@ class MiniAppBridge {
   final MiniAppFetch? fetch;
   final void Function(int id, Object? result, String? error)? onReply;
   final void Function(String event, String dataJson)? onEmit;
+  final MiniAppHost? host;
 
   MiniAppPermissions get permissions =>
       MiniAppPermissions(manifest.permissions.toSet());
+
+  MiniAppHost _requireHost(String feature) {
+    final host = this.host;
+    if (host == null) {
+      throw MiniAppDenied('$feature is not available');
+    }
+    return host;
+  }
 
   Future<Object?> invoke(String api, Map<String, Object?> params) async {
     switch (api) {
@@ -54,6 +94,102 @@ class MiniAppBridge {
         permissions.require(MiniAppPermissions.storage);
         await storage.remove(_paramString(params, 'key'));
         return true;
+      case 'storage.getJSON':
+        permissions.require(MiniAppPermissions.storage);
+        final raw = await storage.get(_paramString(params, 'key'));
+        if (raw == null) return params['fallback'];
+        try {
+          return jsonDecode(raw);
+        } on FormatException {
+          return params['fallback'];
+        }
+      case 'storage.setJSON':
+        permissions.require(MiniAppPermissions.storage);
+        await storage.set(
+          _paramString(params, 'key'),
+          jsonEncode(params['value']),
+        );
+        return true;
+      case 'ui.toast':
+        permissions.require(MiniAppPermissions.ui);
+        _requireHost('ui').toast(_paramMessage(params));
+        return true;
+      case 'ui.loading':
+        permissions.require(MiniAppPermissions.ui);
+        _requireHost('ui').showLoading(_paramMessage(params));
+        return true;
+      case 'ui.hideLoading':
+        permissions.require(MiniAppPermissions.ui);
+        _requireHost('ui').hideLoading();
+        return true;
+      case 'ui.actionSheet':
+        permissions.require(MiniAppPermissions.ui);
+        final options = _paramStringList(params, 'items', 'options');
+        return _requireHost('ui').actionSheet(options);
+      case 'navigateTo':
+        permissions.require(MiniAppPermissions.navigation);
+        return _requireHost(
+          'navigation',
+        ).navigateTo(_paramString(params, 'url'));
+      case 'navigateBack':
+        permissions.require(MiniAppPermissions.navigation);
+        return {'moved': await _requireHost('navigation').navigateBack()};
+      case 'log':
+        debugPrint('[miniapp] ${_paramMessage(params)}');
+        return true;
+      case 'version':
+        return 2;
+      case 'getSystemInfo':
+      case 'env.getSystemInfo':
+        return {
+          'platform': Platform.operatingSystem,
+          'appName': appName,
+          'appSlug': appSlug,
+          'appBuild': appBuild,
+          'appId': manifest.id,
+          'permissions': manifest.permissions,
+          'version': 2,
+          'sdkVersion': 2,
+        };
+      case 'source.list':
+        permissions.require(MiniAppPermissions.source);
+        return _requireHost('source').sourceList();
+      case 'source.home':
+        permissions.require(MiniAppPermissions.source);
+        return _requireHost('source').sourceHome(params);
+      case 'source.detail':
+        permissions.require(MiniAppPermissions.source);
+        return _requireHost('source').sourceDetail(params);
+      case 'player.open':
+        permissions.require(MiniAppPermissions.player);
+        return _requireHost('player').playerOpen(params);
+      case 'serve':
+        permissions.require(MiniAppPermissions.service);
+        throw const MiniAppDenied('本版未提供：miniapp 服务运行时');
+      case 'miniApp.onOpen':
+      case 'miniApp.getLaunchOptions':
+      case 'miniApp.exitMiniApp':
+        permissions.require(MiniAppPermissions.miniapp);
+        throw const MiniAppDenied('本版未提供：跨小程序运行时');
+      case 'player.getState':
+      case 'player.onStateChange':
+      case 'player.onClose':
+        permissions.require(MiniAppPermissions.player);
+        throw const MiniAppDenied('本版未提供：播放器状态事件');
+      case 'clipboard.get':
+      case 'clipboard.set':
+        throw const MiniAppDenied('本版未提供：剪贴板');
+      case 'requestBytes':
+        permissions.require(MiniAppPermissions.network);
+        throw const MiniAppDenied('本版未提供：字节请求');
+      case 'bytesToBase64':
+      case 'base64ToBytes':
+        throw const MiniAppDenied('本版未提供：字节请求');
+      case 'source.play':
+      case 'source.category':
+      case 'source.search':
+        permissions.require(MiniAppPermissions.source);
+        throw MiniAppDenied('本版未提供：$api');
       case 'request':
         permissions.require(MiniAppPermissions.network);
         final method = params['method'];
@@ -76,22 +212,17 @@ class MiniAppBridge {
               ? 'network.bytes'
               : 'network.text',
         );
-      case 'getSystemInfo':
-        return {
-          'platform': Platform.operatingSystem,
-          'appName': appName,
-          'appSlug': appSlug,
-          'appBuild': appBuild,
-        };
       case 'network.text':
       case 'network.bytes':
       case 'network.json':
         return _fetchUrl(_paramString(params, 'url'), api);
       default:
+        if (api.startsWith('miniApp.')) {
+          permissions.require(MiniAppPermissions.miniapp);
+          throw const MiniAppDenied('本版未提供：跨小程序运行时');
+        }
         if (api.startsWith('player.') || api.startsWith('source.')) {
-          throw const MiniAppDenied(
-            'player and source calls are not available in v1',
-          );
+          throw MiniAppDenied('本版未提供：$api');
         }
         throw ArgumentError('unknown miniapp api: $api');
     }
@@ -128,8 +259,33 @@ class MiniAppBridge {
     return value;
   }
 
+  static String _paramMessage(Map<String, Object?> params) {
+    for (final key in ['message', 'text', 'content']) {
+      final value = params[key];
+      if (value is String) return value;
+      if (value != null) return value.toString();
+    }
+    return '';
+  }
+
+  static List<String> _paramStringList(
+    Map<String, Object?> params,
+    String first,
+    String second,
+  ) {
+    final value = params[first] ?? params[second];
+    if (value is! List) {
+      throw ArgumentError('miniapp param $first must be an array');
+    }
+    return [for (final item in value) item.toString()];
+  }
+
   Future<Object?> _fetchUrl(String raw, String api) async {
     permissions.require(MiniAppPermissions.network);
+    final scheme = Uri.tryParse(raw)?.scheme.toLowerCase();
+    if (scheme == 'miniapp') {
+      throw const MiniAppDenied('本版未提供：miniapp 服务运行时');
+    }
     final uri = _allowedUri(raw);
     final fetch = this.fetch;
     if (fetch == null) {
@@ -163,7 +319,7 @@ class MiniAppBridge {
 
   static const injectionScript = '''
 (function(){
-  if (window.jhminiapp) return;
+  if (window.ant) return;
   var seq = 0;
   var pending = {};
   var listeners = {};
@@ -174,7 +330,7 @@ class MiniAppBridge {
     listeners[event] = (listeners[event] || []).filter(function(l){ return !l.once; });
     arr.forEach(function(l){ try{ l.cb(data); }catch(e){} });
   }
-  window.jhminiapp = {
+  var core = {
     invoke: function(api, params){
       return new Promise(function(resolve, reject){
         var id = ++seq;
@@ -208,20 +364,61 @@ class MiniAppBridge {
       deliver(event, data);
     }
   };
-  window.jhminiapp.request = function(params){
-    return window.jhminiapp.invoke('request', params || {});
+  window.ant = core;
+  window.jhminiapp = core;
+  window.ant.request = function(params){
+    return window.ant.invoke('request', params || {});
   };
-  window.jhminiapp.storage = {
-    get: function(key){ return window.jhminiapp.invoke('storage.get', {key: key}); },
-    set: function(key, value){ return window.jhminiapp.invoke('storage.set', {key: key, value: value}); },
-    remove: function(key){ return window.jhminiapp.invoke('storage.remove', {key: key}); }
+  window.ant.storage = {
+    get: function(key){ return window.ant.invoke('storage.get', {key: key}); },
+    set: function(key, value){ return window.ant.invoke('storage.set', {key: key, value: value}); },
+    remove: function(key){ return window.ant.invoke('storage.remove', {key: key}); },
+    getJSON: function(key, fallback){ return window.ant.invoke('storage.getJSON', {key: key, fallback: fallback}); },
+    setJSON: function(key, value){ return window.ant.invoke('storage.setJSON', {key: key, value: value}); }
   };
-  window.jhminiapp.getSystemInfo = function(){
-    return window.jhminiapp.invoke('getSystemInfo', {});
+  window.ant.getSystemInfo = function(){
+    return window.ant.invoke('getSystemInfo', {});
   };
-  window.jhminiapp.tv = {
-    onKey: function(cb){ window.jhminiapp.on('tv.key', cb); }
+  window.ant.env = {
+    getSystemInfo: function(){ return window.ant.invoke('env.getSystemInfo', {}); }
   };
+  window.ant.tv = {
+    onKey: function(cb){ window.ant.on('tv.key', cb); }
+  };
+  window.ant.ui = {
+    toast: function(message){ return window.ant.invoke('ui.toast', {message: message}); },
+    loading: function(message){ return window.ant.invoke('ui.loading', {message: message}); },
+    hideLoading: function(){ return window.ant.invoke('ui.hideLoading', {}); },
+    actionSheet: function(items){ return window.ant.invoke('ui.actionSheet', {items: items}); }
+  };
+  window.ant.navigateTo = function(url){ return window.ant.invoke('navigateTo', {url: url}); };
+  window.ant.navigateBack = function(){ return window.ant.invoke('navigateBack', {}); };
+  window.ant.log = function(message){ return window.ant.invoke('log', {message: message}); };
+  window.ant.version = function(){ return window.ant.invoke('version', {}); };
+  window.ant.onShow = function(cb){ return window.ant.on('show', cb); };
+  window.ant.onHide = function(cb){ return window.ant.on('hide', cb); };
+  window.ant.serve = function(){ return window.ant.invoke('serve', {}); };
+  window.ant.miniApp = {
+    onOpen: function(){ return window.ant.invoke('miniApp.onOpen', {}); },
+    getLaunchOptions: function(){ return window.ant.invoke('miniApp.getLaunchOptions', {}); },
+    exitMiniApp: function(){ return window.ant.invoke('miniApp.exitMiniApp', {}); }
+  };
+  window.ant.player = {
+    open: function(options){ return window.ant.invoke('player.open', options || {}); },
+    getState: function(){ return window.ant.invoke('player.getState', {}); },
+    onStateChange: function(cb){ return window.ant.on('player.stateChange', cb); },
+    onClose: function(cb){ return window.ant.on('player.close', cb); }
+  };
+  window.ant.source = {
+    list: function(){ return window.ant.invoke('source.list', {}); },
+    home: function(params){ return window.ant.invoke('source.home', params || {}); },
+    detail: function(params){ return window.ant.invoke('source.detail', params || {}); }
+  };
+  window.ant.clipboard = {
+    get: function(){ return window.ant.invoke('clipboard.get', {}); },
+    set: function(text){ return window.ant.invoke('clipboard.set', {text: text}); }
+  };
+  window.ant.requestBytes = function(params){ return window.ant.invoke('requestBytes', params || {}); };
 })();
 ''';
 }

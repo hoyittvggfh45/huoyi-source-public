@@ -152,17 +152,14 @@ class GlassChoiceField<T> extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (label != null) ...[
-                Text(
-                  label!,
-                  style: TextStyle(color: textColor, fontSize: 11.5),
-                ),
+                Text(label!, style: TextStyle(color: textColor, fontSize: 12)),
                 const SizedBox(width: 6),
               ],
               Text(
                 _current,
                 style: TextStyle(
                   color: enabled ? colors.primary : textColor,
-                  fontSize: 11.5,
+                  fontSize: 12,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -279,7 +276,7 @@ double _glassMenuWidth<T>(
       text: TextSpan(
         text: data,
         style: (label.style ?? fallback).copyWith(
-          fontSize: 12.5,
+          fontSize: 13,
           fontWeight: entry.selected ? FontWeight.w700 : FontWeight.w500,
         ),
       ),
@@ -502,7 +499,7 @@ class _GlassMenuItem<T> extends StatelessWidget {
                 Expanded(
                   child: DefaultTextStyle.merge(
                     style: TextStyle(
-                      fontSize: 12.5,
+                      fontSize: 13,
                       fontWeight: entry.selected
                           ? FontWeight.w700
                           : FontWeight.w500,
@@ -630,7 +627,7 @@ class GlassBottomNavigation extends StatelessWidget {
                               AnimatedDefaultTextStyle(
                                 duration: const Duration(milliseconds: 160),
                                 style: TextStyle(
-                                  fontSize: 10,
+                                  fontSize: 10.5,
                                   height: 1.1,
                                   fontWeight: index == selectedIndex
                                       ? FontWeight.w700

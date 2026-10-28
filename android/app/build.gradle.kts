@@ -49,7 +49,7 @@ android {
         ndk {
             abiFilters += listOf("arm64-v8a")
         }
-        manifestPlaceholders["appLabel"] = "火蚁短剧"
+        manifestPlaceholders["appLabel"] = "红蚁TV"
         manifestPlaceholders["appBanner"] = if (allSources) "@drawable/tv_banner_all_sources" else "@drawable/tv_banner"
     }
 

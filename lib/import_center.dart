@@ -12,10 +12,15 @@ import 'py_bridge.dart';
 import 'py_spider_validator.dart';
 
 class ImportCandidate {
-  const ImportCandidate({required this.name, required this.bytes});
+  const ImportCandidate({
+    required this.name,
+    required this.bytes,
+    this.ext = '',
+  });
 
   final String name;
   final List<int> bytes;
+  final String ext;
 
   String get extension {
     final at = name.lastIndexOf('.');
@@ -205,19 +210,36 @@ class ImportEngine {
         fileName: fileName,
         contentHash: hash,
         importedAtMs: DateTime.now().millisecondsSinceEpoch,
+        ext: candidate.ext,
       ),
     );
     markRecordsChanged();
+    var displayName = candidate.baseName;
+    var nameNote = '';
+    try {
+      final path = await ImportFileStore.pathOf(fileName);
+      final ping = await PyBridge.call(path, {'action': 'ping'});
+      final spiderName = (ping['name'] as String? ?? '').trim();
+      if (spiderName.isNotEmpty && spiderName != displayName) {
+        final index = records.indexWhere((record) => record.id == id);
+        if (index >= 0) {
+          records[index] = records[index].copyWith(name: spiderName);
+          markRecordsChanged();
+          displayName = spiderName;
+          nameNote = '；蜘蛛名为“$spiderName”，已同步';
+        }
+      }
+    } catch (_) {}
     final filledNote = validation.filledNote;
     return ImportOutcome(
       fileName: candidate.name,
       status: ImportOutcomeStatus.success,
       reason: validation.playOnly
-          ? '已注册为仅播放 Python 蜘蛛站（经 CPython 桥执行；首页只有一集正片，解析走 playerContent，缺失依赖已打桩）；$filledNote'
+          ? '已注册为仅播放 Python 蜘蛛站（经 CPython 桥执行；首页只有一集正片，解析走 playerContent，缺失依赖已打桩）；$filledNote$nameNote'
           : filledNote.isEmpty
-          ? '已注册为 Python 蜘蛛站（经 CPython 桥执行）'
-          : '已注册为 Python 蜘蛛站（经 CPython 桥执行）；$filledNote',
-      siteName: candidate.baseName,
+          ? '已注册为 Python 蜘蛛站（经 CPython 桥执行）$nameNote'
+          : '已注册为 Python 蜘蛛站（经 CPython 桥执行）；$filledNote$nameNote',
+      siteName: displayName,
     );
   }
 

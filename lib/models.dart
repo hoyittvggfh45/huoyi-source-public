@@ -76,6 +76,7 @@ class SourceSite {
     this.configId = '',
     this.configName = '',
     this.importType = '',
+    this.importExt = '',
   });
 
   static const sectionDrama = 'drama';
@@ -93,6 +94,7 @@ class SourceSite {
   final String configId;
   final String configName;
   final String importType;
+  final String importExt;
   bool get isVideoSection => section == sectionVideo;
   bool get isDramaSection => section != sectionVideo;
   String get coreSlotId => slotId.isEmpty ? id : slotId;
@@ -834,6 +836,14 @@ class SourceSite {
   };
 }
 
+bool isVodZoneSource(SourceSite site) =>
+    site.isVideoSection &&
+    (site.origin == SourceSite.originConfig ||
+        (site.origin == SourceSite.originImport && site.importType == 'py'));
+
+bool isMidnightZoneSource(SourceSite site) =>
+    site.isVideoSection && site.origin == SourceSite.originBuiltin;
+
 class SourceGroup {
   const SourceGroup(
     this.id,
@@ -1429,6 +1439,23 @@ class PlaybackPlan {
     routeCount: routeCount,
     local: local,
     needsParse: needsParse,
+  );
+
+  PlaybackPlan withNeedsParse(bool value) => PlaybackPlan(
+    url: url,
+    originalUrl: originalUrl,
+    headers: headers,
+    decryptionKey: decryptionKey,
+    quality: quality,
+    qualities: qualities,
+    session: session,
+    danmakuId: danmakuId,
+    prefetchedBytes: prefetchedBytes,
+    expiresAt: expiresAt,
+    routeIndex: routeIndex,
+    routeCount: routeCount,
+    local: local,
+    needsParse: value,
   );
   factory PlaybackPlan.fromJson(Map<String, dynamic> json) => PlaybackPlan(
     url: json['url'] as String? ?? '',

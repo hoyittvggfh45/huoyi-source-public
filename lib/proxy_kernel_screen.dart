@@ -381,7 +381,10 @@ class _ProxyKernelScreenState extends State<ProxyKernelScreen> {
                 ),
                 child: SelectableText(
                   state.logTail.isEmpty ? '暂无日志' : state.logTail,
-                  style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 11.5,
+                  ),
                 ),
               ),
               if (!Platform.isAndroid)

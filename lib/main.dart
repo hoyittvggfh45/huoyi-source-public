@@ -82,7 +82,7 @@ class _BootSplashState extends State<BootSplash>
             child: Opacity(
               opacity: iconOpacity,
               child: Image.asset(
-                'assets/splash/fire_ant.png',
+                'assets/splash/hongyi_tv.png',
                 width: 260,
                 height: 260,
                 fit: BoxFit.cover,
@@ -370,7 +370,7 @@ class DuanjuApp extends StatelessWidget {
                     Text(
                       bootstrapError ?? '正在打开$appName',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 16),
+                      style: const TextStyle(fontSize: 17),
                     ),
                     const SizedBox(height: 24),
                     if (bootstrapError == null)
