@@ -10,7 +10,7 @@ import (
 func TestLegadoJSONPathParse(t *testing.T) {
 	valid := []string{
 		"$", "$.a", "$.data.list[*]", "$.data.list[0]", "$.data.list[*].title",
-		"$.a[0][1]", "$[0]", "$[*]", "$.data.toc",
+		"$.a[0][1]", "$[0]", "$[*]", "$.data.toc", "$..title", "$.data..list",
 	}
 	for _, r := range valid {
 		if _, ok := legadoParseJSONPath(r); !ok {
@@ -18,8 +18,8 @@ func TestLegadoJSONPathParse(t *testing.T) {
 		}
 	}
 	invalid := []string{
-		"$..title", "$.data[?(@.x==1)]", "$.data['name']", "$.data[0:2]",
-		"$.data[]", "$a", "$.", "$.data..list", "",
+		"$.data[?(@.x==1)]", "$.data['name']", "$.data[0:2]",
+		"$.data[]", "$a", "$.", "",
 	}
 	for _, r := range invalid {
 		if _, ok := legadoParseJSONPath(r); ok {
@@ -74,8 +74,8 @@ func TestLegadoJSONListBlocks(t *testing.T) {
 	if len(blocks) != 2 {
 		t.Fatalf("want fallback alt to work, got %#v", blocks)
 	}
-	if blocks := legadoJSONListBlocks(body, "$..list"); blocks != nil {
-		t.Fatalf("want nil for recursive path, got %#v", blocks)
+	if blocks := legadoJSONListBlocks(body, "$..list"); len(blocks) != 2 {
+		t.Fatalf("want recursive path to expand to 2, got %#v", blocks)
 	}
 }
 
@@ -135,8 +135,8 @@ func TestLegadoJSONSourceEndToEnd(t *testing.T) {
 
 func TestLegadoCheckJSONPathStillUnsupported(t *testing.T) {
 	recursive := LegadoSource{BookList: "$..title"}
-	if got := legadoCheck(recursive); got.Supported || len(got.UnsupportedFields) != 1 || got.UnsupportedFields[0].Reason != "jsonpath" {
-		t.Fatalf("recursive path should stay unsupported jsonpath, got %+v", got)
+	if got := legadoCheck(recursive); !got.Supported || len(got.UnsupportedFields) != 0 {
+		t.Fatalf("recursive path should be supported now, got %+v", got)
 	}
 	filter := LegadoSource{BookList: "$.data[?(@.x==1)]"}
 	if got := legadoCheck(filter); got.Supported || len(got.UnsupportedFields) != 1 || got.UnsupportedFields[0].Reason != "jsonpath" {

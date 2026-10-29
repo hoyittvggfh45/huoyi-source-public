@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'app_page_route.dart';
+
 import 'package:flutter/material.dart';
 
 import 'catalog_browser.dart';
@@ -72,7 +74,7 @@ class FolderCatalogScreen extends StatefulWidget {
     required CatalogTag tag,
     required FolderCatalogOpen onOpenDrama,
   }) => Navigator.of(context).push<void>(
-    MaterialPageRoute(
+    appPageRoute(
       builder: (_) => FolderCatalogScreen(
         repository: repository,
         store: store,
@@ -92,7 +94,7 @@ class FolderCatalogScreen extends StatefulWidget {
     required Drama folder,
     required FolderCatalogOpen onOpenDrama,
   }) => Navigator.of(context).push<void>(
-    MaterialPageRoute(
+    appPageRoute(
       builder: (_) => FolderCatalogScreen(
         repository: repository,
         store: store,

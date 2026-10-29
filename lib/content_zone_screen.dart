@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'app_page_route.dart';
+
 import 'content_detail_screen.dart';
 import 'content_models.dart';
 import 'content_zone_binding.dart';
@@ -156,10 +158,9 @@ class _ContentZoneScreenState extends State<ContentZoneScreen> {
   }
 
   Future<void> _pickSource() async {
-    final picked = await showSourcePickerSheet(
+    final picked = await showSitePickerDialog(
       context,
       sectionName: widget.section.title,
-      currentName: _source?.name ?? '',
       currentId: _source?.id ?? '',
       groups: [
         SourcePickerGroup(
@@ -213,7 +214,7 @@ class _ContentZoneScreenState extends State<ContentZoneScreen> {
       return;
     }
     Navigator.of(context).push(
-      MaterialPageRoute(
+      appPageRoute(
         builder: (_) => ContentDetailScreen(source: source, book: book),
       ),
     );

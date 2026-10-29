@@ -1,4 +1,7 @@
 import 'dart:async';
+
+import 'app_page_route.dart';
+
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -81,9 +84,7 @@ void openLanSync(BuildContext context) {
   }
   Navigator.push(
     context,
-    MaterialPageRoute<void>(
-      builder: (_) => LanSyncScreen(controller: controller),
-    ),
+    appPageRoute<void>(builder: (_) => LanSyncScreen(controller: controller)),
   );
 }
 
@@ -124,7 +125,7 @@ class _LanSyncScreenState extends State<LanSyncScreen> {
   void _openInternet(LanController link) {
     Navigator.push(
       context,
-      MaterialPageRoute<void>(
+      appPageRoute<void>(
         builder: (_) => InternetLinkScreen(
           preferences: link.store.preferences,
           store: link.store,
@@ -398,7 +399,7 @@ class _LanSyncScreenState extends State<LanSyncScreen> {
                       trailing: const Icon(Icons.chevron_right_rounded),
                       onTap: () => Navigator.push(
                         context,
-                        MaterialPageRoute<void>(
+                        appPageRoute<void>(
                           builder: (_) => _LanConflicts(controller: link),
                         ),
                       ),

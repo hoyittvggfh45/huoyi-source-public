@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import '../app_page_route.dart';
+
 import 'package:flutter/material.dart';
 
 import 'hiker_col_type.dart';
@@ -110,7 +112,7 @@ class _HikerMiniappHomeScreenState extends State<HikerMiniappHomeScreen> {
 
   Future<void> _openDetail(HikerMiniappCard card) async {
     await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
+      appPageRoute<void>(
         builder: (_) => HikerMiniappDetailScreen(
           engine: widget.engine,
           card: card,

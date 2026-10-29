@@ -1,4 +1,7 @@
 import 'dart:async';
+
+import 'app_page_route.dart';
+
 import 'dart:io';
 import 'dart:ui';
 
@@ -1687,7 +1690,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     final pageUrl = _lastPageUrl;
     if (pageUrl.isEmpty || !mounted || _closed) return;
     final found = await Navigator.of(context).push<String>(
-      MaterialPageRoute(
+      appPageRoute(
         builder: (routeContext) => SniffWebViewPage(
           pageUrl: pageUrl,
           headers: _plan?.headers ?? const {},
@@ -1868,7 +1871,7 @@ class _PlayerScreenState extends State<PlayerScreen>
           label: '查看',
           onPressed: () {
             Navigator.of(context).push(
-              MaterialPageRoute<void>(
+              appPageRoute<void>(
                 builder: (_) => DownloadsScreen(
                   repository: widget.repository,
                   store: widget.store,
@@ -2179,7 +2182,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         Navigator.of(context).popUntil(isBackToListStop);
       case PlayerBackAction.toHome:
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute<void>(
+          appPageRoute<void>(
             builder: (_) =>
                 HomeScreen(repository: widget.repository, store: widget.store),
           ),
@@ -2957,7 +2960,6 @@ class _PlayerScreenState extends State<PlayerScreen>
   Widget _playerEpisodeSection() {
     final episodes = widget.detail.episodes;
     final colors = Theme.of(context).colorScheme;
-    final display = _episodesReversed ? episodes.reversed.toList() : episodes;
     return Padding(
       padding: const EdgeInsets.only(top: 18),
       child: Column(
@@ -2999,11 +3001,13 @@ class _PlayerScreenState extends State<PlayerScreen>
             child: ListView.separated(
               controller: _episodeStripController,
               scrollDirection: Axis.horizontal,
-              itemCount: display.length,
+              itemCount: episodes.length,
               separatorBuilder: (_, _) => const SizedBox(width: 8),
               itemBuilder: (context, i) {
-                final episode = display[i];
-                final realIndex = episodes.indexOf(episode);
+                final realIndex = _episodesReversed
+                    ? episodes.length - 1 - i
+                    : i;
+                final episode = episodes[realIndex];
                 final selected = realIndex == _index;
                 return ChoiceChip(
                   key: ValueKey('episode-chip-$realIndex'),
@@ -3192,7 +3196,7 @@ class _PlayerScreenState extends State<PlayerScreen>
           ? 0
           : episodeIndex.clamp(0, detail.episodes.length - 1);
       await Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(
+        appPageRoute<void>(
           builder: (_) => PlayerScreen(
             detail: detail,
             initialIndex: index,

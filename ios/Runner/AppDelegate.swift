@@ -66,5 +66,15 @@ import CFNetwork
                 "pac": (settings["ProxyAutoConfigEnable"] as? NSNumber)?.boolValue == true])
       }
     }
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "PyImport") {
+      let channel = FlutterMethodChannel(name: "huoyi/pyimport", binaryMessenger: registrar.messenger())
+      channel.setMethodCallHandler { call, result in
+        if call.method == "takePending" {
+          result(PyImportInbox.shared.takeAll())
+        } else {
+          result(FlutterMethodNotImplemented)
+        }
+      }
+    }
   }
 }

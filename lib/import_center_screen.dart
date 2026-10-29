@@ -7,6 +7,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import 'core_bridge.dart';
+import 'import_center.dart';
 import 'jar_import.dart';
 import 'local_store.dart';
 import 'tvbox_config.dart';
@@ -119,6 +120,21 @@ class _ImportCenterScreenState extends State<ImportCenterScreen> {
     }
     if (file.name.toLowerCase().endsWith('.jar')) {
       await _run(() => _importJarFile(filePath));
+      return;
+    }
+    if (file.name.toLowerCase().endsWith('.py')) {
+      await _run(() async {
+        final bytes = await File(filePath).readAsBytes();
+        if (bytes.length > 32 * 1024 * 1024) {
+          if (mounted) _showMessage('文件过大，无法导入');
+          return;
+        }
+        final report = await ImportEngine(
+          store: widget.store,
+          repository: widget.repository,
+        ).importAll([ImportCandidate(name: file.name, bytes: bytes)]);
+        if (mounted) _showMessage(report.summary);
+      });
       return;
     }
     final size = await File(filePath).length();

@@ -55,20 +55,24 @@ func TestLegadoCheck(t *testing.T) {
 		t.Fatalf("css source should be supported, got %+v", got)
 	}
 	xpath := LegadoSource{BookList: "//div[@class='item']"}
-	if got := legadoCheck(xpath); got.Supported || len(got.UnsupportedFields) != 1 || got.UnsupportedFields[0].Reason != "xpath" {
-		t.Fatalf("xpath source should be unsupported xpath, got %+v", got)
+	if got := legadoCheck(xpath); !got.Supported || len(got.UnsupportedFields) != 0 {
+		t.Fatalf("xpath source should be supported by the xpath subset, got %+v", got)
 	}
 	js := LegadoSource{BookList: "div.item", NameRule: "@js:xxx"}
-	if got := legadoCheck(js); got.Supported || len(got.UnsupportedFields) != 1 || got.UnsupportedFields[0].Field != "name" || got.UnsupportedFields[0].Reason != "js" {
-		t.Fatalf("js source should be unsupported js, got %+v", got)
+	if got := legadoCheck(js); !got.Supported || len(got.UnsupportedFields) != 0 {
+		t.Fatalf("js source should be supported by the js engine, got %+v", got)
 	}
 	jsonRule := LegadoSource{BookList: "$.data[*]"}
 	if got := legadoCheck(jsonRule); !got.Supported || len(got.UnsupportedFields) != 0 {
 		t.Fatalf("json lite source should be supported, got %+v", got)
 	}
 	nth := LegadoSource{BookList: "div:nth-child(2)"}
-	if got := legadoCheck(nth); got.Supported || len(got.UnsupportedFields) != 1 || got.UnsupportedFields[0].Reason != "nth" {
-		t.Fatalf("nth source should be unsupported nth, got %+v", got)
+	if got := legadoCheck(nth); !got.Supported || len(got.UnsupportedFields) != 0 {
+		t.Fatalf("nth-child source should be supported by the dialect walker, got %+v", got)
+	}
+	nthLast := LegadoSource{BookList: "div:nth-last-child(2)"}
+	if got := legadoCheck(nthLast); got.Supported || len(got.UnsupportedFields) != 1 || got.UnsupportedFields[0].Reason != "nth" {
+		t.Fatalf("nth-last-child source should be unsupported nth, got %+v", got)
 	}
 	child := LegadoSource{BookList: "div:first-child"}
 	if got := legadoCheck(child); got.Supported || len(got.UnsupportedFields) != 1 || got.UnsupportedFields[0].Reason != "child" {
@@ -87,15 +91,15 @@ func TestLegadoCheck(t *testing.T) {
 		t.Fatalf("mixed source with css alternative should be supported, got %+v", got)
 	}
 	allBad := LegadoSource{BookList: "//div||//span"}
-	if got := legadoCheck(allBad); got.Supported {
-		t.Fatalf("all xpath source should be unsupported, got %+v", got)
+	if got := legadoCheck(allBad); !got.Supported {
+		t.Fatalf("all xpath source should be supported by the xpath subset, got %+v", got)
 	}
 	out, err := LegadoRunJSON(`{"bookSourceName":"T","bookSourceUrl":"https://x.example","searchUrl":"https://x.example/s","ruleSearch":{"bookList":"//div","name":"a@text"}}`, "check", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out, `"supported":false`) || !strings.Contains(out, "xpath") {
-		t.Fatalf("check action output missing unsupported xpath: %s", out)
+	if !strings.Contains(out, `"supported":true`) {
+		t.Fatalf("check action output missing supported xpath: %s", out)
 	}
 }
 

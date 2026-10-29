@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import '../app_page_route.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -424,7 +426,7 @@ class _WatchRoomScreenState extends State<WatchRoomScreen>
     }
     Navigator.push(
       context,
-      MaterialPageRoute<void>(
+      appPageRoute<void>(
         builder: (_) => RoomFullscreenPage(
           handle: _player,
           viewType: widget.store.player == 'fongmi'

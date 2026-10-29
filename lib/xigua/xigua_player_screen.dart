@@ -1,4 +1,7 @@
 import 'dart:async';
+
+import '../app_page_route.dart';
+
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -1774,7 +1777,7 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
       actionLabel: '查看',
       onAction: () {
         Navigator.of(context).push(
-          MaterialPageRoute<void>(
+          appPageRoute<void>(
             builder: (_) => DownloadsScreen(
               repository: widget.repository,
               store: widget.store,
@@ -2017,7 +2020,7 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
       navigator.pop();
     } else if (ModalRoute.of(context)?.isFirst ?? false) {
       navigator.pushReplacement(
-        MaterialPageRoute<void>(
+        appPageRoute<void>(
           builder: (_) =>
               HomeScreen(repository: widget.repository, store: widget.store),
         ),

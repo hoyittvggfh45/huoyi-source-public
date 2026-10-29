@@ -20,6 +20,25 @@
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(FLUTTER_BUILD_NAME)</string>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Python Source</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>CFBundleTypeExtensions</key>
+			<array>
+				<string>py</string>
+			</array>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.python-script</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleSignature</key>
 	<string>????</string>
 	<key>CFBundleVersion</key>

@@ -32,6 +32,8 @@ class MainActivity : FlutterActivity() {
     private var deviceChannel: MethodChannel? = null
     private var pyBridge: PyBridge? = null
     private var pyChannel: MethodChannel? = null
+    private var pyImportChannel: MethodChannel? = null
+    private val pendingPyFiles = mutableListOf<Map<String, Any?>>()
     private var televisionMode = false
 
     // 播放页左半屏竖向拖动临时调亮度：只改本窗口 screenBrightness（-1f 表示跟随系统），
@@ -173,6 +175,59 @@ class MainActivity : FlutterActivity() {
         super.onSaveInstanceState(outState)
     }
 
+    @Suppress("DEPRECATION")
+    private fun displayNameFor(uri: Uri): String? {
+        if (uri.scheme != "content") return uri.lastPathSegment?.substringAfterLast('/')
+        return runCatching {
+            contentResolver.query(
+                uri,
+                arrayOf(android.provider.OpenableColumns.DISPLAY_NAME),
+                null,
+                null,
+                null
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) cursor.getString(0) else null
+            }
+        }.getOrNull()
+    }
+
+    @Suppress("DEPRECATION")
+    private fun stageIncomingIntent(incoming: Intent?) {
+        if (incoming == null) return
+        val action = incoming.action
+        if (action != Intent.ACTION_VIEW && action != Intent.ACTION_SEND) return
+        val uri: Uri? = when (action) {
+            Intent.ACTION_VIEW -> incoming.data
+            else -> incoming.getParcelableExtra<Uri>(Intent.EXTRA_STREAM) ?: incoming.data
+        } ?: return
+        val name = displayNameFor(uri) ?: uri.lastPathSegment?.substringAfterLast('/') ?: ""
+        val mime = incoming.type ?: runCatching { contentResolver.getType(uri) }.getOrNull()
+        val looksPy = name.lowercase().endsWith(".py") ||
+            mime == "text/x-python" || mime == "application/x-python"
+        if (!looksPy) return
+        val staged = runCatching {
+            val dir = java.io.File(cacheDir, "pyimport").apply { if (!exists()) mkdirs() }
+            val target = java.io.File(dir, "${System.currentTimeMillis()}_${(0..9999).random()}.py")
+            contentResolver.openInputStream(uri)?.use { input ->
+                target.outputStream().use { output -> input.copyTo(output) }
+            } ?: return
+            target
+        }.getOrNull() ?: return
+        pendingPyFiles.add(
+            mapOf(
+                "path" to staged.absolutePath,
+                "name" to if (name.isNotEmpty()) name else "import.py",
+                "size" to staged.length()
+            )
+        )
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        stageIncomingIntent(intent)
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         flutterEngine.plugins.add(VideoSurfacePlugin())
@@ -270,6 +325,19 @@ class MainActivity : FlutterActivity() {
                     }
                 }
             }
+        pyImportChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "huoyi/pyimport")
+            .also { channel ->
+                channel.setMethodCallHandler { call, result ->
+                    if (call.method == "takePending") {
+                        val pending = pendingPyFiles.toList()
+                        pendingPyFiles.clear()
+                        result.success(pending)
+                    } else {
+                        result.notImplemented()
+                    }
+                }
+            }
+        stageIncomingIntent(intent)
     }
 
     @Suppress("DEPRECATION")
@@ -344,6 +412,8 @@ class MainActivity : FlutterActivity() {
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
         deviceChannel?.setMethodCallHandler(null)
         deviceChannel = null
+        pyImportChannel?.setMethodCallHandler(null)
+        pyImportChannel = null
         pyChannel?.setMethodCallHandler(null)
         pyChannel = null
         pyBridge?.shutdown()

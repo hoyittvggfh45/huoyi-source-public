@@ -1,4 +1,7 @@
 import 'dart:async';
+
+import 'app_page_route.dart';
+
 import 'dart:math' as math;
 import 'dart:ui';
 
@@ -16,8 +19,6 @@ import 'download_picker.dart';
 import 'downloads_screen.dart';
 import 'local_store.dart';
 import 'models.dart';
-import 'parse_settings_screen.dart';
-import 'playback_parse.dart';
 import 'playback_queue.dart';
 import 'player_picker.dart';
 import 'remote_widgets.dart';
@@ -25,8 +26,6 @@ import 'widgets.dart';
 import 'sources_screen.dart';
 import 'episode_browser.dart';
 import 'follow_state.dart';
-import 'immersive_detail_view.dart';
-import 'xigua/cross_source_search.dart';
 import 'watchroom/controller.dart';
 import 'watchroom/models.dart';
 import 'watchroom/room_screen.dart';
@@ -43,7 +42,6 @@ class DetailScreen extends StatefulWidget {
     required this.store,
     this.resumeOnOpen = false,
     this.downloadOnOpen = false,
-    this.applyVodStyle = false,
     this.onTagTap,
     this.queue,
   });
@@ -52,7 +50,6 @@ class DetailScreen extends StatefulWidget {
   final LocalStore store;
   final bool resumeOnOpen;
   final bool downloadOnOpen;
-  final bool applyVodStyle;
 
   /// 标签点击回调：以 sourceId + tagId 打开该标签的目录列表。
   /// TODO(shell): 目录侧标签列表入口由壳子代理提供并在构造 DetailScreen 时
@@ -75,9 +72,6 @@ class _DetailScreenState extends State<DetailScreen> {
   bool _episodesExpanded = false;
   final _episodeAnchor = GlobalKey();
   final _detailScroll = ScrollController();
-  final _immersiveScroll = ScrollController();
-  final _immersiveEpisodeKey = GlobalKey();
-  bool _reversed = false;
   final _playFocus = FocusNode(debugLabel: 'tv-detail-play');
   bool _initialActionHandled = false;
   late final int _profileEpoch;
@@ -109,7 +103,6 @@ class _DetailScreenState extends State<DetailScreen> {
   @override
   void dispose() {
     _detailScroll.dispose();
-    _immersiveScroll.dispose();
     _playFocus.dispose();
     widget.store.removeListener(_onStoreChanged);
     _generation++;
@@ -212,7 +205,7 @@ class _DetailScreenState extends State<DetailScreen> {
       return;
     }
     final selection = await Navigator.of(context).push<DownloadSelection>(
-      MaterialPageRoute(
+      appPageRoute(
         builder: (_) => DownloadPicker(
           detail: detail,
           preferences: widget.store.downloadPreferences,
@@ -239,7 +232,7 @@ class _DetailScreenState extends State<DetailScreen> {
             label: '查看',
             onPressed: () {
               Navigator.of(context).push(
-                MaterialPageRoute<void>(
+                appPageRoute<void>(
                   builder: (_) => DownloadsScreen(
                     repository: widget.repository,
                     store: widget.store,
@@ -309,87 +302,6 @@ class _DetailScreenState extends State<DetailScreen> {
     }
   }
 
-  Future<void> _playFullscreen(int index) =>
-      _play(index, resume: true, fullscreen: true);
-
-  Future<void> _openParsePanel(int index) async {
-    final apis = await ParseInterfaceStore.loadEnabled();
-    if (!mounted) return;
-    if (apis.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('暂无可用解析接口'),
-          action: SnackBarAction(
-            label: '去添加',
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const ParseSettingsScreen()),
-              );
-            },
-          ),
-        ),
-      );
-      return;
-    }
-    final selectedId = await ParseInterfaceStore.loadSelectedId();
-    if (!mounted) return;
-    await showModalBottomSheet<void>(
-      context: context,
-      builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
-              child: Text(
-                '解析线路',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-              ),
-            ),
-            for (final api in apis)
-              ListTile(
-                title: Text(api.name),
-                trailing: api.id == selectedId
-                    ? const Icon(Icons.check_rounded)
-                    : null,
-                onTap: () async {
-                  Navigator.of(sheetContext).pop();
-                  await ParseInterfaceStore.saveSelectedId(api.id);
-                  if (!mounted) return;
-                  await _play(index, resume: true);
-                },
-              ),
-            ListTile(
-              title: const Text('不使用解析'),
-              trailing: selectedId.isEmpty
-                  ? const Icon(Icons.check_rounded)
-                  : null,
-              onTap: () async {
-                Navigator.of(sheetContext).pop();
-                await ParseInterfaceStore.saveSelectedId('');
-                if (!mounted) return;
-                await _play(index, resume: true);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.settings_outlined),
-              title: const Text('管理解析接口'),
-              onTap: () {
-                Navigator.of(sheetContext).pop();
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const ParseSettingsScreen(),
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Future<void> _pushToWatchRoom() async {
     final detail = _detail;
     final episodes = detail?.episodes ?? <Episode>[];
@@ -440,7 +352,7 @@ class _DetailScreenState extends State<DetailScreen> {
     }
     if (!mounted) return;
     await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
+      appPageRoute<void>(
         builder: (_) =>
             WatchRoomScreen(repository: widget.repository, store: widget.store),
       ),
@@ -462,13 +374,12 @@ class _DetailScreenState extends State<DetailScreen> {
       if (!mounted) return;
     }
     await Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(
+      appPageRoute<void>(
         settings: const RouteSettings(name: 'detail'),
         builder: (_) => DetailScreen(
           drama: drama,
           repository: widget.repository,
           store: widget.store,
-          applyVodStyle: widget.applyVodStyle,
         ),
       ),
     );
@@ -482,13 +393,12 @@ class _DetailScreenState extends State<DetailScreen> {
       ...current.peers.where((item) => item.id != peer.id),
     ];
     await Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(
+      appPageRoute<void>(
         settings: const RouteSettings(name: 'detail'),
         builder: (_) => DetailScreen(
           drama: peer.withPeers(peers),
           repository: widget.repository,
           store: widget.store,
-          applyVodStyle: widget.applyVodStyle,
         ),
       ),
     );
@@ -545,208 +455,6 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
-  String _engineName() => switch (selectedPlayer(widget.store)) {
-    AppPlayer.guo => 'mpv',
-    AppPlayer.tvbox => 'TVBox',
-    AppPlayer.fongmi => 'FongMi',
-    AppPlayer.xigua => '西瓜',
-  };
-
-  Widget _immersiveBackdrop(Drama drama) {
-    final detail = _detail;
-    final backdrop = detail?.backdrop ?? '';
-    final urls = <String>[
-      if (backdrop.isNotEmpty) backdrop,
-      for (final still in detail?.stills ?? const <String>[])
-        if (still.isNotEmpty && still != backdrop) still,
-    ];
-    if (urls.isEmpty) {
-      return DramaCover(drama: drama, repository: widget.repository, radius: 0);
-    }
-    final cover = Drama(
-      id: '${drama.id}#backdrop',
-      source: drama.source,
-      title: drama.title,
-      cover: urls.first,
-    );
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        AtmosphereBackground(
-          url: urls.first,
-          repository: widget.repository,
-          drama: cover,
-        ),
-        ImageFiltered(
-          imageFilter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-          child: DramaCover(
-            key: ValueKey('immersive-backdrop-${urls.first}'),
-            drama: cover,
-            repository: widget.repository,
-            radius: 0,
-          ),
-        ),
-        const DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Colors.black45, Colors.black87],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _immersiveScaffold(
-    Drama drama,
-    List<Episode> episodes,
-    WatchEntry? watched,
-    int resumeIndex, {
-    VoidCallback? onPushToWatchRoom,
-  }) {
-    final backdrop = _immersiveBackdrop(drama);
-    if (_loading || _error != null || episodes.isEmpty) {
-      return Scaffold(
-        body: Stack(
-          children: [
-            Positioned.fill(child: backdrop),
-            SafeArea(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  ImmersiveTopBar(
-                    title: drama.title,
-                    onBack: () => Navigator.of(context).maybePop(),
-                    onPushToWatchRoom: onPushToWatchRoom,
-                  ),
-                  Expanded(child: _episodeStatus()),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-    final displayEpisodes = _reversed ? episodes.reversed.toList() : episodes;
-    final start = _episodePage * episodePageSize;
-    final visibleEpisodes = displayEpisodes
-        .skip(start)
-        .take(episodePageSize)
-        .toList();
-    final currentNumber = watched?.episode;
-    final watchProgress = watched == null || watched.duration <= 0
-        ? 0.0
-        : (watched.position / watched.duration).clamp(0.0, 1.0);
-    return Scaffold(
-      body: ImmersiveDetailView(
-        drama: drama,
-        displayEpisodes: displayEpisodes,
-        visibleEpisodes: visibleEpisodes,
-        episodeStart: start,
-        episodePage: _episodePage,
-        currentNumber: currentNumber,
-        reversed: _reversed,
-        isFavorite: widget.store.following(drama.id) != null,
-        engineName: _engineName(),
-        sourceName: SourceSite.byId(drama.source).name,
-        peers: drama.peers,
-        poster: DramaCover(
-          drama: drama,
-          repository: widget.repository,
-          radius: 0,
-        ),
-        backdrop: backdrop,
-        scrollController: _immersiveScroll,
-        episodeSectionKey: _immersiveEpisodeKey,
-        expandedDescription: _expandedDescription,
-        watchProgress: watchProgress,
-        onBack: () => Navigator.of(context).maybePop(),
-        onPlayEpisode: (episode) {
-          final index = episodes.indexOf(episode);
-          if (index >= 0) _play(index);
-        },
-        onPlayResume: () => _play(resumeIndex, resume: true),
-        onToggleReverse: () => setState(() {
-          _reversed = !_reversed;
-          _episodePage = 0;
-        }),
-        onToggleFavorite: () =>
-            saveUserChange(context, () => widget.store.toggleFavorite(drama)),
-        onOpenSourcePanel: () => _openImmersiveSourcePanel(drama),
-        onDownload: _download,
-        onSearch: () => showCrossSourceSearch(
-          context,
-          drama: drama,
-          repository: widget.repository,
-          store: widget.store,
-        ),
-        onParse: () => _openParsePanel(resumeIndex),
-        onFullscreen: () => _playFullscreen(resumeIndex),
-        onLocateEpisode: _locateImmersiveEpisode,
-        onToggleDescription: () =>
-            setState(() => _expandedDescription = !_expandedDescription),
-        onPushToWatchRoom: onPushToWatchRoom,
-      ),
-    );
-  }
-
-  void _openImmersiveSourcePanel(Drama drama) {
-    if (drama.peers.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('暂无其它来源')));
-      return;
-    }
-    showModalBottomSheet<void>(
-      context: context,
-      builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
-              child: Text(
-                '视频来源',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-              ),
-            ),
-            for (final peer in drama.peers)
-              ListTile(
-                leading: const Icon(Icons.play_arrow_rounded),
-                title: Text(
-                  peer.episodes > 0
-                      ? '${SourceSite.byId(peer.source).name} · ${peer.episodes} 集'
-                      : SourceSite.byId(peer.source).name,
-                ),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  _openPeerSource(drama, peer);
-                },
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _locateImmersiveEpisode(int displayIndex) {
-    setState(() => _episodePage = displayIndex ~/ episodePageSize);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final target = _immersiveEpisodeKey.currentContext;
-      if (target != null) {
-        Scrollable.ensureVisible(
-          target,
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
-        );
-      }
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final drama = _detail?.drama ?? widget.drama;
@@ -757,30 +465,6 @@ class _DetailScreenState extends State<DetailScreen> {
     final allowed =
         widget.store.profileEpoch == _profileEpoch &&
         widget.store.allowsSource(drama.source);
-    final useImmersive =
-        widget.applyVodStyle &&
-        allowed &&
-        !television &&
-        MediaQuery.sizeOf(context).width < 960;
-    if (useImmersive) {
-      return CallbackShortcuts(
-        bindings: {
-          const SingleActivator(LogicalKeyboardKey.escape): () =>
-              Navigator.of(context).maybePop(),
-          const SingleActivator(LogicalKeyboardKey.goBack): () =>
-              Navigator.of(context).maybePop(),
-        },
-        child: _immersiveScaffold(
-          drama,
-          episodes,
-          watched,
-          resumeIndex,
-          onPushToWatchRoom: allowed
-              ? () => unawaited(_pushToWatchRoom())
-              : null,
-        ),
-      );
-    }
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.escape): () =>
@@ -1307,13 +991,12 @@ class _DetailScreenState extends State<DetailScreen> {
       return;
     }
     await Navigator.of(context).push(
-      MaterialPageRoute<void>(
+      appPageRoute<void>(
         settings: const RouteSettings(name: 'detail'),
         builder: (_) => DetailScreen(
           drama: target,
           repository: widget.repository,
           store: widget.store,
-          applyVodStyle: widget.applyVodStyle,
           onTagTap: widget.onTagTap,
           queue: PlaybackQueue.around(related, target),
         ),

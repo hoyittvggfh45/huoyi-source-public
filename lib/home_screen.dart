@@ -1,10 +1,13 @@
 import 'dart:async';
 
+import 'app_page_route.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'app_layout.dart';
+import 'back_history.dart';
 import 'liquid_glass.dart';
 import 'app_drawer.dart';
 import 'midnight_zone.dart';
@@ -38,6 +41,9 @@ import 'detail_screen.dart';
 import 'folder_catalog_screen.dart';
 import 'fullscreen_feed_screen.dart';
 import 'drama_style_home.dart';
+import 'import_file_store.dart';
+import 'imported_site_record.dart';
+import 'py_bridge.dart';
 import 'ui_style.dart';
 import 'vod_detail_route.dart';
 import 'settings_screen.dart';
@@ -109,6 +115,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _error;
   int _generation = 0;
   HomeZone _zone = HomeZone.drama;
+  final _zoneHistory = BackHistory<HomeZone>();
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   bool _midnightActivated = false;
   String _currentVersion = '';
@@ -396,7 +403,13 @@ class _HomeScreenState extends State<HomeScreen> {
           title: group.name,
           entries: [
             for (final site in group.sources)
-              SourcePickerEntry(id: site.id, name: site.name),
+              SourcePickerEntry(
+                id: site.id,
+                name: site.name,
+                deletable:
+                    SourceSite.importedSites.containsKey(site.id) ||
+                    site.origin == SourceSite.originBuiltin,
+              ),
           ],
         ),
   ];
@@ -407,31 +420,113 @@ class _HomeScreenState extends State<HomeScreen> {
       ? '点播'
       : '短剧';
 
-  Future<void> _pickSource() async {
-    final picked = await showSourcePickerSheet(
+  Future<void> _pickSource({bool editMode = false}) async {
+    final picked = await showSitePickerDialog(
       context,
       sectionName: _sourcePickerSectionName(),
-      currentName: _group.name,
       currentId: _allSources ? _allSourcesEntryId : _source.id,
       groups: _sourcePickerGroups(),
+      initialEditMode: editMode,
+      onDeleteSite: _deleteSourceEntry,
     );
     if (picked == null || !mounted) return;
     _applySourcePick(picked);
   }
 
   Future<void> _pickSourceCentered() async {
-    final picked = await showCenteredSourcePickerDialog(
+    final picked = await showSitePickerDialog(
       context,
       sectionName: _sourcePickerSectionName(),
-      currentName: _group.name,
       currentId: _allSources ? _allSourcesEntryId : _source.id,
       groups: _sourcePickerGroups(),
+      onDeleteSite: _deleteSourceEntry,
     );
     if (picked == null || !mounted) return;
     if (_scaffoldKey.currentState?.isDrawerOpen == true) {
       Navigator.of(context).pop();
     }
     _applySourcePick(picked);
+  }
+
+  Future<bool> _deleteSourceEntry(SourcePickerEntry entry) async {
+    if (entry.id == _allSourcesEntryId) return false;
+    if (_sectionSources.length <= 1 &&
+        _sectionSources.any((site) => site.id == entry.id)) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('至少保留一个站源')));
+      return false;
+    }
+    final imported = widget.store.importedSiteRecords
+        .where((record) => record.id == entry.id)
+        .firstOrNull;
+    if (imported != null) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('删除导入站'),
+          content: Text('确定删除「${imported.name}」吗？导入的蜘蛛文件副本将一并删除。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('删除'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return false;
+      if (imported.type == ImportedSiteRecord.typePy) {
+        unawaited(
+          ImportFileStore.pathOf(
+            imported.fileName,
+          ).then((path) => PyBridge.dispose(path)),
+        );
+      }
+      await ImportFileStore.delete(imported.fileName);
+      await widget.store.syncImportedSites([
+        for (final item in widget.store.importedSiteRecords)
+          if (item.id != imported.id) item,
+      ]);
+      _afterSourceDeleted(entry.id);
+      return true;
+    }
+    final site = _sectionSources
+        .where((site) => site.id == entry.id)
+        .firstOrNull;
+    if (site == null || site.origin != SourceSite.originBuiltin) return false;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('隐藏内置站'),
+        content: Text('「${site.name}」将从列表隐藏，可在内置站管理里恢复显示。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('隐藏'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return false;
+    await widget.store.setSiteVisible(entry.id, false);
+    _afterSourceDeleted(entry.id);
+    return true;
+  }
+
+  void _afterSourceDeleted(String id) {
+    if (!_allSources && _source.id == id && _sectionSources.isNotEmpty) {
+      _changeSource(_sectionSources.first);
+    } else if (mounted) {
+      setState(() {});
+    }
   }
 
   void _applySourcePick(String picked) {
@@ -684,11 +779,12 @@ class _HomeScreenState extends State<HomeScreen> {
     _pauseCatalog();
     Navigator.push<void>(
       context,
-      MaterialPageRoute(
+      appPageRoute(
         builder: (_) => RankingsScreen(
           repository: widget.repository,
           store: widget.store,
           initialGroup: _group.id,
+          sourceIds: _zone == HomeZone.drama ? null : _visibleSourceIds.toSet(),
         ),
       ),
     );
@@ -698,7 +794,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _pauseCatalog();
     await Navigator.push<void>(
       context,
-      MaterialPageRoute(
+      appPageRoute(
         builder: (_) => SourcesScreen(
           repository: widget.repository,
           store: widget.store,
@@ -799,7 +895,6 @@ class _HomeScreenState extends State<HomeScreen> {
     _dramaStyle = dramaUiStyleNotifier.value;
     dramaUiStyleNotifier.addListener(_syncDramaStyle);
     unawaited(ensureDramaUiStyleLoaded());
-    unawaited(ensureVodDetailStyleLoaded());
   }
 
   void _syncDramaStyle() {
@@ -1070,14 +1165,13 @@ class _HomeScreenState extends State<HomeScreen> {
     final contextQueue = queue ?? _queueAround(drama, _visible);
     if (download) {
       Navigator.of(context).push(
-        MaterialPageRoute<void>(
+        appPageRoute<void>(
           settings: const RouteSettings(name: 'detail'),
           builder: (_) => DetailScreen(
             drama: drama,
             repository: widget.repository,
             store: widget.store,
             downloadOnOpen: true,
-            applyVodStyle: _zone == HomeZone.vod,
             onTagTap: _handleDetailTagTap,
             queue: contextQueue,
           ),
@@ -1088,13 +1182,12 @@ class _HomeScreenState extends State<HomeScreen> {
     if (vodOpenAction(isVodZone: _zone == HomeZone.vod, resume: resume) ==
         VodOpenAction.detail) {
       Navigator.of(context).push(
-        MaterialPageRoute<void>(
+        appPageRoute<void>(
           settings: const RouteSettings(name: 'detail'),
           builder: (_) => DetailScreen(
             drama: drama,
             repository: widget.repository,
             store: widget.store,
-            applyVodStyle: true,
             onTagTap: _handleDetailTagTap,
             queue: contextQueue,
           ),
@@ -1123,13 +1216,13 @@ class _HomeScreenState extends State<HomeScreen> {
         _promptAccessPassword().then((ok) {
           if (ok && mounted) {
             _unlockAccess();
-            _applyZoneChange(zone);
+            _applyZoneChange(zone, recordHistory: true);
           }
         }),
       );
       return;
     }
-    _applyZoneChange(zone);
+    _applyZoneChange(zone, recordHistory: true);
   }
 
   bool get _accessValid {
@@ -1239,7 +1332,8 @@ class _HomeScreenState extends State<HomeScreen> {
     return ok == true;
   }
 
-  void _applyZoneChange(HomeZone zone) {
+  void _applyZoneChange(HomeZone zone, {bool recordHistory = false}) {
+    if (recordHistory && zone != _zone) _zoneHistory.push(_zone);
     setState(() {
       _zone = zone;
       _selectionMode = false;
@@ -1250,6 +1344,13 @@ class _HomeScreenState extends State<HomeScreen> {
     } else if (zone == HomeZone.vod || zone == HomeZone.midnight) {
       _changeSection(SourceSite.sectionVideo);
     }
+  }
+
+  bool _popZoneHistory() {
+    final previous = _zoneHistory.pop();
+    if (previous == null) return false;
+    _applyZoneChange(previous);
+    return true;
   }
 
   void _openDrawer() => _scaffoldKey.currentState?.openDrawer();
@@ -1409,7 +1510,7 @@ class _HomeScreenState extends State<HomeScreen> {
         HikerMiniappRule.fromJson(storedRule.toJson()),
     ];
     await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
+      appPageRoute<void>(
         builder: (_) => HikerCategoryShell(
           store: widget.store,
           hikerRun: widget.repository.hikerRun,
@@ -1425,7 +1526,7 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.of(context).pop();
     unawaited(
       Navigator.of(context).push<void>(
-        MaterialPageRoute<void>(
+        appPageRoute<void>(
           builder: (_) => WatchRoomScreen(
             repository: widget.repository,
             store: widget.store,
@@ -1440,7 +1541,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _pauseCatalog();
     unawaited(
       Navigator.of(context).push<void>(
-        MaterialPageRoute<void>(
+        appPageRoute<void>(
           builder: (_) => FullscreenFeedScreen(
             dramas: List.of(_visible),
             repository: widget.repository,
@@ -1497,7 +1598,7 @@ class _HomeScreenState extends State<HomeScreen> {
     unawaited(
       Navigator.of(
         context,
-      ).push<void>(MaterialPageRoute<void>(builder: (_) => screen)),
+      ).push<void>(appPageRoute<void>(builder: (_) => screen)),
     );
   }
 
@@ -1559,7 +1660,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _pauseCatalog();
     Navigator.push<void>(
       context,
-      MaterialPageRoute(
+      appPageRoute(
         builder: (_) => BatchDownloadScreen(
           repository: widget.repository,
           store: widget.store,
@@ -1712,6 +1813,9 @@ class _HomeScreenState extends State<HomeScreen> {
     return GlassTapTarget(
       key: const ValueKey('source-dropdown'),
       onTap: _canSwitchSource ? () => unawaited(_pickSource()) : null,
+      onLongPress: _canSwitchSource
+          ? () => unawaited(_pickSource(editMode: true))
+          : null,
       child: SizedBox(
         height: 44,
         child: LiquidGlass(
@@ -1773,6 +1877,9 @@ class _HomeScreenState extends State<HomeScreen> {
       title = GlassTapTarget(
         key: const ValueKey('source-switch'),
         onTap: _canSwitchSource ? () => unawaited(_pickSource()) : null,
+        onLongPress: _canSwitchSource
+            ? () => unawaited(_pickSource(editMode: true))
+            : null,
         child: Semantics(
           button: _canSwitchSource,
           label: '切换站源',
@@ -1807,6 +1914,12 @@ class _HomeScreenState extends State<HomeScreen> {
       centerTitle: false,
       titleSpacing: 20,
       automaticallyImplyLeading: false,
+      leading: IconButton(
+        key: const ValueKey('open-app-drawer'),
+        icon: Icon(LucideIcons.menu),
+        tooltip: '导航',
+        onPressed: _openDrawer,
+      ),
       title: title,
       actions: [
         if (_selectionMode) ...[
@@ -1897,12 +2010,6 @@ class _HomeScreenState extends State<HomeScreen> {
               tooltip: '设置',
               onPressed: _openZoneSettings,
             ),
-          GlassIconButton(
-            key: const ValueKey('open-app-drawer'),
-            icon: LucideIcons.menu,
-            tooltip: '导航',
-            onPressed: _openDrawer,
-          ),
         ],
         const SizedBox(width: 16),
       ],
@@ -2034,6 +2141,13 @@ class _HomeScreenState extends State<HomeScreen> {
               : AppBar(
                   toolbarHeight: television ? 64 : null,
                   titleSpacing: 12,
+                  automaticallyImplyLeading: false,
+                  leading: IconButton(
+                    key: const ValueKey('open-app-drawer'),
+                    tooltip: '导航',
+                    icon: const Icon(Icons.menu_rounded),
+                    onPressed: _openDrawer,
+                  ),
                   title: _selectionMode
                       ? const Text(
                           '选择短剧',
@@ -2174,12 +2288,6 @@ class _HomeScreenState extends State<HomeScreen> {
                             '${_group.name} (${_group.sources.length})',
                           ),
                         ),
-                      IconButton(
-                        key: const ValueKey('open-app-drawer'),
-                        tooltip: '导航',
-                        icon: const Icon(Icons.menu_rounded),
-                        onPressed: _openDrawer,
-                      ),
                     ],
                     const SizedBox(width: 8),
                   ],
@@ -2277,7 +2385,36 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           bottomNavigationBar: _selectionMode ? _selectionBar() : null,
         );
-        if (!television && !_selectionMode) return scaffold;
+        if (!television) {
+          return PopScope(
+            canPop:
+                !_selectionMode &&
+                !_searchVisible &&
+                _search.text.isEmpty &&
+                _zoneHistory.isEmpty,
+            onPopInvokedWithResult: (didPop, result) {
+              if (didPop) return;
+              if (_selectionMode) {
+                _cancelSelection();
+              } else if (_searchVisible || _search.text.isNotEmpty) {
+                setState(() => _searchVisible = false);
+                _search.clear();
+                _searchChanged('');
+              } else {
+                _popZoneHistory();
+              }
+            },
+            child: CallbackShortcuts(
+              bindings: {
+                const SingleActivator(LogicalKeyboardKey.escape): () =>
+                    Navigator.of(context).maybePop(),
+                const SingleActivator(LogicalKeyboardKey.goBack): () =>
+                    Navigator.of(context).maybePop(),
+              },
+              child: scaffold,
+            ),
+          );
+        }
         return PopScope(
           canPop:
               !_selectionMode &&

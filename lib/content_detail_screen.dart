@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'app_page_route.dart';
+
 import 'content_audio_player.dart';
 import 'content_models.dart';
 import 'content_readers.dart';
@@ -81,7 +83,7 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
             chapters: detail.chapters,
             initialIndex: index,
           );
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
+    Navigator.of(context).push(appPageRoute(builder: (_) => page));
   }
 
   @override

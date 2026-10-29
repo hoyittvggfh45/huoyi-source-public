@@ -28,6 +28,7 @@ type nativeStreamAsset struct {
 	total       int64
 	etag        string
 	modified    string
+	cenc        *cencPrepared
 }
 
 type nativeStreamSession struct {
@@ -152,6 +153,14 @@ func (stream *nativeStreamServer) nativeOpen(media providerMedia, adBlock bool) 
 	if media.Playlist != "" {
 		entry.data = []byte(media.Playlist)
 		entry.contentType = "application/vnd.apple.mpegurl"
+	}
+	if len(media.CENCKey) == 16 && entry.contentType == "video/mp4" {
+		fetcher := func(ctx context.Context, start, end int64) ([]byte, int64, error) {
+			return stream.nativeFetchRange(ctx, session, media.URL, start, end)
+		}
+		if prepared, err := cencSetup(session.ctx, media.CENCKey, fetcher); err == nil {
+			entry.cenc = prepared
+		}
 	}
 	return stream.nativeAsset(token, session, entry), token
 }
@@ -421,6 +430,10 @@ func (stream *nativeStreamServer) nativeServe(writer http.ResponseWriter, reques
 	}
 	if !rewriteOnly && isPlaylist {
 		http.NotFound(writer, request)
+		return
+	}
+	if asset.cenc != nil {
+		stream.nativeServeCENC(writer, request, session, asset)
 		return
 	}
 	if !strings.Contains(asset.contentType, "mpegurl") {

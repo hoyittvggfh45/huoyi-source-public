@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'app_page_route.dart';
+
 import 'hongguo_account.dart';
 import 'login_screen.dart';
 
@@ -35,9 +37,9 @@ class _AccountScreenState extends State<AccountScreen> {
                 ),
                 const SizedBox(height: 8),
                 FilledButton(
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(builder: (_) => LoginScreen()),
-                  ),
+                  onPressed: () => Navigator.of(
+                    context,
+                  ).push(appPageRoute<void>(builder: (_) => LoginScreen())),
                   child: const Text('去登录'),
                 ),
                 const SizedBox(height: 16),

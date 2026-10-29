@@ -1,4 +1,7 @@
 import 'dart:async';
+
+import '../app_page_route.dart';
+
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -82,7 +85,7 @@ class _PluginCenterScreenState extends State<PluginCenterScreen> {
     if (installer == null) return;
     await Navigator.push(
       context,
-      MaterialPageRoute<void>(
+      appPageRoute<void>(
         builder: (_) => MiniAppScreen(
           manifest: manifest,
           directory: installer.directoryFor(manifest.id),

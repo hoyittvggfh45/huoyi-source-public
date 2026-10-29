@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -13,6 +14,9 @@ import 'app_update.dart';
 import 'app_layout.dart';
 import 'app_orientation.dart';
 import 'app_theme.dart';
+import 'external_py_import.dart';
+import 'splash_selection.dart';
+import 'splash_sets.dart';
 import 'playback_foreground.dart';
 import 'tv_theme.dart';
 import 'home_screen.dart';
@@ -63,6 +67,36 @@ class _BootSplashState extends State<BootSplash>
     duration: const Duration(seconds: 4),
   )..forward();
 
+  String _selection = splashSelectionDefault;
+  File? _customFile;
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSelection();
+  }
+
+  Future<void> _loadSelection() async {
+    try {
+      final selection = await loadSplashSelection();
+      File? custom;
+      if (selection == splashSelectionCustom) {
+        final docs = await getApplicationDocumentsDirectory();
+        custom = findCustomSplashFile(docs.path);
+      }
+      if (!mounted) return;
+      setState(() {
+        _selection = custom != null ? selection : splashSelectionDefault;
+        _customFile = custom;
+        _loaded = true;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loaded = true);
+    }
+  }
+
   @override
   void dispose() {
     _controller.dispose();
@@ -71,6 +105,23 @@ class _BootSplashState extends State<BootSplash>
 
   double _stage(Interval interval) => interval.transform(_controller.value);
 
+  Widget _defaultSplash(double opacity) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF131619),
+      body: Center(
+        child: Opacity(
+          opacity: opacity,
+          child: Image.asset(
+            'assets/splash/hongyi_tv.png',
+            width: 260,
+            height: 260,
+            fit: BoxFit.cover,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false,
@@ -78,20 +129,35 @@ class _BootSplashState extends State<BootSplash>
       animation: _controller,
       builder: (context, _) {
         final iconOpacity = _stage(const Interval(0.0, 0.55));
-        return Scaffold(
-          backgroundColor: const Color(0xFF131619),
-          body: Center(
-            child: Opacity(
-              opacity: iconOpacity,
-              child: Image.asset(
-                'assets/splash/hongyi_tv.png',
-                width: 260,
-                height: 260,
-                fit: BoxFit.cover,
+        if (!_loaded) return _defaultSplash(iconOpacity);
+        final set = splashSetById(_selection);
+        if (set != null) {
+          return Scaffold(body: set.build());
+        }
+        if (_selection == splashSelectionCustom && _customFile != null) {
+          final file = _customFile!;
+          return Scaffold(
+            backgroundColor: const Color(0xFF131619),
+            body: Center(
+              child: Opacity(
+                opacity: iconOpacity,
+                child: Image.file(
+                  file,
+                  width: 260,
+                  height: 260,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, _, _) => Image.asset(
+                    'assets/splash/hongyi_tv.png',
+                    width: 260,
+                    height: 260,
+                    fit: BoxFit.cover,
+                  ),
+                ),
               ),
             ),
-          ),
-        );
+          );
+        }
+        return _defaultSplash(iconOpacity);
       },
     ),
   );
@@ -352,12 +418,16 @@ class DuanjuApp extends StatelessWidget {
     home: store != null
         ? store!.locked
               ? ProfilesScreen(store: store!, locked: true)
-              : HomeScreen(
-                  key: ValueKey(
-                    'profile-${store!.profile.id}-${store!.profileEpoch}',
-                  ),
-                  repository: repository,
+              : ExternalPyImportListener(
                   store: store!,
+                  repository: repository,
+                  child: HomeScreen(
+                    key: ValueKey(
+                      'profile-${store!.profile.id}-${store!.profileEpoch}',
+                    ),
+                    repository: repository,
+                    store: store!,
+                  ),
                 )
         : Scaffold(
             body: Center(

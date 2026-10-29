@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../app_page_route.dart';
+
 import 'package:duanju_app/app_notice.dart';
 import 'package:duanju_app/core_bridge.dart';
 import 'package:duanju_app/detail_screen.dart';
@@ -112,7 +114,7 @@ class _CrossSourceSearchSheetState extends State<CrossSourceSearchSheet> {
     Navigator.pop(context);
     Navigator.push(
       context,
-      MaterialPageRoute<void>(
+      appPageRoute<void>(
         settings: const RouteSettings(name: 'detail'),
         builder: (_) => DetailScreen(
           drama: drama,

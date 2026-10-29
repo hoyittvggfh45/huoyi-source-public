@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'app_page_route.dart';
+
 import 'app_update_screen.dart';
 import 'core_bridge.dart';
 import 'downloads_screen.dart';
@@ -29,7 +31,7 @@ class MyPageScreen extends StatelessWidget {
 
   void _openSaved(BuildContext context, {required bool history}) {
     Navigator.of(context).push(
-      MaterialPageRoute<void>(
+      appPageRoute<void>(
         builder: (_) => Scaffold(
           appBar: AppBar(title: Text(history ? '最近观看' : '追剧')),
           body: SavedLibrary(
@@ -70,7 +72,7 @@ class MyPageScreen extends StatelessWidget {
               subtitle: const Text('查看与管理已下载内容'),
               trailing: const Icon(Icons.chevron_right_rounded),
               onTap: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
+                appPageRoute<void>(
                   builder: (_) =>
                       DownloadsScreen(repository: repository, store: store),
                 ),
@@ -87,7 +89,7 @@ class MyPageScreen extends StatelessWidget {
                   HikerMiniappRule.fromJson(storedRule.toJson()),
               ];
               await Navigator.of(context).push(
-                MaterialPageRoute<void>(
+                appPageRoute<void>(
                   builder: (_) => HikerCategoryShell(
                     store: store,
                     hikerRun: repository.hikerRun,
@@ -110,16 +112,16 @@ class MyPageScreen extends StatelessWidget {
               ),
             ),
             trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(builder: (_) => const AccountScreen()),
-            ),
+            onTap: () => Navigator.of(
+              context,
+            ).push(appPageRoute<void>(builder: (_) => const AccountScreen())),
           ),
           ListTile(
             leading: const Icon(Icons.settings_outlined),
             title: const Text('设置'),
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
+              appPageRoute<void>(
                 builder: (_) =>
                     SettingsScreen(repository: repository, store: store),
               ),
@@ -129,9 +131,9 @@ class MyPageScreen extends StatelessWidget {
             leading: const Icon(Icons.system_update_rounded),
             title: const Text('软件更新'),
             trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(builder: (_) => const AppUpdateScreen()),
-            ),
+            onTap: () => Navigator.of(
+              context,
+            ).push(appPageRoute<void>(builder: (_) => const AppUpdateScreen())),
           ),
         ],
       ),

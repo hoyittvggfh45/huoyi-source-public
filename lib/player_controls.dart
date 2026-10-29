@@ -109,12 +109,11 @@ class PlayerControls extends StatefulWidget {
 class _PlayerControlsState extends State<PlayerControls> {
   final List<StreamSubscription<dynamic>> _subscriptions = [];
   Timer? _hideTimer;
-  Timer? _progressTimer;
+  bool _progressDragging = false;
   bool _visible = true;
   bool _suppressAutoPlaybackStart = false;
   bool _lastPlaying = false;
   bool _pausedBeforeResume = false;
-  double? _seekValue;
 
   bool get _controlsVisible => _visible || widget.panelOpen;
 
@@ -124,14 +123,12 @@ class _PlayerControlsState extends State<PlayerControls> {
     _visible = widget.showOnPlaybackReady;
     _suppressAutoPlaybackStart = !widget.showOnPlaybackReady;
     _lastPlaying = widget.player.state.playing;
-    for (final stream in [
-      widget.player.stream.position,
-      widget.player.stream.duration,
-      widget.player.stream.buffer,
-      widget.player.stream.volume,
-    ]) {
-      _subscriptions.add(stream.listen((_) => _scheduleProgressRefresh()));
-    }
+    _subscriptions.add(
+      widget.player.stream.volume.listen((_) {
+        if (!mounted) return;
+        setState(() {});
+      }),
+    );
     _subscriptions.add(
       widget.player.stream.buffering.distinct().listen((_) {
         if (!mounted) return;
@@ -176,7 +173,6 @@ class _PlayerControlsState extends State<PlayerControls> {
         widget.pageFullscreen != oldWidget.pageFullscreen ||
         widget.windowFullscreen != oldWidget.windowFullscreen ||
         widget.showOnPlaybackReady != oldWidget.showOnPlaybackReady) {
-      _seekValue = null;
       if (widget.showOnPlaybackReady) {
         _suppressAutoPlaybackStart = false;
       } else if (widget.enabled && !oldWidget.enabled) {
@@ -213,21 +209,13 @@ class _PlayerControlsState extends State<PlayerControls> {
     }
   }
 
-  void _scheduleProgressRefresh() {
-    if (!mounted || !_controlsVisible || _progressTimer != null) return;
-    _progressTimer = Timer(const Duration(milliseconds: 250), () {
-      _progressTimer = null;
-      if (mounted && _controlsVisible) setState(() {});
-    });
-  }
-
   void _scheduleHide() {
     _hideTimer?.cancel();
     if (!_visible ||
         !widget.enabled ||
         widget.panelOpen ||
         !widget.player.state.playing ||
-        _seekValue != null) {
+        _progressDragging) {
       return;
     }
     _hideTimer = Timer(const Duration(seconds: 4), () {
@@ -237,7 +225,7 @@ class _PlayerControlsState extends State<PlayerControls> {
           widget.player.state.playing &&
           !widget.player.state.buffering &&
           !widget.interactions.boosting &&
-          _seekValue == null) {
+          !_progressDragging) {
         setState(() => _visible = false);
       }
     });
@@ -277,7 +265,6 @@ class _PlayerControlsState extends State<PlayerControls> {
   @override
   void dispose() {
     _hideTimer?.cancel();
-    _progressTimer?.cancel();
     widget.interactions.removeListener(_interactionChanged);
     for (final subscription in _subscriptions) {
       subscription.cancel();
@@ -288,9 +275,6 @@ class _PlayerControlsState extends State<PlayerControls> {
   @override
   Widget build(BuildContext context) {
     final state = widget.player.state;
-    final duration = state.duration.inMilliseconds / 1000;
-    final position = state.position.inMilliseconds / 1000;
-    final buffered = state.buffer.inMilliseconds / 1000;
     final visible = _controlsVisible;
     return LayoutBuilder(
       builder: (context, constraints) => Stack(
@@ -368,9 +352,6 @@ class _PlayerControlsState extends State<PlayerControls> {
                           _bottomControls(
                             constraints: constraints,
                             volume: state.volume,
-                            duration: duration,
-                            position: position,
-                            buffered: buffered,
                           ),
                         ],
                       ),
@@ -555,9 +536,6 @@ class _PlayerControlsState extends State<PlayerControls> {
   Widget _bottomControls({
     required BoxConstraints constraints,
     required double volume,
-    required double duration,
-    required double position,
-    required double buffered,
   }) {
     final width = constraints.maxWidth;
     final fullscreen = widget.fullscreen;
@@ -587,10 +565,20 @@ class _PlayerControlsState extends State<PlayerControls> {
               showVolume: showVolume,
               volume: volume,
             ),
-          _progressRow(
-            duration: duration,
-            position: position,
-            buffered: buffered,
+          _ProgressRow(
+            player: widget.player,
+            enabled: widget.enabled,
+            active: _controlsVisible,
+            onSeek: widget.onSeek ?? widget.player.seek,
+            onDragStart: () {
+              _progressDragging = true;
+              widget.interactions.cancel();
+              _hideTimer?.cancel();
+            },
+            onDragEnd: () {
+              _progressDragging = false;
+              _show();
+            },
           ),
         ],
       ),
@@ -614,88 +602,6 @@ class _PlayerControlsState extends State<PlayerControls> {
       return (MediaQuery.viewPaddingOf(context).bottom + 24).clamp(64.0, 104.0);
     }
     return 0;
-  }
-
-  Widget _progressRow({
-    required double duration,
-    required double position,
-    required double buffered,
-  }) {
-    final timeStyle = TextStyle(
-      fontSize: 12,
-      color: Colors.white.withValues(alpha: .82),
-      fontFeatures: const [FontFeature.tabularFigures()],
-    );
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 0, 8, 2),
-      child: SizedBox(
-        height: 28,
-        child: Row(
-          children: [
-            SizedBox(
-              width: 43,
-              child: Text(
-                formatPosition(_seekValue ?? position),
-                style: timeStyle,
-                textAlign: TextAlign.end,
-              ),
-            ),
-            Expanded(
-              child: SliderTheme(
-                data: SliderTheme.of(context).copyWith(
-                  trackHeight: 3,
-                  secondaryActiveTrackColor: Colors.white38,
-                  thumbShape: const RoundSliderThumbShape(
-                    enabledThumbRadius: 6,
-                  ),
-                  overlayShape: const RoundSliderOverlayShape(
-                    overlayRadius: 14,
-                  ),
-                ),
-                child: Slider(
-                  key: const ValueKey('player-progress'),
-                  value: (_seekValue ?? position).clamp(
-                    0,
-                    duration > 0 ? duration : 1,
-                  ),
-                  max: duration > 0 ? duration : 1,
-                  secondaryTrackValue: buffered.clamp(
-                    0,
-                    duration > 0 ? duration : 1,
-                  ),
-                  semanticFormatterCallback: formatPosition,
-                  onChangeStart: widget.enabled && duration > 0
-                      ? (_) {
-                          widget.interactions.cancel();
-                          _hideTimer?.cancel();
-                        }
-                      : null,
-                  onChanged: !widget.enabled || duration <= 0
-                      ? null
-                      : (value) {
-                          _hideTimer?.cancel();
-                          setState(() => _seekValue = value);
-                        },
-                  onChangeEnd: (value) {
-                    if (widget.enabled && duration > 0) {
-                      (widget.onSeek ?? widget.player.seek)(
-                        Duration(milliseconds: (value * 1000).round()),
-                      );
-                    }
-                    setState(() => _seekValue = null);
-                    _show();
-                  },
-                ),
-              ),
-            ),
-            SizedBox(
-              width: 43,
-              child: Text(formatPosition(duration), style: timeStyle),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   Widget _toolIcon({
@@ -1243,4 +1149,147 @@ class _PlayerControlsState extends State<PlayerControls> {
       );
     },
   );
+}
+
+class _ProgressRow extends StatefulWidget {
+  const _ProgressRow({
+    required this.player,
+    required this.enabled,
+    required this.active,
+    required this.onSeek,
+    required this.onDragStart,
+    required this.onDragEnd,
+  });
+
+  final Player player;
+  final bool enabled;
+  final bool active;
+  final Future<void> Function(Duration) onSeek;
+  final VoidCallback onDragStart;
+  final VoidCallback onDragEnd;
+
+  @override
+  State<_ProgressRow> createState() => _ProgressRowState();
+}
+
+class _ProgressRowState extends State<_ProgressRow> {
+  final List<StreamSubscription<dynamic>> _subscriptions = [];
+  Timer? _refreshTimer;
+  double? _seekValue;
+
+  @override
+  void initState() {
+    super.initState();
+    for (final stream in [
+      widget.player.stream.position,
+      widget.player.stream.duration,
+      widget.player.stream.buffer,
+    ]) {
+      _subscriptions.add(stream.listen((_) => _scheduleRefresh()));
+    }
+    _scheduleRefresh();
+  }
+
+  @override
+  void didUpdateWidget(_ProgressRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.enabled != oldWidget.enabled) _seekValue = null;
+    if (widget.active && !oldWidget.active) _scheduleRefresh();
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    for (final subscription in _subscriptions) {
+      subscription.cancel();
+    }
+    super.dispose();
+  }
+
+  void _scheduleRefresh() {
+    if (!mounted || !widget.active || _refreshTimer != null) return;
+    _refreshTimer = Timer(const Duration(milliseconds: 250), () {
+      _refreshTimer = null;
+      if (mounted && widget.active) setState(() {});
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = widget.player.state;
+    final duration = state.duration.inMilliseconds / 1000;
+    final position = state.position.inMilliseconds / 1000;
+    final buffered = state.buffer.inMilliseconds / 1000;
+    final timeStyle = TextStyle(
+      fontSize: 12,
+      color: Colors.white.withValues(alpha: .82),
+      fontFeatures: const [FontFeature.tabularFigures()],
+    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 0, 8, 2),
+      child: SizedBox(
+        height: 28,
+        child: Row(
+          children: [
+            SizedBox(
+              width: 43,
+              child: Text(
+                formatPosition(_seekValue ?? position),
+                style: timeStyle,
+                textAlign: TextAlign.end,
+              ),
+            ),
+            Expanded(
+              child: SliderTheme(
+                data: SliderTheme.of(context).copyWith(
+                  trackHeight: 3,
+                  secondaryActiveTrackColor: Colors.white38,
+                  thumbShape: const RoundSliderThumbShape(
+                    enabledThumbRadius: 6,
+                  ),
+                  overlayShape: const RoundSliderOverlayShape(
+                    overlayRadius: 14,
+                  ),
+                ),
+                child: Slider(
+                  key: const ValueKey('player-progress'),
+                  value: (_seekValue ?? position).clamp(
+                    0,
+                    duration > 0 ? duration : 1,
+                  ),
+                  max: duration > 0 ? duration : 1,
+                  secondaryTrackValue: buffered.clamp(
+                    0,
+                    duration > 0 ? duration : 1,
+                  ),
+                  semanticFormatterCallback: formatPosition,
+                  onChangeStart: widget.enabled && duration > 0
+                      ? (_) => widget.onDragStart()
+                      : null,
+                  onChanged: !widget.enabled || duration <= 0
+                      ? null
+                      : (value) {
+                          setState(() => _seekValue = value);
+                        },
+                  onChangeEnd: (value) {
+                    if (widget.enabled && duration > 0) {
+                      widget.onSeek(
+                        Duration(milliseconds: (value * 1000).round()),
+                      );
+                    }
+                    setState(() => _seekValue = null);
+                    widget.onDragEnd();
+                  },
+                ),
+              ),
+            ),
+            SizedBox(
+              width: 43,
+              child: Text(formatPosition(duration), style: timeStyle),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

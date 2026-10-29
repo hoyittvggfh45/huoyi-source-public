@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'app_page_route.dart';
+
 import 'package:flutter/material.dart';
 
 import 'batch_downloads.dart';
@@ -63,7 +65,7 @@ class _BatchDownloadScreenState extends State<BatchDownloadScreen> {
 
   void _openDownloads() => Navigator.push<void>(
     context,
-    MaterialPageRoute(
+    appPageRoute(
       builder: (_) =>
           DownloadsScreen(repository: widget.repository, store: widget.store),
     ),

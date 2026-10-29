@@ -97,9 +97,9 @@ void main() {
   });
 
   group('内置规则书源种子', () {
-    test('202 条全带名与搜索地址', () {
-      final sources = parseLegadoSources(builtinLegadoComicRulesJson);
-      expect(sources, hasLength(202));
+    test('207 条全带名与搜索地址', () {
+      final sources = parseLegadoSources(builtinLegadoRulesJson);
+      expect(sources, hasLength(207));
       for (final source in sources) {
         expect(source.name, isNotEmpty);
         expect(source.searchUrl, isNotEmpty);
@@ -107,7 +107,7 @@ void main() {
     });
 
     test('种子内无成人分组', () {
-      final decoded = jsonDecode(builtinLegadoComicRulesJson);
+      final decoded = jsonDecode(builtinLegadoRulesJson);
       expect(decoded, isA<List>());
       for (final item in decoded as List) {
         final group = (item as Map)['bookSourceGroup']?.toString() ?? '';

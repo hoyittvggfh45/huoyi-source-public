@@ -1,4 +1,7 @@
 import 'dart:async';
+
+import 'app_page_route.dart';
+
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -327,7 +330,7 @@ class _CustomSourcesScreenState extends State<CustomSourcesScreen> {
             tooltip: '导入中心（TVBox 配置 / jar）',
             onPressed: () => Navigator.push(
               context,
-              MaterialPageRoute<void>(
+              appPageRoute<void>(
                 builder: (_) => ImportCenterScreen(
                   repository: widget.repository,
                   store: widget.store,

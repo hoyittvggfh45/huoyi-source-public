@@ -1,4 +1,7 @@
 import 'dart:async';
+
+import '../app_page_route.dart';
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -577,7 +580,7 @@ class _MiniAppHostImpl extends MiniAppHost {
         playUrl = plan.url;
         playHeaders = plan.headers.isEmpty ? headers : plan.headers;
         await Navigator.of(context).push<void>(
-          MaterialPageRoute<void>(
+          appPageRoute<void>(
             builder: (_) => HikerPlayerScreen(
               title: title,
               episodes: [
@@ -589,7 +592,7 @@ class _MiniAppHostImpl extends MiniAppHost {
         return {'route': '/player', 'url': playUrl};
       }
       await Navigator.of(_context).push<void>(
-        MaterialPageRoute<void>(
+        appPageRoute<void>(
           builder: (_) => HikerPlayerScreen(
             title: title,
             episodes: [

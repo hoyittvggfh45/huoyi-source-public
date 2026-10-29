@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'app_page_route.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -332,7 +334,7 @@ class _SourcesScreenState extends State<SourcesScreen> {
                       trailing: const Icon(Icons.chevron_right_rounded),
                       onTap: () => Navigator.push<void>(
                         context,
-                        MaterialPageRoute<void>(
+                        appPageRoute<void>(
                           builder: (_) =>
                               SourceVisibilityScreen(store: widget.store),
                         ),
@@ -352,7 +354,7 @@ class _SourcesScreenState extends State<SourcesScreen> {
                       trailing: const Icon(Icons.chevron_right_rounded),
                       onTap: () => Navigator.push<void>(
                         context,
-                        MaterialPageRoute<void>(
+                        appPageRoute<void>(
                           builder: (_) => CustomSourcesScreen(
                             repository: widget.repository,
                             store: widget.store,
@@ -798,7 +800,7 @@ class SourceDiagnosticsButton extends StatelessWidget {
   Widget build(BuildContext context) => TextButton.icon(
     onPressed: () => Navigator.push<void>(
       context,
-      MaterialPageRoute(
+      appPageRoute(
         builder: (_) => SourcesScreen(
           repository: repository,
           store: store,

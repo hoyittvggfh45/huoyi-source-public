@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'app_page_route.dart';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -203,7 +205,7 @@ class _HikerScreenState extends State<HikerScreen> {
   ]) async {
     if (!mounted || episodes.isEmpty) return;
     await Navigator.of(context).push(
-      MaterialPageRoute<void>(
+      appPageRoute<void>(
         builder: (_) => HikerPlayerScreen(
           title: title,
           episodes: episodes,

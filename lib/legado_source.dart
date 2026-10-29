@@ -170,13 +170,13 @@ String legadoCheckReasonText(Map<String, dynamic> check) {
 
 class LegadoStore {
   static const _key = 'legado_sources_v1';
-  static const _seededKey = 'legado_builtin_seeded_v1';
+  static const _seededKey = 'legado_builtin_seeded_v2';
 
   static Future<int> seedBuiltin() async {
     final prefs = await SharedPreferences.getInstance();
     if (prefs.getBool(_seededKey) == true) return 0;
     final before = await load();
-    final parsed = parseLegadoSources(builtinLegadoComicRulesJson);
+    final parsed = parseLegadoSources(builtinLegadoRulesJson);
     final merged = await addAll(parsed);
     await prefs.setBool(_seededKey, true);
     return merged.length - before.length;

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'app_page_route.dart';
+
 import 'app_drawer.dart';
 import 'content_source_screen.dart';
 import 'core_bridge.dart';
@@ -35,7 +37,7 @@ class ZoneSettingsScreen extends StatelessWidget {
   };
 
   Future<void> _push(BuildContext context, Widget page) =>
-      Navigator.push(context, MaterialPageRoute<void>(builder: (_) => page));
+      Navigator.push(context, appPageRoute<void>(builder: (_) => page));
 
   Widget _entry({
     required IconData icon,

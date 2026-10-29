@@ -1,4 +1,7 @@
 import 'dart:async';
+
+import 'app_page_route.dart';
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -19,6 +22,9 @@ import 'clearance_bridge.dart';
 import 'crack_config_section.dart';
 import 'downloads_screen.dart';
 import 'import_center_screen.dart';
+import 'splash_selection.dart';
+import 'splash_sets.dart';
+import 'splash_settings_screen.dart';
 import 'parse_settings_screen.dart';
 import 'app_theme.dart';
 import 'background_downloads.dart';
@@ -76,12 +82,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _busy = false;
   String? _message;
   String _appUpdateSummary = '检查整包新版本';
+  String _splashName = '默认启动图';
 
   @override
   void initState() {
     super.initState();
     ensureTelevisionFocus(context);
     _loadAppUpdateSummary();
+    _loadSplashName();
   }
 
   Future<void> _loadAppUpdateSummary() async {
@@ -94,6 +102,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ? '当前版本 $current'
             : '当前版本 $current · 最新 $latest';
       });
+    } catch (_) {}
+  }
+
+  Future<void> _loadSplashName() async {
+    try {
+      final selection = await loadSplashSelection();
+      if (!mounted) return;
+      setState(() => _splashName = splashSelectionDisplayName(selection));
     } catch (_) {}
   }
 
@@ -184,7 +200,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _openSavedDownload(Drama drama) {
     Navigator.push(
       context,
-      MaterialPageRoute<void>(
+      appPageRoute<void>(
         settings: const RouteSettings(name: 'detail'),
         builder: (_) => DetailScreen(
           drama: drama,
@@ -199,7 +215,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _openSavedLibrary({required bool history}) {
     Navigator.push<void>(
       context,
-      MaterialPageRoute(
+      appPageRoute(
         builder: (_) => Scaffold(
           appBar: AppBar(title: Text(history ? '最近观看' : '追剧')),
           body: SavedLibrary(
@@ -325,11 +341,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     DramaSettingsTarget.style => () => unawaited(chooseDramaUiStyle(context)),
     DramaSettingsTarget.account => () => Navigator.push(
       context,
-      MaterialPageRoute<void>(builder: (_) => const AccountScreen()),
+      appPageRoute<void>(builder: (_) => const AccountScreen()),
     ),
     DramaSettingsTarget.resource => () => Navigator.push(
       context,
-      MaterialPageRoute<void>(
+      appPageRoute<void>(
         builder: (_) => ResourceSettingsScreen(
           repository: widget.repository,
           store: widget.store,
@@ -338,47 +354,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ),
     DramaSettingsTarget.sources => () => Navigator.push(
       context,
-      MaterialPageRoute<void>(
+      appPageRoute<void>(
         builder: (_) =>
             SourcesScreen(repository: widget.repository, store: widget.store),
       ),
     ),
     DramaSettingsTarget.playback => () => Navigator.push(
       context,
-      MaterialPageRoute<void>(
+      appPageRoute<void>(
         builder: (_) => PlaybackSettingsScreen(store: widget.store),
       ),
     ),
     DramaSettingsTarget.playerChoice => () => Navigator.push(
       context,
-      MaterialPageRoute<void>(
+      appPageRoute<void>(
         builder: (_) => PlayerPickerScreen(store: widget.store),
       ),
     ),
     DramaSettingsTarget.downloadPrefs => () => Navigator.push(
       context,
-      MaterialPageRoute<void>(
+      appPageRoute<void>(
         builder: (_) => DownloadPreferencesScreen(store: widget.store),
       ),
     ),
     DramaSettingsTarget.downloads => () => Navigator.push(
       context,
-      MaterialPageRoute<void>(
+      appPageRoute<void>(
         builder: (_) =>
             DownloadsScreen(repository: widget.repository, store: widget.store),
       ),
     ),
     DramaSettingsTarget.storage => () => Navigator.push(
       context,
-      MaterialPageRoute<void>(
+      appPageRoute<void>(
         builder: (_) =>
             StorageScreen(repository: widget.repository, store: widget.store),
       ),
     ),
     DramaSettingsTarget.lanSync => () => openLanSync(context),
-    DramaSettingsTarget.webdavSync => () => Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => WebdavScreen(store: widget.store)),
-    ),
+    DramaSettingsTarget.webdavSync => () => Navigator.of(
+      context,
+    ).push(appPageRoute(builder: (_) => WebdavScreen(store: widget.store))),
     DramaSettingsTarget.follow => () => _openSavedLibrary(history: false),
     DramaSettingsTarget.history => () => _openSavedLibrary(history: true),
     _ => () {},
@@ -462,7 +478,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               trailing: const Icon(Icons.chevron_right_rounded),
               onTap: () => Navigator.push(
                 context,
-                MaterialPageRoute<void>(
+                appPageRoute<void>(
                   builder: (_) => SourcesScreen(
                     repository: widget.repository,
                     store: widget.store,
@@ -477,7 +493,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: () => Navigator.push(
               context,
-              MaterialPageRoute<void>(
+              appPageRoute<void>(
                 builder: (_) => RuleEditorScreen(repository: widget.repository),
               ),
             ),
@@ -488,7 +504,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: () => Navigator.push(
               context,
-              MaterialPageRoute<void>(
+              appPageRoute<void>(
                 builder: (_) => PlayerPickerScreen(store: widget.store),
               ),
             ),
@@ -501,7 +517,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: () => Navigator.push(
               context,
-              MaterialPageRoute<void>(
+              appPageRoute<void>(
                 builder: (_) => BuiltinSitesScreen(store: widget.store),
               ),
             ),
@@ -514,7 +530,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: () => Navigator.push(
               context,
-              MaterialPageRoute<void>(builder: (_) => const AppUpdateScreen()),
+              appPageRoute<void>(builder: (_) => const AppUpdateScreen()),
             ),
           ),
           ListTile(
@@ -525,7 +541,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: () => Navigator.push(
               context,
-              MaterialPageRoute<void>(
+              appPageRoute<void>(
                 builder: (_) =>
                     ProxyKernelScreen(repository: widget.repository),
               ),
@@ -539,7 +555,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: () => Navigator.push(
               context,
-              MaterialPageRoute<void>(
+              appPageRoute<void>(
                 builder: (_) => ImportCenterScreen(
                   repository: widget.repository,
                   store: widget.store,
@@ -555,9 +571,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: () => Navigator.push(
               context,
-              MaterialPageRoute<void>(
-                builder: (_) => const ParseSettingsScreen(),
-              ),
+              appPageRoute<void>(builder: (_) => const ParseSettingsScreen()),
             ),
           ),
           ListTile(
@@ -576,7 +590,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: () => Navigator.push(
               context,
-              MaterialPageRoute<void>(
+              appPageRoute<void>(
                 builder: (_) => Scaffold(
                   appBar: AppBar(title: const Text('过盾与 VIP 配置')),
                   body: SingleChildScrollView(
@@ -594,6 +608,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
             subtitle: Text(AppTheme.label(widget.store.themeMode)),
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: _chooseTheme,
+          ),
+          ListTile(
+            leading: const Icon(Icons.image_outlined),
+            title: const Text('开机启动图'),
+            subtitle: Text(_splashName),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () async {
+              await Navigator.push(
+                context,
+                appPageRoute<void>(
+                  builder: (_) => const SplashSettingsScreen(),
+                ),
+              );
+              if (mounted) await _loadSplashName();
+            },
           ),
           ListTile(
             leading: const Icon(Icons.display_settings_outlined),
@@ -628,7 +657,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               trailing: const Icon(Icons.chevron_right_rounded),
               onTap: () => Navigator.push(
                 context,
-                MaterialPageRoute<void>(builder: (_) => const AccountScreen()),
+                appPageRoute<void>(builder: (_) => const AccountScreen()),
               ),
             ),
           ListTile(
@@ -637,7 +666,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             subtitle: Text('当前：${widget.store.profile.name}'),
             onTap: () => Navigator.push(
               context,
-              MaterialPageRoute<void>(
+              appPageRoute<void>(
                 builder: (_) => ProfilesScreen(store: widget.store),
               ),
             ),
@@ -675,7 +704,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               trailing: const Icon(Icons.chevron_right_rounded),
               onTap: () => Navigator.push(
                 context,
-                MaterialPageRoute<void>(
+                appPageRoute<void>(
                   builder: (_) => DownloadsScreen(
                     repository: widget.repository,
                     store: widget.store,
@@ -691,7 +720,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               trailing: const Icon(Icons.chevron_right_rounded),
               onTap: () => Navigator.push(
                 context,
-                MaterialPageRoute<void>(
+                appPageRoute<void>(
                   builder: (_) =>
                       DownloadPreferencesScreen(store: widget.store),
                 ),
@@ -704,7 +733,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               subtitle: const Text('查看存储用量、迁移已下载文件'),
               onTap: () => Navigator.push(
                 context,
-                MaterialPageRoute<void>(
+                appPageRoute<void>(
                   builder: (_) => StorageScreen(
                     repository: widget.repository,
                     store: widget.store,
@@ -720,7 +749,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               trailing: const Icon(Icons.chevron_right_rounded),
               onTap: () => Navigator.push(
                 context,
-                MaterialPageRoute<void>(
+                appPageRoute<void>(
                   builder: (_) => ResourceSettingsScreen(
                     repository: widget.repository,
                     store: widget.store,
@@ -776,9 +805,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               title: const Text('WebDAV 同步'),
               subtitle: const Text('把配置备份存到自填的 WebDAV 地址'),
               onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => WebdavScreen(store: widget.store),
-                ),
+                appPageRoute(builder: (_) => WebdavScreen(store: widget.store)),
               ),
             ),
           ],
@@ -799,7 +826,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   );
 
   Future<void> _push(Widget page) =>
-      Navigator.push(context, MaterialPageRoute<void>(builder: (_) => page));
+      Navigator.push(context, appPageRoute<void>(builder: (_) => page));
 
   Future<void> _openMiniAppShell() async {
     final stored = await HikerStore.load();
@@ -1289,9 +1316,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               color: const Color(0xFF30D158),
               title: 'WebDAV 同步',
               onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => WebdavScreen(store: widget.store),
-                ),
+                appPageRoute(builder: (_) => WebdavScreen(store: widget.store)),
               ),
             ),
           ], footer: '包含本地用户、追剧、历史和设置，不含视频文件。'),

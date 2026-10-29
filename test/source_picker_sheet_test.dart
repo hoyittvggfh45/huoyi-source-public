@@ -4,8 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 const _groups = [
   SourcePickerGroup(
-    title: '内置影视',
+    title: '内置短剧',
     entries: [
+      SourcePickerEntry(id: 'all', name: '全部站源', deletable: false),
       SourcePickerEntry(id: 'a', name: 'A站'),
       SourcePickerEntry(id: 'b', name: 'B站'),
     ],
@@ -16,18 +17,23 @@ const _groups = [
   ),
 ];
 
-Widget _host(void Function(String?) onResult) => MaterialApp(
+Widget _host({
+  required void Function(String?) onResult,
+  bool editMode = false,
+  Future<bool> Function(SourcePickerEntry entry)? onDelete,
+}) => MaterialApp(
   home: Builder(
     builder: (context) => Scaffold(
       body: Center(
         child: FilledButton(
           onPressed: () async {
-            final picked = await showSourcePickerSheet(
+            final picked = await showSitePickerDialog(
               context,
-              sectionName: '影视',
-              currentName: 'B站',
+              sectionName: '短剧',
               currentId: 'b',
               groups: _groups,
+              initialEditMode: editMode,
+              onDeleteSite: onDelete,
             );
             onResult(picked);
           },
@@ -38,94 +44,107 @@ Widget _host(void Function(String?) onResult) => MaterialApp(
   ),
 );
 
+Future<void> _open(WidgetTester tester) async {
+  await tester.pumpWidget(_host(onResult: (_) {}));
+  await tester.tap(find.text('打开'));
+  await tester.pumpAndSettle();
+}
+
 void main() {
-  testWidgets('渲染分组与副提示，当前源高亮', (tester) async {
-    await tester.pumpWidget(_host((_) {}));
+  testWidgets('列表行展示当前站打勾，点选返回站 id', (tester) async {
+    String? picked;
+    await tester.pumpWidget(_host(onResult: (value) => picked = value));
     await tester.tap(find.text('打开'));
     await tester.pumpAndSettle();
 
-    expect(find.text('切换影视源'), findsOneWidget);
-    expect(find.text('当前：B站'), findsOneWidget);
-    expect(find.text('点击站源立即切换'), findsOneWidget);
-    expect(find.text('内置影视'), findsOneWidget);
-    expect(find.text('导入'), findsOneWidget);
+    expect(find.text('切换短剧源'), findsOneWidget);
     expect(find.text('A站'), findsOneWidget);
-    expect(find.text('C站'), findsNothing);
+    expect(find.text('B站'), findsOneWidget);
+    expect(find.byIcon(Icons.check), findsOneWidget);
+    expect(find.byKey(const ValueKey('site-picker-delete-a')), findsNothing);
 
-    await tester.tap(find.text('导入'));
+    await tester.tap(find.byKey(const ValueKey('site-picker-row-a')));
     await tester.pumpAndSettle();
-    expect(find.text('C站'), findsOneWidget);
-
-    final current = tester.widget<ChoiceChip>(
-      find.widgetWithText(ChoiceChip, 'B站'),
-    );
-    expect(current.selected, isTrue);
-    final other = tester.widget<ChoiceChip>(
-      find.widgetWithText(ChoiceChip, 'A站'),
-    );
-    expect(other.selected, isFalse);
+    expect(picked, 'a');
   });
 
-  testWidgets('点选源立即关闭弹窗并回调所选 id', (tester) async {
-    String? result;
-    var completed = false;
-    await tester.pumpWidget(
-      _host((picked) {
-        result = picked;
-        completed = true;
-      }),
-    );
-    await tester.tap(find.text('打开'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('导入'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('C站'));
-    await tester.pumpAndSettle();
-
-    expect(completed, isTrue);
-    expect(result, 'c');
-    expect(find.text('切换影视源'), findsNothing);
-  });
-
-  testWidgets('关闭按钮不回调选择', (tester) async {
-    String? result = 'unset';
-    var completed = false;
-    await tester.pumpWidget(
-      _host((picked) {
-        result = picked;
-        completed = true;
-      }),
-    );
-    await tester.tap(find.text('打开'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byKey(const ValueKey('source-picker-close')));
-    await tester.pumpAndSettle();
-
-    expect(completed, isTrue);
-    expect(result, isNull);
-    expect(find.text('切换影视源'), findsNothing);
-  });
-
-  testWidgets('搜索过滤站源，无匹配给提示', (tester) async {
-    await tester.pumpWidget(_host((_) {}));
-    await tester.tap(find.text('打开'));
-    await tester.pumpAndSettle();
+  testWidgets('搜索框按站名过滤，清空恢复', (tester) async {
+    await _open(tester);
 
     await tester.enterText(
-      find.byKey(const ValueKey('source-picker-search')),
+      find.byKey(const ValueKey('site-picker-search')),
       'C站',
     );
     await tester.pumpAndSettle();
-    expect(find.widgetWithText(ChoiceChip, 'C站'), findsOneWidget);
-    expect(find.text('A站'), findsNothing);
+    expect(find.byKey(const ValueKey('site-picker-row-c')), findsOneWidget);
+    expect(find.byKey(const ValueKey('site-picker-row-a')), findsNothing);
+
+    await tester.tap(find.byIcon(Icons.clear));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('site-picker-row-a')), findsOneWidget);
+    expect(find.byKey(const ValueKey('site-picker-row-c')), findsOneWidget);
+  });
+
+  testWidgets('搜索无匹配显示空态', (tester) async {
+    await _open(tester);
 
     await tester.enterText(
-      find.byKey(const ValueKey('source-picker-search')),
-      'ZZZ',
+      find.byKey(const ValueKey('site-picker-search')),
+      '不存在',
     );
     await tester.pumpAndSettle();
-    expect(find.text('没有匹配的站源'), findsOneWidget);
+    expect(find.text('没有匹配的站点'), findsOneWidget);
+  });
+
+  testWidgets('编辑模式删除确认后行消失，取消则保留', (tester) async {
+    final deleted = <String>[];
+    await tester.pumpWidget(
+      _host(
+        onResult: (_) {},
+        editMode: true,
+        onDelete: (entry) async {
+          if (entry.id == 'a') {
+            deleted.add(entry.id);
+            return true;
+          }
+          return false;
+        },
+      ),
+    );
+    await tester.tap(find.text('打开'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('site-picker-delete-a')), findsOneWidget);
+    expect(find.byKey(const ValueKey('site-picker-delete-all')), findsNothing);
+    expect(find.text('A站'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('site-picker-delete-a')));
+    await tester.pumpAndSettle();
+    expect(deleted, ['a']);
+    expect(find.text('A站'), findsNothing);
+    expect(find.text('B站'), findsOneWidget);
+
+    await tester.drag(find.byType(ListView), const Offset(0, -300));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('site-picker-delete-c')));
+    await tester.pumpAndSettle();
+    expect(find.text('C站'), findsOneWidget);
+  });
+
+  testWidgets('编辑模式点行不切换，点完成退出编辑模式', (tester) async {
+    await tester.pumpWidget(
+      _host(onResult: (_) {}, editMode: true, onDelete: (_) async => true),
+    );
+    await tester.tap(find.text('打开'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('site-picker-row-b')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('site-picker-dialog')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('site-picker-done')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('site-picker-delete-a')), findsNothing);
+    expect(find.byIcon(Icons.check), findsOneWidget);
   });
 }

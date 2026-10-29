@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'app_page_route.dart';
+
 import 'app_layout.dart';
 import 'catalog_filters.dart';
 import 'core_bridge.dart';
@@ -18,10 +20,12 @@ class RankingsScreen extends StatefulWidget {
     required this.repository,
     required this.store,
     required this.initialGroup,
+    this.sourceIds,
   });
   final AppRepository repository;
   final LocalStore store;
   final String initialGroup;
+  final Set<String>? sourceIds;
 
   @override
   State<RankingsScreen> createState() => _RankingsScreenState();
@@ -78,7 +82,7 @@ class _RankingsScreenState extends State<RankingsScreen> {
   void _openDetail(Drama drama, {PlaybackQueue? queue}) {
     Navigator.push<void>(
       context,
-      MaterialPageRoute(
+      appPageRoute(
         settings: const RouteSettings(name: 'detail'),
         builder: (_) => DetailScreen(
           drama: drama,
@@ -111,8 +115,10 @@ class _RankingsScreenState extends State<RankingsScreen> {
       _error = null;
     });
     try {
+      final allowed = widget.sourceIds;
       final boards = (await widget.repository.rankingBoards())
           .where((board) => widget.store.allowsSource(board.source))
+          .where((board) => allowed == null || allowed.contains(board.source))
           .toList();
       if (!mounted || generation != _generation) return;
       setState(() {

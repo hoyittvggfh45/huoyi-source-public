@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../app_page_route.dart';
+
 import '../core_bridge.dart';
 import '../follow_state.dart';
 import '../local_store.dart';
@@ -59,7 +61,7 @@ Future<void> pushDramaToWatchRoom(
     return;
   }
   await Navigator.of(context).push<void>(
-    MaterialPageRoute<void>(
+    appPageRoute<void>(
       builder: (_) => WatchRoomScreen(repository: repository, store: store),
     ),
   );

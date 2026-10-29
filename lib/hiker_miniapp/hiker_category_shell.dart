@@ -1,3 +1,7 @@
+import 'dart:async';
+
+import '../app_page_route.dart';
+
 import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
@@ -11,6 +15,7 @@ import '../hiker_player_screen.dart';
 import '../hiker_rule.dart';
 import '../local_store.dart';
 import '../miniapp/plugin_center_screen.dart';
+import 'hiker_builtin_cloud_codes.dart';
 import 'hiker_miniapp_engine.dart';
 import 'hiker_miniapp_home.dart';
 import 'hiker_miniapp_models.dart';
@@ -203,7 +208,7 @@ class _HikerCategoryShellState extends State<HikerCategoryShell>
       return;
     }
     Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
+      appPageRoute<void>(
         builder: (_) => HikerPlayerScreen(
           title: title,
           episodes: [
@@ -255,28 +260,110 @@ class _HikerCategoryShellState extends State<HikerCategoryShell>
     );
   }
 
+  Future<void> _showCloudCode(HikerBuiltinCloudCode entry) async {
+    final title = entry.adult ? '🔞${entry.name}' : entry.name;
+    final copy = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('分类：${entry.category}'),
+            if (entry.note.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text('备注：${entry.note}'),
+            ],
+            const SizedBox(height: 8),
+            Text('口令：${entry.code}'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('关闭'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('复制口令'),
+          ),
+        ],
+      ),
+    );
+    if (copy != true || !mounted) return;
+    await Clipboard.setData(ClipboardData(text: entry.code));
+    if (!mounted) return;
+    _showHikerMessage('已复制口令');
+  }
+
+  Widget _codeTile(HikerBuiltinCloudCode entry) {
+    final title = entry.adult ? '🔞${entry.name}' : entry.name;
+    return InkWell(
+      onTap: () => unawaited(_showCloudCode(entry)),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            entry.code,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _codeGrid() {
+    return GridView.builder(
+      padding: const EdgeInsets.all(8),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        childAspectRatio: 1.2,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+      ),
+      itemCount: hikerBuiltinCloudCodes.length,
+      itemBuilder: (context, index) => _codeTile(hikerBuiltinCloudCodes[index]),
+    );
+  }
+
   Widget _hikerTab() {
     final rules = _rules;
     if (rules.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('暂无海阔规则'),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: _importHikerRule,
-              icon: const Icon(Icons.file_upload_outlined),
-              label: const Text('导入规则文件'),
+      return Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('暂无海阔规则'),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: _importHikerRule,
+                  icon: const Icon(Icons.file_upload_outlined),
+                  label: const Text('导入规则文件'),
+                ),
+                const SizedBox(height: 8),
+                TextButton.icon(
+                  onPressed: () => _checkClipboard(auto: false),
+                  icon: const Icon(Icons.content_paste_outlined),
+                  label: const Text('检测剪贴板'),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            TextButton.icon(
-              onPressed: () => _checkClipboard(auto: false),
-              icon: const Icon(Icons.content_paste_outlined),
-              label: const Text('检测剪贴板'),
-            ),
-          ],
-        ),
+          ),
+          Expanded(child: _codeGrid()),
+        ],
       );
     }
     return Column(
@@ -309,13 +396,16 @@ class _HikerCategoryShellState extends State<HikerCategoryShell>
               crossAxisSpacing: 8,
               mainAxisSpacing: 8,
             ),
-            itemCount: rules.length,
+            itemCount: rules.length + hikerBuiltinCloudCodes.length,
             itemBuilder: (context, index) {
+              if (index >= rules.length) {
+                return _codeTile(hikerBuiltinCloudCodes[index - rules.length]);
+              }
               final rule = rules[index];
               return InkWell(
                 onTap: () {
                   Navigator.of(context).push<void>(
-                    MaterialPageRoute<void>(
+                    appPageRoute<void>(
                       builder: (_) => HikerMiniappHomeScreen(
                         engine: HikerMiniappEngine(
                           rule: rule,

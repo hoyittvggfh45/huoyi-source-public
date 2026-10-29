@@ -8,37 +8,61 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
+
+	"golang.org/x/text/encoding/simplifiedchinese"
+	"golang.org/x/text/transform"
 )
 
 type LegadoSource struct {
-	Name        string `json:"bookSourceName"`
-	URL         string `json:"bookSourceUrl"`
-	SearchURL   string `json:"searchUrl"`
-	BookList    string `json:"bookList"`
-	NameRule    string `json:"name"`
-	AuthorRule  string `json:"author"`
-	CoverRule   string `json:"coverUrl"`
-	BookURLRule string `json:"bookUrl"`
-	IntroRule   string `json:"intro"`
-	TocList     string `json:"tocList"`
-	TocURL      string `json:"tocUrl"`
-	ChapterName string `json:"chapterName"`
-	ChapterURL  string `json:"chapterUrl"`
-	ContentRule string `json:"content"`
-	NextContent string `json:"nextContentUrl"`
+	Name            string `json:"bookSourceName"`
+	URL             string `json:"bookSourceUrl"`
+	Type            int    `json:"bookSourceType"`
+	Comment         string `json:"bookSourceComment"`
+	LoginURL        string `json:"loginUrl"`
+	SearchURL       string `json:"searchUrl"`
+	BookList        string `json:"bookList"`
+	NameRule        string `json:"name"`
+	AuthorRule      string `json:"author"`
+	CoverRule       string `json:"coverUrl"`
+	BookURLRule     string `json:"bookUrl"`
+	IntroRule       string `json:"intro"`
+	TocList         string `json:"tocList"`
+	TocURL          string `json:"tocUrl"`
+	NextTocURL      string `json:"nextTocUrl"`
+	ChapterName     string `json:"chapterName"`
+	ChapterURL      string `json:"chapterUrl"`
+	ContentRule     string `json:"content"`
+	NextContent     string `json:"nextContentUrl"`
+	ExploreURL      string `json:"exploreUrl"`
+	ImageStyle      string `json:"imageStyle"`
+	BookInfo        map[string]string
+	ExploreBookList string
+	ExploreName     string
+	ExploreAuthor   string
+	ExploreCover    string
+	ExploreBookURL  string
+	ExploreIntro    string
 }
 
 type legadoRaw struct {
 	Name         string            `json:"bookSourceName"`
 	URL          string            `json:"bookSourceUrl"`
+	Type         int               `json:"bookSourceType"`
+	Comment      string            `json:"bookSourceComment"`
+	LoginURL     string            `json:"loginUrl"`
 	SearchURL    string            `json:"searchUrl"`
+	ExploreURL   string            `json:"exploreUrl"`
+	ImageStyle   string            `json:"imageStyle"`
 	RuleSearch   map[string]string `json:"ruleSearch"`
 	RuleBookInfo map[string]string `json:"ruleBookInfo"`
 	RuleToc      map[string]string `json:"ruleToc"`
 	RuleContent  map[string]string `json:"ruleContent"`
+	RuleExplore  map[string]string `json:"ruleExplore"`
 }
 
 var legadoHTTP = &http.Client{Timeout: 20 * time.Second}
@@ -48,7 +72,7 @@ func legadoParseSource(data []byte) (LegadoSource, error) {
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return LegadoSource{}, err
 	}
-	s := LegadoSource{Name: raw.Name, URL: raw.URL, SearchURL: raw.SearchURL}
+	s := LegadoSource{Name: raw.Name, URL: raw.URL, Type: raw.Type, Comment: raw.Comment, LoginURL: raw.LoginURL, SearchURL: raw.SearchURL, ExploreURL: raw.ExploreURL, ImageStyle: raw.ImageStyle, BookInfo: raw.RuleBookInfo}
 	if raw.RuleSearch != nil {
 		s.BookList = raw.RuleSearch["bookList"]
 		s.NameRule = raw.RuleSearch["name"]
@@ -62,12 +86,21 @@ func legadoParseSource(data []byte) (LegadoSource, error) {
 	}
 	if raw.RuleToc != nil {
 		s.TocList = raw.RuleToc["tocList"]
+		s.NextTocURL = raw.RuleToc["nextTocUrl"]
 		s.ChapterName = raw.RuleToc["chapterName"]
 		s.ChapterURL = raw.RuleToc["chapterUrl"]
 	}
 	if raw.RuleContent != nil {
 		s.ContentRule = raw.RuleContent["content"]
 		s.NextContent = raw.RuleContent["nextContentUrl"]
+	}
+	if raw.RuleExplore != nil {
+		s.ExploreBookList = raw.RuleExplore["bookList"]
+		s.ExploreName = raw.RuleExplore["name"]
+		s.ExploreAuthor = raw.RuleExplore["author"]
+		s.ExploreCover = raw.RuleExplore["coverUrl"]
+		s.ExploreBookURL = raw.RuleExplore["bookUrl"]
+		s.ExploreIntro = raw.RuleExplore["intro"]
 	}
 	return s, nil
 }
@@ -108,11 +141,19 @@ func legadoRequest(rawurl, method, body string, headers map[string]string) (stri
 	if err != nil {
 		return "", err
 	}
-	return string(b), nil
+	text := string(b)
+	if !utf8.ValidString(text) {
+		if decoded, _, decodeErr := transform.String(simplifiedchinese.GB18030.NewDecoder(), text); decodeErr == nil {
+			text = decoded
+		}
+	}
+	return text, nil
 }
 
 func legadoSplitAttr(rule string) (string, string) {
 	rule = strings.TrimSpace(rule)
+	rule = strings.TrimPrefix(rule, "@@")
+	rule = strings.TrimPrefix(rule, "@CSS:")
 	if strings.HasPrefix(rule, "@js:") || strings.HasPrefix(rule, "//") || strings.Contains(rule, "@js:") {
 		return "", ""
 	}
@@ -148,6 +189,9 @@ func legadoTryRules(block string, rules []string, fn func(string) string) string
 }
 
 func legadoField(block, rule string) string {
+	if body, spec := legadoSplitReplace(rule); spec != nil {
+		return legadoApplyReplace(legadoField(block, body), spec)
+	}
 	if strings.Contains(rule, "||") {
 		return legadoTryRules(block, strings.Split(rule, "||"), func(r string) string {
 			return legadoField(block, r)
@@ -156,8 +200,15 @@ func legadoField(block, rule string) string {
 	if strings.HasPrefix(strings.TrimSpace(rule), "$") {
 		return legadoJSONFieldAny(block, rule)
 	}
-	if strings.HasPrefix(strings.TrimSpace(rule), "@") {
-		attr := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(rule), "@"))
+	trimmed := strings.TrimSpace(rule)
+	if strings.HasPrefix(trimmed, "/") || strings.HasPrefix(trimmed, "@XPath:") {
+		if nodes, value, ok := legadoEvalXPath(block, trimmed, false); ok {
+			return legadoScalarFromNodes(nodes, value)
+		}
+		return ""
+	}
+	if strings.HasPrefix(trimmed, "@") && !strings.HasPrefix(trimmed, "@@") && !strings.HasPrefix(trimmed, "@CSS:") {
+		attr := strings.TrimSpace(strings.TrimPrefix(trimmed, "@"))
 		switch attr {
 		case "text":
 			return strings.TrimSpace(legadoHTMLToText(block))
@@ -175,6 +226,48 @@ func legadoField(block, rule string) string {
 	if sel == "" {
 		return ""
 	}
+	if nodes, value, ok := legadoEvalDialect(block, rule, false); ok && len(nodes) > 0 {
+		if v := legadoScalarFromNodes(nodes, value); v != "" {
+			return v
+		}
+	}
+	if legadoBareIdentRe.MatchString(sel) && attr == "text" && legadoIsJSONBody(block) {
+		if v := legadoJSONFieldAny(block, "$."+sel); v != "" {
+			return v
+		}
+	}
+	if !legadoIsJSONBody(block) {
+		switch trimmed {
+		case "text":
+			return strings.TrimSpace(legadoHTMLToText(block))
+		case "html", "all", "outerHtml":
+			return strings.TrimSpace(block)
+		case "ownText":
+			if doc, _ := legadoParseDoc(block); doc != nil {
+				if root := legadoBlockRoot(doc); root != nil {
+					return strings.TrimSpace(legadoNodeOwnText(root))
+				}
+			}
+			return ""
+		case "textNodes":
+			if doc, _ := legadoParseDoc(block); doc != nil {
+				if root := legadoBlockRoot(doc); root != nil {
+					return strings.TrimSpace(legadoNodeTextNodes(root))
+				}
+			}
+			return ""
+		}
+		if legadoBareAttrRe.MatchString(trimmed) && !legadoKnownTags[strings.ToLower(trimmed)] {
+			if doc, _ := legadoParseDoc(block); doc != nil {
+				if root := legadoBlockRoot(doc); root != nil {
+					if v, ok := hikerAttr(root, trimmed); ok {
+						return v
+					}
+				}
+			}
+			return ""
+		}
+	}
 	chain := legadoChain(sel)
 	switch attr {
 	case "text":
@@ -185,6 +278,10 @@ func legadoField(block, rule string) string {
 		return strings.TrimSpace(hikerParseSingle(block, chain+"&&"+attr))
 	}
 }
+
+var legadoBareIdentRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+var legadoBareAttrRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*$`)
 
 func legadoAbs(base, u string) string {
 	u = strings.TrimSpace(u)
@@ -240,10 +337,12 @@ func legadoSplitPostSuffix(rawURL string) (string, string, bool) {
 }
 
 type legadoJSONSeg struct {
-	key      string
-	index    int
-	hasKey   bool
-	hasIndex bool
+	key       string
+	index     int
+	hasKey    bool
+	hasIndex  bool
+	recursive bool
+	wildcard  bool
 }
 
 func legadoParseJSONPath(rule string) ([]legadoJSONSeg, bool) {
@@ -262,7 +361,7 @@ func legadoParseJSONPath(rule string) ([]legadoJSONSeg, bool) {
 		inner := rest[i+1 : i+j]
 		if inner == "*" {
 			i += j + 1
-			return legadoJSONSeg{index: -2, hasIndex: true}, true
+			return legadoJSONSeg{hasIndex: true, index: -2, wildcard: true}, true
 		}
 		if inner == "" {
 			return legadoJSONSeg{}, false
@@ -281,18 +380,38 @@ func legadoParseJSONPath(rule string) ([]legadoJSONSeg, bool) {
 	}
 	for i < len(rest) {
 		if rest[i] == '.' {
+			recursive := false
 			if i+1 < len(rest) && rest[i+1] == '.' {
-				return nil, false
-			}
-			i++
-			start := i
-			for i < len(rest) && rest[i] != '.' && rest[i] != '[' {
+				recursive = true
+				i += 2
+			} else {
 				i++
 			}
-			if start == i {
+			if i >= len(rest) {
 				return nil, false
 			}
-			segs = append(segs, legadoJSONSeg{key: rest[start:i], hasKey: true})
+			if rest[i] == '[' {
+				seg, ok := parseBracket()
+				if !ok {
+					return nil, false
+				}
+				seg.recursive = recursive
+				segs = append(segs, seg)
+			} else {
+				start := i
+				for i < len(rest) && rest[i] != '.' && rest[i] != '[' {
+					i++
+				}
+				if start == i {
+					return nil, false
+				}
+				key := rest[start:i]
+				if key == "*" {
+					segs = append(segs, legadoJSONSeg{wildcard: true, recursive: recursive})
+				} else {
+					segs = append(segs, legadoJSONSeg{key: key, hasKey: true, recursive: recursive})
+				}
+			}
 			for i < len(rest) && rest[i] == '[' {
 				seg, ok := parseBracket()
 				if !ok {
@@ -314,32 +433,68 @@ func legadoParseJSONPath(rule string) ([]legadoJSONSeg, bool) {
 }
 
 func legadoJSONEval(root interface{}, segs []legadoJSONSeg) []interface{} {
-	nodes := []interface{}{root}
-	for _, s := range segs {
-		var next []interface{}
-		for _, n := range nodes {
-			if s.hasKey {
-				if m, ok := n.(map[string]interface{}); ok {
-					if v, ok := m[s.key]; ok {
-						next = append(next, v)
-					}
-				}
-			} else if s.hasIndex {
-				if arr, ok := n.([]interface{}); ok {
-					if s.index == -2 {
-						next = append(next, arr...)
-					} else if s.index >= 0 && s.index < len(arr) {
-						next = append(next, arr[s.index])
-					}
-				}
+	if len(segs) == 0 {
+		return []interface{}{root}
+	}
+	seg := segs[0]
+	rest := segs[1:]
+	if seg.recursive {
+		var out []interface{}
+		out = append(out, legadoJSONEvalStep(root, seg, rest)...)
+		switch node := root.(type) {
+		case map[string]interface{}:
+			for _, v := range node {
+				out = append(out, legadoJSONEval(v, segs)...)
+			}
+		case []interface{}:
+			for _, v := range node {
+				out = append(out, legadoJSONEval(v, segs)...)
 			}
 		}
-		nodes = next
-		if len(nodes) == 0 {
-			break
-		}
+		return out
 	}
-	return nodes
+	return legadoJSONEvalStep(root, seg, rest)
+}
+
+func legadoJSONEvalStep(node interface{}, seg legadoJSONSeg, rest []legadoJSONSeg) []interface{} {
+	if seg.wildcard {
+		var out []interface{}
+		switch n := node.(type) {
+		case []interface{}:
+			for _, v := range n {
+				out = append(out, legadoJSONEval(v, rest)...)
+			}
+		case map[string]interface{}:
+			for _, v := range n {
+				out = append(out, legadoJSONEval(v, rest)...)
+			}
+		}
+		return out
+	}
+	if seg.hasKey {
+		if m, ok := node.(map[string]interface{}); ok {
+			if v, ok := m[seg.key]; ok {
+				return legadoJSONEval(v, rest)
+			}
+		}
+		return nil
+	}
+	if seg.hasIndex {
+		if arr, ok := node.([]interface{}); ok {
+			if seg.index == -2 {
+				var out []interface{}
+				for _, v := range arr {
+					out = append(out, legadoJSONEval(v, rest)...)
+				}
+				return out
+			}
+			if seg.index >= 0 && seg.index < len(arr) {
+				return legadoJSONEval(arr[seg.index], rest)
+			}
+		}
+		return nil
+	}
+	return nil
 }
 
 func legadoIsJSONBody(s string) bool {
@@ -438,31 +593,77 @@ func legadoJSONListBlocks(body, rule string) []string {
 	return nil
 }
 
+func legadoURLOptions(suffix string) (string, string, map[string]string) {
+	method := "GET"
+	body := ""
+	headers := map[string]string{}
+	var opts map[string]interface{}
+	if json.Unmarshal([]byte(suffix), &opts) == nil {
+		if m, ok := opts["method"].(string); ok && m != "" {
+			method = strings.ToUpper(m)
+		}
+		if b, ok := opts["body"].(string); ok {
+			body = b
+		}
+		if h, ok := opts["headers"].(map[string]interface{}); ok {
+			for k, v := range h {
+				if vs, ok := v.(string); ok {
+					headers[k] = vs
+				}
+			}
+		}
+	}
+	return method, body, headers
+}
+
 func legadoSearch(src LegadoSource, keyword string, page int) (interface{}, error) {
 	if src.SearchURL == "" || src.BookList == "" {
 		return nil, fmt.Errorf("legado source missing searchUrl or bookList rule")
 	}
 	rawURL := strings.TrimRight(src.SearchURL, " \t")
+	ctx := newLegadoJSCtx(src.URL)
+	ctx.setSource(src)
+	ctx.key = keyword
+	ctx.page = page
+	trimmedSearch := strings.TrimSpace(rawURL)
+	if strings.HasPrefix(trimmedSearch, "@js:") || strings.HasPrefix(trimmedSearch, "<js>") {
+		script := strings.TrimSpace(strings.TrimPrefix(trimmedSearch, "@js:"))
+		if strings.HasPrefix(trimmedSearch, "<js>") {
+			script = strings.TrimSpace(trimmedSearch[4:])
+			script = strings.TrimSuffix(script, "</js>")
+		}
+		rt := ctx.runtime()
+		v, err := ctx.evalJSCur(script, "")
+		if err != nil {
+			return nil, err
+		}
+		res := legadoJSValueString(rt, v)
+		if res == "" {
+			return nil, fmt.Errorf("legado search js empty")
+		}
+		if strings.HasPrefix(res, "http") {
+			u2 := res
+			method2 := "GET"
+			body2 := ""
+			headers2 := map[string]string{}
+			if base, suffix, ok := legadoSplitPostSuffix(u2); ok {
+				method2, body2, headers2 = legadoURLOptions(suffix)
+				u2 = base
+			}
+			u2 = legadoAbs(src.URL, u2)
+			pageBody, err := legadoRequest(u2, method2, body2, headers2)
+			if err != nil {
+				return nil, err
+			}
+			return legadoSearchExtract(src, ctx, pageBody)
+		}
+		return legadoSearchExtract(src, ctx, res)
+	}
 	method := "GET"
 	body := ""
 	headers := map[string]string{}
 	if base, suffix, ok := legadoSplitPostSuffix(rawURL); ok {
-		var opts map[string]interface{}
-		if json.Unmarshal([]byte(suffix), &opts) == nil {
-			if m, ok := opts["method"].(string); ok && m != "" {
-				method = strings.ToUpper(m)
-			}
-			if b, ok := opts["body"].(string); ok {
-				body = b
-			}
-			if h, ok := opts["headers"].(map[string]interface{}); ok {
-				for k, v := range h {
-					if vs, ok := v.(string); ok {
-						headers[k] = vs
-					}
-				}
-			}
-		}
+		method, body, headers = legadoURLOptions(suffix)
 		rawURL = base
 	}
 	sub := func(v string) string {
@@ -472,7 +673,7 @@ func legadoSearch(src LegadoSource, keyword string, page int) (interface{}, erro
 		v = strings.ReplaceAll(v, "{page}", fmt.Sprint(page))
 		return v
 	}
-	u := sub(rawURL)
+	u := legadoAbs(src.URL, sub(rawURL))
 	body = sub(body)
 	for k := range headers {
 		headers[k] = sub(headers[k])
@@ -481,31 +682,25 @@ func legadoSearch(src LegadoSource, keyword string, page int) (interface{}, erro
 	if err != nil {
 		return nil, err
 	}
-	blocks := []string{}
-	if legadoIsJSONBody(pageBody) {
-		blocks = legadoJSONListBlocks(pageBody, src.BookList)
-	}
-	if len(blocks) == 0 {
-		for _, r := range strings.Split(src.BookList, "||") {
-			blocks = hikerParseArray(pageBody, legadoChain(legadoSplitSel(strings.TrimSpace(r))))
-			if len(blocks) > 0 {
-				break
-			}
-		}
-	}
+	return legadoSearchExtract(src, ctx, pageBody)
+}
+
+func legadoSearchExtract(src LegadoSource, ctx *legadoJSCtx, pageBody string) (interface{}, error) {
+	blocks := ctx.evalList(pageBody, src.BookList)
 	out := []map[string]string{}
 	for _, b := range blocks {
-		title := legadoField(b, src.NameRule)
-		bookURL := legadoAbs(src.URL, legadoField(b, src.BookURLRule))
+		ctx.setBlock(b)
+		title := ctx.evalScalar(b, src.NameRule)
+		bookURL := legadoAbs(src.URL, ctx.evalScalar(b, src.BookURLRule))
 		if title == "" && bookURL == "" {
 			continue
 		}
 		out = append(out, map[string]string{
 			"title":  title,
-			"author": legadoField(b, src.AuthorRule),
-			"cover":  legadoAbs(src.URL, legadoField(b, src.CoverRule)),
+			"author": ctx.evalScalar(b, src.AuthorRule),
+			"cover":  legadoAbs(src.URL, ctx.evalScalar(b, src.CoverRule)),
 			"url":    bookURL,
-			"intro":  legadoField(b, src.IntroRule),
+			"intro":  ctx.evalScalar(b, src.IntroRule),
 		})
 	}
 	return out, nil
@@ -520,34 +715,76 @@ func legadoToc(src LegadoSource, bookURL string) (interface{}, error) {
 	if src.TocList == "" {
 		return nil, fmt.Errorf("legado source missing tocList rule")
 	}
+	ctx := newLegadoJSCtx(src.URL)
+	ctx.setSource(src)
+	ctx.bookURL = bookURL
 	pageBody, err := legadoFetch(bookURL)
 	if err != nil {
 		return nil, err
 	}
-	if src.TocURL != "" {
-		if tocURL := legadoAbs(bookURL, legadoField(pageBody, src.TocURL)); tocURL != "" && tocURL != bookURL {
+	ctx.setBlock(pageBody)
+	orderedKeys := []string{"name", "author", "coverUrl", "intro", "tocUrl"}
+	seenKeys := map[string]bool{}
+	for _, k := range orderedKeys {
+		seenKeys[k] = true
+	}
+	restKeys := []string{}
+	for k := range src.BookInfo {
+		if !seenKeys[k] {
+			restKeys = append(restKeys, k)
+		}
+	}
+	sort.Strings(restKeys)
+	orderedKeys = append(orderedKeys, restKeys...)
+	tocURLVal := ""
+	for _, k := range orderedKeys {
+		r, ok := src.BookInfo[k]
+		if !ok || strings.TrimSpace(r) == "" {
+			continue
+		}
+		v := ctx.evalScalar(pageBody, r)
+		if k == "tocUrl" {
+			tocURLVal = v
+		}
+	}
+	if tocURLVal != "" {
+		if tocURL := legadoAbs(bookURL, tocURLVal); tocURL != "" && tocURL != bookURL {
 			if b2, err2 := legadoFetch(tocURL); err2 == nil {
 				pageBody = b2
 				bookURL = tocURL
 			}
 		}
 	}
-	blocks := []string{}
-	if legadoIsJSONBody(pageBody) {
-		blocks = legadoJSONListBlocks(pageBody, src.TocList)
+	blocks := ctx.evalList(pageBody, src.TocList)
+	blockBases := []string{}
+	for range blocks {
+		blockBases = append(blockBases, bookURL)
 	}
-	if len(blocks) == 0 {
-		for _, r := range strings.Split(src.TocList, "||") {
-			blocks = hikerParseArray(pageBody, legadoChain(legadoSplitSel(strings.TrimSpace(r))))
-			if len(blocks) > 0 {
+	if src.NextTocURL != "" {
+		seenToc := map[string]bool{bookURL: true}
+		ctx.setBlock(pageBody)
+		next := legadoAbs(bookURL, ctx.evalScalar(pageBody, src.NextTocURL))
+		for i := 0; i < 5 && next != "" && !seenToc[next]; i++ {
+			seenToc[next] = true
+			b2, err := legadoFetch(next)
+			if err != nil {
 				break
 			}
+			more := ctx.evalList(b2, src.TocList)
+			blocks = append(blocks, more...)
+			for range more {
+				blockBases = append(blockBases, next)
+			}
+			pageBody = b2
+			ctx.setBlock(pageBody)
+			next = legadoAbs(next, ctx.evalScalar(pageBody, src.NextTocURL))
 		}
 	}
 	out := []map[string]string{}
-	for _, b := range blocks {
-		title := legadoField(b, src.ChapterName)
-		u := legadoAbs(bookURL, legadoField(b, src.ChapterURL))
+	for bi, b := range blocks {
+		ctx.setBlock(b)
+		title := ctx.evalScalar(b, src.ChapterName)
+		u := legadoAbs(blockBases[bi], ctx.evalScalar(b, src.ChapterURL))
 		if title == "" && u == "" {
 			continue
 		}
@@ -560,41 +797,76 @@ func legadoContent(src LegadoSource, chapterURL string) (interface{}, error) {
 	if src.ContentRule == "" {
 		return nil, fmt.Errorf("legado source missing content rule")
 	}
+	ctx := newLegadoJSCtx(src.URL)
+	ctx.setSource(src)
+	contentOf := func(body, pageURL string) (string, []legadoImage, bool) {
+		ctx.setBlock(body)
+		if legadoHasMarkers(src.ContentRule) {
+			r := ctx.evalScalar(body, src.ContentRule)
+			if r == "" {
+				return "", nil, false
+			}
+			images, text := legadoExtractImages(r, pageURL)
+			if len(images) > 0 {
+				return text, images, true
+			}
+			return legadoHTMLToText(r), nil, true
+		}
+		if strings.HasPrefix(strings.TrimSpace(src.ContentRule), "$") && legadoIsJSONBody(body) {
+			outer := legadoField(body, src.ContentRule)
+			if outer == "" {
+				return "", nil, false
+			}
+			images, text := legadoExtractImages(outer, pageURL)
+			if len(images) > 0 {
+				return text, images, true
+			}
+			return outer, nil, true
+		}
+		sel, _ := legadoSplitAttr(src.ContentRule)
+		if sel == "" {
+			return "", nil, false
+		}
+		outer := ""
+		if nodes, value, ok := legadoEvalDialect(body, src.ContentRule, false); ok && len(nodes) > 0 {
+			outer = legadoScalarFromNodes(nodes, value)
+		}
+		if outer == "" {
+			outer = hikerParseSingle(body, legadoChain(sel)+"&&Html")
+		}
+		if outer == "" {
+			return "", nil, false
+		}
+		images, text := legadoExtractImages(outer, pageURL)
+		if len(images) > 0 {
+			return text, images, true
+		}
+		return legadoHTMLToText(outer), nil, true
+	}
 	pageBody, err := legadoFetch(chapterURL)
 	if err != nil {
 		return nil, err
 	}
-	jsonContent := strings.HasPrefix(strings.TrimSpace(src.ContentRule), "$") &&
-		legadoIsJSONBody(pageBody)
-	contentOf := func(body string) string {
-		if jsonContent {
-			return legadoField(body, src.ContentRule)
+	finishContent := func(text string, images []legadoImage, pageURL string) (string, []legadoImage) {
+		if len(images) > 0 {
+			return text, images
 		}
-		sel, _ := legadoSplitAttr(src.ContentRule)
-		if sel == "" {
-			return ""
+		imgs, rest := legadoExtractBareImageLines(text, pageURL, src.ImageStyle == "FULL")
+		if len(imgs) > 0 {
+			return rest, imgs
 		}
-		return hikerParseSingle(body, legadoChain(sel)+"&&Html")
+		return text, nil
 	}
-	if !jsonContent {
-		if sel, _ := legadoSplitAttr(src.ContentRule); sel == "" {
-			return nil, fmt.Errorf("legado content rule unsupported")
-		}
-	}
-	outer := contentOf(pageBody)
-	if outer == "" {
+	text, images, ok := contentOf(pageBody, chapterURL)
+	if !ok {
 		return nil, fmt.Errorf("legado content empty")
 	}
-	var text string
-	if jsonContent {
-		text = outer
-	} else {
-		text = legadoHTMLToText(outer)
-	}
+	text, images = finishContent(text, images, chapterURL)
 	seen := map[string]bool{chapterURL: true}
 	next := ""
 	if src.NextContent != "" {
-		next = legadoAbs(chapterURL, legadoField(pageBody, src.NextContent))
+		ctx.setBlock(pageBody)
+		next = legadoAbs(chapterURL, ctx.evalScalar(pageBody, src.NextContent))
 	}
 	for i := 0; i < 5 && next != "" && !seen[next]; i++ {
 		seen[next] = true
@@ -602,19 +874,92 @@ func legadoContent(src LegadoSource, chapterURL string) (interface{}, error) {
 		if err != nil {
 			break
 		}
-		o2 := contentOf(b2)
-		if o2 == "" {
+		t2, imgs2, ok2 := contentOf(b2, next)
+		if !ok2 {
 			break
 		}
-		if jsonContent {
-			text += "\n" + o2
-		} else {
-			text += "\n" + legadoHTMLToText(o2)
+		t2, imgs2 = finishContent(t2, imgs2, next)
+		if t2 != "" {
+			text += "\n" + t2
 		}
+		images = append(images, imgs2...)
 		pageBody = b2
-		next = legadoAbs(next, legadoField(pageBody, src.NextContent))
+		ctx.setBlock(pageBody)
+		next = legadoAbs(next, ctx.evalScalar(pageBody, src.NextContent))
 	}
-	return map[string]string{"content": text}, nil
+	result := map[string]string{"content": text}
+	if len(images) > 0 {
+		if b, err := json.Marshal(images); err == nil {
+			result["images"] = string(b)
+		}
+	}
+	return result, nil
+}
+
+func legadoExploreCategories(src LegadoSource) interface{} {
+	out := []map[string]string{}
+	trimmed := strings.TrimSpace(src.ExploreURL)
+	if strings.HasPrefix(trimmed, "[") {
+		var arr []map[string]interface{}
+		if json.Unmarshal([]byte(trimmed), &arr) == nil {
+			for _, item := range arr {
+				title, _ := item["title"].(string)
+				url, _ := item["url"].(string)
+				if title == "" && url == "" {
+					continue
+				}
+				out = append(out, map[string]string{"title": title, "url": url})
+			}
+			return out
+		}
+	}
+	for _, line := range strings.Split(src.ExploreURL, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if i := strings.Index(line, "::"); i >= 0 {
+			out = append(out, map[string]string{"title": strings.TrimSpace(line[:i]), "url": strings.TrimSpace(line[i+2:])})
+		} else {
+			out = append(out, map[string]string{"title": line, "url": line})
+		}
+	}
+	return out
+}
+
+func legadoExplore(src LegadoSource, urlTmpl string, page int) (interface{}, error) {
+	if src.ExploreURL == "" || src.ExploreBookList == "" {
+		return nil, fmt.Errorf("legado source missing exploreUrl or explore bookList rule")
+	}
+	ctx := newLegadoJSCtx(src.URL)
+	ctx.setSource(src)
+	ctx.page = page
+	u := legadoAbs(src.URL, ctx.expandURLTemplate(urlTmpl))
+	if u == "" {
+		return nil, fmt.Errorf("legado explore url empty")
+	}
+	pageBody, err := legadoFetch(u)
+	if err != nil {
+		return nil, err
+	}
+	blocks := ctx.evalList(pageBody, src.ExploreBookList)
+	out := []map[string]string{}
+	for _, b := range blocks {
+		ctx.setBlock(b)
+		title := ctx.evalScalar(b, src.ExploreName)
+		bookURL := legadoAbs(src.URL, ctx.evalScalar(b, src.ExploreBookURL))
+		if title == "" && bookURL == "" {
+			continue
+		}
+		out = append(out, map[string]string{
+			"title":  title,
+			"author": ctx.evalScalar(b, src.ExploreAuthor),
+			"cover":  legadoAbs(src.URL, ctx.evalScalar(b, src.ExploreCover)),
+			"url":    bookURL,
+			"intro":  ctx.evalScalar(b, src.ExploreIntro),
+		})
+	}
+	return out, nil
 }
 
 type legadoCheckField struct {
@@ -630,19 +975,13 @@ type legadoCheckResult struct {
 
 func legadoRuleUnsupportedReason(rule string) string {
 	t := strings.TrimSpace(rule)
-	if strings.HasPrefix(t, "//") {
-		return "xpath"
-	}
-	if strings.Contains(t, "@js:") {
-		return "js"
-	}
 	if strings.HasPrefix(t, "$") {
 		if _, ok := legadoParseJSONPath(t); ok {
 			return ""
 		}
 		return "jsonpath"
 	}
-	if strings.Contains(t, ":nth-") {
+	if strings.Contains(t, ":nth-") && !strings.Contains(t, ":nth-child(") && !strings.Contains(t, ":nth-of-type(") {
 		return "nth"
 	}
 	if strings.Contains(t, ":first-child") || strings.Contains(t, ":last-child") {
@@ -712,6 +1051,19 @@ func LegadoRunJSON(sourceJSON, action, input string) (string, error) {
 		result, err = legadoToc(src, input)
 	case "content":
 		result, err = legadoContent(src, input)
+	case "exploreCategories":
+		result = legadoExploreCategories(src)
+	case "explore":
+		urlTmpl := input
+		page := 1
+		if i := strings.LastIndex(input, "\x01"); i >= 0 {
+			urlTmpl = input[:i]
+			fmt.Sscan(input[i+1:], &page)
+			if page < 1 {
+				page = 1
+			}
+		}
+		result, err = legadoExplore(src, urlTmpl, page)
 	default:
 		return "", fmt.Errorf("unknown legado action %s", action)
 	}

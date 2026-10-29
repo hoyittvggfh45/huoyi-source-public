@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'app_page_route.dart';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -471,7 +473,7 @@ class _FullscreenFeedScreenState extends State<FullscreenFeedScreen>
                     trailing: const Icon(Icons.chevron_right_rounded),
                     onTap: () => Navigator.push(
                       sheetContext,
-                      MaterialPageRoute<void>(
+                      appPageRoute<void>(
                         builder: (_) => PlayerPickerScreen(store: widget.store),
                       ),
                     ),
@@ -696,7 +698,7 @@ class _FullscreenFeedScreenState extends State<FullscreenFeedScreen>
 
   Future<void> _openDownloadPicker(DramaDetail detail) async {
     await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
+      appPageRoute<void>(
         builder: (_) => DownloadPicker(
           detail: detail,
           onSubmit: (selection) => _submitFeedDownload(detail, selection),
@@ -725,7 +727,7 @@ class _FullscreenFeedScreenState extends State<FullscreenFeedScreen>
           label: '查看',
           onPressed: () {
             Navigator.of(context).push(
-              MaterialPageRoute<void>(
+              appPageRoute<void>(
                 builder: (_) => DownloadsScreen(
                   repository: widget.repository,
                   store: widget.store,

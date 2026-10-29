@@ -25,6 +25,11 @@ class _LegadoScreenState extends State<LegadoScreen> {
   List<Map<String, dynamic>> _books = [];
   List<Map<String, dynamic>> _chapters = [];
   String _content = '';
+  List<Map<String, dynamic>> _contentImages = [];
+  List<Map<String, dynamic>> _exploreCategories = [];
+  String _exploreUrl = '';
+  int _explorePage = 1;
+  bool _explored = false;
   String _mode = 'books';
   bool _busy = false;
   bool _searched = false;
@@ -368,6 +373,36 @@ class _LegadoScreenState extends State<LegadoScreen> {
     return [];
   }
 
+  List<Map<String, dynamic>> _parseContentImages(dynamic raw) {
+    final items = <dynamic>[];
+    if (raw is List) {
+      items.addAll(raw);
+    } else if (raw is String && raw.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is List) items.addAll(decoded);
+      } catch (_) {}
+    }
+    final out = <Map<String, dynamic>>[];
+    for (final item in items) {
+      if (item is Map<String, dynamic>) {
+        out.add(item);
+      } else if (item is Map) {
+        out.add(Map<String, dynamic>.from(item));
+      }
+    }
+    return out;
+  }
+
+  Map<String, String> _stringHeaders(dynamic value) {
+    if (value is! Map) return const {};
+    final out = <String, String>{};
+    value.forEach((key, item) {
+      out[key.toString()] = item.toString();
+    });
+    return out;
+  }
+
   Future<void> _search() async {
     final source = _selected;
     final keyword = _query.text.trim();
@@ -378,6 +413,7 @@ class _LegadoScreenState extends State<LegadoScreen> {
       _mode = 'books';
       _searchUnsupported = false;
       _searchUnsupportedReason = '';
+      _explored = false;
     });
     try {
       final result = await widget.repository.legadoRun(
@@ -409,6 +445,74 @@ class _LegadoScreenState extends State<LegadoScreen> {
           _searched = true;
           _searchUnsupported = unsupported;
           _searchUnsupportedReason = reason;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _error = e.toString();
+        });
+      }
+    }
+  }
+
+  Future<void> _explore() async {
+    final source = _selected;
+    if (source == null) return;
+    setState(() {
+      _busy = true;
+      _error = '';
+    });
+    try {
+      final result = await widget.repository.legadoRun(
+        source.rawJson,
+        'exploreCategories',
+        '',
+      );
+      final categories = _toMaps(result);
+      if (mounted) {
+        setState(() {
+          _exploreCategories = categories;
+          _busy = false;
+        });
+      }
+      if (categories.isNotEmpty) {
+        final url = (categories.first['url'] ?? '').toString();
+        if (url.isNotEmpty) await _loadExplore(url, 1);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _error = e.toString();
+        });
+      }
+    }
+  }
+
+  Future<void> _loadExplore(String url, int page) async {
+    final source = _selected;
+    if (source == null || url.isEmpty) return;
+    setState(() {
+      _busy = true;
+      _error = '';
+      _mode = 'books';
+    });
+    try {
+      final result = await widget.repository.legadoRun(
+        source.rawJson,
+        'explore',
+        '$url\x01$page',
+      );
+      if (mounted) {
+        setState(() {
+          _books = _toMaps(result);
+          _busy = false;
+          _searched = true;
+          _explored = true;
+          _exploreUrl = url;
+          _explorePage = page;
         });
       }
     } catch (e) {
@@ -459,6 +563,7 @@ class _LegadoScreenState extends State<LegadoScreen> {
     setState(() {
       _busy = true;
       _error = '';
+      _contentImages = [];
     });
     try {
       final result = await widget.repository.legadoRun(
@@ -467,13 +572,16 @@ class _LegadoScreenState extends State<LegadoScreen> {
         url,
       );
       var text = '';
+      var images = <Map<String, dynamic>>[];
       if (result is Map<String, dynamic>) {
         text = (result['content'] ?? '').toString();
+        images = _parseContentImages(result['images']);
       } else if (result is String) {
         try {
           final decoded = jsonDecode(result);
           if (decoded is Map<String, dynamic>) {
             text = (decoded['content'] ?? '').toString();
+            images = _parseContentImages(decoded['images']);
           }
         } catch (_) {
           text = result;
@@ -482,6 +590,7 @@ class _LegadoScreenState extends State<LegadoScreen> {
       if (mounted) {
         setState(() {
           _content = text;
+          _contentImages = images;
           _mode = 'read';
           _busy = false;
         });
@@ -531,6 +640,11 @@ class _LegadoScreenState extends State<LegadoScreen> {
               const SizedBox(width: 8),
               FilledButton(onPressed: _search, child: const Text('搜索')),
               IconButton(
+                icon: const Icon(Icons.explore_rounded),
+                tooltip: '发现',
+                onPressed: _explore,
+              ),
+              IconButton(
                 icon: const Icon(Icons.file_open_rounded),
                 tooltip: '导入书源文件',
                 onPressed: _importFile,
@@ -578,6 +692,10 @@ class _LegadoScreenState extends State<LegadoScreen> {
                         _searched = false;
                         _searchUnsupported = false;
                         _searchUnsupportedReason = '';
+                        _exploreCategories = [];
+                        _exploreUrl = '';
+                        _explored = false;
+                        _contentImages = [];
                       }),
                     ),
                   ),
@@ -599,6 +717,49 @@ class _LegadoScreenState extends State<LegadoScreen> {
             padding: EdgeInsets.all(16),
             child: Text('暂无开源阅读书源：点右上角文件或链接按钮导入 Legado 书源 JSON。'),
           ),
+        if (_exploreCategories.isNotEmpty)
+          SizedBox(
+            height: 44,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              children: [
+                for (final category in _exploreCategories)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8, top: 8),
+                    child: ChoiceChip(
+                      label: Text((category['title'] ?? '').toString()),
+                      selected:
+                          _exploreUrl == (category['url'] ?? '').toString(),
+                      onSelected: (_) {
+                        final url = (category['url'] ?? '').toString();
+                        if (url.isNotEmpty) _loadExplore(url, 1);
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        if (_explored && _mode == 'books')
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Row(
+              children: [
+                Text('第 $_explorePage 页'),
+                const Spacer(),
+                TextButton(
+                  onPressed: _explorePage > 1
+                      ? () => _loadExplore(_exploreUrl, _explorePage - 1)
+                      : null,
+                  child: const Text('上一页'),
+                ),
+                TextButton(
+                  onPressed: () => _loadExplore(_exploreUrl, _explorePage + 1),
+                  child: const Text('下一页'),
+                ),
+              ],
+            ),
+          ),
         Expanded(
           child: switch (_mode) {
             'toc' =>
@@ -619,13 +780,38 @@ class _LegadoScreenState extends State<LegadoScreen> {
                         );
                       },
                     ),
-            'read' => SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: SelectableText(
-                _content.isEmpty ? '正文为空' : _content,
-                style: const TextStyle(fontSize: 12, height: 1.7),
-              ),
-            ),
+            'read' =>
+              _contentImages.isNotEmpty
+                  ? SingleChildScrollView(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (_content.isNotEmpty)
+                            SelectableText(
+                              _content,
+                              style: const TextStyle(fontSize: 12, height: 1.7),
+                            ),
+                          for (final img in _contentImages)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Image.network(
+                                (img['url'] ?? '').toString(),
+                                headers: _stringHeaders(img['headers']),
+                                errorBuilder: (_, _, _) =>
+                                    Text((img['url'] ?? '').toString()),
+                              ),
+                            ),
+                        ],
+                      ),
+                    )
+                  : SingleChildScrollView(
+                      padding: const EdgeInsets.all(16),
+                      child: SelectableText(
+                        _content.isEmpty ? '正文为空' : _content,
+                        style: const TextStyle(fontSize: 12, height: 1.7),
+                      ),
+                    ),
             _ =>
               _books.isEmpty && _searched && !_busy && _error.isEmpty
                   ? Center(
@@ -636,6 +822,8 @@ class _LegadoScreenState extends State<LegadoScreen> {
                               ? (_searchUnsupportedReason.isNotEmpty
                                     ? '该书源含本版引擎暂不支持的规则（$_searchUnsupportedReason），换个书源试试'
                                     : '该书源含本版引擎暂不支持的规则，换个书源试试')
+                              : _explored
+                              ? '该分类下没有内容，换个分类或书源试试'
                               : '没有搜到相关书籍，换个书名或换个书源试试',
                         ),
                       ),

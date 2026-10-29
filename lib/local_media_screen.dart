@@ -1,4 +1,7 @@
 import 'dart:async';
+
+import 'app_page_route.dart';
+
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -66,7 +69,7 @@ class _LocalMediaScreenState extends State<LocalMediaScreen> {
     if (merge) {
       await Navigator.push(
         context,
-        MaterialPageRoute<void>(
+        appPageRoute<void>(
           builder: (_) => MergeQueueScreen(
             library: library,
             repository: widget.repository,

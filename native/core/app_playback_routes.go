@@ -96,6 +96,9 @@ func (engine *nativeEngine) nativeOpenPlayback(ctx context.Context, choice nativ
 			return nativePlan{}, err
 		}
 		plan.URL, choice.streamSession = stream.nativeOpen(media, choice.adBlock)
+		if stream.nativeCENCActive(choice.streamSession) {
+			plan.Key = ""
+		}
 	}
 	choice.created = time.Now()
 	engine.mu.Lock()

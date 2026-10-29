@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'app_page_route.dart';
+
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
@@ -32,7 +34,7 @@ Future<void> openClearanceFlow(
     return;
   }
   await Navigator.of(context).push(
-    MaterialPageRoute<void>(
+    appPageRoute<void>(
       builder: (_) => ClearanceWebViewPage(
         repository: repository,
         challenge: pending.first,

@@ -1,4 +1,7 @@
 import 'dart:convert';
+
+import 'app_page_route.dart';
+
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -118,7 +121,7 @@ class _ProfilesScreenState extends State<ProfilesScreen> {
   Future<void> _edit([LocalProfile? profile]) async {
     await Navigator.push(
       context,
-      MaterialPageRoute<void>(
+      appPageRoute<void>(
         builder: (_) => ProfileEditor(store: widget.store, profile: profile),
       ),
     );

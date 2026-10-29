@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import 'hiker_detail_backdrop.dart';
 import 'hiker_miniapp_engine.dart';
 import 'hiker_miniapp_models.dart';
 
@@ -27,6 +29,9 @@ class _HikerMiniappDetailScreenState extends State<HikerMiniappDetailScreen> {
   var _loading = true;
   var _resolving = false;
   String? _error;
+  HikerPlayLine? _footprintLine;
+  var _footprintIndex = 0;
+  var _footprintLabel = '';
 
   @override
   void initState() {
@@ -86,12 +91,24 @@ class _HikerMiniappDetailScreenState extends State<HikerMiniappDetailScreen> {
     }
     if (!mounted) return;
     widget.onPlay(detail.title, episodes, index);
+    if (!mounted) return;
+    setState(() {
+      _footprintLine = line;
+      _footprintIndex = index;
+      _footprintLabel = '${line.name} · ${episode.title}';
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.card.title)),
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        foregroundColor: Colors.white,
+        title: Text(widget.card.title),
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
@@ -112,23 +129,68 @@ class _HikerMiniappDetailScreenState extends State<HikerMiniappDetailScreen> {
     );
   }
 
+  Widget _backdrop(HikerMiniappDetail detail) {
+    final url = hikerDetailBackdropUrl(
+      stills: detail.stills,
+      poster: detail.poster,
+    );
+    return Container(
+      key: const ValueKey('hiker-detail-backdrop'),
+      color: Colors.black,
+      child: url.isEmpty
+          ? null
+          : Stack(
+              fit: StackFit.expand,
+              children: [
+                ImageFiltered(
+                  imageFilter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                  child: Image.network(
+                    url,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                  ),
+                ),
+                const DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Colors.black45, Colors.black87],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+
   Widget _detailBody(HikerMiniappDetail detail) {
     final children = <Widget>[];
+    final posterUrl = hikerDetailPosterUrl(
+      stills: detail.stills,
+      poster: detail.poster,
+    );
     children.add(
       Padding(
         padding: const EdgeInsets.all(12),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (detail.poster.isNotEmpty)
-              Image.network(
-                detail.poster,
-                width: 110,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) =>
-                    Container(width: 110, color: Colors.black12),
+            if (posterUrl.isNotEmpty) ...[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.network(
+                  posterUrl,
+                  key: const ValueKey('hiker-detail-poster'),
+                  width: 110,
+                  height: 150,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) =>
+                      Container(width: 110, height: 150, color: Colors.black26),
+                ),
               ),
-            if (detail.poster.isNotEmpty) const SizedBox(width: 12),
+              const SizedBox(width: 12),
+            ],
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -248,9 +310,82 @@ class _HikerMiniappDetailScreenState extends State<HikerMiniappDetailScreen> {
         ),
       );
     }
+    final playableLines = [
+      for (final line in detail.lines)
+        if (line.episodes.isNotEmpty) line,
+    ];
+    if (playableLines.isNotEmpty) {
+      children.add(
+        const Padding(
+          padding: EdgeInsets.fromLTRB(12, 12, 12, 6),
+          child: Text('播放地址', style: TextStyle(fontWeight: FontWeight.bold)),
+        ),
+      );
+      children.add(
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (var i = 0; i < playableLines.length; i++)
+                FilledButton.tonal(
+                  onPressed: () =>
+                      unawaited(_playEpisode(detail, playableLines[i], 0)),
+                  child: Text(
+                    playableLines[i].name.isEmpty
+                        ? '线路${i + 1}'
+                        : playableLines[i].name,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+    final footprintLine = _footprintLine;
+    if (footprintLine != null) {
+      children.add(const SizedBox(height: 64));
+    }
     return Stack(
       children: [
-        ListView(children: children),
+        Positioned.fill(child: _backdrop(detail)),
+        SafeArea(
+          top: true,
+          bottom: false,
+          child: DefaultTextStyle(
+            style: const TextStyle(color: Colors.white),
+            child: ListView(
+              padding: const EdgeInsets.only(top: kToolbarHeight),
+              children: children,
+            ),
+          ),
+        ),
+        if (footprintLine != null)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Material(
+              elevation: 4,
+              child: InkWell(
+                onTap: () => unawaited(
+                  _playEpisode(detail, footprintLine, _footprintIndex),
+                ),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 14,
+                  ),
+                  child: Text(
+                    '▶ $_footprintLabel',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+            ),
+          ),
         if (_resolving) ...[
           const ModalBarrier(dismissible: false, color: Colors.black38),
           const Center(child: CircularProgressIndicator()),

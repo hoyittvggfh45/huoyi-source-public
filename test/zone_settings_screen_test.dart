@@ -49,7 +49,7 @@ void main() {
   testWidgets('vod zone settings carry vod entries only', (tester) async {
     await pumpZone(tester, HomeZone.vod);
     expect(find.text('点播设置'), findsOneWidget);
-    expect(find.text('点播区 UI 风格'), findsOneWidget);
+    expect(find.text('点播区 UI 风格'), findsNothing);
     expect(find.text('播放设置'), findsOneWidget);
     expect(find.text('播放器选择'), findsOneWidget);
     expect(find.text('解析接口'), findsOneWidget);

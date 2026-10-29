@@ -359,10 +359,9 @@ class _LiveScreenState extends State<LiveScreen> {
         if (!source.builtin) source,
     ];
     final grouped = builtin.isNotEmpty && imported.isNotEmpty;
-    final picked = await showSourcePickerSheet(
+    final picked = await showSitePickerDialog(
       context,
       sectionName: '直播',
-      currentName: _source?.name ?? '',
       currentId: _source?.id ?? '',
       groups: [
         if (builtin.isNotEmpty)

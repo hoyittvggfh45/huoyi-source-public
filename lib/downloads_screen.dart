@@ -1,4 +1,7 @@
 import 'dart:async';
+
+import 'app_page_route.dart';
+
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -264,7 +267,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
           Icons.video_library_outlined,
           () => Navigator.push(
             context,
-            MaterialPageRoute<void>(
+            appPageRoute<void>(
               builder: (_) => LocalMediaScreen(
                 repository: widget.repository,
                 store: widget.store,
@@ -644,7 +647,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
       if (built != null) {
         await Navigator.of(
           context,
-        ).push(MaterialPageRoute<void>(builder: (_) => built));
+        ).push(appPageRoute<void>(builder: (_) => built));
       } else {
         await pushPlayer<void>(
           context,
@@ -793,7 +796,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
         tooltip: '本地媒体与合并',
         onPressed: () => Navigator.push(
           context,
-          MaterialPageRoute<void>(
+          appPageRoute<void>(
             builder: (_) => LocalMediaScreen(
               repository: widget.repository,
               store: widget.store,
