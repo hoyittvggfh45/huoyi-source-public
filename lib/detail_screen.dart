@@ -9,9 +9,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:media_kit/media_kit.dart';
 
 import 'app_layout.dart';
 import 'atmosphere_background.dart';
+import 'detail_inline_player.dart';
 import 'ios_dialogs.dart';
 import 'liquid_glass.dart';
 import 'core_bridge.dart';
@@ -44,12 +46,20 @@ class DetailScreen extends StatefulWidget {
     this.downloadOnOpen = false,
     this.onTagTap,
     this.queue,
+    this.playerFactory,
+    this.videoBuilder,
   });
   final Drama drama;
   final AppRepository repository;
   final LocalStore store;
   final bool resumeOnOpen;
   final bool downloadOnOpen;
+
+  @visibleForTesting
+  final Player Function()? playerFactory;
+
+  @visibleForTesting
+  final Widget Function(Widget controls)? videoBuilder;
 
   /// 标签点击回调：以 sourceId + tagId 打开该标签的目录列表。
   /// TODO(shell): 目录侧标签列表入口由壳子代理提供并在构造 DetailScreen 时
@@ -74,6 +84,8 @@ class _DetailScreenState extends State<DetailScreen> {
   final _detailScroll = ScrollController();
   final _playFocus = FocusNode(debugLabel: 'tv-detail-play');
   bool _initialActionHandled = false;
+  int? _inlineIndex;
+  double _inlinePosition = 0;
   late final int _profileEpoch;
   Widget? get _sourceDiagnostics => widget.repository.supportsSourceManagement
       ? SourceDiagnosticsButton(
@@ -287,19 +299,80 @@ class _DetailScreenState extends State<DetailScreen> {
     if (!mounted || _profileEpoch != widget.store.profileEpoch) {
       return;
     }
-    await pushPlayer<void>(
-      context,
-      detail: detail,
-      initialIndex: index,
-      initialPosition: position,
-      repository: widget.repository,
-      store: widget.store,
-      queue: widget.queue,
-      startFullscreen: fullscreen,
-    );
-    if (mounted) {
-      setState(() {});
+    if (fullscreen ||
+        AppLayout.isTelevision(context) ||
+        MediaQuery.sizeOf(context).width >= 960) {
+      await pushPlayer<void>(
+        context,
+        detail: detail,
+        initialIndex: index,
+        initialPosition: position,
+        repository: widget.repository,
+        store: widget.store,
+        queue: widget.queue,
+        startFullscreen: fullscreen,
+      );
+      if (mounted) {
+        setState(() {});
+      }
+      return;
     }
+    setState(() {
+      _inlineIndex = index;
+      _inlinePosition = position;
+    });
+  }
+
+  Widget _inlineArea(Drama drama) {
+    final detail = _detail;
+    final episodes = detail?.episodes ?? const <Episode>[];
+    final inlineIndex = _inlineIndex;
+    if (detail != null &&
+        inlineIndex != null &&
+        inlineIndex >= 0 &&
+        inlineIndex < episodes.length) {
+      return InlinePlayer(
+        key: ValueKey('inline-${drama.id}-${episodes[inlineIndex].number}'),
+        detail: detail,
+        index: inlineIndex,
+        initialPosition: _inlinePosition,
+        repository: widget.repository,
+        store: widget.store,
+        playerFactory: widget.playerFactory,
+        videoBuilder: widget.videoBuilder,
+      );
+    }
+    if (episodes.isEmpty) return _hero(drama);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final coverHeight = constraints.maxWidth * 9 / 16;
+        return Stack(
+          children: [
+            _hero(drama),
+            Positioned(
+              top: coverHeight / 2 - 32,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: IconButton.filled(
+                  key: const ValueKey('inline-play'),
+                  tooltip: '播放',
+                  onPressed: () => _play(
+                    resumeEpisodeIndex(
+                      episodes,
+                      widget.store.watched(drama.id),
+                    ),
+                    resume: true,
+                  ),
+                  icon: const Icon(Icons.play_arrow_rounded, size: 40),
+                  style: IconButton.styleFrom(minimumSize: const Size(64, 64)),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _pushToWatchRoom() async {
@@ -519,6 +592,7 @@ class _DetailScreenState extends State<DetailScreen> {
                               children: [
                                 _overview(drama),
                                 _descriptionSection(drama),
+                                _stillsSection(),
                                 _relatedSection(drama),
                               ],
                             ),
@@ -552,10 +626,17 @@ class _DetailScreenState extends State<DetailScreen> {
                       .take(episodePageSize)
                       .toList();
                   final showEpisodes = _episodesExpanded;
+                  final inlineNumber =
+                      _inlineIndex != null &&
+                          _inlineIndex! >= 0 &&
+                          _inlineIndex! < episodes.length
+                      ? episodes[_inlineIndex!].number
+                      : null;
+                  final currentNumber = inlineNumber ?? watched?.episode;
                   return CustomScrollView(
                     controller: _detailScroll,
                     slivers: [
-                      SliverToBoxAdapter(child: _hero(drama)),
+                      SliverToBoxAdapter(child: _inlineArea(drama)),
                       SliverToBoxAdapter(
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
@@ -572,7 +653,7 @@ class _DetailScreenState extends State<DetailScreen> {
                         SliverToBoxAdapter(
                           child: _episodeSummary(
                             episodes,
-                            currentNumber: watched?.episode,
+                            currentNumber: currentNumber,
                             expanded: showEpisodes,
                           ),
                         ),
@@ -583,7 +664,7 @@ class _DetailScreenState extends State<DetailScreen> {
                               episodes: episodes,
                               page: _episodePage,
                               title: '分组',
-                              currentNumber: watched?.episode,
+                              currentNumber: currentNumber,
                               onLocate: _locateEpisode,
                             ),
                           ),
@@ -615,7 +696,7 @@ class _DetailScreenState extends State<DetailScreen> {
                                   key: ValueKey('episode-${episode.number}'),
                                   number: episode.number,
                                   vip: episode.vip,
-                                  current: episode.number == watched?.episode,
+                                  current: episode.number == currentNumber,
                                   onPressed: () => _play(start + index),
                                 );
                               }, childCount: visible.length),
@@ -625,6 +706,7 @@ class _DetailScreenState extends State<DetailScreen> {
                       ],
                       if (!_loading) ...[
                         SliverToBoxAdapter(child: _descriptionSection(drama)),
+                        SliverToBoxAdapter(child: _stillsSection()),
                         SliverToBoxAdapter(child: _relatedSection(drama)),
                       ],
                       if (glassDesign(context))
@@ -784,6 +866,7 @@ class _DetailScreenState extends State<DetailScreen> {
       for (final still in detail?.stills ?? const <String>[])
         if (still.isNotEmpty && still != backdrop) still,
     ];
+    if (urls.isEmpty && drama.cover.isNotEmpty) urls.add(drama.cover);
     if (urls.isEmpty) {
       return AspectRatio(
         aspectRatio: 16 / 9,
@@ -939,6 +1022,53 @@ class _DetailScreenState extends State<DetailScreen> {
               onPressed: () =>
                   setState(() => _expandedDescription = !_expandedDescription),
               child: Text(_expandedDescription ? '收起简介' : '展开简介'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _stillsSection() {
+    final detail = _detail;
+    if (detail == null) return const SizedBox.shrink();
+    final backdrop = detail.backdrop;
+    final stills = <String>[];
+    for (final still in detail.stills) {
+      if (still.isNotEmpty && still != backdrop && !stills.contains(still)) {
+        stills.add(still);
+      }
+    }
+    if (stills.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('本片剧照', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 120,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: stills.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 10),
+              itemBuilder: (context, index) => SizedBox(
+                width: 200,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: DramaCover(
+                    drama: Drama(
+                      id: '${detail.drama.id}#still-$index',
+                      source: detail.drama.source,
+                      title: detail.drama.title,
+                      cover: stills[index],
+                    ),
+                    repository: widget.repository,
+                    radius: 0,
+                  ),
+                ),
+              ),
             ),
           ),
         ],

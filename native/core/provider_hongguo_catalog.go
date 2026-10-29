@@ -33,6 +33,11 @@ func (downloader *Downloader) fetchHongguoAppCatalog(ctx context.Context) ([]Dra
 }
 
 func (downloader *Downloader) fetchHongguoAppCatalogCategory(ctx context.Context, category string) ([]Drama, error) {
+	oversea := hongguoCtxIsOversea(ctx)
+	reportSource := sourceHongguo
+	if oversea {
+		reportSource = sourceHongguoOversea
+	}
 	genres := hongguoAppGenres
 	if category != "" {
 		genres = nil
@@ -47,9 +52,9 @@ func (downloader *Downloader) fetchHongguoAppCatalogCategory(ctx context.Context
 	}
 	feedKey := func(key string) string {
 		if category != "" {
-			return "category:" + key
+			return hongguoFeedPrefix(oversea) + "category:" + key
 		}
-		return key
+		return hongguoFeedPrefix(oversea) + key
 	}
 	client := downloader.hongguoClient()
 	client.catalogMu.Lock()
@@ -132,6 +137,11 @@ func (downloader *Downloader) fetchHongguoAppCatalogCategory(ctx context.Context
 				items = nil
 				if err == nil {
 					items, nextCursor, err = parseHongguoCatalogPage(result, cursor, genre.name)
+					if oversea {
+						for i := range items {
+							items[i] = relabelHongguoDrama(items[i], sourceHongguoOversea)
+						}
+					}
 				}
 				newItems = 0
 				for _, drama := range items {
@@ -149,7 +159,7 @@ func (downloader *Downloader) fetchHongguoAppCatalogCategory(ctx context.Context
 				if err == nil {
 					break
 				}
-				reportLibraryProgress(ctx, sourceHongguo, items, nil, false)
+				reportLibraryProgress(ctx, reportSource, items, nil, false)
 				var backoff *requestBackoff
 				if attempt > 0 || !retryable || errors.As(err, &backoff) || ctx.Err() != nil {
 					break
@@ -186,7 +196,7 @@ func (downloader *Downloader) fetchHongguoAppCatalogCategory(ctx context.Context
 			client.mu.Lock()
 			client.state.Feeds[feedKey(genre.key)] = checkpoint
 			client.mu.Unlock()
-			reportLibraryProgress(ctx, sourceHongguo, items, nil, false)
+			reportLibraryProgress(ctx, reportSource, items, nil, false)
 		}
 		if !active {
 			break

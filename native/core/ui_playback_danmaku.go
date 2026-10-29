@@ -43,7 +43,7 @@ type hongguoDanmakuCall struct {
 
 func hongguoPlaybackIDs(task Task) (string, string, bool) {
 	source, seriesID, valid := splitProviderDramaID(task.DramaID)
-	if !valid || source != sourceHongguo || task.Chapter.Source != sourceHongguo || !strings.HasPrefix(task.Chapter.VideoURL, "hongguo-cenc://") {
+	if !valid || (source != sourceHongguo && source != sourceHongguoOversea) || task.Chapter.Source != source || !strings.HasPrefix(task.Chapter.VideoURL, "hongguo-cenc://") {
 		return "", "", false
 	}
 	videoID := strings.TrimPrefix(task.Chapter.VideoURL, "hongguo-cenc://")

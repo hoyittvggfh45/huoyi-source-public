@@ -70,7 +70,7 @@ class _CatalogFiltersState extends State<CatalogFilters> {
     return SizedBox(
       height: television
           ? 64
-          : max(52, MediaQuery.textScalerOf(context).scale(14) + 28),
+          : max(44, MediaQuery.textScalerOf(context).scale(14) + 20),
       child: Row(
         children: [
           Expanded(
@@ -107,12 +107,16 @@ class _CatalogFiltersState extends State<CatalogFilters> {
                         for (final entry in widget.categories)
                           Padding(
                             key: _anchors.putIfAbsent(entry.id, GlobalKey.new),
-                            padding: const EdgeInsets.only(right: 6),
+                            padding: const EdgeInsets.only(right: 4),
                             child: ChoiceChip(
                               key: ValueKey('category-${entry.id}'),
                               label: Text(entry.name),
                               selected: entry.id == widget.category,
                               showCheckmark: false,
+                              visualDensity: VisualDensity.compact,
+                              labelPadding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                              ),
                               selectedColor: const Color(0xFFC8E6C9),
                               backgroundColor: scheme.surfaceContainerHighest,
                               labelStyle: TextStyle(
@@ -162,7 +166,7 @@ class CatalogFilterRows extends StatelessWidget {
       children: [
         for (final group in groups)
           SizedBox(
-            height: 44,
+            height: 36,
             child: Row(
               children: [
                 Padding(
@@ -206,12 +210,14 @@ class CatalogFilterRows extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final isSelected = (selected[group.key] ?? '') == id;
     return Padding(
-      padding: const EdgeInsets.only(right: 6),
+      padding: const EdgeInsets.only(right: 4),
       child: ChoiceChip(
         key: ValueKey('filter-${group.key}-$id'),
         label: Text(label),
         selected: isSelected,
         showCheckmark: false,
+        visualDensity: VisualDensity.compact,
+        labelPadding: const EdgeInsets.symmetric(horizontal: 6),
         selectedColor: const Color(0xFFC8E6C9),
         backgroundColor: scheme.surfaceContainerHighest,
         labelStyle: TextStyle(fontSize: 12, color: scheme.onSurface),

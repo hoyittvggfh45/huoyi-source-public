@@ -49,6 +49,22 @@ void main() {
     expect(manifest.unavailablePermissions, ['root']);
   });
 
+  test('market mirror candidates fall back off ghfast', () {
+    expect(
+      MarketClient.mirrorCandidates(
+        'https://ghfast.top/https://raw.githubusercontent.com/ant-video/ant-video/refs/heads/main/mini-app/market/market.json',
+      ),
+      [
+        'https://ghfast.top/https://raw.githubusercontent.com/ant-video/ant-video/refs/heads/main/mini-app/market/market.json',
+        'https://raw.githubusercontent.com/ant-video/ant-video/refs/heads/main/mini-app/market/market.json',
+        'https://cdn.jsdelivr.net/gh/ant-video/ant-video@main/mini-app/market/market.json',
+      ],
+    );
+    expect(MarketClient.mirrorCandidates('https://example.org/market.json'), [
+      'https://example.org/market.json',
+    ]);
+  });
+
   test('market json parses apps list and skips bad rows', () {
     final items = parseMarketJson({
       'apps': [

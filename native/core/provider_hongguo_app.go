@@ -19,6 +19,44 @@ const hongguoAppBaseURL = "https://api5-normal-sinfonlineb.fqnovel.com"
 
 const hongguoOverseaAppBaseURL = "https://api5-normal-sinfonlinea.fqnovel.com"
 
+func hongguoOverseaCtx(ctx context.Context) context.Context {
+	return context.WithValue(ctx, hongguoBaseURLOverrideKey{}, hongguoOverseaAppBaseURL)
+}
+
+func hongguoCtxIsOversea(ctx context.Context) bool {
+	override, _ := ctx.Value(hongguoBaseURLOverrideKey{}).(string)
+	return override == hongguoOverseaAppBaseURL
+}
+
+func hongguoFeedPrefix(oversea bool) string {
+	if oversea {
+		return "oversea:"
+	}
+	return ""
+}
+
+func relabelHongguoDrama(drama Drama, source string) Drama {
+	if drama.SourceID != "" {
+		drama.ID = providerDramaID(source, drama.SourceID)
+	} else if rest, ok := strings.CutPrefix(drama.ID, sourceHongguo+":"); ok && rest != "" {
+		drama.ID = providerDramaID(source, rest)
+	}
+	drama.Source = source
+	return drama
+}
+
+func relabelHongguoChapters(chapters []Chapter, source string) []Chapter {
+	for i := range chapters {
+		if chapters[i].Source == sourceHongguo {
+			chapters[i].Source = source
+		}
+		if rest, ok := strings.CutPrefix(chapters[i].ID, sourceHongguo+":"); ok && rest != "" {
+			chapters[i].ID = source + ":" + rest
+		}
+	}
+	return chapters
+}
+
 type hongguoBaseURLOverrideKey struct{}
 
 const hongguoAppUserAgent = "com.phoenix.read/73532 (Linux; U; Android 16; zh_CN; 25053RT47C; Build/BP2A.250605.031.A3; Cronet/TTNetVersion:04657795 2026-01-23 QuicVersion:c67e9834 2025-09-08)"
@@ -95,9 +133,10 @@ func (downloader *Downloader) restoreHongguoCatalog(state *hongguoCatalogState) 
 	}
 	cloned := cloneHongguoCatalogState(state)
 	for name, cursor := range cloned.Feeds {
+		trimmed := strings.TrimPrefix(name, "oversea:")
 		known := false
 		for _, genre := range hongguoAppGenres {
-			known = known || name == genre.key || name == "category:"+genre.key
+			known = known || trimmed == genre.key || trimmed == "category:"+genre.key
 		}
 		if !known || !cursor.Initialized || cursor.Offset < 0 || cursor.Offset > 1_000_000 || len(cursor.SessionID) > 4096 || len(cursor.LastID) > 256 || len(cursor.PageSignature) > 64 {
 			delete(cloned.Feeds, name)
@@ -132,8 +171,13 @@ func hongguoCatalogInitialized(state *hongguoCatalogState) bool {
 }
 
 func hongguoCatalogHasMore(state *hongguoCatalogState) bool {
+	return hongguoCatalogHasMoreFor(state, false)
+}
+
+func hongguoCatalogHasMoreFor(state *hongguoCatalogState, oversea bool) bool {
+	prefix := hongguoFeedPrefix(oversea)
 	for _, genre := range hongguoAppGenres {
-		if state == nil || !state.Feeds[genre.key].Exhausted {
+		if state == nil || !state.Feeds[prefix+genre.key].Exhausted {
 			return true
 		}
 	}

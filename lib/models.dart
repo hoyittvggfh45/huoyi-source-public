@@ -99,7 +99,11 @@ class SourceSite {
   bool get isDramaSection => section != sectionVideo;
   String get coreSlotId => slotId.isEmpty ? id : slotId;
   bool get onlineSearch =>
-      isVideoSection || id == 'hongguo' || pagedSearch || duanjuOnlineSearch;
+      isVideoSection ||
+      id == 'hongguo' ||
+      id == 'hongguo-oversea' ||
+      pagedSearch ||
+      duanjuOnlineSearch;
   bool get duanjuOnlineSearch => const {
     'yaguo',
     'maoguo',
@@ -134,7 +138,7 @@ class SourceSite {
     'wuguo',
     'huangdou_yh',
   }.contains(id);
-  bool get searchSuggestions => id == 'hongguo';
+  bool get searchSuggestions => id == 'hongguo' || id == 'hongguo-oversea';
   String get groupId => switch (id) {
     'huangguo-video' || 'huangguoai' || 'cloudfront' => 'huangguo',
     _ => id,
@@ -150,6 +154,12 @@ class SourceSite {
   static const hongguo = SourceSite(
     'hongguo',
     '红果',
+    '短剧 · 漫剧 · AI 剧',
+    section: sectionDrama,
+  );
+  static const hongguoOversea = SourceSite(
+    'hongguo-oversea',
+    '红果海外',
     '短剧 · 漫剧 · AI 剧',
     section: sectionDrama,
   );
@@ -736,6 +746,7 @@ class SourceSite {
   ];
   static const knownValues = [
     hongguo,
+    hongguoOversea,
     SourceSite('hgtv', 'HGTV', '短剧 · 漫剧 · AI 剧', section: sectionDrama),
     ikanbot,
     a123,
@@ -753,6 +764,7 @@ class SourceSite {
   ];
   static const allValues = [
     hongguo,
+    hongguoOversea,
     SourceSite('hgtv', 'HGTV', '短剧 · 漫剧 · AI 剧', section: sectionDrama),
     ikanbot,
     a123,

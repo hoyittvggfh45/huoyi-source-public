@@ -11,12 +11,14 @@ class LegadoSource {
     required this.url,
     required this.searchUrl,
     required this.rawJson,
+    this.type = '',
   });
 
   final String name;
   final String url;
   final String searchUrl;
   final String rawJson;
+  final String type;
 
   String get id => name.isNotEmpty ? name : url;
 
@@ -26,6 +28,7 @@ class LegadoSource {
       url: (json['bookSourceUrl'] ?? '').toString(),
       searchUrl: (json['searchUrl'] ?? '').toString(),
       rawJson: jsonEncode(json),
+      type: (json['bookSourceType'] ?? '').toString(),
     );
   }
 }
@@ -205,6 +208,12 @@ class LegadoStore {
       jsonEncode(existing.map((s) => jsonDecode(s.rawJson)).toList()),
     );
     return existing;
+  }
+
+  static Future<int> restoreBuiltin() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_seededKey, false);
+    return seedBuiltin();
   }
 
   static Future<List<LegadoSource>> remove(LegadoSource source) async {

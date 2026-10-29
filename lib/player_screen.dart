@@ -1916,7 +1916,7 @@ class _PlayerScreenState extends State<PlayerScreen>
               onRoute: (route) => Navigator.pop(menuContext, route),
               onEpisode: (index) => Navigator.pop(menuContext, index),
               onPreferences: _setPreferences,
-              showDanmaku: widget.detail.drama.source == 'hongguo',
+              showDanmaku: widget.detail.drama.source == 'hongguo' || widget.detail.drama.source == 'hongguo-oversea',
               danmakuStatus: _danmaku.status,
               onRetryDanmaku: _danmaku.canRetry ? _danmaku.retry : null,
               preloadStatus: _preloader.status,
@@ -2078,7 +2078,7 @@ class _PlayerScreenState extends State<PlayerScreen>
               onFavorite: _toggleFavorite,
               autoAdvance: _autoAdvance,
               danmaku: _danmakuEnabled,
-              showDanmaku: widget.detail.drama.source == 'hongguo',
+              showDanmaku: widget.detail.drama.source == 'hongguo' || widget.detail.drama.source == 'hongguo-oversea',
               danmakuStatus: _danmaku.status,
               onRetryDanmaku: _danmaku.canRetry ? _danmaku.retry : null,
               preload: _preloadEnabled,
@@ -2510,7 +2510,7 @@ class _PlayerScreenState extends State<PlayerScreen>
             routeLabel: _routeLabel,
             routeCount: _routeCount,
             onRoute: () => _openPanel(PlayerMenuSection.route),
-            showDanmaku: widget.detail.drama.source == 'hongguo',
+            showDanmaku: widget.detail.drama.source == 'hongguo' || widget.detail.drama.source == 'hongguo-oversea',
             danmakuEnabled: _danmakuEnabled,
             danmakuStatus: _danmaku.status,
             onEpisodes: () async {
@@ -2523,7 +2523,7 @@ class _PlayerScreenState extends State<PlayerScreen>
             onSpeed: () => _openPanel(PlayerMenuSection.speed),
             onQuality: () => _openPanel(PlayerMenuSection.quality),
             onSettings: () => _openPanel(PlayerMenuSection.settings),
-            onDanmaku: widget.detail.drama.source == 'hongguo'
+            onDanmaku: widget.detail.drama.source == 'hongguo' || widget.detail.drama.source == 'hongguo-oversea'
                 ? _toggleDanmaku
                 : null,
             onRetryDanmaku: _danmaku.canRetry

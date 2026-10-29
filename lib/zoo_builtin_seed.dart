@@ -31,6 +31,12 @@ class ZooBuiltinStation {
 
 class ZooBuiltinSeeder {
   static const _seededKey = 'zoo_builtin_seeded_v1';
+  static const _prunedDeadJarsKey = 'zoo_builtin_pruned_dead_jars_v1';
+  static const deadJarUrls = {
+    'http://47.120.41.246:8025/vip/jar/tan.php',
+    'https://agit.ai/guot54/ygbh/raw/branch/master/JAR/83.jar',
+    'https://zl.wpscdn.cn/2026/09/11/space_img/0f5c235d-ee40-42a0-a19a-b7f29986c51c.png',
+  };
   static const _configPrefixes = {'zoo_', 'luna_'};
 
   static bool isBuiltinConfig(String configId) =>
@@ -167,6 +173,28 @@ class ZooBuiltinSeeder {
 
   static Future<int> restore(AppRepository repository) =>
       seed(repository, force: true);
+
+  static Future<int> pruneDeadJarSites(AppRepository repository) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool(_prunedDeadJarsKey) == true) return 0;
+      var removed = 0;
+      for (final config in TvBoxConfigStore.configs) {
+        if (!isBuiltinConfig(config.configId)) continue;
+        for (final site in List.of(config.sites)) {
+          if (site.kind == 'jar' && deadJarUrls.contains(site.jarUrl)) {
+            if (await deleteSite(repository, config.configId, site)) {
+              removed++;
+            }
+          }
+        }
+      }
+      await prefs.setBool(_prunedDeadJarsKey, true);
+      return removed;
+    } catch (_) {
+      return 0;
+    }
+  }
 
   static String _uniquePySiteId(String base, Set<String> used) {
     if (!used.contains(base)) return base;

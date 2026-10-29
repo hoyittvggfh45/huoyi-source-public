@@ -35,7 +35,7 @@ func (d *Downloader) providerBaseURL(source string) string {
 		configured, fallback = d.cfg.HuangguoVideoURL, huangguoVideoBaseURL
 	case sourceHuangdou:
 		configured, fallback = d.cfg.HuangdouURL, huangdouBaseURL
-	case sourceHongguo, sourceHGTV:
+	case sourceHongguo, sourceHGTV, sourceHongguoOversea:
 		configured, fallback = d.cfg.HongguoURL, hongguoBaseURL
 	case sourceHuangju:
 		configured, fallback = d.cfg.HuangjuURL, huangjuBaseURL

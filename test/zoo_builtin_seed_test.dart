@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:duanju_app/jar_bridge.dart';
 import 'package:duanju_app/zoo_builtin_data.dart';
 import 'package:duanju_app/zoo_builtin_seed.dart';
 
@@ -118,8 +119,8 @@ void main() {
       }
     }
 
-    expect(total, 929);
-    expect(kinds, {'jar': 732, 'api': 146, 'py': 51});
+    expect(total, 914);
+    expect(kinds, {'jar': 717, 'api': 146, 'py': 51});
     expect(zooConfigs, 17);
     expect(lunaConfigs, 1);
   });
@@ -129,5 +130,40 @@ void main() {
     expect(ZooBuiltinSeeder.isBuiltinConfig('luna_abcdef123456'), isTrue);
     expect(ZooBuiltinSeeder.isBuiltinConfig('a1b2c3d4e5f6'), isFalse);
     expect(ZooBuiltinSeeder.dataConfigs().length, 18);
+  });
+
+  test('dead jar urls are gone from seed data', () {
+    for (final config in ZooBuiltinSeeder.dataConfigs()) {
+      final sites = config['sites'] as List;
+      for (final site in sites) {
+        final row = site as Map;
+        if (row['kind'] == 'jar') {
+          expect(
+            ZooBuiltinSeeder.deadJarUrls.contains(row['jarUrl']),
+            isFalse,
+            reason: 'dead jar still seeded: ${row['key']}',
+          );
+        }
+      }
+    }
+  });
+
+  test('jar cache key separates urls within one config', () {
+    expect(
+      JarBridge.jarCacheKey('zoo_x', 'https://example.com/a.jar'),
+      isNot(
+        equals(JarBridge.jarCacheKey('zoo_x', 'https://example.com/b.jar')),
+      ),
+    );
+    expect(
+      JarBridge.jarCacheKey('zoo_x', 'https://example.com/a.jar'),
+      JarBridge.jarCacheKey('zoo_x', 'https://example.com/a.jar'),
+    );
+    expect(
+      JarBridge.jarCacheKey('zoo_x', 'https://example.com/a.jar'),
+      isNot(
+        equals(JarBridge.jarCacheKey('zoo_y', 'https://example.com/a.jar')),
+      ),
+    );
   });
 }

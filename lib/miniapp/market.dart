@@ -117,7 +117,49 @@ class MarketClient {
     return utf8.decode(bytes, allowMalformed: true);
   }
 
+  static List<String> mirrorCandidates(String url) {
+    const ghfastPrefix = 'https://ghfast.top/';
+    if (url.startsWith(ghfastPrefix)) {
+      final direct = url.substring(ghfastPrefix.length);
+      final candidates = <String>[url, direct];
+      final jsdelivr = _jsdelivrMirror(direct);
+      if (jsdelivr != null) candidates.add(jsdelivr);
+      return candidates;
+    }
+    const rawPrefix = 'https://raw.githubusercontent.com/';
+    if (url.startsWith(rawPrefix)) {
+      final candidates = <String>[url, '$ghfastPrefix$url'];
+      final jsdelivr = _jsdelivrMirror(url);
+      if (jsdelivr != null) candidates.add(jsdelivr);
+      return candidates;
+    }
+    return [url];
+  }
+
+  static String? _jsdelivrMirror(String rawUrl) {
+    final match = RegExp(
+      r'^https://raw\.githubusercontent\.com/([^/]+)/([^/]+)/refs/heads/([^/]+)/(.+)$',
+    ).firstMatch(rawUrl);
+    if (match == null) return null;
+    return 'https://cdn.jsdelivr.net/gh/${match[1]}/${match[2]}@${match[3]}/${match[4]}';
+  }
+
   Future<List<int>> _fetchBytes(String url) async {
+    Object? lastError;
+    for (final candidate in mirrorCandidates(url)) {
+      try {
+        return await _fetchOnce(candidate);
+      } on FormatException catch (error) {
+        if (error.message == 'market package is too large') rethrow;
+        lastError = error;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError ?? const FormatException('market request failed');
+  }
+
+  Future<List<int>> _fetchOnce(String url) async {
     final uri = Uri.tryParse(url);
     if (uri == null || !uri.hasScheme || uri.scheme != 'https') {
       throw const FormatException('market url must be an https address');

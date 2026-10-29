@@ -312,6 +312,7 @@ class _AppBootstrapState extends State<AppBootstrap>
         });
       }
       await ZooBuiltinSeeder.seed(repository);
+      await ZooBuiltinSeeder.pruneDeadJarSites(repository);
     } catch (failure) {
       if (mounted) {
         setState(() {

@@ -88,11 +88,18 @@ object JarBridge {
         }
     }
 
-    private fun jarFile(context: Context, configId: String): File {
+    private fun jarFile(context: Context, configId: String, url: String): File {
         val dir = File(context.filesDir, "jarbridge")
         if (!dir.exists()) dir.mkdirs()
         val safe = configId.replace(Regex("[^A-Za-z0-9._-]"), "_")
-        return File(dir, "$safe.jar")
+        val urlKey = md5Hex(url).take(12)
+        return File(dir, "$safe-$urlKey.jar")
+    }
+
+    private fun md5Hex(text: String): String {
+        val digest = MessageDigest.getInstance("MD5")
+        digest.update(text.toByteArray(Charsets.UTF_8))
+        return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
     private fun md5Of(file: File): String {
@@ -109,7 +116,7 @@ object JarBridge {
     }
 
     private fun ensureJar(context: Context, configId: String, url: String, expectedMd5: String): Map<String, Any?> {
-        val target = jarFile(context, configId)
+        val target = jarFile(context, configId, url)
         val expected = expectedMd5.trim().lowercase()
         if (target.exists()) {
             val current = md5Of(target)
@@ -148,7 +155,7 @@ object JarBridge {
             throw IllegalStateException("jar MD5 校验不符：配置要求 $expected，实际 $actual，已拒绝加载")
         }
         JarFilePrep.replaceTarget(temp, target)
-        loaders.remove(configId)
+        loaders.remove(target.absolutePath)
         val stale = spiders.keys.filter { it.startsWith("jar:$configId:") }
         stale.forEach { releaseSpider(it) }
         return mapOf("path" to target.absolutePath, "md5" to actual)
@@ -205,10 +212,10 @@ object JarBridge {
         return mapOf("classes" to classes)
     }
 
-    private fun loaderFor(context: Context, configId: String, jarPath: String): DexClassLoader {
-        return loaders.computeIfAbsent(configId) {
+    private fun loaderFor(context: Context, jarPath: String): DexClassLoader {
+        return loaders.computeIfAbsent(jarPath) {
             JarFilePrep.sealForLoad(File(jarPath))
-            val optimized = File(context.codeCacheDir, "jarbridge_$configId")
+            val optimized = File(context.codeCacheDir, "jarbridge_" + File(jarPath).nameWithoutExtension)
             if (!optimized.exists()) optimized.mkdirs()
             DexClassLoader(jarPath, optimized.absolutePath, null, context.classLoader)
         }
@@ -218,7 +225,7 @@ object JarBridge {
         spiders[siteId]?.let { return it }
         synchronized(spiders) {
             spiders[siteId]?.let { return it }
-            val loader = loaderFor(context, configId, jarPath)
+            val loader = loaderFor(context, jarPath)
             val type = try {
                 loader.loadClass(className)
             } catch (error: ClassNotFoundException) {

@@ -148,12 +148,15 @@ class JarBridge {
     }
   }
 
+  static String jarCacheKey(String configId, String url) => '$configId|$url';
+
   static Future<String> ensureJarPath({
     required String configId,
     required String url,
     String md5 = '',
   }) async {
-    final cached = _jarPaths[configId];
+    final key = jarCacheKey(configId, url);
+    final cached = _jarPaths[key];
     if (cached != null) return cached;
     if (!supported) {
       throw JarBridgeFailure('jar 桥仅支持 Android，当前平台无法下载与加载远程 jar');
@@ -167,7 +170,7 @@ class JarBridge {
       if (jarPath.isEmpty) {
         throw JarBridgeFailure('jar 下载失败：桥未返回本地路径');
       }
-      _jarPaths[configId] = jarPath;
+      _jarPaths[key] = jarPath;
       return jarPath;
     } on PlatformException catch (error) {
       throw JarBridgeFailure(error.message ?? 'jar 桥调用失败');
@@ -203,7 +206,7 @@ class JarBridge {
   }
 
   static void invalidateJar(String configId) {
-    _jarPaths.remove(configId);
+    _jarPaths.removeWhere((key, _) => key.startsWith('$configId|'));
     _homeCache.removeWhere((siteId, _) => siteId.startsWith('jar:$configId:'));
   }
 

@@ -198,7 +198,7 @@ func parseRouterData(raw string) map[string]any {
 
 func (d *Downloader) resolveHongguoMedia(ctx context.Context, task Task) (providerMedia, error) {
 	source, seriesID, ok := splitProviderDramaID(task.DramaID)
-	if !ok || source != sourceHongguo {
+	if !ok || (source != sourceHongguo && source != sourceHongguoOversea) {
 		return providerMedia{}, fmt.Errorf("红果章节缺少剧 ID，请刷新剧库后重新加入队列")
 	}
 	videoID := strings.TrimPrefix(task.Chapter.VideoURL, "hongguo-cenc://")
@@ -212,7 +212,7 @@ func (d *Downloader) resolveHongguoMedia(ctx context.Context, task Task) (provid
 			return media, nil
 		}
 	}
-	media, nativeErr := d.resolveHongguoAppMedia(ctx, videoID)
+	media, nativeErr := d.resolveHongguoAppMediaForSource(ctx, source, videoID)
 	if nativeErr == nil {
 		return media, nil
 	}

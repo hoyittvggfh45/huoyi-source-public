@@ -9,6 +9,7 @@ type providerDescriptor struct {
 var nativeProviderRegistry = []providerDescriptor{
 	{ID: sourceHGTV, SupportsFilters: true},
 	{ID: sourceHongguo, FilterNote: "目录走 feed 与游标架构，筛选需 feed 键重设计"},
+	{ID: sourceHongguoOversea, FilterNote: "目录走 feed 与游标架构，筛选需 feed 键重设计"},
 	{ID: sourceHuangdou, FilterNote: "目录接口未返回筛选组"},
 	{ID: sourceHuangguoAI, FilterNote: "目录接口未返回筛选组"},
 	{ID: sourceHuangju, FilterNote: "目录接口未返回筛选组"},

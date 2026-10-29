@@ -34,7 +34,7 @@ func nativeSourceSupportsSearch(source string) bool {
 		return true
 	}
 	switch source {
-	case sourceHongguo, sourceHuangju, sourceGuipian, sourceHanxiaoquan,
+	case sourceHongguo, sourceHongguoOversea, sourceHuangju, sourceGuipian, sourceHanxiaoquan,
 		sourceYeguo, sourceDSD, sourceA123, sourceIkanbot, sourceHGTV:
 		return true
 	}
@@ -70,12 +70,19 @@ func (engine *nativeEngine) nativeSearchSource(ctx context.Context, source, quer
 		}
 		result.Page = 1
 		return result, nil
-	case source == sourceHongguo:
-		entry, err := d.searchHongguoDramas(ctx, query)
+	case source == sourceHongguo || source == sourceHongguoOversea:
+		searchCtx := ctx
+		if source == sourceHongguoOversea {
+			searchCtx = hongguoOverseaCtx(ctx)
+		}
+		entry, err := d.searchHongguoDramas(searchCtx, query)
 		if err != nil {
 			return result, err
 		}
 		for _, drama := range entry.Dramas {
+			if source == sourceHongguoOversea {
+				drama = relabelHongguoDrama(drama, sourceHongguoOversea)
+			}
 			result.Items = append(result.Items, nativeNormalize(drama))
 		}
 		result.Warning, result.Page = entry.Warning, 1

@@ -10,6 +10,7 @@ import 'core_bridge.dart';
 import 'import_center.dart';
 import 'jar_import.dart';
 import 'local_store.dart';
+import 'rfw_theme/rfw_theme_store.dart';
 import 'tvbox_config.dart';
 import 'widgets.dart';
 
@@ -134,6 +135,25 @@ class _ImportCenterScreenState extends State<ImportCenterScreen> {
           repository: widget.repository,
         ).importAll([ImportCandidate(name: file.name, bytes: bytes)]);
         if (mounted) _showMessage(report.summary);
+      });
+      return;
+    }
+    if (file.name.toLowerCase().endsWith('.rfwtxt')) {
+      await _run(() async {
+        final bytes = await File(filePath).readAsBytes();
+        if (bytes.length > 1024 * 1024) {
+          if (mounted) _showMessage('主题文件过大（超过 1MB）');
+          return;
+        }
+        late final String text;
+        try {
+          text = utf8.decode(bytes);
+        } catch (_) {
+          if (mounted) _showMessage('主题文件不是有效 UTF-8 文本');
+          return;
+        }
+        final result = await importRfwThemeText(file.name, text);
+        if (mounted) _showMessage(result.message);
       });
       return;
     }

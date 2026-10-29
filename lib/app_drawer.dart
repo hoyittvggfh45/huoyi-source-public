@@ -17,6 +17,7 @@ enum AppDrawerTool {
   proxyKernel,
   lanSync,
   ruleEditor,
+  driveLibrary,
 }
 
 class AppDrawer extends StatelessWidget {
@@ -179,6 +180,12 @@ class AppDrawer extends StatelessWidget {
             label: '直播',
             selected: zone == HomeZone.live,
             onTap: () => onZoneSelected(HomeZone.live),
+          ),
+          _moduleTile(
+            icon: Icons.cloud_rounded,
+            label: '网盘',
+            selected: false,
+            onTap: () => onTool(AppDrawerTool.driveLibrary),
           ),
           _moduleTile(
             icon: Icons.meeting_room_rounded,

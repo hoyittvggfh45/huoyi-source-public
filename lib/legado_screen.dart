@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import 'content_http.dart';
 import 'core_bridge.dart';
+import 'legado_builtin_data.dart';
 import 'legado_source.dart';
 import 'local_book_store.dart';
 
@@ -21,6 +22,8 @@ class LegadoScreen extends StatefulWidget {
 class _LegadoScreenState extends State<LegadoScreen> {
   List<LegadoSource> _sources = [];
   LegadoSource? _selected;
+  bool _novelOnly = true;
+  late final _builtinCount = parseLegadoSources(builtinLegadoRulesJson).length;
   final _query = TextEditingController();
   List<Map<String, dynamic>> _books = [];
   List<Map<String, dynamic>> _chapters = [];
@@ -52,6 +55,61 @@ class _LegadoScreenState extends State<LegadoScreen> {
     super.dispose();
   }
 
+  List<LegadoSource> get _visibleSources => _novelOnly
+      ? _sources.where((s) => s.type == '0' || s.type.isEmpty).toList()
+      : _sources;
+
+  void _ensureVisibleSelection() {
+    final visible = _visibleSources;
+    if (_selected == null || !visible.any((s) => s.id == _selected!.id)) {
+      _selected = visible.isNotEmpty ? visible.first : null;
+    }
+  }
+
+  Future<void> _deleteSource(LegadoSource source) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('删除书源'),
+        content: Text('确定删除「${source.name}」吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final sources = await LegadoStore.remove(source);
+    if (!mounted) return;
+    setState(() {
+      _sources = sources;
+      _unsupportedIds.remove(source.id);
+      if (_selected?.id == source.id) _selected = null;
+      _ensureVisibleSelection();
+      _books = [];
+      _chapters = [];
+      _content = '';
+      _contentImages = [];
+      _mode = 'books';
+      _searched = false;
+      _exploreCategories = [];
+      _exploreUrl = '';
+      _explored = false;
+    });
+  }
+
+  Future<void> _restoreBuiltin() async {
+    await LegadoStore.restoreBuiltin();
+    if (!mounted) return;
+    await _refresh();
+  }
+
   Future<void> _refresh() async {
     await LegadoStore.seedBuiltin();
     final sources = await LegadoStore.load();
@@ -60,7 +118,7 @@ class _LegadoScreenState extends State<LegadoScreen> {
       setState(() {
         _sources = sources;
         _localBooks = localBooks;
-        if (_selected == null && sources.isNotEmpty) _selected = sources.first;
+        _ensureVisibleSelection();
       });
     }
     if (sources.isNotEmpty) unawaited(_checkSources(sources));
@@ -128,7 +186,7 @@ class _LegadoScreenState extends State<LegadoScreen> {
     if (mounted) {
       setState(() {
         _sources = merged;
-        _selected ??= merged.isNotEmpty ? merged.first : null;
+        _ensureVisibleSelection();
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -657,46 +715,88 @@ class _LegadoScreenState extends State<LegadoScreen> {
             ],
           ),
         ),
-        if (_sources.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: Row(
+            children: [
+              ChoiceChip(
+                label: const Text('小说'),
+                selected: _novelOnly,
+                onSelected: (_) => setState(() {
+                  _novelOnly = true;
+                  _ensureVisibleSelection();
+                  _books = [];
+                  _searched = false;
+                }),
+              ),
+              const SizedBox(width: 8),
+              ChoiceChip(
+                label: const Text('全部书源'),
+                selected: !_novelOnly,
+                onSelected: (_) => setState(() {
+                  _novelOnly = false;
+                  _ensureVisibleSelection();
+                  _books = [];
+                  _searched = false;
+                }),
+              ),
+              const Spacer(),
+              if (_sources.length < _builtinCount)
+                TextButton(
+                  onPressed: _restoreBuiltin,
+                  child: const Text('恢复默认'),
+                ),
+            ],
+          ),
+        ),
+        if (_sources.isNotEmpty && _visibleSources.isEmpty)
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text('小说分类下暂无书源，可切到全部书源查看。'),
+          ),
+        if (_visibleSources.isNotEmpty)
           SizedBox(
             height: 44,
             child: ListView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               children: [
-                for (final source in _sources)
+                for (final source in _visibleSources)
                   Padding(
                     padding: const EdgeInsets.only(right: 8, top: 8),
-                    child: ChoiceChip(
-                      label: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(source.name),
-                          if (_unsupportedIds.contains(source.id))
-                            const Padding(
-                              padding: EdgeInsets.only(left: 4),
-                              child: Text(
-                                '规则暂不支持',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.red,
+                    child: GestureDetector(
+                      onLongPress: () => _deleteSource(source),
+                      child: ChoiceChip(
+                        label: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(source.name),
+                            if (_unsupportedIds.contains(source.id))
+                              const Padding(
+                                padding: EdgeInsets.only(left: 4),
+                                child: Text(
+                                  '规则暂不支持',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.red,
+                                  ),
                                 ),
                               ),
-                            ),
-                        ],
+                          ],
+                        ),
+                        selected: _selected?.id == source.id,
+                        onSelected: (_) => setState(() {
+                          _selected = source;
+                          _books = [];
+                          _searched = false;
+                          _searchUnsupported = false;
+                          _searchUnsupportedReason = '';
+                          _exploreCategories = [];
+                          _exploreUrl = '';
+                          _explored = false;
+                          _contentImages = [];
+                        }),
                       ),
-                      selected: _selected?.id == source.id,
-                      onSelected: (_) => setState(() {
-                        _selected = source;
-                        _books = [];
-                        _searched = false;
-                        _searchUnsupported = false;
-                        _searchUnsupportedReason = '';
-                        _exploreCategories = [];
-                        _exploreUrl = '';
-                        _explored = false;
-                        _contentImages = [];
-                      }),
                     ),
                   ),
               ],

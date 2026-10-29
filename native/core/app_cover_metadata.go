@@ -17,11 +17,15 @@ func (d *Downloader) nativeCoverAddress(ctx context.Context, drama nativeDrama) 
 		return "", errors.New("无效的剧集 ID")
 	}
 	switch source {
-	case sourceHongguo, sourceHGTV:
+	case sourceHongguo, sourceHGTV, sourceHongguoOversea:
 		if !hongguoNumericID.MatchString(id) {
 			return "", errors.New("无效的红果剧集 ID")
 		}
-		result, err := d.hongguoAppRequest(ctx, http.MethodPost, "/novel/player/video_detail/v1/", nil, map[string]any{"series_id": id})
+		reqCtx := ctx
+		if source == sourceHongguoOversea {
+			reqCtx = hongguoOverseaCtx(ctx)
+		}
+		result, err := d.hongguoAppRequest(reqCtx, http.MethodPost, "/novel/player/video_detail/v1/", nil, map[string]any{"series_id": id})
 		if err != nil {
 			return "", err
 		}

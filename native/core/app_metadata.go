@@ -9,7 +9,7 @@ import (
 )
 
 func nativeNeedsExtraMetadata(drama nativeDrama) bool {
-	return drama.Source == sourceHongguo && drama.OnlineDate == "" ||
+	return (drama.Source == sourceHongguo || drama.Source == sourceHongguoOversea) && drama.OnlineDate == "" ||
 		drama.Source == sourceHuangdou && (drama.Heat == "" || drama.VIP == nil)
 }
 
@@ -25,7 +25,7 @@ func (engine *nativeEngine) nativeExtraMetadata(ctx context.Context, drama nativ
 	defer cancel()
 	var raw Drama
 	switch source {
-	case sourceHongguo:
+	case sourceHongguo, sourceHongguoOversea:
 		if !hongguoNumericID.MatchString(id) {
 			return drama, errors.New("红果剧集 ID 无效")
 		}
@@ -36,6 +36,9 @@ func (engine *nativeEngine) nativeExtraMetadata(ctx context.Context, drama nativ
 		raw, err = parseHongguoSortDetail(body, id)
 		if err != nil {
 			return drama, err
+		}
+		if source == sourceHongguoOversea {
+			raw = relabelHongguoDrama(raw, sourceHongguoOversea)
 		}
 	case sourceHuangdou:
 		row, err := engine.downloader.huangdouDetail(ctx, id)

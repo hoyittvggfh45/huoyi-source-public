@@ -118,7 +118,7 @@ func parseHongguoAppDetail(result map[string]any, seriesID string) (hongguoDetai
 
 func (downloader *Downloader) hongguoCachedDrama(drama Drama) Drama {
 	source, seriesID, valid := splitProviderDramaID(drama.ID)
-	if !valid || source != sourceHongguo {
+	if !valid || (source != sourceHongguo && source != sourceHongguoOversea) {
 		return drama
 	}
 	client := downloader.hongguoClient()

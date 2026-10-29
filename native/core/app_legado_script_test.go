@@ -309,3 +309,41 @@ func TestLegadoJSErrorSoft(t *testing.T) {
 		t.Fatalf("js undefined fn should yield empty, got %q", got)
 	}
 }
+
+func TestLegadoFirstLastChild(t *testing.T) {
+	html := `<table>` +
+		`<tr><td class="odd"><a href="/a">A</a></td><td>2</td><td>3</td></tr>` +
+		`<tr><td>1</td><td class="odd"><a href="/b">B</a></td><td>3</td></tr>` +
+		`<tr><td class="odd"><a href="/c">C</a></td><td>2</td><td class="odd">D</td></tr>` +
+		`</table>`
+	ctx := newLegadoJSCtx("http://example.com")
+	blocks := ctx.evalList(html, "tr")
+	if len(blocks) != 3 {
+		t.Fatalf("want 3 rows, got %d", len(blocks))
+	}
+	var firstNames []string
+	for _, b := range blocks {
+		if v := ctx.evalScalar(b, "td.odd:first-child a@text"); v != "" {
+			firstNames = append(firstNames, v)
+		}
+	}
+	if len(firstNames) != 2 || firstNames[0] != "A" || firstNames[1] != "C" {
+		t.Fatalf("first-child wrong, got %v", firstNames)
+	}
+	var lastTexts []string
+	for _, b := range blocks {
+		lastTexts = append(lastTexts, ctx.evalScalar(b, "td:last-child@text"))
+	}
+	if len(lastTexts) != 3 || lastTexts[0] != "3" || lastTexts[1] != "3" || lastTexts[2] != "D" {
+		t.Fatalf("last-child wrong, got %v", lastTexts)
+	}
+	var oddLast []string
+	for _, b := range blocks {
+		if v := ctx.evalScalar(b, "td.odd:last-child@text"); v != "" {
+			oddLast = append(oddLast, v)
+		}
+	}
+	if len(oddLast) != 1 || oddLast[0] != "D" {
+		t.Fatalf("odd last-child wrong, got %v", oddLast)
+	}
+}

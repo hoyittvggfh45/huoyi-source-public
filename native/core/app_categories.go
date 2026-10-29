@@ -57,7 +57,7 @@ func validNativeCategory(source, category string) bool {
 		if _, ok := hgtvCategoryFor(category); ok {
 			return true
 		}
-	case sourceHongguo:
+	case sourceHongguo, sourceHongguoOversea:
 		for _, genre := range hongguoAppGenres {
 			if category == genre.key {
 				return true
@@ -104,7 +104,7 @@ func (engine *nativeEngine) nativeCategories(ctx context.Context, source string,
 			all = append(all, nativeCategory{ID: entry.id, Name: entry.name})
 		}
 		return all, nil
-	case sourceHongguo:
+	case sourceHongguo, sourceHongguoOversea:
 		for _, genre := range hongguoAppGenres {
 			all = append(all, nativeCategory{ID: genre.key, Name: genre.name})
 		}

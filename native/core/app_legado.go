@@ -86,6 +86,9 @@ func legadoParseSource(data []byte) (LegadoSource, error) {
 	}
 	if raw.RuleToc != nil {
 		s.TocList = raw.RuleToc["tocList"]
+		if s.TocList == "" {
+			s.TocList = raw.RuleToc["chapterList"]
+		}
 		s.NextTocURL = raw.RuleToc["nextTocUrl"]
 		s.ChapterName = raw.RuleToc["chapterName"]
 		s.ChapterURL = raw.RuleToc["chapterUrl"]
@@ -593,10 +596,11 @@ func legadoJSONListBlocks(body, rule string) []string {
 	return nil
 }
 
-func legadoURLOptions(suffix string) (string, string, map[string]string) {
+func legadoURLOptions(suffix string) (string, string, map[string]string, string) {
 	method := "GET"
 	body := ""
 	headers := map[string]string{}
+	charset := ""
 	var opts map[string]interface{}
 	if json.Unmarshal([]byte(suffix), &opts) == nil {
 		if m, ok := opts["method"].(string); ok && m != "" {
@@ -604,6 +608,9 @@ func legadoURLOptions(suffix string) (string, string, map[string]string) {
 		}
 		if b, ok := opts["body"].(string); ok {
 			body = b
+		}
+		if c, ok := opts["charset"].(string); ok {
+			charset = c
 		}
 		if h, ok := opts["headers"].(map[string]interface{}); ok {
 			for k, v := range h {
@@ -613,7 +620,29 @@ func legadoURLOptions(suffix string) (string, string, map[string]string) {
 			}
 		}
 	}
-	return method, body, headers
+	return method, body, headers, charset
+}
+
+func legadoEscapeKey(keyword, charset string) string {
+	switch strings.ToLower(strings.TrimSpace(charset)) {
+	case "gbk", "gb18030", "gb2312":
+		encoded, _, err := transform.String(simplifiedchinese.GBK.NewEncoder(), keyword)
+		if err != nil {
+			return url.QueryEscape(keyword)
+		}
+		var out strings.Builder
+		for i := 0; i < len(encoded); i++ {
+			c := encoded[i]
+			if c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-' || c == '_' || c == '.' || c == '~' {
+				out.WriteByte(c)
+			} else {
+				fmt.Fprintf(&out, "%%%02X", c)
+			}
+		}
+		return out.String()
+	default:
+		return url.QueryEscape(keyword)
+	}
 }
 
 func legadoSearch(src LegadoSource, keyword string, page int) (interface{}, error) {
@@ -647,7 +676,7 @@ func legadoSearch(src LegadoSource, keyword string, page int) (interface{}, erro
 			body2 := ""
 			headers2 := map[string]string{}
 			if base, suffix, ok := legadoSplitPostSuffix(u2); ok {
-				method2, body2, headers2 = legadoURLOptions(suffix)
+				method2, body2, headers2, _ = legadoURLOptions(suffix)
 				u2 = base
 			}
 			u2 = legadoAbs(src.URL, u2)
@@ -662,14 +691,16 @@ func legadoSearch(src LegadoSource, keyword string, page int) (interface{}, erro
 	method := "GET"
 	body := ""
 	headers := map[string]string{}
+	charset := ""
 	if base, suffix, ok := legadoSplitPostSuffix(rawURL); ok {
-		method, body, headers = legadoURLOptions(suffix)
+		method, body, headers, charset = legadoURLOptions(suffix)
 		rawURL = base
 	}
+	keyEsc := legadoEscapeKey(keyword, charset)
 	sub := func(v string) string {
-		v = strings.ReplaceAll(v, "{{key}}", url.QueryEscape(keyword))
+		v = strings.ReplaceAll(v, "{{key}}", keyEsc)
 		v = strings.ReplaceAll(v, "{{page}}", fmt.Sprint(page))
-		v = strings.ReplaceAll(v, "{key}", url.QueryEscape(keyword))
+		v = strings.ReplaceAll(v, "{key}", keyEsc)
 		v = strings.ReplaceAll(v, "{page}", fmt.Sprint(page))
 		return v
 	}
@@ -983,9 +1014,6 @@ func legadoRuleUnsupportedReason(rule string) string {
 	}
 	if strings.Contains(t, ":nth-") && !strings.Contains(t, ":nth-child(") && !strings.Contains(t, ":nth-of-type(") {
 		return "nth"
-	}
-	if strings.Contains(t, ":first-child") || strings.Contains(t, ":last-child") {
-		return "child"
 	}
 	return ""
 }

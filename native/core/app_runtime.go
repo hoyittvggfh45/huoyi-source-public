@@ -708,7 +708,8 @@ func (engine *nativeEngine) nativeCatalog(ctx context.Context, input nativeInput
 	switch source {
 	case sourceHGTV:
 		items, result.HasMore, result.Filters, err = d.fetchHGTVCatalogPage(ctx, category, page, input.Filters)
-	case sourceHongguo:
+	case sourceHongguo, sourceHongguoOversea:
+		oversea := source == sourceHongguoOversea
 		engine.mu.Lock()
 		known := make(map[string]bool, len(engine.catalogs[cacheKey]))
 		for _, drama := range engine.catalogs[cacheKey] {
@@ -719,12 +720,15 @@ func (engine *nativeEngine) nativeCatalog(ctx context.Context, input nativeInput
 		if page > 1 {
 			ctx = context.WithValue(ctx, libraryMoreKey{}, true)
 		}
+		if oversea {
+			ctx = hongguoOverseaCtx(ctx)
+		}
 		items, err = d.fetchHongguoAppCatalogCategory(ctx, category)
 		state := d.hongguoCatalogSnapshot()
 		result.hongguo = state
-		result.HasMore = hongguoCatalogHasMore(state)
+		result.HasMore = hongguoCatalogHasMoreFor(state, oversea)
 		if category != "" && state != nil {
-			result.HasMore = !state.Feeds["category:"+category].Exhausted
+			result.HasMore = !state.Feeds[hongguoFeedPrefix(oversea)+"category:"+category].Exhausted
 		}
 		if len(items) == 0 && err != nil && ctx.Err() == nil && (category == "" || category == "short_play") {
 			var totalPages int
@@ -867,7 +871,7 @@ func (engine *nativeEngine) nativeDetail(ctx context.Context, drama nativeDrama)
 	if raw.ID == drama.ID {
 		drama = mergeNativeDrama(drama, nativeNormalize(raw))
 	}
-	if source == sourceHongguo {
+	if source == sourceHongguo || source == sourceHongguoOversea {
 		raw := engine.downloader.hongguoCachedDrama(Drama{ID: drama.ID, Title: drama.Title, Source: source})
 		drama = mergeNativeDrama(drama, nativeNormalize(raw))
 	}

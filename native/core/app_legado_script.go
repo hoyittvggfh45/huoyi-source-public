@@ -1123,6 +1123,8 @@ type legadoStep struct {
 	nth          int
 	nthOfType    bool
 	hasNth       bool
+	firstChild   bool
+	lastChild    bool
 	siblingSep   bool
 }
 
@@ -1180,6 +1182,13 @@ func legadoParseDialectStep(part string) (legadoStep, bool) {
 	}
 	part, nthSt := legadoStripNth(part)
 	st := legadoStep{nth: nthSt.nth, nthOfType: nthSt.nthOfType, hasNth: nthSt.hasNth}
+	if strings.HasSuffix(part, ":first-child") {
+		st.firstChild = true
+		part = strings.TrimSuffix(part, ":first-child")
+	} else if strings.HasSuffix(part, ":last-child") {
+		st.lastChild = true
+		part = strings.TrimSuffix(part, ":last-child")
+	}
 	if i := strings.Index(part, "!"); i >= 0 {
 		exclStr := part[i+1:]
 		n, err := strconv.Atoi(exclStr)
@@ -1286,6 +1295,8 @@ func legadoParseDialectLevel(seg string) ([]legadoStep, bool) {
 		return nil, false
 	}
 	cleaned := legadoNthAnyRe.ReplaceAllString(seg, "")
+	cleaned = strings.ReplaceAll(cleaned, ":first-child", "")
+	cleaned = strings.ReplaceAll(cleaned, ":last-child", "")
 	if strings.ContainsAny(cleaned, ">,[\"':(") {
 		return nil, false
 	}
@@ -1467,6 +1478,41 @@ func legadoFilterNth(nodes []*html.Node, st legadoStep) []*html.Node {
 	return out
 }
 
+func legadoFilterChildPos(nodes []*html.Node, st legadoStep) []*html.Node {
+	if !st.firstChild && !st.lastChild {
+		return nodes
+	}
+	out := []*html.Node{}
+	for _, n := range nodes {
+		if st.firstChild {
+			first := true
+			for s := n.PrevSibling; s != nil; s = s.PrevSibling {
+				if s.Type == html.ElementNode {
+					first = false
+					break
+				}
+			}
+			if !first {
+				continue
+			}
+		}
+		if st.lastChild {
+			last := true
+			for s := n.NextSibling; s != nil; s = s.NextSibling {
+				if s.Type == html.ElementNode {
+					last = false
+					break
+				}
+			}
+			if !last {
+				continue
+			}
+		}
+		out = append(out, n)
+	}
+	return out
+}
+
 func legadoApplyStep(cur []*html.Node, st legadoStep, order map[*html.Node]int) []*html.Node {
 	if st.child {
 		var out []*html.Node
@@ -1478,6 +1524,7 @@ func legadoApplyStep(cur []*html.Node, st legadoStep, order map[*html.Node]int) 
 				}
 			}
 			matched = legadoFilterNth(matched, st)
+			matched = legadoFilterChildPos(matched, st)
 			if st.hasExclude {
 				idx := st.exclude
 				if idx < 0 {
@@ -1507,6 +1554,7 @@ func legadoApplyStep(cur []*html.Node, st legadoStep, order map[*html.Node]int) 
 		legadoDescendants(parent, st, &out)
 	}
 	out = legadoFilterNth(out, st)
+	out = legadoFilterChildPos(out, st)
 	if st.hasExclude {
 		idx := st.exclude
 		if idx < 0 {
@@ -1540,6 +1588,7 @@ func legadoApplyStepSibling(cur []*html.Node, st legadoStep, order map[*html.Nod
 			}
 		}
 		matched = legadoFilterNth(matched, st)
+		matched = legadoFilterChildPos(matched, st)
 		if st.hasExclude {
 			idx := st.exclude
 			if idx < 0 {
@@ -1611,6 +1660,26 @@ func legadoWalkLevels(doc *html.Node, order map[*html.Node]int, levels []legadoL
 }
 
 func legadoParseDoc(htmlText string) (*html.Node, map[*html.Node]int) {
+	trimmed := strings.TrimSpace(htmlText)
+	lower := strings.ToLower(trimmed)
+	tableFrag := false
+	for _, tag := range []string{"<tbody", "<thead", "<tfoot", "<caption", "<colgroup", "<col", "<tr", "<td", "<th"} {
+		if !strings.HasPrefix(lower, tag) {
+			continue
+		}
+		if len(lower) == len(tag) {
+			tableFrag = true
+			break
+		}
+		next := lower[len(tag) : len(tag)+1]
+		if next == " " || next == "\t" || next == "\n" || next == "\r" || next == ">" || next == "/" {
+			tableFrag = true
+			break
+		}
+	}
+	if tableFrag {
+		htmlText = "<table>" + htmlText + "</table>"
+	}
 	doc, err := html.Parse(strings.NewReader(htmlText))
 	if err != nil {
 		return nil, nil

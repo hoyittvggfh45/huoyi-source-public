@@ -447,7 +447,8 @@ class LocalStore extends ChangeNotifier {
     for (final row in readJsonList(_string(_key('seriesCandidates')))) {
       try {
         final drama = Drama.fromJson(row);
-        if (drama.source == SourceSite.hongguo.id) {
+        if (drama.source == SourceSite.hongguo.id ||
+            drama.source == SourceSite.hongguoOversea.id) {
           _seriesCandidates[drama.id] = drama;
         }
       } catch (_) {}
@@ -480,7 +481,8 @@ class LocalStore extends ChangeNotifier {
       isFavorite(id) ? _followStates[id] : null;
   List<Drama> seriesDramasFor(Drama anchor) {
     if (!allowsSource(SourceSite.hongguo.id) ||
-        anchor.source != SourceSite.hongguo.id) {
+        (anchor.source != SourceSite.hongguo.id &&
+            anchor.source != SourceSite.hongguoOversea.id)) {
       return const [];
     }
     final items = <String, Drama>{};

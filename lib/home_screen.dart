@@ -25,6 +25,7 @@ import 'proxy_kernel_screen.dart';
 import 'lan_screen.dart';
 import 'clearance_bridge.dart';
 import 'rule_editor_screen.dart';
+import 'drive_library_screen.dart';
 import 'watchroom/room_screen.dart';
 import 'app_update.dart';
 import 'core_bridge.dart';
@@ -33,6 +34,10 @@ import 'tv_filter_bar.dart';
 import 'catalog_browser.dart';
 import 'catalog_sort.dart';
 import 'catalog_sort_sheet.dart';
+import 'rfw_theme/rfw_theme_data.dart';
+import 'rfw_theme/rfw_theme_events.dart';
+import 'rfw_theme/rfw_theme_host.dart';
+import 'rfw_theme/rfw_theme_store.dart';
 import 'recommendations_screen.dart';
 import 'rankings_screen.dart';
 import 'detail_screen.dart';
@@ -149,6 +154,11 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _selectionMode = false;
   DramaUiStyle _dramaStyle = DramaUiStyle.ant;
   bool _showRecommendations = false;
+  bool _rfwThemeMode = false;
+  String? _rfwThemeId;
+  String? _rfwThemeText;
+  String _rfwDisplayStyle = 'grid';
+  bool _rfwShowFilters = false;
   bool _catalogLoadScheduled = false;
   bool _openingPlayback = false;
 
@@ -877,6 +887,7 @@ class _HomeScreenState extends State<HomeScreen> {
     )..addListener(_updateChanged);
     _updater.startWatching();
     widget.repository.catalogUpdates.addListener(_metadataChanged);
+    unawaited(_loadRfwThemePreferences());
     if (_sectionSources.isNotEmpty) {
       _load(useCache: true);
       _loadCategories();
@@ -1432,6 +1443,8 @@ class _HomeScreenState extends State<HomeScreen> {
         _pushTool(ProxyKernelScreen(repository: widget.repository));
       case AppDrawerTool.ruleEditor:
         _pushTool(RuleEditorScreen(repository: widget.repository));
+      case AppDrawerTool.driveLibrary:
+        _pushTool(const DriveLibraryScreen());
     }
   }
 
@@ -1814,6 +1827,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     icon: LucideIcons.play,
                     tooltip: '全屏流',
                     onPressed: _visible.isEmpty ? null : _openFullscreenFeed,
+                  ),
+                if (_zone == HomeZone.drama)
+                  GlassGroupItem(
+                    key: const ValueKey('rfw-theme-mode'),
+                    icon: LucideIcons.palette,
+                    tooltip: _rfwThemeMode ? '主题模式 · 点按切换主题' : '主题模式',
+                    highlighted: _rfwThemeMode,
+                    onPressed: _showRfwThemePicker,
                   ),
                 GlassGroupItem(
                   key: const ValueKey('toggle-search'),
@@ -2355,70 +2376,386 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _catalog({required bool selectionInBody}) {
-    final items = _visible;
+  List<Widget> _catalogSearchBlock() {
     final television = AppLayout.isTelevision(context);
-    return Column(
-      children: [
-        if (_searchVisible && !television)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-            child: SearchInput(
-              key: ValueKey('search-${_group.id}'),
-              controller: _search,
-              autofocus: true,
-              hint: _searchHint,
-              suggestions: _searchSuggestions
-                  ? widget.repository.suggestions
-                  : null,
-              onChanged: _searchChanged,
-              onCancel: () => unawaited(widget.repository.cancelSuggestions()),
-              onSearch: _submitSearch,
-              crossSource: _crossSourceSearch,
-              onCrossSourceChanged:
-                  _crossSourceSearch || _visibleSourceIds.isNotEmpty
-                  ? _changeCrossSource
-                  : null,
-              crossSourceCount: _visibleSourceIds.length,
-            ),
+    return [
+      if (_searchVisible && !television)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+          child: SearchInput(
+            key: ValueKey('search-${_group.id}'),
+            controller: _search,
+            autofocus: true,
+            hint: _searchHint,
+            suggestions: _searchSuggestions
+                ? widget.repository.suggestions
+                : null,
+            onChanged: _searchChanged,
+            onCancel: () => unawaited(widget.repository.cancelSuggestions()),
+            onSearch: _submitSearch,
+            crossSource: _crossSourceSearch,
+            onCrossSourceChanged:
+                _crossSourceSearch || _visibleSourceIds.isNotEmpty
+                ? _changeCrossSource
+                : null,
+            crossSourceCount: _visibleSourceIds.length,
           ),
-        if (_searchVisible &&
-            _search.text.trim().isEmpty &&
-            widget.store.recentSearches.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Row(
+        ),
+      if (_searchVisible &&
+          _search.text.trim().isEmpty &&
+          widget.store.recentSearches.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      for (final query in widget.store.recentSearches)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ActionChip(
+                            avatar: const Icon(Icons.history_rounded, size: 16),
+                            label: Text(query),
+                            onPressed: () => _submitSearch(query),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: '清空最近搜索',
+                onPressed: () =>
+                    saveUserChange(context, widget.store.clearRecentSearches),
+                icon: const Icon(Icons.delete_outline_rounded, size: 20),
+              ),
+            ],
+          ),
+        ),
+    ];
+  }
+
+  List<CatalogCategory> get _rfwCategories => _displayCategories
+      .where((category) => category.id != _recommendationCategory)
+      .toList();
+
+  Widget _rfwThemeBody(List<Drama> items) {
+    final themeText = _rfwThemeText;
+    if (themeText == null) {
+      return const Center(child: CircularProgressIndicator.adaptive());
+    }
+    final recommend = _showCarouselStrip
+        ? items.take(6).toList()
+        : const <Drama>[];
+    return RfwThemeHost(
+      themeText: themeText,
+      homeData: buildRfwHomeData(
+        RfwHomeDataInput(
+          categories: _rfwCategories,
+          category: _displayCategory,
+          items: items,
+          recommend: recommend,
+          filters: _catalogFilters,
+          selectedFilters: _selectedFilters,
+          displayStyle: _rfwDisplayStyle,
+          showFilters: _rfwShowFilters,
+          loading: _loading,
+          errorMessage: _categoriesError ?? '',
+          totalLabel: '${items.length}',
+          sourceName: _group.name,
+          screenWidth: MediaQuery.sizeOf(context).width,
+        ),
+      ),
+      onAction: (action) => _onRfwThemeAction(action, items, recommend),
+    );
+  }
+
+  void _onRfwThemeAction(
+    RfwThemeAction action,
+    List<Drama> items,
+    List<Drama> recommend,
+  ) {
+    switch (action.kind) {
+      case RfwThemeActionKind.openItem:
+        if (action.index < items.length) {
+          _openDrama(items[action.index]);
+        }
+      case RfwThemeActionKind.longPressItem:
+        if (action.index < items.length) {
+          _openDrama(items[action.index]);
+        }
+      case RfwThemeActionKind.openRecommend:
+        if (action.index < recommend.length) {
+          _openDrama(recommend[action.index]);
+        }
+      case RfwThemeActionKind.selectCategory:
+        _changeCategory(action.typeId);
+      case RfwThemeActionKind.selectFilter:
+        _changeFilter(action.key, action.value);
+      case RfwThemeActionKind.toggleFilters:
+        setState(() => _rfwShowFilters = !_rfwShowFilters);
+      case RfwThemeActionKind.showDisplayStylePicker:
+        _showRfwDisplayStylePicker();
+      case RfwThemeActionKind.showFilterPicker:
+        setState(() => _rfwShowFilters = true);
+      case RfwThemeActionKind.showNativeAppBar:
+        break;
+      case RfwThemeActionKind.showApiConfigPicker:
+        unawaited(_pickSource());
+      case RfwThemeActionKind.refresh:
+        unawaited(_refreshCatalog());
+      case RfwThemeActionKind.showCategoryPicker:
+        _showRfwCategoryPicker();
+      case RfwThemeActionKind.showSourcePicker:
+        unawaited(_pickSource());
+      case RfwThemeActionKind.openSearch:
+        _toggleSearch();
+      case RfwThemeActionKind.navigateBack:
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
+    }
+  }
+
+  Future<void> _loadRfwThemePreferences() async {
+    await loadRfwThemePreferences();
+    if (!mounted) return;
+    final mode = rfwThemeModeNotifier.value;
+    final id = rfwThemeIdNotifier.value;
+    setState(() {
+      _rfwThemeMode = mode;
+      _rfwThemeId = id;
+      _rfwDisplayStyle = rfwDisplayStyleNotifier.value;
+    });
+    if (mode) {
+      await _loadRfwThemeText(id);
+    }
+  }
+
+  Future<void> _loadRfwThemeText(String? id) async {
+    final entries = await loadRfwThemeEntries();
+    final entry = id == null
+        ? null
+        : entries.where((entry) => entry.id == id).firstOrNull;
+    final resolved = entry ?? builtinRfwThemes.first;
+    final text = await loadRfwThemeText(resolved);
+    if (!mounted) return;
+    if (text == null) {
+      setState(() {
+        _rfwThemeMode = false;
+        _rfwThemeText = null;
+      });
+      unawaited(saveRfwThemeMode(false));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('主题加载失败，已切回原生首页')));
+      return;
+    }
+    setState(() {
+      _rfwThemeId = resolved.id;
+      _rfwThemeText = text;
+    });
+  }
+
+  Future<void> _applyRfwTheme(RfwThemeEntry entry) async {
+    setState(() {
+      _rfwThemeMode = true;
+      _rfwThemeId = entry.id;
+      _rfwThemeText = null;
+    });
+    unawaited(saveRfwThemeMode(true));
+    unawaited(saveRfwThemeId(entry.id));
+    await _loadRfwThemeText(entry.id);
+  }
+
+  Future<void> _showRfwThemePicker() async {
+    final entries = await loadRfwThemeEntries();
+    if (!mounted) return;
+    final currentId = _rfwThemeId;
+    final themeMode = _rfwThemeMode;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('主题模式'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
+                ListTile(
+                  title: const Text('原生首页'),
+                  trailing: !themeMode
+                      ? const Icon(Icons.check, size: 20)
+                      : null,
+                  onTap: () async {
+                    Navigator.of(dialogContext).pop();
+                    setState(() => _rfwThemeMode = false);
+                    await saveRfwThemeMode(false);
+                  },
+                ),
+                const Divider(),
+                for (final entry in entries)
+                  ListTile(
+                    title: Text(entry.name),
+                    subtitle: Text(entry.isBuiltin ? '内置主题' : '导入主题'),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        for (final query in widget.store.recentSearches)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: ActionChip(
-                              avatar: const Icon(
-                                Icons.history_rounded,
-                                size: 16,
-                              ),
-                              label: Text(query),
-                              onPressed: () => _submitSearch(query),
+                        if (themeMode && entry.id == currentId)
+                          const Icon(Icons.check, size: 20),
+                        if (!entry.isBuiltin)
+                          IconButton(
+                            tooltip: '删除主题',
+                            icon: const Icon(
+                              Icons.delete_outline_rounded,
+                              size: 20,
                             ),
+                            onPressed: () async {
+                              final removed = await deleteImportedRfwTheme(
+                                entry,
+                              );
+                              if (!dialogContext.mounted) return;
+                              Navigator.of(dialogContext).pop();
+                              if (removed &&
+                                  themeMode &&
+                                  entry.id == currentId) {
+                                setState(() {
+                                  _rfwThemeMode = false;
+                                  _rfwThemeText = null;
+                                });
+                                await saveRfwThemeMode(false);
+                              }
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(removed ? '主题已删除' : '主题删除失败'),
+                                  ),
+                                );
+                              }
+                            },
                           ),
                       ],
                     ),
+                    onTap: () async {
+                      Navigator.of(dialogContext).pop();
+                      await _applyRfwTheme(entry);
+                    },
                   ),
-                ),
-                IconButton(
-                  tooltip: '清空最近搜索',
-                  onPressed: () =>
-                      saveUserChange(context, widget.store.clearRecentSearches),
-                  icon: const Icon(Icons.delete_outline_rounded, size: 20),
+                const Divider(),
+                ListTile(
+                  leading: const Icon(Icons.file_upload_outlined, size: 20),
+                  title: const Text('导入 .rfwtxt 主题'),
+                  onTap: () {
+                    Navigator.of(dialogContext).pop();
+                    _importRfwThemeFromPicker();
+                  },
                 ),
               ],
             ),
           ),
+        );
+      },
+    );
+  }
+
+  Future<void> _importRfwThemeFromPicker() async {
+    final result = await pickAndImportRfwTheme();
+    if (!mounted) return;
+    if (result == null) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(result.message)));
+    if (result.ok && result.entry != null) {
+      await _applyRfwTheme(result.entry!);
+    }
+  }
+
+  Future<void> _showRfwDisplayStylePicker() async {
+    const styles = [
+      ('grid', '网格'),
+      ('largeGrid', '大网格'),
+      ('banner', '横幅'),
+      ('list', '列表'),
+      ('list2', '列表二'),
+      ('textList', '文字列表'),
+      ('card', '卡片'),
+    ];
+    final current = _rfwDisplayStyle;
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return SimpleDialog(
+          title: const Text('显示风格'),
+          children: [
+            for (final style in styles)
+              SimpleDialogOption(
+                onPressed: () => Navigator.of(dialogContext).pop(style.$1),
+                child: Row(
+                  children: [
+                    Expanded(child: Text(style.$2)),
+                    if (style.$1 == current) const Icon(Icons.check, size: 20),
+                  ],
+                ),
+              ),
+          ],
+        );
+      },
+    );
+    if (selected == null || !mounted) return;
+    setState(() => _rfwDisplayStyle = selected);
+    await saveRfwDisplayStyle(selected);
+  }
+
+  Future<void> _showRfwCategoryPicker() async {
+    final categories = _rfwCategories;
+    final current = _displayCategory;
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return SimpleDialog(
+          title: const Text('选择分类'),
+          children: [
+            for (final category in categories)
+              SimpleDialogOption(
+                onPressed: () => Navigator.of(dialogContext).pop(category.id),
+                child: Row(
+                  children: [
+                    Expanded(child: Text(category.name)),
+                    if (category.id == current)
+                      const Icon(Icons.check, size: 20),
+                  ],
+                ),
+              ),
+          ],
+        );
+      },
+    );
+    if (selected == null) return;
+    _changeCategory(selected);
+  }
+
+  Widget _catalog({required bool selectionInBody}) {
+    final items = _visible;
+    final television = AppLayout.isTelevision(context);
+    if (_rfwThemeMode &&
+        _zone == HomeZone.drama &&
+        !television &&
+        !_showRecommendations &&
+        !_selectionMode &&
+        _drillStack.isEmpty) {
+      return Column(
+        children: [
+          ..._catalogSearchBlock(),
+          Expanded(child: _rfwThemeBody(items)),
+        ],
+      );
+    }
+    return Column(
+      children: [
+        ..._catalogSearchBlock(),
         CatalogFilters(
           key: ValueKey('filters-${_group.id}'),
           remoteKey: _filtersKey,
@@ -2463,19 +2800,20 @@ class _HomeScreenState extends State<HomeScreen> {
         if (_drillStack.isNotEmpty) _breadcrumbBar(),
         if (_catalogTags.isNotEmpty && !_showRecommendations)
           SizedBox(
-            height: 44,
+            height: 36,
             child: ListView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 12),
               children: [
                 for (final tag in _catalogTags)
                   Padding(
-                    padding: const EdgeInsets.only(right: 6),
+                    padding: const EdgeInsets.only(right: 4),
                     child: ActionChip(
                       key: ValueKey('catalog-tag-${tag.id}'),
                       avatar: const Icon(Icons.label_outline_rounded, size: 16),
                       label: Text(tag.name),
                       labelStyle: const TextStyle(fontSize: 12),
+                      visualDensity: VisualDensity.compact,
                       backgroundColor: Theme.of(
                         context,
                       ).colorScheme.surfaceContainerHighest,
@@ -2487,13 +2825,13 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         if (_level2Tags.isNotEmpty && !_showRecommendations)
           SizedBox(
-            height: 44,
+            height: 36,
             child: ListView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 12),
               children: [
                 Padding(
-                  padding: const EdgeInsets.only(right: 6),
+                  padding: const EdgeInsets.only(right: 4),
                   child: ChoiceChip(
                     label: const Text('全部标签'),
                     labelStyle: TextStyle(
@@ -2502,6 +2840,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     selected: _tagLevel2 == null,
                     showCheckmark: false,
+                    visualDensity: VisualDensity.compact,
                     selectedColor: const Color(0xFFC8E6C9),
                     backgroundColor: Theme.of(
                       context,
@@ -2511,7 +2850,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 for (final tag in _level2Tags)
                   Padding(
-                    padding: const EdgeInsets.only(right: 6),
+                    padding: const EdgeInsets.only(right: 4),
                     child: ChoiceChip(
                       key: ValueKey('catalog-tag2-$tag'),
                       label: Text(tag),
@@ -2521,6 +2860,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       selected: _tagLevel2 == tag,
                       showCheckmark: false,
+                      visualDensity: VisualDensity.compact,
                       selectedColor: const Color(0xFFC8E6C9),
                       backgroundColor: Theme.of(
                         context,
@@ -2536,13 +2876,13 @@ class _HomeScreenState extends State<HomeScreen> {
             _level3Tags.isNotEmpty &&
             !_showRecommendations)
           SizedBox(
-            height: 44,
+            height: 36,
             child: ListView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 12),
               children: [
                 Padding(
-                  padding: const EdgeInsets.only(right: 6),
+                  padding: const EdgeInsets.only(right: 4),
                   child: ChoiceChip(
                     label: const Text('全部'),
                     labelStyle: TextStyle(
@@ -2551,6 +2891,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     selected: _tagLevel3 == null,
                     showCheckmark: false,
+                    visualDensity: VisualDensity.compact,
                     selectedColor: const Color(0xFFC8E6C9),
                     backgroundColor: Theme.of(
                       context,
@@ -2560,7 +2901,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 for (final tag in _level3Tags)
                   Padding(
-                    padding: const EdgeInsets.only(right: 6),
+                    padding: const EdgeInsets.only(right: 4),
                     child: ChoiceChip(
                       key: ValueKey('catalog-tag3-$tag'),
                       label: Text(tag),
@@ -2570,6 +2911,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       selected: _tagLevel3 == tag,
                       showCheckmark: false,
+                      visualDensity: VisualDensity.compact,
                       selectedColor: const Color(0xFFC8E6C9),
                       backgroundColor: Theme.of(
                         context,

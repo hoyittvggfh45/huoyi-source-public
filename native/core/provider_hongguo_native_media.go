@@ -12,6 +12,26 @@ import (
 	"time"
 )
 
+func (downloader *Downloader) resolveHongguoAppMediaForSource(ctx context.Context, source, videoID string) (providerMedia, error) {
+	if err := downloader.ensureHongguoDevice(ctx, ""); err != nil {
+		return providerMedia{}, err
+	}
+	if downloader.hongguoDeviceLimited() {
+		downloader.ensureHongguoDevice(ctx, downloader.hongguoDeviceID())
+	}
+	if source == sourceHongguoOversea {
+		media, err := downloader.resolveHongguoAppMediaLine(hongguoOverseaCtx(ctx), videoID)
+		if err == nil {
+			return media, nil
+		}
+		if !errors.Is(err, errHongguoAppEmptyBody) {
+			return providerMedia{}, err
+		}
+		return downloader.resolveHongguoAppMediaLine(ctx, videoID)
+	}
+	return downloader.resolveHongguoAppMediaLine(ctx, videoID)
+}
+
 func (downloader *Downloader) resolveHongguoAppMedia(ctx context.Context, videoID string) (providerMedia, error) {
 	if !hongguoNumericID.MatchString(videoID) {
 		return providerMedia{}, errors.New("红果视频 ID 无效")

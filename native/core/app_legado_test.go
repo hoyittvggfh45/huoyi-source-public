@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -75,8 +76,8 @@ func TestLegadoCheck(t *testing.T) {
 		t.Fatalf("nth-last-child source should be unsupported nth, got %+v", got)
 	}
 	child := LegadoSource{BookList: "div:first-child"}
-	if got := legadoCheck(child); got.Supported || len(got.UnsupportedFields) != 1 || got.UnsupportedFields[0].Reason != "child" {
-		t.Fatalf("first-child source should be unsupported child, got %+v", got)
+	if got := legadoCheck(child); !got.Supported || len(got.UnsupportedFields) != 0 {
+		t.Fatalf("first-child source should be supported by the dialect walker, got %+v", got)
 	}
 	attr := LegadoSource{BookList: `div.item[data-id="1"]`, NameRule: "a.title@text"}
 	if got := legadoCheck(attr); !got.Supported {
@@ -177,5 +178,34 @@ func TestLegadoSearchAttrAndEqEndToEnd(t *testing.T) {
 	books, ok = res.([]map[string]string)
 	if !ok || len(books) != 1 || books[0]["title"] != "BookB" {
 		t.Fatalf("want only BookB for :eq bookList, got %#v", res)
+	}
+}
+
+func TestLegadoParseChapterListFallback(t *testing.T) {
+	src, err := legadoParseSource([]byte(`{"bookSourceName":"T","bookSourceUrl":"https://x.example","ruleToc":{"chapterList":"div.book_list a","chapterName":"@text","chapterUrl":"@href"}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if src.TocList != "div.book_list a" || src.ChapterName != "@text" || src.ChapterURL != "@href" {
+		t.Fatalf("chapterList fallback wrong: %+v", src)
+	}
+	src, err = legadoParseSource([]byte(`{"bookSourceName":"T","bookSourceUrl":"https://x.example","ruleToc":{"tocList":"ul.chapters a","chapterList":"div.book_list a","chapterName":"@text","chapterUrl":"@href"}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if src.TocList != "ul.chapters a" {
+		t.Fatalf("tocList should win over chapterList, got %q", src.TocList)
+	}
+}
+
+func TestLegadoEscapeKeyGBK(t *testing.T) {
+	if got := legadoEscapeKey("斗罗", "gbk"); got != "%B6%B7%C2%DE" {
+		t.Fatalf("gbk escape wrong, got %q", got)
+	}
+	if got := legadoEscapeKey("斗罗", ""); got != url.QueryEscape("斗罗") {
+		t.Fatalf("default escape wrong, got %q", got)
+	}
+	if got := legadoEscapeKey("abc123", "GBK"); got != "abc123" {
+		t.Fatalf("ascii gbk escape wrong, got %q", got)
 	}
 }
