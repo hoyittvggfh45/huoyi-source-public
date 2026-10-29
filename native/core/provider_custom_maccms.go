@@ -145,7 +145,7 @@ func validateCustomMaccmsInput(name, base, rule, kind string) (string, string, s
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
 		return "", "", "", errors.New("源网址需为 http 或 https 开头的完整地址")
 	}
-	if parsed.User != nil || parsed.Fragment != "" || parsed.RawQuery != "" {
+	if parsed.User != nil || parsed.Fragment != "" || (parsed.RawQuery != "" && !customSourceAllowsQuery(kind)) {
 		return "", "", "", errors.New("源网址不能包含用户名、参数或锚点")
 	}
 	if !strings.Contains(parsed.Host, ".") {
@@ -198,6 +198,7 @@ func (registry *customMaccmsRegistry) replace(id, name, base, rule, kind string)
 	}
 	name = strings.TrimSpace(name)
 	rule = strings.TrimSpace(rule)
+	kind = normalizeCustomSourceType(kind)
 	if len(rule) > customSourceMaxBytes {
 		return errors.New("规则内容过大（上限 256KB）")
 	}
@@ -218,7 +219,7 @@ func (registry *customMaccmsRegistry) replace(id, name, base, rule, kind string)
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
 		return errors.New("源网址需为 http 或 https 开头的完整地址")
 	}
-	if parsed.User != nil || parsed.Fragment != "" || parsed.RawQuery != "" {
+	if parsed.User != nil || parsed.Fragment != "" || (parsed.RawQuery != "" && !customSourceAllowsQuery(kind)) {
 		return errors.New("源网址不能包含用户名、参数或锚点")
 	}
 	if !strings.Contains(parsed.Host, ".") {
@@ -234,7 +235,6 @@ func (registry *customMaccmsRegistry) replace(id, name, base, rule, kind string)
 		}
 	}
 	newID := customMaccmsID(base)
-	kind = normalizeCustomSourceType(kind)
 	newType := existing.Type
 	if kind != "" {
 		newType = kind
@@ -283,12 +283,16 @@ func isCustomMaccmsSource(source string) bool {
 const (
 	customSourceTypeWeb  = "web"
 	customSourceTypeJSON = "json"
+	customSourceTypeT4   = "t4"
 )
 
-// normalizeCustomSourceType 规整源类型取值：小写、去空白，仅保留 web/json/auto/空。
+func customSourceAllowsQuery(kind string) bool {
+	return normalizeCustomSourceType(kind) == customSourceTypeT4
+}
+
 func normalizeCustomSourceType(kind string) string {
 	switch strings.ToLower(strings.TrimSpace(kind)) {
-	case customSourceTypeWeb, customSourceTypeJSON, "auto", "":
+	case customSourceTypeWeb, customSourceTypeJSON, customSourceTypeT4, "auto", "":
 		return strings.ToLower(strings.TrimSpace(kind))
 	default:
 		return ""

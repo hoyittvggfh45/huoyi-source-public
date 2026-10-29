@@ -6,9 +6,7 @@ import 'app_update_screen.dart';
 import 'core_bridge.dart';
 import 'downloads_screen.dart';
 import 'local_store.dart';
-import 'hiker_miniapp/hiker_category_shell.dart';
-import 'hiker_miniapp/hiker_miniapp_rule.dart';
-import 'hiker_rule.dart';
+import 'miniapp/plugin_center_screen.dart';
 import 'models.dart';
 import 'saved_library.dart';
 import 'account_screen.dart';
@@ -83,19 +81,10 @@ class MyPageScreen extends StatelessWidget {
             title: const Text('小程序'),
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: () async {
-              final stored = await HikerStore.load();
-              final rules = [
-                for (final storedRule in stored)
-                  HikerMiniappRule.fromJson(storedRule.toJson()),
-              ];
               await Navigator.of(context).push(
                 appPageRoute<void>(
-                  builder: (_) => HikerCategoryShell(
-                    store: store,
-                    hikerRun: repository.hikerRun,
-                    hikerRules: rules,
-                    repository: repository,
-                  ),
+                  builder: (_) =>
+                      PluginCenterScreen(store: store, repository: repository),
                 ),
               );
             },

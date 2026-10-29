@@ -13,9 +13,7 @@ import 'app_drawer.dart';
 import 'midnight_zone.dart';
 import 'content_zone_screen.dart';
 import 'content_models.dart';
-import 'hiker_miniapp/hiker_category_shell.dart';
-import 'hiker_miniapp/hiker_miniapp_rule.dart';
-import 'hiker_rule.dart';
+import 'miniapp/plugin_center_screen.dart';
 import 'legado_screen.dart';
 import 'player_picker.dart';
 import 'builtin_sites_screen.dart';
@@ -120,8 +118,6 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _midnightActivated = false;
   String _currentVersion = '';
   final _activationCounter = MidnightActivationCounter();
-  DateTime? _accessUnlockedAt;
-  Timer? _accessLockTimer;
   String _catalogSection = SourceSite.sectionDrama;
   final _sectionSourceIds = <String, String>{};
   final _sectionSnapshots = <String, _SectionSnapshot>{};
@@ -148,7 +144,6 @@ class _HomeScreenState extends State<HomeScreen> {
   )..load();
   final _changedSources = <String>{};
   final _selectedDramas = <String, Drama>{};
-  Set<String> _drawerCollapsedGroups = {};
   Timer? _cacheRefreshTimer;
   bool _refreshingUpdatedCache = false;
   bool _selectionMode = false;
@@ -313,7 +308,6 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     _changedSources.add(source);
     _cacheRefreshTimer?.cancel();
-    _accessLockTimer?.cancel();
     _cacheRefreshTimer = Timer(const Duration(milliseconds: 100), () {
       unawaited(_reloadUpdatedCache());
     });
@@ -891,7 +885,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     unawaited(_loadMidnightActivated());
     unawaited(_loadCurrentVersion());
-    unawaited(_loadDrawerCollapsedGroups());
     _dramaStyle = dramaUiStyleNotifier.value;
     dramaUiStyleNotifier.addListener(_syncDramaStyle);
     unawaited(ensureDramaUiStyleLoaded());
@@ -1211,125 +1204,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _setZone(HomeZone zone) {
     if (zone == _zone) return;
-    if ((zone == HomeZone.midnight || zone == HomeZone.live) && !_accessValid) {
-      unawaited(
-        _promptAccessPassword().then((ok) {
-          if (ok && mounted) {
-            _unlockAccess();
-            _applyZoneChange(zone, recordHistory: true);
-          }
-        }),
-      );
-      return;
-    }
     _applyZoneChange(zone, recordHistory: true);
-  }
-
-  bool get _accessValid {
-    final unlockedAt = _accessUnlockedAt;
-    if (unlockedAt == null) return false;
-    final nowBj = DateTime.now().toUtc().add(const Duration(hours: 8));
-    final unlockedBj = unlockedAt.toUtc().add(const Duration(hours: 8));
-    return nowBj.year == unlockedBj.year &&
-        nowBj.month == unlockedBj.month &&
-        nowBj.day == unlockedBj.day;
-  }
-
-  void _unlockAccess() {
-    _accessUnlockedAt = DateTime.now();
-    _scheduleAccessRelock();
-  }
-
-  void _scheduleAccessRelock() {
-    _accessLockTimer?.cancel();
-    final unlockedAt = _accessUnlockedAt;
-    if (unlockedAt == null) return;
-    final nowUtc = DateTime.now().toUtc();
-    final nowBj = nowUtc.add(const Duration(hours: 8));
-    final nextMidnightUtc = DateTime.utc(
-      nowBj.year,
-      nowBj.month,
-      nowBj.day + 1,
-    ).subtract(const Duration(hours: 8));
-    final remaining = nextMidnightUtc.difference(nowUtc);
-    _accessLockTimer = Timer(
-      remaining.isNegative ? Duration.zero : remaining,
-      () {
-        _accessUnlockedAt = null;
-        _accessLockTimer = null;
-        if (!mounted ||
-            (_zone != HomeZone.midnight && _zone != HomeZone.live)) {
-          return;
-        }
-        unawaited(
-          _promptAccessPassword().then((ok) {
-            if (!mounted) return;
-            if (ok) {
-              _unlockAccess();
-            } else {
-              _applyZoneChange(HomeZone.drama);
-            }
-          }),
-        );
-      },
-    );
-  }
-
-  Future<bool> _promptAccessPassword() async {
-    final controller = TextEditingController();
-    var error = '';
-    var checking = false;
-    Future<void> submit(
-      BuildContext dialogContext,
-      StateSetter setDialogState,
-    ) async {
-      if (checking) return;
-      setDialogState(() {
-        checking = true;
-        error = '';
-      });
-      final code = controller.text.trim();
-      setDialogState(() => checking = false);
-      if (code == '123654') {
-        Navigator.of(dialogContext).pop(true);
-      } else {
-        setDialogState(() => error = code.isEmpty ? '请输入密码' : '密码错误');
-      }
-    }
-
-    final ok = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialogState) => AlertDialog(
-          title: const Text('请输入密码'),
-          content: TextField(
-            controller: controller,
-            obscureText: true,
-            keyboardType: TextInputType.number,
-            onSubmitted: (_) => submit(dialogContext, setDialogState),
-            decoration: InputDecoration(
-              hintText: '请输入密码',
-              errorText: error.isEmpty ? null : error,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('取消'),
-            ),
-            TextButton(
-              onPressed: checking
-                  ? null
-                  : () => submit(dialogContext, setDialogState),
-              child: const Text('确认'),
-            ),
-          ],
-        ),
-      ),
-    );
-    controller.dispose();
-    return ok == true;
   }
 
   void _applyZoneChange(HomeZone zone, {bool recordHistory = false}) {
@@ -1361,13 +1236,10 @@ class _HomeScreenState extends State<HomeScreen> {
     currentVersion: _currentVersion,
     onZoneSelected: _onZoneSelected,
     onMiniApp: _onMiniApp,
-    onHikerMiniApp: _onHikerMiniApp,
     onWatchRoom: _onWatchRoom,
     onTool: _onTool,
     onMinorProtectionChanged: _onMinorProtectionChanged,
     onVersionDoubleTap: _onVersionDoubleTap,
-    collapsedGroups: _drawerCollapsedGroups,
-    onGroupExpandedChanged: _onDrawerGroupExpandedChanged,
     siteLabel: _isCatalogZone
         ? '${_group.name} (${_group.sources.length})'
         : null,
@@ -1375,22 +1247,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ? () => unawaited(_pickSourceCentered())
         : null,
   );
-
-  Future<void> _loadDrawerCollapsedGroups() async {
-    final collapsed = await loadDrawerCollapsedGroups();
-    if (mounted) setState(() => _drawerCollapsedGroups = collapsed);
-  }
-
-  void _onDrawerGroupExpandedChanged(String groupKey, bool expanded) {
-    setState(() {
-      if (expanded) {
-        _drawerCollapsedGroups.remove(groupKey);
-      } else {
-        _drawerCollapsedGroups.add(groupKey);
-      }
-    });
-    unawaited(saveDrawerCollapsedGroups(_drawerCollapsedGroups));
-  }
 
   void _openZoneSettings() {
     if (_zone == HomeZone.drama ||
@@ -1495,28 +1351,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _onMiniApp() {
     Navigator.of(context).pop();
-    unawaited(_pushMiniAppShell(HikerMiniappTab.ant));
-  }
-
-  void _onHikerMiniApp() {
-    Navigator.of(context).pop();
-    unawaited(_pushMiniAppShell(HikerMiniappTab.hiker));
-  }
-
-  Future<void> _pushMiniAppShell(HikerMiniappTab tab) async {
-    final stored = await HikerStore.load();
-    final rules = [
-      for (final storedRule in stored)
-        HikerMiniappRule.fromJson(storedRule.toJson()),
-    ];
-    await Navigator.of(context).push<void>(
-      appPageRoute<void>(
-        builder: (_) => HikerCategoryShell(
-          store: widget.store,
-          hikerRun: widget.repository.hikerRun,
-          hikerRules: rules,
-          initialTab: tab,
-          repository: widget.repository,
+    unawaited(
+      Navigator.of(context).push<void>(
+        appPageRoute<void>(
+          builder: (_) => PluginCenterScreen(
+            store: widget.store,
+            repository: widget.repository,
+          ),
         ),
       ),
     );

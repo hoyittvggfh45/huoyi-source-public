@@ -19,6 +19,7 @@ import 'splash_selection.dart';
 import 'splash_sets.dart';
 import 'playback_foreground.dart';
 import 'tv_theme.dart';
+import 'zoo_builtin_seed.dart';
 import 'home_screen.dart';
 import 'hongguo_account.dart';
 import 'local_store.dart';
@@ -310,6 +311,7 @@ class _AppBootstrapState extends State<AppBootstrap>
           };
         });
       }
+      await ZooBuiltinSeeder.seed(repository);
     } catch (failure) {
       if (mounted) {
         setState(() {

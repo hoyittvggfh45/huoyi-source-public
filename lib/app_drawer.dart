@@ -1,32 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app_build.dart';
-
-const drawerCollapsedGroupsKey = 'drawer_collapsed_groups_v1';
-const drawerGroupVideo = 'video';
-const drawerGroupReading = 'reading';
-const drawerGroupMiniApp = 'miniapp';
-const drawerGroupTools = 'tools';
-
-Future<Set<String>> loadDrawerCollapsedGroups() async {
-  try {
-    final preferences = await SharedPreferences.getInstance();
-    return preferences.getStringList(drawerCollapsedGroupsKey)?.toSet() ?? {};
-  } catch (_) {
-    return {};
-  }
-}
-
-Future<void> saveDrawerCollapsedGroups(Set<String> collapsed) async {
-  try {
-    final preferences = await SharedPreferences.getInstance();
-    await preferences.setStringList(
-      drawerCollapsedGroupsKey,
-      collapsed.toList(),
-    );
-  } catch (_) {}
-}
 
 enum HomeZone { drama, vod, midnight, live, novel, comic, audio }
 
@@ -53,13 +27,10 @@ class AppDrawer extends StatelessWidget {
     required this.currentVersion,
     required this.onZoneSelected,
     required this.onMiniApp,
-    required this.onHikerMiniApp,
     required this.onWatchRoom,
     required this.onTool,
     required this.onMinorProtectionChanged,
     required this.onVersionDoubleTap,
-    this.collapsedGroups,
-    this.onGroupExpandedChanged,
     this.siteLabel,
     this.onSiteBoxTap,
   });
@@ -69,13 +40,10 @@ class AppDrawer extends StatelessWidget {
   final String currentVersion;
   final ValueChanged<HomeZone> onZoneSelected;
   final VoidCallback onMiniApp;
-  final VoidCallback onHikerMiniApp;
   final VoidCallback onWatchRoom;
   final ValueChanged<AppDrawerTool> onTool;
   final ValueChanged<bool> onMinorProtectionChanged;
   final VoidCallback onVersionDoubleTap;
-  final Set<String>? collapsedGroups;
-  final void Function(String groupKey, bool expanded)? onGroupExpandedChanged;
   final String? siteLabel;
   final VoidCallback? onSiteBoxTap;
 
@@ -107,18 +75,10 @@ class AppDrawer extends StatelessWidget {
     );
   }
 
-  Widget _group({
-    required String groupKey,
-    required String title,
-    required List<Widget> children,
-  }) {
-    return ExpansionTile(
-      key: ValueKey('drawer-group-$groupKey'),
+  Widget _sectionTitle(String title, {String? subtitle}) {
+    return ListTile(
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-      initiallyExpanded: !(collapsedGroups?.contains(groupKey) ?? false),
-      onExpansionChanged: (expanded) =>
-          onGroupExpandedChanged?.call(groupKey, expanded),
-      children: children,
+      subtitle: subtitle == null ? null : Text(subtitle),
     );
   }
 
@@ -194,166 +154,140 @@ class AppDrawer extends StatelessWidget {
               ],
             ),
           ),
-          _group(
-            groupKey: drawerGroupVideo,
-            title: '影视区',
-            children: [
-              _moduleTile(
-                icon: Icons.movie_rounded,
-                label: '短剧',
-                selected: zone == HomeZone.drama,
-                onTap: () => onZoneSelected(HomeZone.drama),
-              ),
-              _moduleTile(
-                icon: Icons.movie_filter_rounded,
-                label: '点播',
-                selected: zone == HomeZone.vod,
-                onTap: () => onZoneSelected(HomeZone.vod),
-              ),
-              if (midnightActivated)
-                _moduleTile(
-                  icon: Icons.nightlight_rounded,
-                  label: '午夜区',
-                  selected: zone == HomeZone.midnight,
-                  onTap: () => onZoneSelected(HomeZone.midnight),
-                ),
-              _moduleTile(
-                icon: Icons.live_tv_rounded,
-                label: '直播',
-                selected: zone == HomeZone.live,
-                onTap: () => onZoneSelected(HomeZone.live),
-              ),
-              _moduleTile(
-                icon: Icons.meeting_room_rounded,
-                label: '一起看房间',
-                selected: false,
-                onTap: onWatchRoom,
-              ),
-            ],
+          _sectionTitle('影视区'),
+          _moduleTile(
+            icon: Icons.movie_rounded,
+            label: '短剧',
+            selected: zone == HomeZone.drama,
+            onTap: () => onZoneSelected(HomeZone.drama),
           ),
-          _group(
-            groupKey: drawerGroupReading,
-            title: '阅读',
-            children: [
-              _moduleTile(
-                icon: Icons.menu_book_rounded,
-                label: '小说',
-                selected: zone == HomeZone.novel,
-                onTap: () => onZoneSelected(HomeZone.novel),
-              ),
-              _moduleTile(
-                icon: Icons.image_rounded,
-                label: '漫画',
-                selected: zone == HomeZone.comic,
-                onTap: () => onZoneSelected(HomeZone.comic),
-              ),
-              _moduleTile(
-                icon: Icons.headphones_rounded,
-                label: '听书',
-                selected: zone == HomeZone.audio,
-                onTap: () => onZoneSelected(HomeZone.audio),
-              ),
-            ],
+          _moduleTile(
+            icon: Icons.movie_filter_rounded,
+            label: '点播',
+            selected: zone == HomeZone.vod,
+            onTap: () => onZoneSelected(HomeZone.vod),
           ),
-          _group(
-            groupKey: drawerGroupMiniApp,
-            title: '小程序',
-            children: [
-              _moduleTile(
-                icon: Icons.apps_rounded,
-                label: '蚂蚁',
-                selected: false,
-                onTap: onMiniApp,
-              ),
-              _moduleTile(
-                icon: Icons.web_asset_rounded,
-                label: '海阔',
-                selected: false,
-                onTap: onHikerMiniApp,
-              ),
-            ],
+          if (midnightActivated)
+            _moduleTile(
+              icon: Icons.nightlight_rounded,
+              label: '午夜区',
+              selected: zone == HomeZone.midnight,
+              onTap: () => onZoneSelected(HomeZone.midnight),
+            ),
+          _moduleTile(
+            icon: Icons.live_tv_rounded,
+            label: '直播',
+            selected: zone == HomeZone.live,
+            onTap: () => onZoneSelected(HomeZone.live),
+          ),
+          _moduleTile(
+            icon: Icons.meeting_room_rounded,
+            label: '一起看房间',
+            selected: false,
+            onTap: onWatchRoom,
+          ),
+          _sectionTitle('阅读'),
+          _moduleTile(
+            icon: Icons.menu_book_rounded,
+            label: '小说',
+            selected: zone == HomeZone.novel,
+            onTap: () => onZoneSelected(HomeZone.novel),
+          ),
+          _moduleTile(
+            icon: Icons.image_rounded,
+            label: '漫画',
+            selected: zone == HomeZone.comic,
+            onTap: () => onZoneSelected(HomeZone.comic),
+          ),
+          _moduleTile(
+            icon: Icons.headphones_rounded,
+            label: '听书',
+            selected: zone == HomeZone.audio,
+            onTap: () => onZoneSelected(HomeZone.audio),
+          ),
+          _sectionTitle('小程序模块', subtitle: '选择一项配置或进入模块'),
+          _moduleTile(
+            icon: Icons.apps_rounded,
+            label: '蚂蚁',
+            selected: false,
+            onTap: onMiniApp,
           ),
           const Divider(),
-          _group(
-            groupKey: drawerGroupTools,
-            title: '工具',
-            children: [
-              _toolTile(
-                icon: Icons.list_rounded,
-                label: '站源管理',
-                onTap: () => onTool(AppDrawerTool.sources),
-              ),
-              _toolTile(
-                icon: Icons.dns_rounded,
-                label: '内容源管理',
-                onTap: () => onTool(AppDrawerTool.contentSources),
-              ),
-              _toolTile(
-                icon: Icons.settings_outlined,
-                label: '设置',
-                onTap: () => onTool(AppDrawerTool.settings),
-              ),
-              _toolTile(
-                icon: Icons.play_circle_rounded,
-                label: '播放器选择',
-                onTap: () => onTool(AppDrawerTool.player),
-              ),
-              _toolTile(
-                icon: Icons.web_asset_rounded,
-                label: '内置站管理',
-                onTap: () => onTool(AppDrawerTool.builtinSites),
-              ),
-              InkWell(
-                onTap: () => onTool(AppDrawerTool.appUpdate),
-                onDoubleTap: onVersionDoubleTap,
-                child: ListTile(
-                  leading: const Icon(Icons.system_update_rounded),
-                  title: const Text('软件更新'),
-                  subtitle: versionSubtitle,
-                ),
-              ),
-              _toolTile(
-                icon: Icons.download_rounded,
-                label: '导入中心',
-                onTap: () => onTool(AppDrawerTool.importCenter),
-              ),
-              _toolTile(
-                icon: Icons.link_rounded,
-                label: '解析接口',
-                onTap: () => onTool(AppDrawerTool.parse),
-              ),
-              _toolTile(
-                icon: Icons.verified_user_rounded,
-                label: '站点验证',
-                onTap: () => onTool(AppDrawerTool.clearance),
-              ),
-              _toolTile(
-                icon: Icons.vpn_key_rounded,
-                label: '代理内核',
-                onTap: () => onTool(AppDrawerTool.proxyKernel),
-              ),
-              _toolTile(
-                icon: Icons.devices_rounded,
-                label: '设备互联',
-                onTap: () => onTool(AppDrawerTool.lanSync),
-              ),
-              _toolTile(
-                icon: Icons.code_rounded,
-                label: '蜘蛛规则编辑器',
-                onTap: () => onTool(AppDrawerTool.ruleEditor),
-              ),
-              if (midnightActivated)
-                SwitchListTile(
-                  secondary: const Icon(Icons.shield_rounded),
-                  title: const Text('未成年保护'),
-                  subtitle: const Text('开启后隐藏午夜区'),
-                  value: false,
-                  onChanged: (value) {
-                    if (value) onMinorProtectionChanged(true);
-                  },
-                ),
-            ],
+          _sectionTitle('应用工具', subtitle: '通用配置与管理'),
+          _toolTile(
+            icon: Icons.list_rounded,
+            label: '站源管理',
+            onTap: () => onTool(AppDrawerTool.sources),
           ),
+          _toolTile(
+            icon: Icons.dns_rounded,
+            label: '内容源管理',
+            onTap: () => onTool(AppDrawerTool.contentSources),
+          ),
+          _toolTile(
+            icon: Icons.settings_outlined,
+            label: '设置',
+            onTap: () => onTool(AppDrawerTool.settings),
+          ),
+          _toolTile(
+            icon: Icons.play_circle_rounded,
+            label: '播放器选择',
+            onTap: () => onTool(AppDrawerTool.player),
+          ),
+          _toolTile(
+            icon: Icons.web_asset_rounded,
+            label: '内置站管理',
+            onTap: () => onTool(AppDrawerTool.builtinSites),
+          ),
+          InkWell(
+            onTap: () => onTool(AppDrawerTool.appUpdate),
+            onDoubleTap: onVersionDoubleTap,
+            child: ListTile(
+              leading: const Icon(Icons.system_update_rounded),
+              title: const Text('软件更新'),
+              subtitle: versionSubtitle,
+            ),
+          ),
+          _toolTile(
+            icon: Icons.download_rounded,
+            label: '导入中心',
+            onTap: () => onTool(AppDrawerTool.importCenter),
+          ),
+          _toolTile(
+            icon: Icons.link_rounded,
+            label: '解析接口',
+            onTap: () => onTool(AppDrawerTool.parse),
+          ),
+          _toolTile(
+            icon: Icons.verified_user_rounded,
+            label: '站点验证',
+            onTap: () => onTool(AppDrawerTool.clearance),
+          ),
+          _toolTile(
+            icon: Icons.vpn_key_rounded,
+            label: '代理内核',
+            onTap: () => onTool(AppDrawerTool.proxyKernel),
+          ),
+          _toolTile(
+            icon: Icons.devices_rounded,
+            label: '设备互联',
+            onTap: () => onTool(AppDrawerTool.lanSync),
+          ),
+          _toolTile(
+            icon: Icons.code_rounded,
+            label: '蜘蛛规则编辑器',
+            onTap: () => onTool(AppDrawerTool.ruleEditor),
+          ),
+          if (midnightActivated)
+            SwitchListTile(
+              secondary: const Icon(Icons.shield_rounded),
+              title: const Text('未成年保护'),
+              subtitle: const Text('开启后隐藏午夜区'),
+              value: false,
+              onChanged: (value) {
+                if (value) onMinorProtectionChanged(true);
+              },
+            ),
         ],
       ),
     );

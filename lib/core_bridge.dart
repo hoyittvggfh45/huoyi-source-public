@@ -97,11 +97,6 @@ abstract class AppRepository {
     ResourceSettings settings,
   ) async => throw AppFailure('当前环境不支持资源设置');
   Future<Map<String, dynamic>> crackConfigSet(String content) async => {};
-  Future<dynamic> hikerRun(
-    String ruleJson,
-    String action,
-    String input,
-  ) async => throw AppFailure('当前环境不支持海阔小程序');
   Future<dynamic> legadoRun(
     String sourceJson,
     String action,
@@ -999,18 +994,6 @@ class NativeRepository extends AppRepository {
     } finally {
       await workLease('storage', 'end');
     }
-  }
-
-  @override
-  @override
-  Future<dynamic> hikerRun(String ruleJson, String action, String input) async {
-    final res = await _call({
-      'action': 'hikerRun',
-      'content': ruleJson,
-      'category': action,
-      'query': input,
-    });
-    return res['result'];
   }
 
   Future<dynamic> legadoRun(

@@ -599,12 +599,17 @@ class _CustomSourceEditorState extends State<_CustomSourceEditor> {
                 initialValue: _kind,
                 decoration: const InputDecoration(
                   labelText: '源类型',
-                  helperText: '自动：先探测再兜底；网页源走 HTML 抓取；JSON 源直连接口。',
+                  helperText:
+                      '自动：先探测再兜底；网页源走 HTML 抓取；JSON 源直连接口；T4 源走 TVBox type:4 聚合接口。',
                 ),
                 items: const [
                   DropdownMenuItem(value: '', child: Text('自动（默认）')),
                   DropdownMenuItem(value: 'web', child: Text('网页源（HTML 抓取）')),
                   DropdownMenuItem(value: 'json', child: Text('JSON 源（直连接口）')),
+                  DropdownMenuItem(
+                    value: 't4',
+                    child: Text('T4 源（TVBox type:4 聚合）'),
+                  ),
                 ],
                 onChanged: _busy
                     ? null

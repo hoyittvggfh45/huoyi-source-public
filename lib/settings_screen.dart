@@ -47,9 +47,7 @@ import 'app_layout.dart';
 import 'detail_screen.dart';
 import 'models.dart';
 import 'playback_launch_screen.dart';
-import 'hiker_miniapp/hiker_category_shell.dart';
-import 'hiker_miniapp/hiker_miniapp_rule.dart';
-import 'hiker_rule.dart';
+import 'miniapp/plugin_center_screen.dart';
 import 'player_picker.dart';
 import 'saved_library.dart';
 
@@ -518,7 +516,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onTap: () => Navigator.push(
               context,
               appPageRoute<void>(
-                builder: (_) => BuiltinSitesScreen(store: widget.store),
+                builder: (_) => BuiltinSitesScreen(
+                  store: widget.store,
+                  repository: widget.repository,
+                ),
               ),
             ),
           ),
@@ -681,7 +682,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             leading: const Icon(Icons.extension_outlined),
             title: const Text('插件中心'),
             trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: () => _openMiniAppShell(),
+            onTap: () => _openPluginCenter(),
           ),
           ListTile(
             leading: const Icon(Icons.bookmark_outline),
@@ -828,19 +829,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _push(Widget page) =>
       Navigator.push(context, appPageRoute<void>(builder: (_) => page));
 
-  Future<void> _openMiniAppShell() async {
-    final stored = await HikerStore.load();
-    final rules = [
-      for (final storedRule in stored)
-        HikerMiniappRule.fromJson(storedRule.toJson()),
-    ];
+  Future<void> _openPluginCenter() async {
     await _push(
-      HikerCategoryShell(
-        store: widget.store,
-        hikerRun: widget.repository.hikerRun,
-        hikerRules: rules,
-        repository: widget.repository,
-      ),
+      PluginCenterScreen(store: widget.store, repository: widget.repository),
     );
   }
 
@@ -1132,7 +1123,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             color: const Color(0xFF30D158),
             title: '内置站管理',
             detail: '内置站逐站显示/隐藏，可恢复默认',
-            onTap: () => _push(BuiltinSitesScreen(store: store)),
+            onTap: () => _push(
+              BuiltinSitesScreen(store: store, repository: widget.repository),
+            ),
           ),
           _glassRow(
             key: const ValueKey('app-update-entry'),
@@ -1209,7 +1202,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             icon: LucideIcons.puzzle,
             color: const Color(0xFFBF5AF2),
             title: '插件中心',
-            onTap: () => _openMiniAppShell(),
+            onTap: () => _openPluginCenter(),
           ),
         ]),
         _glassSection('内容', [

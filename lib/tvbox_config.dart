@@ -268,12 +268,13 @@ class TvBoxImportReport {
   int apiSites = 0;
   int jarSites = 0;
   int pySites = 0;
+  int t4Sites = 0;
   int lives = 0;
   int parses = 0;
   final List<String> notes = [];
 
   String get summary =>
-      '站点 ${apiSites + jarSites + pySites} 个（接口 $apiSites · jar $jarSites · py $pySites）、直播 $lives 个、解析 $parses 个';
+      '站点 ${apiSites + jarSites + pySites + t4Sites} 个（接口 $apiSites · jar $jarSites · py $pySites · T4 $t4Sites）、直播 $lives 个、解析 $parses 个';
 }
 
 class TvBoxConfigParser {
@@ -613,6 +614,24 @@ class TvBoxImporter {
         className: JarSiteSpec.classNameForApi(api),
         jarUrl: siteSpider.url,
         jarMd5: siteSpider.md5,
+        ext: ext,
+      );
+    }
+    if (entry['type']?.toString() == '4' &&
+        (api.startsWith('http://') || api.startsWith('https://'))) {
+      final created = await repository.addCustomSource(
+        name: name,
+        base: api,
+        rule: '',
+        kind: 't4',
+      );
+      report.t4Sites++;
+      return TvBoxSiteRecord(
+        siteId: created.id,
+        key: key,
+        name: name,
+        kind: 't4',
+        coreId: created.id,
         ext: ext,
       );
     }

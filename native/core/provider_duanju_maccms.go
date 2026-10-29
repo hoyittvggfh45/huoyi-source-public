@@ -473,6 +473,9 @@ func (d *Downloader) fetchMaccmsCatalogPage(ctx context.Context, source string, 
 // 先取首页（page<=1 且无分类），page>1 或带分类时按模板家族探测出的 URL 形态逐候选尝试。
 func (d *Downloader) fetchMaccmsCustomCatalog(ctx context.Context, source string, page int, category string) ([]Drama, bool, error) {
 	base := d.duanjuBaseURL(source)
+	if isT4CustomSource(source) {
+		return t4CatalogPage(ctx, d, source, page, category)
+	}
 	// XBPQ 规则源：一切按规则字段截取，不走模板识别。
 	if rule, ok := customXBPQRule(source); ok {
 		return d.xbpqCatalog(ctx, source, base, page, category, rule)
@@ -599,6 +602,9 @@ func (d *Downloader) fetchMaccmsCustomCatalog(ctx context.Context, source string
 
 func (d *Downloader) fetchMaccmsDetail(ctx context.Context, source, sourceID string) (Drama, []Chapter, error) {
 	base := d.duanjuBaseURL(source)
+	if isT4CustomSource(source) {
+		return t4Detail(ctx, d, source, sourceID)
+	}
 	// XBPQ 规则源：详情与分集按规则截取。
 	if rule, ok := customXBPQRule(source); ok {
 		return d.xbpqDetail(ctx, source, base, sourceID, rule)
@@ -853,6 +859,9 @@ func (d *Downloader) searchMaccms(ctx context.Context, source, query string) ([]
 	case source == sourceWangguo:
 		address = fmt.Sprintf("%s/search/%s----------1---.html", base, url.PathEscape(query))
 	case isCustomMaccmsSource(source):
+		if isT4CustomSource(source) {
+			return t4Search(ctx, d, source, query)
+		}
 		// XBPQ 规则源：搜索走规则「搜索url」。
 		if rule, ok := customXBPQRule(source); ok {
 			return d.xbpqSearch(ctx, source, base, query, rule)
@@ -1306,6 +1315,9 @@ func (d *Downloader) fetchMaccmsCustomCategories(ctx context.Context, source str
 	base := d.duanjuBaseURL(source)
 	if base == "" {
 		return nil, errors.New("站源地址不可用")
+	}
+	if isT4CustomSource(source) {
+		return t4Categories(ctx, d, source)
 	}
 	// XBPQ 规则源：分类直接来自规则「分类」字段。
 	if rule, ok := customXBPQRule(source); ok {

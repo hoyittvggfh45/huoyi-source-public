@@ -56,7 +56,6 @@ void main() {
     required bool midnightActivated,
     required ValueChanged<HomeZone> onZoneSelected,
     required VoidCallback onMiniApp,
-    required VoidCallback onHikerMiniApp,
     required ValueChanged<AppDrawerTool> onTool,
     required ValueChanged<bool> onMinorProtectionChanged,
     required VoidCallback onVersionDoubleTap,
@@ -74,7 +73,6 @@ void main() {
             currentVersion: '1.4.25',
             onZoneSelected: onZoneSelected,
             onMiniApp: onMiniApp,
-            onHikerMiniApp: onHikerMiniApp,
             onWatchRoom: () {},
             onTool: onTool,
             onMinorProtectionChanged: onMinorProtectionChanged,
@@ -95,7 +93,6 @@ void main() {
       midnightActivated: false,
       onZoneSelected: zones.add,
       onMiniApp: () {},
-      onHikerMiniApp: () {},
       onTool: (_) {},
       onMinorProtectionChanged: (_) {},
       onVersionDoubleTap: () {},
@@ -106,7 +103,6 @@ void main() {
     expect(find.text('小说'), findsOneWidget);
     expect(find.text('漫画'), findsOneWidget);
     expect(find.text('蚂蚁'), findsOneWidget);
-    expect(find.text('海阔'), findsOneWidget);
     expect(find.text('午夜区'), findsNothing);
     expect(find.text('未成年保护'), findsNothing);
     expect(find.text('站源管理'), findsOneWidget);
@@ -128,7 +124,6 @@ void main() {
       midnightActivated: true,
       onZoneSelected: zones.add,
       onMiniApp: () {},
-      onHikerMiniApp: () {},
       onTool: tools.add,
       onMinorProtectionChanged: (value) => minorProtection = value,
       onVersionDoubleTap: () => versionDoubleTaps++,

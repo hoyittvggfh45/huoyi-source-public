@@ -1,29 +1,17 @@
 import 'package:duanju_app/app_drawer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('drawer collapsed groups persist across loads', () async {
-    SharedPreferences.setMockInitialValues({});
-    expect(await loadDrawerCollapsedGroups(), isEmpty);
-    await saveDrawerCollapsedGroups({'video', 'tools'});
-    expect(await loadDrawerCollapsedGroups(), {'video', 'tools'});
-    await saveDrawerCollapsedGroups({});
-    expect(await loadDrawerCollapsedGroups(), isEmpty);
-  });
-
   Future<void> pumpDrawer(
     WidgetTester tester, {
     bool midnightActivated = false,
-    Set<String>? collapsedGroups,
     String? siteLabel,
     required List<HomeZone> zones,
     required List<AppDrawerTool> tools,
     required VoidCallback onMiniApp,
-    required VoidCallback onHikerMiniApp,
     required VoidCallback onWatchRoom,
     required VoidCallback onSiteBoxTap,
   }) async {
@@ -40,12 +28,10 @@ void main() {
             currentVersion: '1.0.1',
             onZoneSelected: zones.add,
             onMiniApp: onMiniApp,
-            onHikerMiniApp: onHikerMiniApp,
             onWatchRoom: onWatchRoom,
             onTool: tools.add,
             onMinorProtectionChanged: (_) {},
             onVersionDoubleTap: () {},
-            collapsedGroups: collapsedGroups,
             siteLabel: siteLabel,
             onSiteBoxTap: siteLabel == null ? null : onSiteBoxTap,
           ),
@@ -58,7 +44,6 @@ void main() {
   testWidgets('drawer zone tiles map to their zones', (tester) async {
     final zones = <HomeZone>[];
     var miniApp = 0;
-    var hiker = 0;
     var room = 0;
     await pumpDrawer(
       tester,
@@ -66,7 +51,6 @@ void main() {
       zones: zones,
       tools: [],
       onMiniApp: () => miniApp++,
-      onHikerMiniApp: () => hiker++,
       onWatchRoom: () => room++,
       onSiteBoxTap: () {},
     );
@@ -82,8 +66,6 @@ void main() {
     expect(zones.last, HomeZone.comic);
     await tester.tap(find.text('蚂蚁'));
     expect(miniApp, 1);
-    await tester.tap(find.text('海阔'));
-    expect(hiker, 1);
     await tester.tap(find.text('一起看房间'));
     expect(room, 1);
   });
@@ -95,7 +77,6 @@ void main() {
       zones: [],
       tools: tools,
       onMiniApp: () {},
-      onHikerMiniApp: () {},
       onWatchRoom: () {},
       onSiteBoxTap: () {},
     );
@@ -123,41 +104,37 @@ void main() {
     }
   });
 
-  testWidgets('drawer groups collapse to headers and expand again', (
-    tester,
-  ) async {
+  testWidgets('drawer sections are all expanded at once', (tester) async {
     await pumpDrawer(
       tester,
+      midnightActivated: true,
       zones: [],
       tools: [],
       onMiniApp: () {},
-      onHikerMiniApp: () {},
-      onWatchRoom: () {},
-      onSiteBoxTap: () {},
-    );
-    expect(find.text('短剧'), findsOneWidget);
-    await tester.tap(find.text('影视区'));
-    await tester.pumpAndSettle();
-    expect(find.text('短剧'), findsNothing);
-    expect(find.text('影视区'), findsOneWidget);
-    await tester.tap(find.text('影视区'));
-    await tester.pumpAndSettle();
-    expect(find.text('短剧'), findsOneWidget);
-  });
-
-  testWidgets('drawer group starts collapsed when persisted', (tester) async {
-    await pumpDrawer(
-      tester,
-      collapsedGroups: {drawerGroupVideo},
-      zones: [],
-      tools: [],
-      onMiniApp: () {},
-      onHikerMiniApp: () {},
       onWatchRoom: () {},
       onSiteBoxTap: () {},
     );
     expect(find.text('影视区'), findsOneWidget);
-    expect(find.text('短剧'), findsNothing);
+    expect(find.text('阅读'), findsOneWidget);
+    expect(find.text('小程序模块'), findsOneWidget);
+    expect(find.text('选择一项配置或进入模块'), findsOneWidget);
+    expect(find.text('应用工具'), findsOneWidget);
+    expect(find.text('通用配置与管理'), findsOneWidget);
+    for (final label in [
+      '短剧',
+      '点播',
+      '午夜区',
+      '直播',
+      '一起看房间',
+      '小说',
+      '漫画',
+      '听书',
+      '蚂蚁',
+      '站源管理',
+      '软件更新',
+    ]) {
+      expect(find.text(label), findsOneWidget);
+    }
   });
 
   testWidgets('drawer site box opens the site picker', (tester) async {
@@ -168,7 +145,6 @@ void main() {
       zones: [],
       tools: [],
       onMiniApp: () {},
-      onHikerMiniApp: () {},
       onWatchRoom: () {},
       onSiteBoxTap: () => tapped++,
     );
@@ -183,7 +159,6 @@ void main() {
       zones: [],
       tools: [],
       onMiniApp: () {},
-      onHikerMiniApp: () {},
       onWatchRoom: () {},
       onSiteBoxTap: () {},
     );
@@ -197,7 +172,6 @@ void main() {
       zones: [],
       tools: [],
       onMiniApp: () {},
-      onHikerMiniApp: () {},
       onWatchRoom: () {},
       onSiteBoxTap: () {},
     );

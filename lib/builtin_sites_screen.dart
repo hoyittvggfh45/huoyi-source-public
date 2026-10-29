@@ -2,14 +2,17 @@ import 'package:flutter/material.dart';
 
 import 'content_models.dart';
 import 'content_registry.dart';
+import 'core_bridge.dart';
 import 'local_store.dart';
 import 'models.dart';
 import 'widgets.dart';
+import 'zoo_builtin_seed.dart';
 
 class BuiltinSitesScreen extends StatefulWidget {
-  const BuiltinSitesScreen({super.key, required this.store});
+  const BuiltinSitesScreen({super.key, required this.store, this.repository});
 
   final LocalStore store;
+  final AppRepository? repository;
 
   @override
   State<BuiltinSitesScreen> createState() => _BuiltinSitesScreenState();
@@ -33,7 +36,7 @@ class _BuiltinSitesScreenState extends State<BuiltinSitesScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('恢复默认显示'),
-        content: const Text('将恢复全部内置站的默认显示/隐藏状态，确定吗？'),
+        content: const Text('将恢复全部内置站的默认显示/隐藏状态，并恢复已删除的内置配置站点，确定吗？'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
@@ -47,7 +50,13 @@ class _BuiltinSitesScreenState extends State<BuiltinSitesScreen> {
       ),
     );
     if (confirmed != true || !mounted) return;
-    await saveUserChange(context, widget.store.resetSiteVisibility);
+    await saveUserChange(context, () async {
+      await widget.store.resetSiteVisibility();
+      final repository = widget.repository;
+      if (repository != null) {
+        await ZooBuiltinSeeder.restore(repository);
+      }
+    });
   }
 
   Widget _sectionHeader(String title) => Padding(
@@ -107,6 +116,33 @@ class _BuiltinSitesScreenState extends State<BuiltinSitesScreen> {
               _sectionHeader(section.title),
               for (final source in ContentRegistry.sourcesFor(section))
                 _toggleTile(source.id, source.name, source.note),
+            ],
+            if (ZooBuiltinSeeder.builtinStations().isNotEmpty) ...[
+              _sectionHeader('内置多仓站点'),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 0, 16, 4),
+                child: Text(
+                  '内置配置站点按站聚合，每条线标明所属仓库；删除请到内容源管理，显示开关请到源显示列表；恢复默认可找回已删除的内置站点。',
+                ),
+              ),
+              for (final station in ZooBuiltinSeeder.builtinStations()) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: Text(
+                    '${station.name}（${station.lines.length} 条线路）',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                ),
+                for (final line in station.lines)
+                  ListTile(
+                    dense: true,
+                    contentPadding: const EdgeInsets.only(left: 32, right: 16),
+                    title: Text(line.site.name),
+                    subtitle: Text(
+                      '${line.configName} · ${ZooBuiltinSeeder.kindLabel(line.site.kind)}',
+                    ),
+                  ),
+              ],
             ],
             const SizedBox(height: 24),
           ],

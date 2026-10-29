@@ -2411,7 +2411,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     );
   }
 
-  Widget _videoBackdrop() {
+  String _backdropUrl() {
     final drama = widget.detail.drama;
     var url = widget.detail.backdrop;
     if (url.isEmpty) {
@@ -2423,6 +2423,12 @@ class _PlayerScreenState extends State<PlayerScreen>
       }
     }
     if (url.isEmpty) url = drama.cover;
+    return url;
+  }
+
+  Widget _videoBackdrop() {
+    final drama = widget.detail.drama;
+    final url = _backdropUrl();
     if (url.isEmpty) return const SizedBox.shrink();
     final backdropDrama = Drama(
       id: '${drama.id}#player-backdrop',
@@ -2802,33 +2808,57 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// 选集横排→简介（3 行折叠）→相关推荐（站内 + 同名跨站双轨）。
   /// 选集永远在简介之前。
   Widget _mobilePlaybackPanel() {
-    return ColoredBox(
-      color: Theme.of(context).scaffoldBackgroundColor,
-      child: SafeArea(
-        top: false,
-        child: SingleChildScrollView(
-          key: const ValueKey('player-info-scroll'),
-          padding: const EdgeInsets.fromLTRB(14, 10, 14, 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _playerInfoHeader(),
-              _playerSourceRoutes(),
-              _playerRouteQualityRow(),
-              _playerEpisodeSection(),
-              _playerSynopsisSection(),
-              _playerDownloadRow(),
-              _playerRelatedSection(),
-            ],
-          ),
+    final darkScrim = _backdropUrl().isNotEmpty;
+    final content = SafeArea(
+      top: false,
+      child: SingleChildScrollView(
+        key: const ValueKey('player-info-scroll'),
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _playerInfoHeader(darkScrim: darkScrim),
+            _playerSourceRoutes(darkScrim: darkScrim),
+            _playerRouteQualityRow(),
+            _playerEpisodeSection(darkScrim: darkScrim),
+            _playerSynopsisSection(darkScrim: darkScrim),
+            _playerDownloadRow(),
+            _playerRelatedSection(darkScrim: darkScrim),
+          ],
         ),
       ),
     );
+    if (!darkScrim) {
+      return ColoredBox(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        child: content,
+      );
+    }
+    return Stack(
+      children: [
+        Positioned.fill(child: _videoBackdrop()),
+        const Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Colors.black45, Colors.black87],
+              ),
+            ),
+          ),
+        ),
+        content,
+      ],
+    );
   }
 
-  Widget _playerInfoHeader() {
+  Widget _playerInfoHeader({required bool darkScrim}) {
     final drama = widget.detail.drama;
     final colors = Theme.of(context).colorScheme;
+    final soft = darkScrim
+        ? Colors.white.withValues(alpha: .82)
+        : colors.onSurfaceVariant;
     final remark = [
       if (drama.releaseStatus.isNotEmpty && drama.releaseStatus != 'unknown')
         drama.releaseLabel,
@@ -2848,23 +2878,21 @@ class _PlayerScreenState extends State<PlayerScreen>
           drama.title,
           maxLines: 3,
           overflow: TextOverflow.ellipsis,
-          style: Theme.of(
-            context,
-          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+            color: darkScrim ? Colors.white : null,
+          ),
         ),
         const SizedBox(height: 4),
-        Text(remark, style: TextStyle(color: colors.onSurfaceVariant)),
+        Text(remark, style: TextStyle(color: soft)),
         const SizedBox(height: 2),
         Text(
           '站源：${SourceSite.byId(drama.source).name}',
-          style: TextStyle(color: colors.onSurfaceVariant),
+          style: TextStyle(color: soft),
         ),
         if (meta.isNotEmpty) ...[
           const SizedBox(height: 2),
-          Text(
-            meta.join(' · '),
-            style: TextStyle(color: colors.onSurfaceVariant),
-          ),
+          Text(meta.join(' · '), style: TextStyle(color: soft)),
         ],
         const SizedBox(height: 10),
         _mobileFollowControl(drama),
@@ -2885,7 +2913,7 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   /// 线路区：同名跨站副本即换源 chips（有多站时才出现），
   /// 点一条在本页换到那个站的同片续播（集数对齐）。
-  Widget _playerSourceRoutes() {
+  Widget _playerSourceRoutes({required bool darkScrim}) {
     final drama = widget.detail.drama;
     if (drama.peers.isEmpty) return const SizedBox.shrink();
     final colors = Theme.of(context).colorScheme;
@@ -2897,7 +2925,7 @@ class _PlayerScreenState extends State<PlayerScreen>
           Text(
             '换源',
             style: TextStyle(
-              color: colors.primary,
+              color: darkScrim ? Colors.white : colors.primary,
               fontWeight: FontWeight.w600,
               fontSize: 12,
             ),
@@ -2957,7 +2985,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     );
   }
 
-  Widget _playerEpisodeSection() {
+  Widget _playerEpisodeSection({required bool darkScrim}) {
     final episodes = widget.detail.episodes;
     final colors = Theme.of(context).colorScheme;
     return Padding(
@@ -2969,9 +2997,10 @@ class _PlayerScreenState extends State<PlayerScreen>
             children: [
               Text(
                 '选集',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: darkScrim ? Colors.white : null,
+                ),
               ),
               const Spacer(),
               IconButton(
@@ -2985,11 +3014,15 @@ class _PlayerScreenState extends State<PlayerScreen>
                       ? Icons.arrow_upward_rounded
                       : Icons.arrow_downward_rounded,
                   size: 18,
+                  color: darkScrim ? Colors.white : null,
                 ),
               ),
               if (episodes.length >= 10)
                 TextButton(
                   key: const ValueKey('episode-more'),
+                  style: darkScrim
+                      ? TextButton.styleFrom(foregroundColor: Colors.white)
+                      : null,
                   onPressed: _showEpisodeGridSheet,
                   child: const Text('更多'),
                 ),
@@ -3058,7 +3091,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     );
   }
 
-  Widget _playerSynopsisSection() {
+  Widget _playerSynopsisSection({required bool darkScrim}) {
     final drama = widget.detail.drama;
     final colors = Theme.of(context).colorScheme;
     final body = drama.description.trim().isEmpty
@@ -3071,9 +3104,10 @@ class _PlayerScreenState extends State<PlayerScreen>
         children: [
           Text(
             '简介',
-            style: Theme.of(
-              context,
-            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: darkScrim ? Colors.white : null,
+            ),
           ),
           const SizedBox(height: 6),
           GestureDetector(
@@ -3083,7 +3117,10 @@ class _PlayerScreenState extends State<PlayerScreen>
               body,
               maxLines: _synopsisExpanded ? null : 3,
               overflow: _synopsisExpanded ? null : TextOverflow.ellipsis,
-              style: const TextStyle(height: 1.55),
+              style: TextStyle(
+                height: 1.55,
+                color: darkScrim ? Colors.white : null,
+              ),
             ),
           ),
           if (widget.detail.warning.isNotEmpty) ...[
@@ -3119,7 +3156,7 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   /// 相关区双轨：站内 related 图片卡打底 + 同名跨站卡片网格；
   /// 两轨都为空时整区不渲染。
-  Widget _playerRelatedSection() {
+  Widget _playerRelatedSection({required bool darkScrim}) {
     final related = widget.detail.related;
     final peers = widget.detail.drama.peers;
     if (related.isEmpty && peers.isEmpty) return const SizedBox.shrink();
@@ -3159,9 +3196,10 @@ class _PlayerScreenState extends State<PlayerScreen>
           if (related.isNotEmpty) ...[
             Text(
               '相关推荐',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: darkScrim ? Colors.white : null,
+              ),
             ),
             const SizedBox(height: 10),
             grid(related, 'player-related', 0),
@@ -3170,9 +3208,10 @@ class _PlayerScreenState extends State<PlayerScreen>
             if (related.isNotEmpty) const SizedBox(height: 18),
             Text(
               '同名跨站',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: darkScrim ? Colors.white : null,
+              ),
             ),
             const SizedBox(height: 10),
             grid(peers, 'player-peer-card', _index),

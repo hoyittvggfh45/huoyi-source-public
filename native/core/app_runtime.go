@@ -413,13 +413,6 @@ func nativeDispatch(input nativeInput) (any, error) {
 	switch input.Action {
 	case "coreInfo":
 		return coreInfoData(), nil
-	case "hikerRun":
-		out, err := HikerRunJSON(input.Content, input.Category, input.Query, input.UA)
-		if err != nil {
-			return nil, err
-		}
-		var raw json.RawMessage = []byte(out)
-		return map[string]any{"result": raw}, nil
 	case "legadoRun":
 		out, err := LegadoRunJSON(input.Content, input.Category, input.Query)
 		if err != nil {
