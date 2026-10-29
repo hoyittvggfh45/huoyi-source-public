@@ -30,6 +30,7 @@ dependencies:
   webview_flutter: ^4.14.1
   fvp: ^0.39.1
   video_player: ^2.14.1
+  flutter_riverpod: ^3.0.0
   rfw: ^2.0.0
 dev_dependencies:
   flutter_test:
@@ -52,6 +53,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/miniapps/hello/
+    - assets/js_runtime/
     - assets/video_enhancement/
     - assets/live/
     - assets/proxy_kernel/

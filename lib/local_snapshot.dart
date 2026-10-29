@@ -47,6 +47,8 @@ class LocalSnapshot {
     // 播放器偏好（guo / xigua，设备级）必须列入受管字段，
     // 否则「播放器选择」点击立即生效会被 commit 判为「无效的本地配置字段」。
     'player',
+    'useNewShell',
+    'autoSwitchPlayer',
   };
   final SharedPreferences preferences;
   Map<String, Object> _values = {};
@@ -99,6 +101,8 @@ class LocalSnapshot {
         'autoExport',
         'exportPosters',
         'forceLogin',
+        'useNewShell',
+        'autoSwitchPlayer',
       }.contains(entry.key.split('.').last);
       if (!owns(entry.key) ||
           (boolean ? entry.value is! bool : entry.value is! String)) {

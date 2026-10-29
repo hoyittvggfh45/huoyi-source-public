@@ -632,6 +632,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: _chooseDisplayMode,
           ),
+          ListTile(
+            leading: const Icon(Icons.swap_horiz_rounded),
+            title: const Text('新旧壳切换'),
+            subtitle: Text(
+              widget.store.useNewShell ? '当前：新壳' : '当前：旧壳',
+            ),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () async {
+              final changed = !widget.store.useNewShell;
+              try {
+                await widget.store.setUseNewShell(changed);
+              } catch (_) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('未能保存，请重试。')),
+                  );
+                }
+                return;
+              }
+              if (mounted) {
+                setState(() {});
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('重启 App 后生效')),
+                );
+              }
+            },
+          ),
           if (style != DramaUiStyle.drama)
             ListTile(
               leading: const Icon(Icons.style_outlined),

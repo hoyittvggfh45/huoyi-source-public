@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -23,13 +24,16 @@ import 'tv_theme.dart';
 import 'zoo_builtin_seed.dart';
 import 'home_screen.dart';
 import 'hongguo_account.dart';
+import 'js_runtime/miniapp_router.dart';
 import 'local_store.dart';
+import 'midnight_zone.dart';
 import 'profiles_screen.dart';
 import 'media_library.dart';
 import 'package_smoke.dart';
 import 'lan_controller.dart';
 import 'player_picker.dart';
 import 'proxy_kernel_service.dart';
+import 'shell/kotv_shell_screen.dart';
 import 'signature_check.dart';
 import 'video_enhancement_assets.dart';
 
@@ -181,6 +185,8 @@ class _AppBootstrapState extends State<AppBootstrap>
   Object? error;
   late AppDevice device = widget.device;
   bool? _signatureOk;
+  bool _midnightActivated = false;
+  bool _useNewShell = true;
   Timer? _hongguoRenewalTimer;
 
   @override
@@ -221,6 +227,9 @@ class _AppBootstrapState extends State<AppBootstrap>
     if (state == AppLifecycleState.resumed && Platform.isAndroid) {
       unawaited(_refreshDevice());
     }
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_refreshMidnight());
+    }
     if (!Platform.isIOS) return;
     final library = MediaLibrary.current;
     if (state == AppLifecycleState.paused ||
@@ -249,12 +258,20 @@ class _AppBootstrapState extends State<AppBootstrap>
     setState(() => device = detected);
   }
 
+  Future<void> _refreshMidnight() async {
+    final value = await loadMidnightActivated();
+    if (mounted && value != _midnightActivated) {
+      setState(() => _midnightActivated = value);
+    }
+  }
+
   Future<void> _initialize() async {
     setState(() {
       error = null;
     });
     try {
       final preferences = await SharedPreferences.getInstance();
+      final midnightActivated = await loadMidnightActivated();
       unawaited(ensureHongguoAccountLoaded());
       await _refreshDevice();
       await repository.initialize();
@@ -263,6 +280,8 @@ class _AppBootstrapState extends State<AppBootstrap>
       if (mounted) {
         setState(() {
           store = LocalStore(preferences);
+          _midnightActivated = midnightActivated;
+          _useNewShell = store!.useNewShell;
           repository.access = store;
           MediaLibrary.attach(repository, store!);
           LanController.current?.dispose();
@@ -340,6 +359,8 @@ class _AppBootstrapState extends State<AppBootstrap>
       television: device.television,
       version: device.version,
       navigatorKey: navigator,
+      midnightActivated: _midnightActivated,
+      useNewShell: _useNewShell,
     );
   }
 }
@@ -354,6 +375,8 @@ class DuanjuApp extends StatelessWidget {
     this.television = false,
     this.version = appVersion,
     this.navigatorKey,
+    this.midnightActivated = false,
+    this.useNewShell = true,
   });
   final AppRepository repository;
   final LocalStore? store;
@@ -362,6 +385,8 @@ class DuanjuApp extends StatelessWidget {
   final bool television;
   final String version;
   final GlobalKey<NavigatorState>? navigatorKey;
+  final bool midnightActivated;
+  final bool useNewShell;
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
@@ -371,6 +396,7 @@ class DuanjuApp extends StatelessWidget {
 
   Widget _application() => MaterialApp(
     navigatorKey: navigatorKey,
+    onGenerateRoute: (settings) => MiniAppRouter.onGenerateRoute(settings),
     title: appName,
     debugShowCheckedModeBanner: false,
     locale: const Locale('zh', 'CN'),
@@ -426,13 +452,21 @@ class DuanjuApp extends StatelessWidget {
               : ExternalPyImportListener(
                   store: store!,
                   repository: repository,
-                  child: HomeScreen(
-                    key: ValueKey(
-                      'profile-${store!.profile.id}-${store!.profileEpoch}',
-                    ),
-                    repository: repository,
-                    store: store!,
-                  ),
+                  child: useNewShell
+                      ? ProviderScope(
+                          child: KotvShellScreen(
+                            repository: repository,
+                            store: store!,
+                            midnightActivated: midnightActivated,
+                          ),
+                        )
+                      : HomeScreen(
+                          key: ValueKey(
+                            'profile-${store!.profile.id}-${store!.profileEpoch}',
+                          ),
+                          repository: repository,
+                          store: store!,
+                        ),
                 )
         : Scaffold(
             body: Center(

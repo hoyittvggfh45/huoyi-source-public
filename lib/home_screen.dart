@@ -74,9 +74,17 @@ import 'live_screen.dart';
 import 'live_store.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, required this.repository, required this.store});
+  const HomeScreen({
+    super.key,
+    required this.repository,
+    required this.store,
+    this.bare = false,
+    this.zoneSync,
+  });
   final AppRepository repository;
   final LocalStore store;
+  final bool bare;
+  final ValueNotifier<HomeZone>? zoneSync;
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
@@ -872,7 +880,11 @@ class _HomeScreenState extends State<HomeScreen> {
     _scroll.addListener(_onCatalogScroll);
     _source = SourceSite.byId(widget.store.source);
     _catalogSection = SourceSite.sectionDrama;
-    _zone = HomeZone.drama;
+    _zone = widget.zoneSync?.value ?? HomeZone.drama;
+    if (_zone == HomeZone.vod || _zone == HomeZone.midnight) {
+      _catalogSection = SourceSite.sectionVideo;
+    }
+    widget.zoneSync?.addListener(_onZoneSyncChanged);
     if (_sectionSources.isNotEmpty &&
         !_sectionSources.any((site) => site.id == _source.id)) {
       _source = _sectionSources.first;
@@ -911,6 +923,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    widget.zoneSync?.removeListener(_onZoneSyncChanged);
     dramaUiStyleNotifier.removeListener(_syncDramaStyle);
     _updater.removeListener(_updateChanged);
     _updater.dispose();
@@ -1218,6 +1231,12 @@ class _HomeScreenState extends State<HomeScreen> {
     _applyZoneChange(zone, recordHistory: true);
   }
 
+  void _onZoneSyncChanged() {
+    final sync = widget.zoneSync;
+    if (sync == null || sync.value == _zone) return;
+    _applyZoneChange(sync.value);
+  }
+
   void _applyZoneChange(HomeZone zone, {bool recordHistory = false}) {
     if (recordHistory && zone != _zone) _zoneHistory.push(_zone);
     setState(() {
@@ -1225,6 +1244,10 @@ class _HomeScreenState extends State<HomeScreen> {
       _selectionMode = false;
       _selectedDramas.clear();
     });
+    final sync = widget.zoneSync;
+    if (sync != null && sync.value != zone) {
+      sync.value = zone;
+    }
     if (zone == HomeZone.drama) {
       _changeSection(SourceSite.sectionDrama);
     } else if (zone == HomeZone.vod || zone == HomeZone.midnight) {
@@ -1896,7 +1919,7 @@ class _HomeScreenState extends State<HomeScreen> {
             if (_visible.isEmpty) {
               return Scaffold(
                 key: _scaffoldKey,
-                drawer: _drawer(),
+                drawer: widget.bare ? null : _drawer(),
                 extendBody: glass,
                 body: const SafeArea(
                   child: StatusPanel(title: '暂无可播短剧', message: '可以换个站源或刷新后重试。'),
@@ -1905,7 +1928,7 @@ class _HomeScreenState extends State<HomeScreen> {
             }
             return Scaffold(
               key: _scaffoldKey,
-              drawer: _drawer(),
+              drawer: widget.bare ? null : _drawer(),
               extendBody: glass,
               body: SafeArea(
                 top: false,
@@ -1926,7 +1949,7 @@ class _HomeScreenState extends State<HomeScreen> {
           if (_dramaStyle == DramaUiStyle.drama) {
             return Scaffold(
               key: _scaffoldKey,
-              drawer: _drawer(),
+              drawer: widget.bare ? null : _drawer(),
               extendBody: glass,
               body: SafeArea(
                 bottom: !glass,
@@ -1965,40 +1988,44 @@ class _HomeScreenState extends State<HomeScreen> {
                   },
                 ),
               ),
-              bottomNavigationBar: NavigationBar(
-                selectedIndex: 0,
-                onDestinationSelected: _onDramaNavSelected,
-                destinations: const [
-                  NavigationDestination(
-                    icon: Icon(Icons.explore_outlined),
-                    selectedIcon: Icon(Icons.explore),
-                    label: '发现',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.bookmark_outline),
-                    selectedIcon: Icon(Icons.bookmark),
-                    label: '追剧',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.history_outlined),
-                    selectedIcon: Icon(Icons.history),
-                    label: '最近观看',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.download_outlined),
-                    selectedIcon: Icon(Icons.download),
-                    label: '下载',
-                  ),
-                ],
-              ),
+              bottomNavigationBar: widget.bare
+                  ? null
+                  : NavigationBar(
+                      selectedIndex: 0,
+                      onDestinationSelected: _onDramaNavSelected,
+                      destinations: const [
+                        NavigationDestination(
+                          icon: Icon(Icons.explore_outlined),
+                          selectedIcon: Icon(Icons.explore),
+                          label: '发现',
+                        ),
+                        NavigationDestination(
+                          icon: Icon(Icons.bookmark_outline),
+                          selectedIcon: Icon(Icons.bookmark),
+                          label: '追剧',
+                        ),
+                        NavigationDestination(
+                          icon: Icon(Icons.history_outlined),
+                          selectedIcon: Icon(Icons.history),
+                          label: '最近观看',
+                        ),
+                        NavigationDestination(
+                          icon: Icon(Icons.download_outlined),
+                          selectedIcon: Icon(Icons.download),
+                          label: '下载',
+                        ),
+                      ],
+                    ),
             );
           }
         }
         final scaffold = Scaffold(
           key: _scaffoldKey,
-          drawer: _drawer(),
+          drawer: widget.bare ? null : _drawer(),
           extendBody: glass && !desktop,
-          appBar: glass
+          appBar: widget.bare
+              ? null
+              : glass
               ? _glassAppBar()
               : AppBar(
                   toolbarHeight: television ? 64 : null,

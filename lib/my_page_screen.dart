@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import 'app_page_route.dart';
@@ -6,6 +8,7 @@ import 'app_update_screen.dart';
 import 'core_bridge.dart';
 import 'downloads_screen.dart';
 import 'local_store.dart';
+import 'midnight_zone.dart';
 import 'miniapp/plugin_center_screen.dart';
 import 'models.dart';
 import 'saved_library.dart';
@@ -43,6 +46,38 @@ class MyPageScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _activateMidnight(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('激活午夜区？'),
+        content: const Text('激活后重启 App，底栏出现午夜区。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('激活'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await saveMidnightActivated(true);
+    exit(0);
+  }
+
+  Future<void> _hideMidnight(BuildContext context) async {
+    await saveMidnightActivated(false);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('已隐藏，重启 App 后生效')),
+      );
+    }
   }
 
   @override
@@ -115,6 +150,25 @@ class MyPageScreen extends StatelessWidget {
                     SettingsScreen(repository: repository, store: store),
               ),
             ),
+          ),
+          FutureBuilder<bool>(
+            future: loadMidnightActivated(),
+            builder: (context, snapshot) {
+              final activated = snapshot.data ?? false;
+              return ListTile(
+                leading: const Icon(Icons.nightlight_rounded),
+                title: const Text('午夜区'),
+                subtitle: Text(activated ? '已激活' : '未激活，点击激活'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () {
+                  if (activated) {
+                    _hideMidnight(context);
+                  } else {
+                    _activateMidnight(context);
+                  }
+                },
+              );
+            },
           ),
           ListTile(
             leading: const Icon(Icons.system_update_rounded),

@@ -14,6 +14,8 @@ import 'm3u_subscriptions.dart';
 import 'models.dart';
 import 'tvbox_config.dart';
 import 'playback_preferences.dart';
+import 'player_core.dart';
+import 'playback_parse.dart';
 import 'download_preferences.dart';
 import 'catalog_sort.dart';
 import 'follow_state.dart';
@@ -710,6 +712,25 @@ class LocalStore extends ChangeNotifier {
       {'guo', 'xigua', 'tvbox', 'fongmi'}.contains(value)
       ? _setting('player', value)
       : Future.value();
+
+  bool get useNewShell => _bool('useNewShell') ?? true;
+
+  Future<void> setUseNewShell(bool value) => _setting('useNewShell', value);
+
+  bool get autoSwitchPlayer => _bool('autoSwitchPlayer') ?? true;
+
+  Future<void> setAutoSwitchPlayer(bool value) =>
+      _setting('autoSwitchPlayer', value);
+
+  Future<void> setPlayerCore(PlayerCore core) async {
+    await PlayerCoreStorage.write(preferences, core);
+    _notify();
+  }
+
+  Future<void> setDefaultParserId(String id) async {
+    await ParseInterfaceStore.saveSelectedId(id);
+    _notify();
+  }
   Future<void> setThemeMode(String value) =>
       {'light', 'dark', 'system'}.contains(value)
       ? _setting('themeMode', value)
