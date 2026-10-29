@@ -33,7 +33,7 @@ with china_mirror_environment(environment, options.cn_mirrors) as env, mirrored_
     subprocess.run([sys.executable, str(root / 'scripts' / 'build_native.py'), '--platform', 'android', *abi_args, *variant.arguments],
                    cwd=root, env=env, check=True)
     subprocess.run([flutter, 'pub', 'get', '--enforce-lockfile'], cwd=root, env=env, check=True)
-    build_args = [flutter, 'build', 'apk', '--release', '--no-pub', '--obfuscate', '--split-debug-info=build/app/outputs/symbols', *variant.flutter_arguments]
+    build_args = [flutter, 'build', 'apk', '--release', '--no-tree-shake-icons', '--no-pub', '--obfuscate', '--split-debug-info=build/app/outputs/symbols', *variant.flutter_arguments]
     auth_key = os.environ.get('JIANHUANG_AUTH_KEY', '')
     if auth_key:
         build_args.append('--dart-define=JIANHUANG_AUTH_KEY=' + auth_key)

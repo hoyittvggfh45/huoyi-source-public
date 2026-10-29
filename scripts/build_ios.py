@@ -156,7 +156,7 @@ def main():
         config = options.export_options.expanduser().resolve()
         if not config.is_file():
             raise SystemExit('ExportOptions.plist 不存在。')
-        run([flutter, 'build', 'ipa', '--release', '--no-pub', '--obfuscate', '--split-debug-info=build/app/outputs/symbols', '--export-options-plist', str(config), *auth_defines, *variant.flutter_arguments])
+        run([flutter, 'build', 'ipa', '--release', '--no-tree-shake-icons', '--no-pub', '--obfuscate', '--split-debug-info=build/app/outputs/symbols', '--export-options-plist', str(config), *auth_defines, *variant.flutter_arguments])
         for package in (root / 'build' / 'ios' / 'ipa').glob('*.ipa'):
             destination = output / ios_artifact_name(variant, version, signed=True)
             shutil.copy2(package, destination)
@@ -169,7 +169,7 @@ def main():
             'CODE_SIGN_IDENTITY': '',
         })
         run(
-            [flutter, 'build', 'ios', '--release', '--no-codesign', '--no-pub', '--obfuscate', '--split-debug-info=build/app/outputs/symbols', *auth_defines, *variant.flutter_arguments],
+            [flutter, 'build', 'ios', '--release', '--no-tree-shake-icons', '--no-codesign', '--no-pub', '--obfuscate', '--split-debug-info=build/app/outputs/symbols', *auth_defines, *variant.flutter_arguments],
             env=environment,
         )
         application = root / 'build' / 'ios' / 'iphoneos' / 'Runner.app'
