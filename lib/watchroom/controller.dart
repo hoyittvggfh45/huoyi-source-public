@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../relay/relay_channel.dart';
 import '../relay/relay_message.dart';
 import '../relay/relay_settings.dart';
+import '../comment_identity.dart';
 import '../relay_cf/cf_relay_client.dart';
 import '../relay_cf/cf_relay_constants.dart';
 import 'models.dart';
@@ -196,14 +197,19 @@ class WatchRoomController extends ChangeNotifier {
   void sendChat(String text) {
     final trimmed = text.trim();
     if (trimmed.isEmpty || !inRoom) return;
+    final nickname = CommentIdentity.instance.nickname;
     chat.add(
       RoomChatMessage(
         sender: _deviceId,
         text: trimmed,
         sentAt: DateTime.now().millisecondsSinceEpoch,
+        nickname: nickname,
       ),
     );
-    _channel?.sendMessage(RelayMessage.chatType, {'text': trimmed});
+    _channel?.sendMessage(RelayMessage.chatType, {
+      'text': trimmed,
+      if (nickname.isNotEmpty) 'nickname': nickname,
+    });
     notifyListeners();
   }
 
@@ -265,12 +271,14 @@ class WatchRoomController extends ChangeNotifier {
         } catch (_) {}
       case RelayMessage.chatType:
         final text = message.payload['text'];
+        final nickname = message.payload['nickname'];
         if (text is String && text.isNotEmpty) {
           chat.add(
             RoomChatMessage(
               sender: message.sender,
               text: text,
               sentAt: DateTime.now().millisecondsSinceEpoch,
+              nickname: nickname is String ? nickname : '',
             ),
           );
           notifyListeners();

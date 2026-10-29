@@ -20,8 +20,12 @@ import 'player_back.dart';
 import 'atmosphere_background.dart';
 import 'tv_theme.dart';
 import 'core_bridge.dart';
+import 'comment_models.dart';
+import 'comment_service.dart';
+import 'comment_sheet.dart';
 import 'jar_bridge.dart';
 import 'danmaku_controller.dart';
+import 'danmaku_models.dart';
 import 'danmaku_overlay.dart';
 import 'download_picker.dart';
 import 'downloads_screen.dart';
@@ -288,8 +292,10 @@ class _PlayerScreenState extends State<PlayerScreen>
     _loader = PlaybackLoader(widget.repository);
     _preloader = PlaybackPreloader(widget.repository);
     unawaited(_loadParseSelection());
-    _danmaku = DanmakuController(widget.repository)
-      ..setEnabled(_danmakuEnabled);
+    _danmaku = DanmakuController(
+      widget.repository,
+      commentPage: _loadCommentPage,
+    )..setEnabled(_danmakuEnabled);
     widget.store.addListener(_accessChanged);
     _player =
         widget.playerFactory?.call() ??
@@ -505,6 +511,7 @@ class _PlayerScreenState extends State<PlayerScreen>
             widget.store.locked ||
             !widget.store.allowsSource('hongguo'))) {
       _danmaku.setPlan(null);
+      _danmaku.setCommentVideoKey(null);
     }
   }
 
@@ -842,6 +849,39 @@ class _PlayerScreenState extends State<PlayerScreen>
     );
   }
 
+  Future<DanmakuPage> _loadCommentPage(
+    PlaybackPlan plan,
+    int startMs,
+    int durationMs,
+  ) async {
+    final key = plan.danmakuId;
+    final nextMs = (startMs + danmakuWindowMs).clamp(startMs + 1, durationMs);
+    final items = await CommentService.instance.window(key, startMs, nextMs);
+    return DanmakuPage(
+      episodeId: key,
+      startMs: startMs,
+      nextMs: nextMs,
+      items: items.take(90).toList(),
+    );
+  }
+
+  String? _commentThreadKey() {
+    final episodes = widget.detail.episodes;
+    if (_index < 0 || _index >= episodes.length) return null;
+    return commentThreadKey(widget.detail.drama.id, episodes[_index].id);
+  }
+
+  Future<void> _openCommentSheet() async {
+    final key = _commentThreadKey();
+    if (key == null) return;
+    final sent = await showCommentSheet(
+      context,
+      videoKey: key,
+      timeMs: _danmaku.positionMs,
+    );
+    if (sent != null) _danmaku.addCommentItem(sent);
+  }
+
   void _syncDanmaku({bool discontinuity = false}) {
     if (_closed) return;
     final state = _player.state;
@@ -951,6 +991,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
     _acceptErrors = false;
     _danmaku.setPlan(null);
+    _danmaku.setCommentVideoKey(null);
     _errorTimer?.cancel();
     _pendingError = false;
     final position = _currentPosition;
@@ -1223,6 +1264,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     _enhancement.suspend();
     _seekSequence++;
     _danmaku.setPlan(null);
+    _danmaku.setCommentVideoKey(null);
     _acceptErrors = false;
     _pendingError = false;
     _errorTimer?.cancel();
@@ -1460,6 +1502,9 @@ class _PlayerScreenState extends State<PlayerScreen>
             _loading = false;
           });
           _danmaku.setPlan(plan);
+          _danmaku.setCommentVideoKey(
+            plan.local ? null : _commentThreadKey(),
+          );
           _syncDanmaku();
           _acknowledgeHandoff();
           _menuRevision.value++;
@@ -2529,6 +2574,7 @@ class _PlayerScreenState extends State<PlayerScreen>
             onRetryDanmaku: _danmaku.canRetry
                 ? _retryDanmakuFromControls
                 : null,
+            onComment: () => unawaited(_openCommentSheet()),
             onPush: widget.mediaId == null ? _pushToDevice : null,
             onPushToWatchRoom: () => unawaited(
               pushDramaToWatchRoom(

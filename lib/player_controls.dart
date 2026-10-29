@@ -44,6 +44,7 @@ class PlayerControls extends StatefulWidget {
     this.onSeek,
     this.onDanmaku,
     this.onRetryDanmaku,
+    this.onComment,
     this.onPush,
     this.onPictureInPicture,
     this.onPushToWatchRoom,
@@ -88,6 +89,7 @@ class PlayerControls extends StatefulWidget {
   final Future<void> Function(Duration)? onSeek;
   final Future<void> Function()? onDanmaku;
   final Future<void> Function()? onRetryDanmaku;
+  final VoidCallback? onComment;
   final Future<void> Function()? onPush;
   final Future<void> Function()? onPictureInPicture;
   final VoidCallback? onPushToWatchRoom;
@@ -523,15 +525,40 @@ class _PlayerControlsState extends State<PlayerControls> {
   );
 
   Widget _sideDanmakuControl() {
-    if (!widget.showDanmaku) return const SizedBox.shrink();
+    final showComment = widget.onComment != null;
+    if (!widget.showDanmaku && !showComment) {
+      return const SizedBox.shrink();
+    }
     return Align(
       alignment: Alignment.centerRight,
       child: Padding(
         padding: EdgeInsets.only(right: widget.swipeEnabled ? 0 : 4),
-        child: _danmakuTool(),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (showComment) _commentTool(),
+            if (widget.showDanmaku) _danmakuTool(),
+          ],
+        ),
       ),
     );
   }
+
+  Widget _commentTool() => _toolButton(
+    key: const ValueKey('player-comment'),
+    tooltip: '发弹幕评论',
+    visualWidth: 36,
+    onPressed: widget.enabled ? widget.onComment : null,
+    child: const Text(
+      '评',
+      style: TextStyle(
+        fontSize: 12,
+        height: 1,
+        fontWeight: FontWeight.w800,
+        color: Colors.white,
+      ),
+    ),
+  );
 
   Widget _bottomControls({
     required BoxConstraints constraints,

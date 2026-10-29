@@ -99,11 +99,13 @@ class RoomChatMessage {
     required this.sender,
     required this.text,
     required this.sentAt,
+    this.nickname = '',
   });
 
   final String sender;
   final String text;
   final int sentAt;
+  final String nickname;
 }
 
 class RoomMember {

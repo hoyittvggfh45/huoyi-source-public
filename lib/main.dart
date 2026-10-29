@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/window_manager.dart';
 
+import 'comment_identity.dart';
 import 'core_bridge.dart';
 import 'app_update.dart';
 import 'app_layout.dart';
@@ -34,6 +35,7 @@ import 'video_enhancement_assets.dart';
 
 Future<void> main(List<String> arguments) async {
   WidgetsFlutterBinding.ensureInitialized();
+  unawaited(CommentIdentity.instance.ensure());
   unawaited(PlaybackForeground.clearStaleFlag());
   runApp(const BootSplash());
   await Future<void>.delayed(const Duration(seconds: 4));

@@ -14,6 +14,7 @@ import '../tvbox_player_bridge.dart';
 import 'controller.dart';
 import 'models.dart';
 import 'player.dart';
+import 'room_danmaku_overlay.dart';
 import 'room_fullscreen_page.dart';
 import '../playback_foreground.dart';
 
@@ -451,18 +452,25 @@ class _WatchRoomScreenState extends State<WatchRoomScreen>
       children: [
         AspectRatio(
           aspectRatio: 16 / 9,
-          child: RoomPlayerView(
-            handle: _player,
-            viewType: widget.store.player == 'fongmi'
-                ? TvboxPlayerController.fongmiViewType
-                : TvboxPlayerController.viewType,
-            onCompleted: _onCompleted,
-            onError: (message) => _showMessage(message),
-            onRetry: () {
-              _loadedKey = '';
-              _loadVideo();
-            },
-            onFullscreen: _openRoomFullscreen,
+          child: Stack(
+            children: [
+              RoomPlayerView(
+                handle: _player,
+                viewType: widget.store.player == 'fongmi'
+                    ? TvboxPlayerController.fongmiViewType
+                    : TvboxPlayerController.viewType,
+                onCompleted: _onCompleted,
+                onError: (message) => _showMessage(message),
+                onRetry: () {
+                  _loadedKey = '';
+                  _loadVideo();
+                },
+                onFullscreen: _openRoomFullscreen,
+              ),
+              Positioned.fill(
+                child: RoomDanmakuOverlay(chat: _room.chat),
+              ),
+            ],
           ),
         ),
         if (_loadingDetail)
@@ -626,7 +634,7 @@ class _WatchRoomScreenState extends State<WatchRoomScreen>
                         child: Text(
                           mine
                               ? message.text
-                              : '${_shortId(message.sender)}：${message.text}',
+                              : '${message.nickname.isNotEmpty ? message.nickname : _shortId(message.sender)}：${message.text}',
                         ),
                       ),
                     );

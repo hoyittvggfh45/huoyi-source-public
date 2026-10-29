@@ -7,12 +7,15 @@ import 'danmaku_time_sync.dart';
 import 'models.dart';
 
 class DanmakuController extends ChangeNotifier {
-  DanmakuController(this.repository, {DateTime Function()? now})
-    : _now = now ?? DateTime.now {
+  DanmakuController(
+    this.repository, {
+    DateTime Function()? now,
+    this.commentPage,
+  }) : _now = now ?? DateTime.now {
     _loader = DanmakuLoader(
       now: _now,
       state: () => DanmakuWindowState(
-        visible: visible,
+        visible: _sourceVisible,
         buffering: _buffering,
         positionMs: positionMs,
         moving: moving,
@@ -23,7 +26,7 @@ class DanmakuController extends ChangeNotifier {
           repository.danmaku(plan, startMs: start, durationMs: duration),
       cancelLoad: () => repository.cancelDanmaku(),
       onItems: (list) {
-        items = list;
+        _sourceItems = list;
         dataRevision++;
       },
       onChanged: notifyListeners,
@@ -33,8 +36,11 @@ class DanmakuController extends ChangeNotifier {
 
   final AppRepository repository;
   final DateTime Function() _now;
+  final DanmakuLoadPage? commentPage;
   late final DanmakuLoader _loader;
   late final DanmakuTimeSync _sync;
+  DanmakuLoader? _commentLoader;
+  String? _commentVideoKey;
   PlaybackPlan? _plan;
   bool _closed = false;
   bool _enabled = true;
@@ -49,14 +55,22 @@ class DanmakuController extends ChangeNotifier {
   double rate = 1;
   int motionRevision = 0;
   int dataRevision = 0;
-  List<DanmakuItem> items = const [];
+  List<DanmakuItem> _sourceItems = const [];
+  List<DanmakuItem> _commentItems = const [];
+  List<DanmakuItem> _liveCommentItems = const [];
+
+  List<DanmakuItem> get items => [
+    ..._sourceItems,
+    ..._commentItems,
+    ..._liveCommentItems,
+  ];
 
   bool get supported =>
       _plan != null &&
       !_plan!.local &&
       _plan!.session.isNotEmpty &&
       _plan!.danmakuId.isNotEmpty;
-  bool get visible =>
+  bool get _sourceVisible =>
       !_closed &&
       supported &&
       _enabled &&
@@ -65,12 +79,38 @@ class DanmakuController extends ChangeNotifier {
       !_seeking &&
       durationMs > 0 &&
       positionMs < durationMs;
+
+  bool get _commentVisible =>
+      !_closed &&
+      _commentVideoKey != null &&
+      commentPage != null &&
+      _enabled &&
+      _available &&
+      _foreground &&
+      !_seeking &&
+      durationMs > 0 &&
+      positionMs < durationMs;
+
+  bool get visible => _sourceVisible || _commentVisible;
   bool get moving => visible && _playing && !_buffering;
   bool get loading => _loader.loading;
-  bool get canRetry => visible && _loader.hasFailures;
+  bool get canRetry =>
+      visible && (_loader.hasFailures || (_commentLoader?.hasFailures ?? false));
   String get status {
     if (!_enabled) return '弹幕已关闭';
     if (_plan?.local == true) return '本地播放不加载弹幕';
+    if (_commentVideoKey != null && !supported) {
+      if (canRetry) return '评论暂不可用，可重试';
+      final commentLoader = _commentLoader;
+      if ((commentLoader?.loading ?? false) &&
+          !(commentLoader?.hasPages ?? false)) {
+        return '正在加载评论';
+      }
+      if (commentLoader?.hasPages ?? false) {
+        return items.isEmpty ? '这段暂无评论' : '已载入 ${items.length} 条评论';
+      }
+      return '等待播放';
+    }
     if (_plan != null && !supported) return '本集暂不支持弹幕';
     if (canRetry) return '弹幕暂不可用，可重试';
     if (loading && !_loader.hasPages) return '正在加载弹幕';
@@ -92,11 +132,51 @@ class DanmakuController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setCommentVideoKey(String? videoKey) {
+    if (_closed || _commentVideoKey == videoKey) return;
+    _commentLoader?.cancel();
+    _commentLoader = null;
+    _commentItems = const [];
+    _commentVideoKey = videoKey;
+    final page = commentPage;
+    if (videoKey != null && page != null) {
+      _commentLoader = DanmakuLoader(
+        state: () => DanmakuWindowState(
+          visible: _commentVisible,
+          buffering: _buffering,
+          positionMs: positionMs,
+          moving: moving,
+          durationMs: durationMs,
+          plan: PlaybackPlan(url: '', danmakuId: videoKey),
+        ),
+        loadPage: page,
+        cancelLoad: () async {},
+        onItems: (list) {
+          _commentItems = list;
+          dataRevision++;
+        },
+        onChanged: notifyListeners,
+      );
+    }
+    dataRevision++;
+    notifyListeners();
+    _ensureWindow();
+  }
+
+  void addCommentItem(DanmakuItem item) {
+    if (_closed) return;
+    if (_liveCommentItems.any((entry) => entry.id == item.id)) return;
+    _liveCommentItems = [..._liveCommentItems, item];
+    dataRevision++;
+    notifyListeners();
+  }
+
   void setEnabled(bool enabled) {
     if (_closed || _enabled == enabled) return;
     _enabled = enabled;
     _cancel();
     _loader.clearPages();
+    _commentLoader?.clearPages();
     _resetMotion();
     notifyListeners();
     _ensureWindow();
@@ -182,6 +262,7 @@ class DanmakuController extends ChangeNotifier {
   void retry() {
     if (_closed || !visible) return;
     _loader.clearFailures();
+    _commentLoader?.clearFailures();
     _ensureWindow();
     notifyListeners();
   }
@@ -193,10 +274,12 @@ class DanmakuController extends ChangeNotifier {
 
   void _cancel() {
     _loader.cancel();
+    _commentLoader?.cancel();
   }
 
   void _ensureWindow() {
     _loader.ensureWindow();
+    _commentLoader?.ensureWindow();
   }
 
   @override

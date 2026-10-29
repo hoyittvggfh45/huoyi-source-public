@@ -17,6 +17,8 @@ import 'detail_inline_player.dart';
 import 'ios_dialogs.dart';
 import 'liquid_glass.dart';
 import 'core_bridge.dart';
+import 'comment_models.dart';
+import 'detail_comment_section.dart';
 import 'download_picker.dart';
 import 'downloads_screen.dart';
 import 'local_store.dart';
@@ -593,6 +595,7 @@ class _DetailScreenState extends State<DetailScreen> {
                                 _overview(drama),
                                 _descriptionSection(drama),
                                 _stillsSection(),
+                                _commentsSection(),
                                 _relatedSection(drama),
                               ],
                             ),
@@ -707,6 +710,7 @@ class _DetailScreenState extends State<DetailScreen> {
                       if (!_loading) ...[
                         SliverToBoxAdapter(child: _descriptionSection(drama)),
                         SliverToBoxAdapter(child: _stillsSection()),
+                        SliverToBoxAdapter(child: _commentsSection()),
                         SliverToBoxAdapter(child: _relatedSection(drama)),
                       ],
                       if (glassDesign(context))
@@ -1026,6 +1030,23 @@ class _DetailScreenState extends State<DetailScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _commentsSection() {
+    final detail = _detail;
+    if (detail == null || detail.episodes.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final index = resumeEpisodeIndex(
+      detail.episodes,
+      widget.store.watched(detail.drama.id),
+    );
+    final episode = index >= 0 && index < detail.episodes.length
+        ? detail.episodes[index]
+        : detail.episodes.first;
+    return DetailCommentSection(
+      videoKey: commentThreadKey(detail.drama.id, episode.id),
     );
   }
 
