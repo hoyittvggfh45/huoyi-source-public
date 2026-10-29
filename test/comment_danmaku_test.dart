@@ -1,6 +1,5 @@
 import 'package:duanju_app/danmaku_controller.dart';
 import 'package:duanju_app/danmaku_models.dart';
-import 'package:duanju_app/models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'danmaku_fixtures.dart';
