@@ -196,7 +196,7 @@ class MainActivity : FlutterActivity() {
         if (incoming == null) return
         val action = incoming.action
         if (action != Intent.ACTION_VIEW && action != Intent.ACTION_SEND) return
-        val uri: Uri? = when (action) {
+        val uri: Uri = when (action) {
             Intent.ACTION_VIEW -> incoming.data
             else -> incoming.getParcelableExtra<Uri>(Intent.EXTRA_STREAM) ?: incoming.data
         } ?: return
