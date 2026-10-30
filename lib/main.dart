@@ -24,7 +24,6 @@ import 'home_screen.dart';
 import 'hongguo_account.dart';
 import 'local_store.dart';
 import 'profiles_screen.dart';
-import 'media_library.dart';
 import 'package_smoke.dart';
 import 'lan_controller.dart';
 import 'player_picker.dart';
@@ -187,8 +186,6 @@ class _AppBootstrapState extends State<AppBootstrap>
     WidgetsBinding.instance.removeObserver(this);
     LanController.current?.dispose();
     LanController.current = null;
-    MediaLibrary.current?.dispose();
-    MediaLibrary.current = null;
     store?.dispose();
     super.dispose();
   }
@@ -220,20 +217,13 @@ class _AppBootstrapState extends State<AppBootstrap>
       unawaited(_refreshDevice());
     }
     if (!Platform.isIOS) return;
-    final library = MediaLibrary.current;
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached) {
-      if (library != null) {
-        library.suspended = true;
-        unawaited(library.cancel());
-      }
       unawaited(
         NativeRepository(
           background: true,
         ).controlDownloads('pauseAll').catchError((Object _) {}),
       );
-    } else if (state == AppLifecycleState.resumed) {
-      if (library != null) library.suspended = false;
     }
   }
 
@@ -262,7 +252,6 @@ class _AppBootstrapState extends State<AppBootstrap>
         setState(() {
           store = LocalStore(preferences);
           repository.access = store;
-          MediaLibrary.attach(repository, store!);
           LanController.current?.dispose();
           final link = LanController(
             repository,

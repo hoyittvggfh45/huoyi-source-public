@@ -27,7 +27,6 @@ import 'splash_sets.dart';
 import 'splash_settings_screen.dart';
 import 'parse_settings_screen.dart';
 import 'app_theme.dart';
-import 'background_downloads.dart';
 import 'ios_dialogs.dart';
 import 'liquid_glass.dart';
 import 'local_store.dart';
@@ -38,7 +37,6 @@ import 'widgets.dart';
 import 'resource_settings_screen.dart';
 import 'lan_screen.dart';
 import 'proxy_kernel_screen.dart';
-import 'webdav_screen.dart';
 import 'rule_editor_screen.dart';
 import 'drama_settings.dart';
 import 'ui_style.dart';
@@ -329,7 +327,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     DramaSettingsTarget.downloadPrefs ||
     DramaSettingsTarget.downloads ||
     DramaSettingsTarget.storage => widget.store.canDownload,
-    DramaSettingsTarget.webdavSync => widget.store.profile.admin,
     _ => true,
   };
 
@@ -390,9 +387,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     ),
     DramaSettingsTarget.lanSync => () => openLanSync(context),
-    DramaSettingsTarget.webdavSync => () => Navigator.of(
-      context,
-    ).push(appPageRoute(builder: (_) => WebdavScreen(store: widget.store))),
     DramaSettingsTarget.follow => () => _openSavedLibrary(history: false),
     DramaSettingsTarget.history => () => _openSavedLibrary(history: true),
     _ => () {},
@@ -410,7 +404,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     DramaSettingsTarget.downloads => Icons.download_rounded,
     DramaSettingsTarget.storage => Icons.folder_outlined,
     DramaSettingsTarget.lanSync => Icons.devices_rounded,
-    DramaSettingsTarget.webdavSync => Icons.cloud_sync_outlined,
     DramaSettingsTarget.follow => Icons.bookmark_outline,
     DramaSettingsTarget.history => Icons.history_outlined,
     DramaSettingsTarget.coverCache => Icons.image_outlined,
@@ -758,38 +751,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             ),
-            SwitchListTile.adaptive(
-              value: widget.store.autoExport,
-              title: const Text('下载完成后自动导出 Emby'),
-              subtitle: const Text(
-                '在下载目录的 exports 中生成视频和海报 URL 元数据，可将该目录加入 Emby 媒体库。',
-              ),
-              onChanged: _busy
-                  ? null
-                  : (value) async {
-                      try {
-                        if (value) {
-                          await BackgroundDownloads.ensureStarted();
-                        }
-                        await widget.store.setAutoExport(value);
-                      } catch (error) {
-                        if (mounted) {
-                          setState(() => _message = error.toString());
-                        }
-                      }
-                    },
-            ),
-            SwitchListTile.adaptive(
-              value: widget.store.exportPosters,
-              title: const Text('同时导出海报文件'),
-              subtitle: const Text('默认只写海报 URL。源站海报需要解密或外部读取失败时可开启。'),
-              onChanged: _busy
-                  ? null
-                  : (value) => saveUserChange(
-                      context,
-                      () => widget.store.setExportPosters(value),
-                    ),
-            ),
             ListTile(
               leading: const Icon(Icons.backup_outlined),
               title: const Text('导出配置备份'),
@@ -801,19 +762,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               title: const Text('恢复配置备份'),
               onTap: _busy ? null : () => _backup(true),
             ),
-            ListTile(
-              leading: const Icon(Icons.cloud_sync_outlined),
-              title: const Text('WebDAV 同步'),
-              subtitle: const Text('把配置备份存到自填的 WebDAV 地址'),
-              onTap: () => Navigator.of(context).push(
-                appPageRoute(builder: (_) => WebdavScreen(store: widget.store)),
-              ),
-            ),
           ],
           if (Platform.isIOS)
             const Padding(
               padding: EdgeInsets.all(16),
-              child: Text('iOS 下载和媒体处理需要保持应用在前台；切到后台会暂停，回到前台后可继续。'),
+              child: Text('iOS 下载需要保持应用在前台；切到后台会暂停，回到前台后可继续。'),
             ),
           if (_busy) const LinearProgressIndicator(),
           if (_message != null)
@@ -858,15 +811,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _setAutoExport(bool value) async {
-    try {
-      if (value) await BackgroundDownloads.ensureStarted();
-      await widget.store.setAutoExport(value);
-    } catch (error) {
-      if (mounted) setState(() => _message = error.toString());
-    }
-  }
-
   Widget _glassIcon(IconData icon, Color color) => DecoratedBox(
     decoration: BoxDecoration(
       color: color,
@@ -877,13 +821,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Icon(icon, size: 18, color: Colors.white),
     ),
   );
-
-  Widget _glassSwitch({
-    required bool value,
-    required ValueChanged<bool>? onChanged,
-  }) => iosDesign(context)
-      ? CupertinoSwitch(value: value, onChanged: onChanged)
-      : Switch.adaptive(value: value, onChanged: onChanged);
 
   Widget _glassSection(
     String? header,
@@ -1250,7 +1187,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ],
             footer: Platform.isIOS
-                ? 'iOS 下载和媒体处理需要保持应用在前台；切到后台会暂停，回到前台后可继续。'
+                ? 'iOS 下载需要保持应用在前台；切到后台会暂停，回到前台后可继续。'
                 : null,
           ),
         if (store.profile.admin) ...[
@@ -1267,30 +1204,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             ),
-            _glassRow(
-              icon: LucideIcons.film,
-              color: const Color(0xFF34C759),
-              title: '完成后导出 Emby',
-              trailing: _glassSwitch(
-                value: store.autoExport,
-                onChanged: _busy ? null : _setAutoExport,
-              ),
-            ),
-            _glassRow(
-              icon: LucideIcons.image,
-              color: const Color(0xFFFF6482),
-              title: '同时导出海报文件',
-              trailing: _glassSwitch(
-                value: store.exportPosters,
-                onChanged: _busy
-                    ? null
-                    : (value) => saveUserChange(
-                        context,
-                        () => store.setExportPosters(value),
-                      ),
-              ),
-            ),
-          ], footer: '导出写入下载目录的 exports，可加入 Emby 媒体库；默认只写海报 URL。'),
+          ]),
           _glassSection('备份', [
             _glassRow(
               icon: LucideIcons.databaseBackup,
@@ -1303,14 +1217,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               color: const Color(0xFFFF9F0A),
               title: '恢复配置备份',
               onTap: _busy ? null : () => _backup(true),
-            ),
-            _glassRow(
-              icon: LucideIcons.cloudUpload,
-              color: const Color(0xFF30D158),
-              title: 'WebDAV 同步',
-              onTap: () => Navigator.of(context).push(
-                appPageRoute(builder: (_) => WebdavScreen(store: widget.store)),
-              ),
             ),
           ], footer: '包含本地用户、追剧、历史和设置，不含视频文件。'),
         ],
@@ -1471,7 +1377,7 @@ class _StorageScreenState extends State<StorageScreen> {
                   label: const Text('复制路径'),
                 ),
                 const SizedBox(height: 20),
-                const Text('在下载页删除不需要的分集，在本地媒体页删除合并成品或 Emby 导出，可释放空间。'),
+                const Text('在下载页删除不需要的分集，可释放空间。'),
               ],
               if (_busy || (_info == null && _error == null))
                 const Padding(

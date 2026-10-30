@@ -448,8 +448,8 @@ class _ProfileEditorState extends State<ProfileEditor> {
                 ),
               SwitchListTile.adaptive(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('允许下载和本地媒体'),
-                subtitle: Text(_download ? '可下载、合并和导出' : '仅在线观看，隐藏下载入口'),
+                title: const Text('允许下载'),
+                subtitle: Text(_download ? '可下载' : '仅在线观看，隐藏下载入口'),
                 value: _download,
                 onChanged: (v) => setState(() => _download = v),
               ),

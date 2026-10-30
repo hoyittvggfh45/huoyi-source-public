@@ -20,7 +20,6 @@ void main() {
         DramaSettingsTarget.downloads,
         DramaSettingsTarget.storage,
         DramaSettingsTarget.lanSync,
-        DramaSettingsTarget.webdavSync,
         DramaSettingsTarget.follow,
         DramaSettingsTarget.history,
       ]),

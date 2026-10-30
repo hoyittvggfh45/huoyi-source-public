@@ -68,6 +68,11 @@ import 'live_repository.dart';
 import 'live_screen.dart';
 import 'live_store.dart';
 
+bool shouldSilentRefreshOnRestore(DateTime? fetchedAt, DateTime now) {
+  if (fetchedAt == null) return true;
+  return now.difference(fetchedAt) >= const Duration(minutes: 5);
+}
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.repository, required this.store});
   final AppRepository repository;
@@ -121,6 +126,13 @@ class _HomeScreenState extends State<HomeScreen> {
   String _catalogSection = SourceSite.sectionDrama;
   final _sectionSourceIds = <String, String>{};
   final _sectionSnapshots = <String, _SectionSnapshot>{};
+  final _sectionFetchedAt = <String, DateTime>{};
+  List<Drama>? _visibleCache;
+  String _visibleCacheKey = '';
+  List<String>? _level2TagsCache;
+  String _level2TagsCacheKey = '';
+  List<String>? _level3TagsCache;
+  String _level3TagsCacheKey = '';
   final _drillStack = <({String folderId, String name, String sourceId})>[];
   List<CatalogTag> _catalogTags = const [];
   List<CatalogFilterGroup> _catalogFilters = const [];
@@ -694,7 +706,11 @@ class _HomeScreenState extends State<HomeScreen> {
         if (_scroll.offset != target) _scroll.jumpTo(target);
       });
     }
-    if (_sectionSources.isNotEmpty) {
+    if (_sectionSources.isNotEmpty &&
+        shouldSilentRefreshOnRestore(
+          _sectionFetchedAt[section],
+          DateTime.now(),
+        )) {
       unawaited(_load(silent: true));
     }
   }
@@ -996,6 +1012,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _loading = silent ? false : (cached && !result.fresh);
         _loadingMore = false;
         _error = result.warning.isEmpty ? null : result.warning;
+        _sectionFetchedAt[_catalogSection] = DateTime.now();
       });
       unawaited(
         saveUserChange(context, () => widget.store.refreshDramas(result.items)),
@@ -1578,9 +1595,29 @@ class _HomeScreenState extends State<HomeScreen> {
   bool get _hideVip => _supportsVipFilter && widget.store.hideVip;
 
   List<Drama> get _visible {
+    final view = widget.store.catalogView;
+    final key = [
+      identityHashCode(_items),
+      _items.length,
+      _category,
+      _tagLevel2 ?? '',
+      _tagLevel3 ?? '',
+      _search.text.trim().toLowerCase(),
+      _onlineSearch,
+      _hideVip,
+      widget.store.hiddenSites.join(','),
+      widget.store.profileEpoch,
+      widget.store.locked,
+      view.sort,
+      view.release,
+      view.allSources,
+    ].join('|');
+    if (_visibleCache != null && _visibleCacheKey == key) {
+      return _visibleCache!;
+    }
     final query = _search.text.trim().toLowerCase();
     final hidden = widget.store.hiddenSites;
-    return sortCatalog(
+    final visible = sortCatalog(
       _items.where((drama) {
         if (!widget.store.allowsSource(drama.source)) return false;
         if (hidden.contains(drama.source)) return false;
@@ -1601,11 +1638,18 @@ class _HomeScreenState extends State<HomeScreen> {
             query.isEmpty ||
             matchesDramaQuery(drama, query);
       }),
-      widget.store.catalogView,
+      view,
     );
+    _visibleCache = visible;
+    _visibleCacheKey = key;
+    return visible;
   }
 
   List<String> get _level2Tags {
+    final key = '${identityHashCode(_items)}|${_items.length}';
+    if (_level2TagsCache != null && _level2TagsCacheKey == key) {
+      return _level2TagsCache!;
+    }
     final seen = <String>{};
     final out = <String>[];
     for (final drama in _items) {
@@ -1613,12 +1657,19 @@ class _HomeScreenState extends State<HomeScreen> {
         if (seen.add(tag)) out.add(tag);
       }
     }
+    _level2TagsCache = out;
+    _level2TagsCacheKey = key;
     return out;
   }
 
   List<String> get _level3Tags {
     final level2 = _tagLevel2;
     if (level2 == null) return const [];
+    final key =
+        '${identityHashCode(_items)}|${_items.length}|$level2';
+    if (_level3TagsCache != null && _level3TagsCacheKey == key) {
+      return _level3TagsCache!;
+    }
     final seen = <String>{};
     final out = <String>[];
     for (final drama in _items) {
@@ -1627,6 +1678,8 @@ class _HomeScreenState extends State<HomeScreen> {
         if (tag != level2 && seen.add(tag)) out.add(tag);
       }
     }
+    _level3TagsCache = out;
+    _level3TagsCacheKey = key;
     return out;
   }
 
