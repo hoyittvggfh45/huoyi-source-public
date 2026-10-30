@@ -42,7 +42,7 @@ class LiveSource {
   final bool enabled;
 
   /// 是否支持按页续载。整类一次返回的源不参与滚动加载。
-  bool get paginated => protocol != LiveProtocol.pingtai;
+  bool get paginated => protocol == LiveProtocol.platform;
 
   static const values = <LiveSource>[
     LiveSource(

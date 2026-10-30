@@ -164,10 +164,11 @@ void main() {
         'navigation',
         'player',
         'source',
+        'service',
       ]),
     );
-    expect(MiniAppPermissions.supported.length, 6);
-    expect(MiniAppPermissions.supported.contains('service'), isFalse);
+    expect(MiniAppPermissions.supported.length, 7);
+    expect(MiniAppPermissions.supported.contains('service'), isTrue);
     expect(MiniAppPermissions.supported.contains('node'), isFalse);
     expect(MiniAppPermissions.supported.contains('miniapp'), isFalse);
   });
@@ -181,12 +182,7 @@ void main() {
     });
     expect(manifest.permissions, ['service', 'node', 'miniapp', 'navigation']);
     expect(manifest.unsupportedPermissions, ['root']);
-    expect(manifest.unavailablePermissions, [
-      'service',
-      'node',
-      'miniapp',
-      'root',
-    ]);
+    expect(manifest.unavailablePermissions, ['node', 'miniapp', 'root']);
   });
 
   test('market permission audit fixtures all parse without throw', () {
@@ -237,7 +233,7 @@ void main() {
       'entry': 'index.html',
       'permissions': ['network', 'storage', 'ui', 'service'],
     });
-    expect(logvar.unavailablePermissions, ['service']);
+    expect(logvar.unavailablePermissions, isEmpty);
   });
 
   test('bridge storage json variants round-trip with fallback', () async {
@@ -518,10 +514,10 @@ void main() {
       );
       final svc = await installer.installFromZip(serviceZip);
       expect(svc.permissions, contains('service'));
-      expect(svc.unavailablePermissions, ['service']);
+      expect(svc.unavailablePermissions, isEmpty);
       final reloaded = await installer.load(installer.directoryFor('svc'));
       expect(reloaded.permissions, contains('service'));
-      expect(reloaded.unavailablePermissions, ['service']);
+      expect(reloaded.unavailablePermissions, isEmpty);
       final unknownZip = ZipEncoder().encode(
         Archive()
           ..add(

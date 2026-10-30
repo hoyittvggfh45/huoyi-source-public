@@ -41,7 +41,16 @@ func nativeSourceAvailable(source string) bool {
 func nativeDramaAvailable(drama nativeDrama) bool {
 	source, _, valid := splitProviderDramaID(drama.ID)
 	return valid && nativeSourceAvailable(source) &&
-		(drama.Source == "" || canonicalProviderSource(drama.Source) == source)
+		(drama.Source == "" ||
+			sameHongguoLine(canonicalProviderSource(drama.Source), source))
+}
+
+func isHongguoLineSource(source string) bool {
+	return source == sourceHongguo || source == sourceHongguoOversea
+}
+
+func sameHongguoLine(a, b string) bool {
+	return a == b || (isHongguoLineSource(a) && isHongguoLineSource(b))
 }
 
 func nativeChapterAvailable(drama nativeDrama, chapter Chapter) bool {
@@ -49,10 +58,12 @@ func nativeChapterAvailable(drama nativeDrama, chapter Chapter) bool {
 		return false
 	}
 	source, _, _ := splitProviderDramaID(drama.ID)
-	if chapter.Source != "" && canonicalProviderSource(chapter.Source) != source {
+	if chapter.Source != "" &&
+		!sameHongguoLine(canonicalProviderSource(chapter.Source), source) {
 		return false
 	}
-	if chapterSource, _, valid := splitProviderDramaID(chapter.ID); valid && chapterSource != source {
+	if chapterSource, _, valid := splitProviderDramaID(chapter.ID); valid &&
+		!sameHongguoLine(chapterSource, source) {
 		return false
 	}
 	return true
@@ -78,7 +89,7 @@ func nativeAuthorizeInput(input nativeInput) error {
 			return errNativeBuildSource
 		}
 		if input.Action == "sourceJob" && input.Drama.ID != "" &&
-			(!nativeDramaAvailable(input.Drama) || sourceFromDramaID(input.Drama.ID) != canonicalProviderSource(input.Source)) {
+			(!nativeDramaAvailable(input.Drama) || !sameHongguoLine(sourceFromDramaID(input.Drama.ID), canonicalProviderSource(input.Source))) {
 			return errNativeBuildSource
 		}
 	case "searchAcross":

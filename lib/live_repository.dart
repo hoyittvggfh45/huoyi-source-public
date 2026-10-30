@@ -51,11 +51,43 @@ class LiveRepository {
     final result = switch (source.protocol) {
       LiveProtocol.pingtai => await _pingtaiPlatforms(source),
       LiveProtocol.platform => livePlatformCategories(source.id),
-      LiveProtocol.list => const [LivePlatform(id: 'all', name: '全部频道')],
+      LiveProtocol.list => await _listPlatforms(source),
     };
     if (result.isEmpty) throw AppFailure('该直播源没有可用分类');
-    if (token == _generation) _platforms[source.id] = result;
+    if (token == _generation &&
+        !importedLiveChannels.containsKey(source.id)) {
+      _platforms[source.id] = result;
+    }
     return result;
+  }
+
+  Future<List<LivePlatform>> _listPlatforms(LiveSource source) async {
+    final imported = importedLiveChannels[source.id];
+    if (imported != null) {
+      final counts = <String, int>{};
+      for (final channel in imported) {
+        final name = channel.group.isEmpty ? liveUnsortedGroup : channel.group;
+        counts[name] = (counts[name] ?? 0) + 1;
+      }
+      return [
+        const LivePlatform(id: 'all', name: '全部频道'),
+        for (final entry in counts.entries)
+          LivePlatform(id: entry.key, name: entry.key, count: entry.value),
+      ];
+    }
+    final channels = await _parseList(source);
+    final counts = <String, int>{};
+    final order = <String>[];
+    for (final channel in channels) {
+      final name = channel.group.isEmpty ? liveUnsortedGroup : channel.group;
+      if (!counts.containsKey(name)) order.add(name);
+      counts[name] = (counts[name] ?? 0) + 1;
+    }
+    return [
+      const LivePlatform(id: 'all', name: '全部频道'),
+      for (final name in order)
+        LivePlatform(id: name, name: name, count: counts[name]!),
+    ];
   }
 
   Future<List<LiveChannel>> channels(
@@ -67,7 +99,13 @@ class LiveRepository {
     final imported = importedLiveChannels[source.id];
     if (imported != null) {
       if (imported.isEmpty) throw AppFailure('该订阅暂时没有频道');
-      return imported;
+      if (platform.id == 'all') return imported;
+      return [
+        for (final channel in imported)
+          if (channel.group == platform.id ||
+              (channel.group.isEmpty && platform.id == liveUnsortedGroup))
+            channel,
+      ];
     }
     final cacheKey = '${source.id}\u0000${platform.id}\u0000$page';
     if (!force) {
@@ -77,7 +115,7 @@ class LiveRepository {
     final result = switch (source.protocol) {
       LiveProtocol.pingtai => await _pingtaiChannels(source, platform),
       LiveProtocol.platform => await _platformChannels(source, platform, page),
-      LiveProtocol.list => await _listChannels(source),
+      LiveProtocol.list => await _listChannels(source, platform),
     };
     if (result.isEmpty) throw AppFailure('该分类暂时没有频道');
     _channels[cacheKey] = result;
@@ -227,7 +265,21 @@ class LiveRepository {
     return [...reliable, ...fallback];
   }
 
-  Future<List<LiveChannel>> _listChannels(LiveSource source) async {
+  Future<List<LiveChannel>> _listChannels(
+    LiveSource source,
+    LivePlatform platform,
+  ) async {
+    final channels = await _parseList(source);
+    if (platform.id == 'all') return channels;
+    return [
+      for (final channel in channels)
+        if (channel.group == platform.id ||
+            (channel.group.isEmpty && platform.id == liveUnsortedGroup))
+          channel,
+    ];
+  }
+
+  Future<List<LiveChannel>> _parseList(LiveSource source) async {
     final endpoint = source.endpoint;
     final text = endpoint.startsWith('asset://')
         ? await rootBundle.loadString(endpoint.substring('asset://'.length))

@@ -722,6 +722,11 @@ class LocalStore extends ChangeNotifier {
   Future<void> setAutoSwitchPlayer(bool value) =>
       _setting('autoSwitchPlayer', value);
 
+  bool get resumePlayback => _bool('resumePlayback') ?? true;
+
+  Future<void> setResumePlayback(bool value) =>
+      _setting('resumePlayback', value);
+
   Future<void> setPlayerCore(PlayerCore core) async {
     await PlayerCoreStorage.write(preferences, core);
     _notify();

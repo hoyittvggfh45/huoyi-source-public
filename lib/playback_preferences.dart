@@ -35,6 +35,7 @@ class PlaybackPreferences {
     this.pictureQuality = const PictureQualityPreferences(),
     this.televisionDecoder = TelevisionDecoder.optimized,
     this.orientationMode = PlaybackOrientationMode.auto,
+    this.multiChannelAudio = false,
   });
 
   final double speed;
@@ -50,6 +51,7 @@ class PlaybackPreferences {
   final PictureQualityPreferences pictureQuality;
   final TelevisionDecoder televisionDecoder;
   final PlaybackOrientationMode orientationMode;
+  final bool multiChannelAudio;
 
   PlaybackPreferences copyWith({
     double? speed,
@@ -65,6 +67,7 @@ class PlaybackPreferences {
     PictureQualityPreferences? pictureQuality,
     TelevisionDecoder? televisionDecoder,
     PlaybackOrientationMode? orientationMode,
+    bool? multiChannelAudio,
   }) => PlaybackPreferences(
     speed: speed ?? this.speed,
     quality: quality ?? this.quality,
@@ -79,6 +82,7 @@ class PlaybackPreferences {
     pictureQuality: pictureQuality ?? this.pictureQuality,
     televisionDecoder: televisionDecoder ?? this.televisionDecoder,
     orientationMode: orientationMode ?? this.orientationMode,
+    multiChannelAudio: multiChannelAudio ?? this.multiChannelAudio,
   );
 
   Map<String, dynamic> toJson() => {
@@ -95,6 +99,7 @@ class PlaybackPreferences {
     'pictureQuality': pictureQuality.toJson(),
     'televisionDecoder': televisionDecoder.name,
     'orientationMode': orientationMode.name,
+    'multiChannelAudio': multiChannelAudio,
   };
 
   factory PlaybackPreferences.fromJson(Map<String, dynamic> value) {
@@ -107,6 +112,7 @@ class PlaybackPreferences {
     final holdSpeed = (value['holdSpeed'] as num? ?? 2).toDouble();
     final swipeSeekSeconds = value['swipeSeekSeconds'] as int? ?? 60;
     final autoPictureInPicture = value['autoPictureInPicture'] as bool? ?? true;
+    final multiChannelAudio = value['multiChannelAudio'] as bool? ?? false;
     if (!playbackSpeeds.contains(speed) ||
         !holdSpeeds.contains(holdSpeed) ||
         !swipeSeekChoices.contains(swipeSeekSeconds) ||
@@ -135,6 +141,7 @@ class PlaybackPreferences {
           PlaybackOrientationMode.values
               .asNameMap()[value['orientationMode']] ??
           PlaybackOrientationMode.auto,
+      multiChannelAudio: multiChannelAudio,
     );
   }
 }

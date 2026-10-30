@@ -20,6 +20,7 @@ import '../playback_parse.dart';
 import 'bridge.dart';
 import 'manifest.dart';
 import 'permissions.dart';
+import 'service_manager.dart';
 import 'source_shapes.dart';
 import 'storage.dart';
 
@@ -41,6 +42,53 @@ String injectMiniAppBootstrap(String html, String script) {
     }
   }
   return '$tag$html';
+}
+
+String _miniappPlainName(String name) =>
+    name.replaceFirst(RegExp(r'^[^\p{L}\p{N}]+', unicode: true), '');
+
+String miniappNormalizedSourceId(String raw) {
+  if (raw.isEmpty) return raw;
+  for (final site in SourceSite.allValues) {
+    if (site.id == raw) return raw;
+  }
+  if (SourceSite.importedSites.containsKey(raw) ||
+      SourceSite.customIds.contains(raw)) {
+    return raw;
+  }
+  final candidates = [
+    ...SourceSite.allValues,
+    ...SourceSite.importedSites.values,
+  ];
+  for (final site in candidates) {
+    if (site.slotId.isNotEmpty && site.slotId == raw) return site.id;
+  }
+  final plain = _miniappPlainName(raw);
+  for (final site in candidates) {
+    if (site.name == raw || _miniappPlainName(site.name) == plain) {
+      return site.id;
+    }
+  }
+  return raw;
+}
+
+String miniappEffectiveDramaId(String sourceId, String rawId) {
+  if (rawId.isEmpty ||
+      rawId.startsWith('http://') ||
+      rawId.startsWith('https://')) {
+    return rawId;
+  }
+  final cut = rawId.indexOf(':');
+  if (cut < 0) return '$sourceId:$rawId';
+  final prefix = rawId.substring(0, cut);
+  if (prefix == sourceId) return rawId;
+  final site = SourceSite.allValues
+      .where((entry) => entry.id == sourceId)
+      .firstOrNull;
+  if (site != null && site.slotId.isNotEmpty && site.slotId == prefix) {
+    return '$sourceId:${rawId.substring(cut + 1)}';
+  }
+  return rawId;
 }
 
 class MiniAppScreen extends StatefulWidget {
@@ -69,6 +117,10 @@ class _MiniAppScreenState extends State<MiniAppScreen> {
   late final MiniAppHost _host;
   bool _unsupported = false;
   String? _loadingMessage;
+  int? _serviceRegistrationId;
+  bool _serviceDisposed = false;
+  final _serveCalls = <int, Completer<Object?>>{};
+  int _serveSeq = 0;
 
   @override
   void initState() {
@@ -81,6 +133,8 @@ class _MiniAppScreenState extends State<MiniAppScreen> {
       onReply: _reply,
       onEmit: _emit,
       host: _host,
+      onServeRegistered: _registerService,
+      onServeReply: _handleServeReply,
     );
     if (Platform.isAndroid || Platform.isIOS) {
       unawaited(_start());
@@ -249,6 +303,58 @@ class _MiniAppScreenState extends State<MiniAppScreen> {
     );
   }
 
+  void _registerService() {
+    if (_serviceRegistrationId != null || _serviceDisposed) return;
+    unawaited(
+      MiniAppBridge.sharedServices
+          .register(widget.manifest.id, _callServeHandler)
+          .then((instance) {
+            if (_serviceDisposed) {
+              MiniAppBridge.sharedServices.unregister(
+                instance.registrationId,
+              );
+              return;
+            }
+            _serviceRegistrationId = instance.registrationId;
+          }),
+    );
+  }
+
+  void _handleServeReply(int id, Object? result, String? error) {
+    final completer = _serveCalls.remove(id);
+    if (completer == null) return;
+    if (error != null) {
+      completer.completeError(MiniAppDenied(error));
+    } else {
+      completer.complete(result);
+    }
+  }
+
+  Future<MiniAppServiceResponse?> _callServeHandler(
+    MiniAppServiceRequest request,
+  ) async {
+    final controller = _controller;
+    if (controller == null) return MiniAppServiceResponse.unavailable();
+    final id = ++_serveSeq;
+    final completer = Completer<Object?>();
+    _serveCalls[id] = completer;
+    try {
+      await controller.runJavaScript(
+        'window.__antServeCall($id, ${jsonEncode(request.toJson())})',
+      );
+      final result = await completer.future.timeout(
+        MiniAppBridge.sharedServices.callTimeout,
+      );
+      return MiniAppServiceResponse.fromHandlerResult(result);
+    } on TimeoutException {
+      _serveCalls.remove(id);
+      return MiniAppServiceResponse.timeout();
+    } catch (_) {
+      _serveCalls.remove(id);
+      return MiniAppServiceResponse.unavailable();
+    }
+  }
+
   void _setLoadingMessage(String? message) {
     if (mounted) setState(() => _loadingMessage = message);
   }
@@ -306,6 +412,17 @@ class _MiniAppScreenState extends State<MiniAppScreen> {
 
   @override
   void dispose() {
+    _serviceDisposed = true;
+    final registrationId = _serviceRegistrationId;
+    if (registrationId != null) {
+      MiniAppBridge.sharedServices.unregister(registrationId);
+    }
+    for (final completer in _serveCalls.values) {
+      if (!completer.isCompleted) {
+        completer.completeError(const MiniAppDenied('service stopped'));
+      }
+    }
+    _serveCalls.clear();
     unawaited(_server?.close(force: true));
     super.dispose();
   }
@@ -401,6 +518,7 @@ class _MiniAppHostImpl extends MiniAppHost {
       if (sources.isEmpty) throw const MiniAppDenied('暂无可用采集源');
       sourceId = sources.first.id;
     }
+    sourceId = miniappNormalizedSourceId(sourceId);
     final categories = await repository.categories(sourceId);
     final category = categories
         .where((entry) => entry.id.isNotEmpty)
@@ -428,13 +546,17 @@ class _MiniAppHostImpl extends MiniAppHost {
     if (_store == null || repository == null) {
       throw const MiniAppDenied('采集源不可用');
     }
-    final sourceId = _sourceId(params);
+    final sourceId = miniappNormalizedSourceId(_sourceId(params));
     final dramaId = _dramaId(params);
     if (sourceId.isEmpty || dramaId.isEmpty) {
       throw const MiniAppDenied('source.detail 需要站源与剧集 id');
     }
     final detail = await repository.detail(
-      Drama(id: dramaId, source: sourceId, title: ''),
+      Drama(
+        id: miniappEffectiveDramaId(sourceId, dramaId),
+        source: sourceId,
+        title: '',
+      ),
     );
     return miniappDetailJson(detail);
   }
@@ -447,7 +569,7 @@ class _MiniAppHostImpl extends MiniAppHost {
     if (_store == null || repository == null) {
       throw const MiniAppDenied('采集源不可用');
     }
-    final sourceId = _sourceId(params);
+    final sourceId = miniappNormalizedSourceId(_sourceId(params));
     if (sourceId.isEmpty) {
       throw const MiniAppDenied('source.category 需要站源');
     }
@@ -475,7 +597,7 @@ class _MiniAppHostImpl extends MiniAppHost {
     if (_store == null || repository == null) {
       throw const MiniAppDenied('采集源不可用');
     }
-    final sourceId = _sourceId(params);
+    final sourceId = miniappNormalizedSourceId(_sourceId(params));
     final keyword =
         params['wd']?.toString() ?? params['keyword']?.toString() ?? '';
     if (sourceId.isEmpty || keyword.isEmpty) {
@@ -506,7 +628,7 @@ class _MiniAppHostImpl extends MiniAppHost {
     if (_store == null || repository == null) {
       throw const MiniAppDenied('采集源不可用');
     }
-    final sourceId = _sourceId(params);
+    final sourceId = miniappNormalizedSourceId(_sourceId(params));
     final flag = params['flag']?.toString() ?? '';
     final id = _dramaId(params);
     if (sourceId.isEmpty || id.isEmpty) {
@@ -515,7 +637,11 @@ class _MiniAppHostImpl extends MiniAppHost {
     _vodSite(sourceId);
     try {
       final plan = await repository.resolve(
-        Drama(id: '', source: sourceId, title: ''),
+        Drama(
+          id: miniappEffectiveDramaId(sourceId, id),
+          source: sourceId,
+          title: '',
+        ),
         Episode({'id': id, 'flag': flag}, 1),
       );
       if (plan.url.isEmpty) throw StateError('empty plan');

@@ -26,7 +26,15 @@ class MiniAppPermissions {
     node,
     miniapp,
   };
-  static const supported = {network, storage, ui, navigation, player, source};
+  static const supported = {
+    network,
+    storage,
+    ui,
+    navigation,
+    player,
+    source,
+    service,
+  };
 
   const MiniAppPermissions(this.granted);
   final Set<String> granted;

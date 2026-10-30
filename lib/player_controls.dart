@@ -927,13 +927,12 @@ class _PlayerControlsState extends State<PlayerControls> {
           icon: Icons.tune_rounded,
           onPressed: widget.enabled ? () => _panel(widget.onSettings!) : null,
         ),
-      if (fullscreen)
-        _toolIcon(
-          key: const ValueKey('player-episodes'),
-          tooltip: '选集',
-          icon: Icons.grid_view_rounded,
-          onPressed: widget.enabled ? () => _panel(widget.onEpisodes) : null,
-        ),
+      _toolIcon(
+        key: const ValueKey('player-episodes'),
+        tooltip: '选集',
+        icon: Icons.grid_view_rounded,
+        onPressed: widget.enabled ? () => _panel(widget.onEpisodes) : null,
+      ),
       if (widget.onPictureInPicture != null)
         _toolIcon(
           key: const ValueKey('player-picture-in-picture'),

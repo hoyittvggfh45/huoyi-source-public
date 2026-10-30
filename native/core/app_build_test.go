@@ -135,3 +135,39 @@ func TestNativeBuildPreservesForeignDownloadRecordsAndRestrictsScheduling(t *tes
 		}
 	}
 }
+
+func TestHongguoLineAuthorizeMutualRecognition(t *testing.T) {
+	for _, drama := range []nativeDrama{
+		{ID: "hongguo:123", Source: sourceHongguoOversea},
+		{ID: "hongguo-oversea:123", Source: sourceHongguo},
+		{ID: "hongguo:123", Source: sourceHongguo},
+		{ID: "hongguo-oversea:123", Source: sourceHongguoOversea},
+	} {
+		if !nativeDramaAvailable(drama) {
+			t.Fatalf("hongguo line drama rejected: %+v", drama)
+		}
+		for _, action := range []string{"detail", "resolve", "preload", "prepareHandoff", "enqueueDownloads", "localPlayback"} {
+			if err := nativeAuthorizeInput(nativeInput{Action: action, Drama: drama}); err != nil {
+				t.Fatalf("%s %+v: unexpected error %v", action, drama, err)
+			}
+		}
+		if err := nativeAuthorizeInput(nativeInput{Action: "resolve", Drama: drama, Chapter: Chapter{ID: "hongguo:123:1"}}); err != nil {
+			t.Fatalf("resolve cross-line chapter rejected: %+v %v", drama, err)
+		}
+		if err := nativeAuthorizeInput(nativeInput{Action: "sourceJob", Source: drama.Source, Drama: drama}); err != nil {
+			t.Fatalf("sourceJob %+v: unexpected error %v", drama, err)
+		}
+	}
+	if err := nativeAuthorizeInput(nativeInput{Action: "sourceJob", Source: sourceHongguo, Drama: nativeDrama{ID: "hongguo-oversea:123", Source: sourceHongguoOversea}}); err != nil {
+		t.Fatalf("sourceJob cross-line source rejected: %v", err)
+	}
+	for _, input := range []nativeInput{
+		{Action: "resolve", Drama: nativeDrama{ID: "huangdou:123", Source: sourceHongguoOversea}},
+		{Action: "resolve", Drama: nativeDrama{ID: "hongguo:123", Source: sourceHongguo}, Chapter: Chapter{Source: sourceHuangdou}},
+		{Action: "resolve", Drama: nativeDrama{ID: "hongguo-oversea:123", Source: sourceHongguo}, Chapter: Chapter{ID: "huangdou:123:1"}},
+	} {
+		if !errors.Is(nativeAuthorizeInput(input), errNativeBuildSource) {
+			t.Fatalf("foreign source passed hongguo line authorization: %+v", input)
+		}
+	}
+}

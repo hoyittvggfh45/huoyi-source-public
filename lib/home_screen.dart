@@ -74,6 +74,15 @@ import 'library_updater.dart';
 import 'live_repository.dart';
 import 'live_screen.dart';
 import 'live_store.dart';
+import 'zoo_builtin_seed.dart';
+
+bool shouldSilentRefreshOnRestore(DateTime? fetchedAt, DateTime now) =>
+    fetchedAt == null ||
+    now.difference(fetchedAt) >= const Duration(minutes: 5);
+
+bool vodZoneShowsSource(SourceSite site) =>
+    isVodZoneSource(site) &&
+    !ZooBuiltinSeeder.isBuiltinConfig(site.configId);
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -136,6 +145,30 @@ class _HomeScreenState extends State<HomeScreen> {
   String _catalogSection = SourceSite.sectionDrama;
   final _sectionSourceIds = <String, String>{};
   final _sectionSnapshots = <String, _SectionSnapshot>{};
+  final _sectionFetchedAt = <String, DateTime>{};
+  List<Drama>? _visibleCache;
+  ({
+    List<Drama> items,
+    int length,
+    String category,
+    String? tag2,
+    String? tag3,
+    String query,
+    bool online,
+    bool hideVip,
+    String groupId,
+    CatalogSort sort,
+    String release,
+    bool allSources,
+    int hiddenHash,
+    int epoch,
+    bool locked,
+  })? _visibleCacheKey;
+  List<String>? _level2TagsCache;
+  List<Drama>? _level2TagsCacheSource;
+  List<String>? _level3TagsCache;
+  List<Drama>? _level3TagsCacheSource;
+  String? _level3TagsCacheTag2;
   final _drillStack = <({String folderId, String name, String sourceId})>[];
   List<CatalogTag> _catalogTags = const [];
   List<CatalogFilterGroup> _catalogFilters = const [];
@@ -190,7 +223,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<SourceSite> get _sectionSources => [
     for (final site in widget.store.visibleSources)
       if (_zone == HomeZone.vod
-          ? isVodZoneSource(site)
+          ? vodZoneShowsSource(site)
           : _zone == HomeZone.midnight
           ? isMidnightZoneSource(site)
           : _catalogSection == SourceSite.sectionVideo
@@ -714,7 +747,11 @@ class _HomeScreenState extends State<HomeScreen> {
         if (_scroll.offset != target) _scroll.jumpTo(target);
       });
     }
-    if (_sectionSources.isNotEmpty) {
+    if (_sectionSources.isNotEmpty &&
+        shouldSilentRefreshOnRestore(
+          _sectionFetchedAt[section],
+          DateTime.now(),
+        )) {
       unawaited(_load(silent: true));
     }
   }
@@ -1023,6 +1060,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _loadingMore = false;
         _error = result.warning.isEmpty ? null : result.warning;
       });
+      _sectionFetchedAt[_catalogSection] = DateTime.now();
       unawaited(
         saveUserChange(context, () => widget.store.refreshDramas(result.items)),
       );
@@ -1648,9 +1686,34 @@ class _HomeScreenState extends State<HomeScreen> {
   bool get _hideVip => _supportsVipFilter && widget.store.hideVip;
 
   List<Drama> get _visible {
-    final query = _search.text.trim().toLowerCase();
+    final view = widget.store.catalogView;
+    var hiddenHash = 0;
+    for (final site in widget.store.hiddenSites) {
+      hiddenHash ^= site.hashCode;
+    }
+    final key = (
+      items: _items,
+      length: _items.length,
+      category: _category,
+      tag2: _tagLevel2,
+      tag3: _tagLevel3,
+      query: _search.text.trim().toLowerCase(),
+      online: _onlineSearch,
+      hideVip: _hideVip,
+      groupId: _group.id,
+      sort: view.sort,
+      release: view.release,
+      allSources: view.allSources,
+      hiddenHash: hiddenHash,
+      epoch: widget.store.profileEpoch,
+      locked: widget.store.locked,
+    );
+    if (_visibleCache != null && _visibleCacheKey == key) {
+      return _visibleCache!;
+    }
+    final query = key.query;
     final hidden = widget.store.hiddenSites;
-    return sortCatalog(
+    final result = sortCatalog(
       _items.where((drama) {
         if (!widget.store.allowsSource(drama.source)) return false;
         if (hidden.contains(drama.source)) return false;
@@ -1671,11 +1734,19 @@ class _HomeScreenState extends State<HomeScreen> {
             query.isEmpty ||
             matchesDramaQuery(drama, query);
       }),
-      widget.store.catalogView,
+      view,
     );
+    _visibleCache = result;
+    _visibleCacheKey = key;
+    return result;
   }
 
   List<String> get _level2Tags {
+    if (_level2TagsCache != null &&
+        identical(_level2TagsCacheSource, _items) &&
+        _level2TagsCacheSource!.length == _items.length) {
+      return _level2TagsCache!;
+    }
     final seen = <String>{};
     final out = <String>[];
     for (final drama in _items) {
@@ -1683,12 +1754,20 @@ class _HomeScreenState extends State<HomeScreen> {
         if (seen.add(tag)) out.add(tag);
       }
     }
+    _level2TagsCache = out;
+    _level2TagsCacheSource = _items;
     return out;
   }
 
   List<String> get _level3Tags {
     final level2 = _tagLevel2;
     if (level2 == null) return const [];
+    if (_level3TagsCache != null &&
+        identical(_level3TagsCacheSource, _items) &&
+        _level3TagsCacheSource!.length == _items.length &&
+        _level3TagsCacheTag2 == level2) {
+      return _level3TagsCache!;
+    }
     final seen = <String>{};
     final out = <String>[];
     for (final drama in _items) {
@@ -1697,6 +1776,9 @@ class _HomeScreenState extends State<HomeScreen> {
         if (tag != level2 && seen.add(tag)) out.add(tag);
       }
     }
+    _level3TagsCache = out;
+    _level3TagsCacheSource = _items;
+    _level3TagsCacheTag2 = level2;
     return out;
   }
 
@@ -2816,6 +2898,41 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     return Column(
       children: [
+        if (widget.bare && _isCatalogZone && !_selectionMode)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+            child: Row(
+              children: [
+                InkWell(
+                  key: const ValueKey('source-switch-bare'),
+                  onTap: _canSwitchSource
+                      ? () => unawaited(_pickSource())
+                      : null,
+                  onLongPress: _canSwitchSource
+                      ? () => unawaited(_pickSource(editMode: true))
+                      : null,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          _group.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 18,
+                          ),
+                        ),
+                      ),
+                      if (_canSwitchSource)
+                        const Icon(Icons.expand_more_rounded, size: 20),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ..._catalogSearchBlock(),
         CatalogFilters(
           key: ValueKey('filters-${_group.id}'),

@@ -344,7 +344,11 @@ class _LiveScreenState extends State<LiveScreen> {
   /// 绿色模式下隐藏成人分类，收藏入口始终保留在最前。
   List<LivePlatform> _visiblePlatforms(List<LivePlatform> platforms) => [
     for (final platform in platforms)
-      if (!LiveSource.hidesCategory(platform.name, greenMode: widget.greenMode))
+      if (platform.id == 'all' ||
+          !LiveSource.hidesCategory(
+            platform.name,
+            greenMode: widget.greenMode,
+          ))
         platform,
   ];
 
@@ -581,6 +585,7 @@ class _LiveScreenState extends State<LiveScreen> {
 
   Widget _panel(BuildContext context, bool television) => Column(
     children: [
+      _actionChips(context),
       _current(context),
       Padding(
         padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
@@ -617,6 +622,118 @@ class _LiveScreenState extends State<LiveScreen> {
       Expanded(child: _lists(context, television)),
     ],
   );
+
+  Widget _actionChips(BuildContext context) {
+    final channel = _playback.channel;
+    if (channel == null) return const SizedBox.shrink();
+    final multiChannel = _playback.count > 1;
+    final multiRoute = channel.urls.length > 1;
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: Row(
+        children: [
+          ActionChip(
+            key: const ValueKey('live-prev-channel'),
+            avatar: const Icon(Icons.skip_previous_rounded, size: 18),
+            label: const Text('上一台'),
+            onPressed: multiChannel
+                ? () => _playback.switchBy(-1)
+                : null,
+          ),
+          const SizedBox(width: 8),
+          ActionChip(
+            key: const ValueKey('live-next-channel'),
+            avatar: const Icon(Icons.skip_next_rounded, size: 18),
+            label: const Text('下一台'),
+            onPressed: multiChannel
+                ? () => _playback.switchBy(1)
+                : null,
+          ),
+          const SizedBox(width: 8),
+          ActionChip(
+            key: const ValueKey('live-route-chip'),
+            avatar: const Icon(Icons.route_rounded, size: 18),
+            label: Text(
+              multiRoute
+                  ? '线路 ${_playback.route + 1}/${channel.urls.length}'
+                  : '线路 1/1',
+            ),
+            onPressed: multiRoute
+                ? _selectInlineRoute
+                : () => AppNotice.show(context, '当前频道只有一条线路'),
+          ),
+          const SizedBox(width: 8),
+          ActionChip(
+            key: const ValueKey('live-epg-chip'),
+            avatar: const Icon(Icons.event_note_rounded, size: 18),
+            label: const Text('节目单'),
+            onPressed: _showEpgSheet,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _selectInlineRoute() async {
+    final channel = _playback.channel;
+    if (channel == null || channel.urls.length < 2) return;
+    final index = await showModalBottomSheet<int>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var index = 0; index < channel.urls.length; index++)
+              ListTile(
+                dense: true,
+                leading: const Icon(Icons.route_rounded),
+                title: Text('线路 ${index + 1}'),
+                trailing: index == _playback.route
+                    ? const Icon(Icons.check_rounded, size: 20)
+                    : null,
+                onTap: () => Navigator.pop(context, index),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (index == null || !mounted) return;
+    await _playback.playRoute(index);
+  }
+
+  Future<void> _showEpgSheet() async {
+    final channel = _playback.channel;
+    if (channel == null) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                channel.name,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 6),
+              Text('${_source?.name ?? ''} · ${channel.group}'),
+              if (channel.subtitle.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(channel.subtitle),
+              ],
+              const SizedBox(height: 12),
+              const Text('当前源未提供节目单数据，暂无节目时间表。'),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _current(BuildContext context) {
     final theme = Theme.of(context);

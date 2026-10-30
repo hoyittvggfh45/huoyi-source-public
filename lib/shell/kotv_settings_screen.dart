@@ -20,6 +20,7 @@ import '../core_bridge.dart';
 import '../crack_config_section.dart';
 import '../detail_screen.dart';
 import '../downloads_screen.dart';
+import '../drive_library_screen.dart';
 import '../hongguo_account.dart';
 import '../import_center_screen.dart';
 import '../lan_screen.dart';
@@ -28,6 +29,7 @@ import '../gate_console_screen.dart';
 import '../gate_guard.dart';
 import '../local_store.dart';
 import '../midnight_zone.dart';
+import '../my_page_screen.dart';
 import '../miniapp/plugin_center_screen.dart';
 import '../models.dart';
 import '../parse_settings_screen.dart';
@@ -35,7 +37,6 @@ import '../playback_launch_screen.dart';
 import '../playback_parse.dart';
 import '../playback_preferences.dart';
 import '../player_core.dart';
-import '../player_picker.dart';
 import '../profiles_screen.dart';
 import '../proxy_kernel_screen.dart';
 import '../resource_settings_screen.dart';
@@ -51,12 +52,12 @@ import '../ui_style.dart';
 import '../video_enhancement_preferences.dart';
 import '../webdav_screen.dart';
 import '../widgets.dart';
-import '../xigua/playback_settings_screen.dart';
 import 'kotv_add_source_dialog.dart';
 import 'kotv_backup_dialogs.dart';
 import 'kotv_clear_cache_dialog.dart';
 import 'kotv_downloads_page.dart';
 import 'kotv_option_dialogs.dart';
+import 'kotv_playback_settings_screen.dart';
 import 'kotv_player_settings_sheet.dart';
 import 'kotv_runtime_info_dialog.dart';
 import 'kotv_send_to_device_dialog.dart';
@@ -315,52 +316,6 @@ class KotvSettingsScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _chooseAutoSwitch(BuildContext context) async {
-    final chosen = await showKotvPlayerAutoSwitchDialog(
-      context: context,
-      current: store.autoSwitchPlayer
-          ? KotvPlayerAutoSwitch.automatic
-          : KotvPlayerAutoSwitch.off,
-    );
-    if (chosen != null && context.mounted) {
-      await saveUserChange(
-        context,
-        () => store.setAutoSwitchPlayer(
-          chosen == KotvPlayerAutoSwitch.automatic,
-        ),
-      );
-    }
-  }
-
-  Future<void> _chooseRenderBackend(BuildContext context) async {
-    final chosen = await showKotvRenderBackendDialog(
-      context: context,
-      current: PlayerCoreStorage.read(store.preferences),
-      exoAvailable: Platform.isAndroid,
-    );
-    if (chosen != null && context.mounted) {
-      await saveUserChange(
-        context,
-        () => store.setPlayerCore(chosen),
-      );
-    }
-  }
-
-  Future<void> _chooseDecoder(BuildContext context) async {
-    final chosen = await showKotvDecoderDialog(
-      context: context,
-      current: store.playbackPreferences.televisionDecoder,
-    );
-    if (chosen != null && context.mounted) {
-      await saveUserChange(
-        context,
-        () => store.setPlaybackPreferences(
-          store.playbackPreferences.copyWith(televisionDecoder: chosen),
-        ),
-      );
-    }
-  }
-
   Future<String> _defaultParserName() async {
     try {
       final selected = await ParseInterfaceStore.loadSelected();
@@ -424,6 +379,75 @@ class KotvSettingsScreen extends StatelessWidget {
             bottom: 32 + MediaQuery.paddingOf(context).bottom,
           ),
           children: [
+            Container(
+              margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              decoration: BoxDecoration(
+                color: KotvTokens.cardColor,
+                borderRadius: BorderRadius.circular(KotvTokens.cardRadius),
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(KotvTokens.cardRadius),
+                  onTap: () => _push(
+                    context,
+                    MyPageScreen(repository: repository, store: store),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 48,
+                          height: 48,
+                          decoration: const BoxDecoration(
+                            color: KotvTokens.primary,
+                            shape: BoxShape.circle,
+                          ),
+                          alignment: Alignment.center,
+                          child: const Icon(
+                            Icons.person_rounded,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ValueListenableBuilder<HongguoAccount?>(
+                            valueListenable: hongguoAccountNotifier,
+                            builder: (context, account, _) => Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  store.profile.name,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  account != null && account.loggedIn
+                                      ? account.displayName
+                                      : '未登录',
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    color: KotvTokens.unselectedColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const Icon(
+                          Icons.chevron_right_rounded,
+                          color: KotvTokens.unselectedColor,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
             KotvGroupCard(
               title: '界面壳',
               children: [
@@ -556,43 +580,17 @@ class KotvSettingsScreen extends StatelessWidget {
               children: [
                 KotvSettingsRow(
                   title: '播放设置',
-                  value: '倍速、弹幕、自动连播与画质偏好',
-                  onTap: () =>
-                      _push(context, PlaybackSettingsScreen(store: store)),
-                ),
-                KotvSettingsRow(
-                  title: '播放器选择',
-                  value: '切换播放器后端',
-                  onTap: () => _push(context, PlayerPickerScreen(store: store)),
+                  value:
+                      '${PlayerCoreStorage.read(store.preferences).label} · ${speedLabel(preferences.speed)}x',
+                  onTap: () => _push(
+                    context,
+                    KotvPlaybackSettingsScreen(store: store),
+                  ),
                 ),
                 KotvSettingsRow(
                   title: '解析接口',
                   value: '播放解析接口列表与默认选中',
                   onTap: () => _push(context, const ParseSettingsScreen()),
-                ),
-                KotvSettingsRow(
-                  title: '默认倍速',
-                  value: '${speedLabel(preferences.speed)}x',
-                  onTap: () => _choosePlaybackOption<double>(
-                    context,
-                    '默认倍速',
-                    playbackSpeeds,
-                    preferences.speed,
-                    (speed) => '${speedLabel(speed)}x',
-                    (current, chosen) => current.copyWith(speed: chosen),
-                  ),
-                ),
-                KotvSettingsRow(
-                  title: '长按倍速',
-                  value: '${speedLabel(preferences.holdSpeed)}x',
-                  onTap: () => _choosePlaybackOption<double>(
-                    context,
-                    '长按倍速',
-                    holdSpeeds,
-                    preferences.holdSpeed,
-                    (speed) => '${speedLabel(speed)}x',
-                    (current, chosen) => current.copyWith(holdSpeed: chosen),
-                  ),
                 ),
                 KotvSettingsRow(
                   title: '滑动快进秒数',
@@ -620,18 +618,6 @@ class KotvSettingsScreen extends StatelessWidget {
                     (quality) => quality == 0 ? '自动 · 优先高清' : '${quality}P',
                     (current, chosen) => current.copyWith(quality: chosen),
                   ),
-                ),
-                _playbackSwitch(
-                  context,
-                  '自动连播',
-                  preferences.autoAdvance,
-                  (current, changed) => current.copyWith(autoAdvance: changed),
-                ),
-                _playbackSwitch(
-                  context,
-                  '预加载下一集',
-                  preferences.preload,
-                  (current, changed) => current.copyWith(preload: changed),
                 ),
                 GateGuard(
                   feature: GateFeature.danmaku,
@@ -723,23 +709,6 @@ class KotvSettingsScreen extends StatelessWidget {
                   title: '画面比例',
                   value: '适应',
                   onTap: () => _chooseAspectRatio(context),
-                ),
-                KotvSettingsRow(
-                  title: '自动切换播放器',
-                  value: store.autoSwitchPlayer ? '自动' : '关闭',
-                  onTap: () => _chooseAutoSwitch(context),
-                ),
-                KotvSettingsRow(
-                  title: '渲染方式',
-                  value: PlayerCoreStorage.read(
-                    store.preferences,
-                  ).dialogTitle,
-                  onTap: () => _chooseRenderBackend(context),
-                ),
-                KotvSettingsRow(
-                  title: '解码方式',
-                  value: kotvDecoderLabel(preferences.televisionDecoder),
-                  onTap: () => _chooseDecoder(context),
                 ),
                 FutureBuilder<String>(
                   future: _defaultParserName(),
@@ -858,6 +827,11 @@ class KotvSettingsScreen extends StatelessWidget {
                       KotvDownloadsPage(repository: repository, store: store),
                     ),
                   ),
+                ),
+                KotvSettingsRow(
+                  title: '媒体库',
+                  value: '本地文件与网盘浏览',
+                  onTap: () => _push(context, const DriveLibraryScreen()),
                 ),
                 KotvSettingsRow(
                   title: '用户管理',

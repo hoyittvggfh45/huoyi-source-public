@@ -169,10 +169,12 @@ class _DetailScreenState extends State<DetailScreen> {
         if (widget.resumeOnOpen) {
           unawaited(
             _play(
-              resumeEpisodeIndex(
-                detail.episodes,
-                widget.store.watched(merged.id),
-              ),
+              widget.store.resumePlayback
+                  ? resumeEpisodeIndex(
+                      detail.episodes,
+                      widget.store.watched(merged.id),
+                    )
+                  : 0,
               resume: true,
             ),
           );
@@ -296,6 +298,7 @@ class _DetailScreenState extends State<DetailScreen> {
     final saved = widget.store.watched(detail.drama.id);
     final position =
         resume &&
+            widget.store.resumePlayback &&
             saved?.episode == detail.episodes[index].number &&
             !saved!.finished
         ? saved.position
@@ -362,10 +365,12 @@ class _DetailScreenState extends State<DetailScreen> {
                   key: const ValueKey('inline-play'),
                   tooltip: '播放',
                   onPressed: () => _play(
-                    resumeEpisodeIndex(
-                      episodes,
-                      widget.store.watched(drama.id),
-                    ),
+                    widget.store.resumePlayback
+                        ? resumeEpisodeIndex(
+                            episodes,
+                            widget.store.watched(drama.id),
+                          )
+                        : 0,
                     resume: true,
                   ),
                   icon: const Icon(Icons.play_arrow_rounded, size: 40),
@@ -543,8 +548,6 @@ class _DetailScreenState extends State<DetailScreen> {
     final allowed =
         widget.store.profileEpoch == _profileEpoch &&
         widget.store.allowsSource(drama.source);
-    final watchroomAllowed =
-        allowed && GateService.instance.isFeatureEnabled(GateFeature.watchroom);
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.escape): () =>
@@ -557,13 +560,6 @@ class _DetailScreenState extends State<DetailScreen> {
           toolbarHeight: television ? 64 : null,
           title: Text(drama.title, overflow: TextOverflow.ellipsis),
           actions: [
-            IconButton(
-              tooltip: '推送到一起看',
-              onPressed: watchroomAllowed
-                  ? () => unawaited(_pushToWatchRoom())
-                  : null,
-              icon: const Icon(Icons.meeting_room_rounded),
-            ),
             RefreshAction(
               loading: _loading,
               tooltip: '更新剧集信息',
@@ -653,6 +649,10 @@ class _DetailScreenState extends State<DetailScreen> {
                           child: _overview(drama),
                         ),
                       ),
+                      if (!_loading)
+                        SliverToBoxAdapter(
+                          child: _descriptionSection(drama),
+                        ),
                       if (_loading || _error != null || episodes.isEmpty)
                         SliverFillRemaining(
                           hasScrollBody: false,
@@ -715,7 +715,6 @@ class _DetailScreenState extends State<DetailScreen> {
                         ],
                       ],
                       if (!_loading) ...[
-                        SliverToBoxAdapter(child: _descriptionSection(drama)),
                         SliverToBoxAdapter(child: _stillsSection()),
                         SliverToBoxAdapter(child: _commentsSection()),
                         SliverToBoxAdapter(child: _relatedSection(drama)),
@@ -1353,7 +1352,7 @@ class _DetailScreenState extends State<DetailScreen> {
           ],
         ),
         const SizedBox(height: 12),
-        _followingControls(drama),
+        _actionRow(drama),
         _sourceSwitcher(drama),
         if (drama.onlineDate.isNotEmpty ||
             drama.heat.isNotEmpty ||
@@ -1451,6 +1450,28 @@ class _DetailScreenState extends State<DetailScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _actionRow(Drama drama) {
+    final watchroomAllowed =
+        widget.store.profileEpoch == _profileEpoch &&
+        widget.store.allowsSource(drama.source) &&
+        GateService.instance.isFeatureEnabled(GateFeature.watchroom);
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        _followingControls(drama),
+        if (watchroomAllowed)
+          OutlinedButton.icon(
+            key: const ValueKey('detail-watchroom'),
+            onPressed: () => unawaited(_pushToWatchRoom()),
+            icon: const Icon(Icons.meeting_room_rounded, size: 20),
+            label: const Text('一起看'),
+          ),
+      ],
     );
   }
 

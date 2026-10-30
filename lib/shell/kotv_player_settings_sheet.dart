@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../app_page_route.dart';
 import '../local_store.dart';
 import '../picture_quality.dart';
 import '../playback_preferences.dart';
 import '../video_enhancement_preferences.dart';
 import '../widgets.dart';
 import 'kotv_option_dialogs.dart';
+import 'kotv_playback_settings_screen.dart';
 import 'kotv_theme.dart';
 
 Future<void> showKotvPlayerSettingsSheet(
@@ -278,6 +280,21 @@ class _KotvPlayerSettingsSheet extends StatelessWidget {
                         (mode) => mode.label,
                         (current, chosen) =>
                             current.copyWith(orientationMode: chosen),
+                      ),
+                    ),
+                  ],
+                ),
+                KotvGroupCard(
+                  title: '更多',
+                  children: [
+                    KotvSettingsRow(
+                      title: '全部播放设置',
+                      value: '自动连播、预加载、倍速、解码与后端',
+                      onTap: () => Navigator.of(context).push(
+                        appPageRoute<void>(
+                          builder: (_) =>
+                              KotvPlaybackSettingsScreen(store: store),
+                        ),
                       ),
                     ),
                   ],

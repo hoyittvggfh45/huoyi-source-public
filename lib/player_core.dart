@@ -46,6 +46,19 @@ List<PlayerCoreOption> playerCoreOptions({required bool exoAvailable}) {
   }).toList();
 }
 
+PlayerCore? nextFailoverCore(
+  PlayerCore current, {
+  required Set<PlayerCore> tried,
+  required bool exoAvailable,
+}) {
+  for (final core in PlayerCore.values) {
+    if (core == current || tried.contains(core)) continue;
+    if (core == PlayerCore.exo && !exoAvailable) continue;
+    return core;
+  }
+  return null;
+}
+
 class PlayerCoreBadge extends StatelessWidget {
   const PlayerCoreBadge({super.key, required this.core, required this.onTap});
 

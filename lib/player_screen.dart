@@ -127,6 +127,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   final _menuRevision = ValueNotifier<int>(0);
   final List<StreamSubscription<dynamic>> _subscriptions = [];
   final _recovery = PlaybackRecovery();
+  final Set<PlayerCore> _failoverTried = {};
   Object _lanIdentity = Object();
   bool _handoffOwned = true;
   double? _lanFirstPosition;
@@ -186,6 +187,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   bool _fullscreenApplied = false;
   bool _television = false;
   TelevisionDecoder _televisionDecoder = TelevisionDecoder.optimized;
+  bool _multiChannelAudio = false;
   PlaybackOrientationMode _orientationMode = PlaybackOrientationMode.auto;
   ParseInterface? _selectedParse;
   String _lastPageUrl = '';
@@ -288,6 +290,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     _adBlock = preferences.adBlock;
     _preloadEnabled = true;
     _televisionDecoder = preferences.televisionDecoder;
+    _multiChannelAudio = preferences.multiChannelAudio;
     _orientationMode = preferences.orientationMode;
     _loader = PlaybackLoader(widget.repository);
     _preloader = PlaybackPreloader(widget.repository);
@@ -297,6 +300,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       commentPage: _loadCommentPage,
     )..setEnabled(_danmakuEnabled);
     widget.store.addListener(_accessChanged);
+    widget.store.addListener(_syncDanmakuPreference);
     _player =
         widget.playerFactory?.call() ??
         Player(
@@ -481,7 +485,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     } else {
       _play(
         _index,
-        position: widget.initialPosition,
+        position: widget.store.resumePlayback ? widget.initialPosition : 0,
         handoffPlan: handoff?.plan,
       );
     }
@@ -512,6 +516,15 @@ class _PlayerScreenState extends State<PlayerScreen>
             !widget.store.allowsSource('hongguo'))) {
       _danmaku.setPlan(null);
       _danmaku.setCommentVideoKey(null);
+    }
+  }
+
+  void _syncDanmakuPreference() {
+    if (_closed || !mounted) return;
+    final enabled = widget.store.playbackPreferences.danmaku;
+    if (enabled != _danmakuEnabled) {
+      setState(() => _danmakuEnabled = enabled);
+      _danmaku.setEnabled(enabled);
     }
   }
 
@@ -1006,6 +1019,19 @@ class _PlayerScreenState extends State<PlayerScreen>
           await _play(_index, position: position, continueChain: true);
           return;
         }
+        if (widget.store.autoSwitchPlayer) {
+          final core = nextFailoverCore(
+            _core,
+            tried: _failoverTried,
+            exoAvailable: Platform.isAndroid,
+          );
+          if (core != null) {
+            _recovery.reset();
+            _notice('播放失败，已自动切换到 ${core.label} 内核重试');
+            await _switchCore(core, auto: true);
+            return;
+          }
+        }
       }
       _resumePosition = position;
       final ticket = _generation;
@@ -1084,6 +1110,18 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   void _onMdkError(String message) {
     if (_closed || _loading || _error != null) return;
+    if (widget.store.autoSwitchPlayer) {
+      final next = nextFailoverCore(
+        _core,
+        tried: _failoverTried,
+        exoAvailable: Platform.isAndroid,
+      );
+      if (next != null) {
+        _notice('播放失败，已自动切换到 ${next.label} 内核重试');
+        unawaited(_switchCore(next, auto: true));
+        return;
+      }
+    }
     if (mounted) {
       setState(() {
         _loading = false;
@@ -1242,6 +1280,10 @@ class _PlayerScreenState extends State<PlayerScreen>
       widget.handoff?.fail('接收端已更换播放内容');
     }
     if (index != _index) _forceOnline = false;
+    if (index != _index) {
+      _failoverTried.clear();
+      _failoverTried.add(_core);
+    }
     final canPreload =
         recoveryAction == null &&
         routeSelection == null &&
@@ -1444,6 +1486,10 @@ class _PlayerScreenState extends State<PlayerScreen>
             await platform.setProperty('vd-lavc-fast', 'yes');
             await platform.setProperty('video-sync', 'audio');
             await platform.setProperty('framedrop', 'vo');
+            await platform.setProperty(
+              'audio-channels',
+              _multiChannelAudio ? 'auto' : 'stereo',
+            );
           } else if (Platform.isWindows) {
             await WindowsPlaybackTuning.apply(platform, local: plan.local);
           }
@@ -1570,11 +1616,16 @@ class _PlayerScreenState extends State<PlayerScreen>
     await _switchCore(next);
   }
 
-  Future<void> _switchCore(PlayerCore next) async {
+  Future<void> _switchCore(PlayerCore next, {bool auto = false}) async {
     final position = _currentPosition;
     final playing = _playIntent && _enginePlaying;
     await PlayerCoreStorage.write(widget.store.preferences, next);
     if (_closed) return;
+    if (auto) {
+      _failoverTried.add(next);
+    } else {
+      _failoverTried.clear();
+    }
     setState(() {
       _core = next;
       _loading = true;
@@ -1848,6 +1899,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       _adBlock = nextPreferences.adBlock;
       _preloadEnabled = true;
       _televisionDecoder = nextPreferences.televisionDecoder;
+      _multiChannelAudio = nextPreferences.multiChannelAudio;
       _orientationMode = nextPreferences.orientationMode;
     });
     if (orientationChanged) unawaited(_applyOrientation());
@@ -2260,6 +2312,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     LanController.current?.detachPlayback(_lanIdentity);
     widget.handoff?.fail('接收端已退出播放');
     widget.store.removeListener(_accessChanged);
+    widget.store.removeListener(_syncDanmakuPreference);
     _danmaku.dispose();
     _preloader.dispose();
     _generation++;

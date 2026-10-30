@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import '../app_build.dart';
 import 'manifest.dart';
 import 'permissions.dart';
+import 'service_manager.dart';
 import 'storage.dart';
 
 class MiniAppHttpResponse {
@@ -68,6 +69,9 @@ class MiniAppBridge {
     this.onReply,
     this.onEmit,
     this.host,
+    this.onServeRegistered,
+    this.onServeReply,
+    this.serviceManager,
   });
 
   final MiniAppManifest manifest;
@@ -76,6 +80,13 @@ class MiniAppBridge {
   final void Function(int id, Object? result, String? error)? onReply;
   final void Function(String event, String dataJson)? onEmit;
   final MiniAppHost? host;
+  final void Function()? onServeRegistered;
+  final void Function(int id, Object? result, String? error)? onServeReply;
+  final MiniAppServiceManager? serviceManager;
+
+  static final MiniAppServiceManager sharedServices = MiniAppServiceManager();
+
+  MiniAppServiceManager get _services => serviceManager ?? sharedServices;
 
   MiniAppPermissions get permissions =>
       MiniAppPermissions(manifest.permissions.toSet());
@@ -190,7 +201,12 @@ class MiniAppBridge {
         return _requireHost('player').playerOpen(params);
       case 'serve':
         permissions.require(MiniAppPermissions.service);
-        throw const MiniAppDenied('本版未提供：miniapp 服务运行时');
+        final onRegistered = onServeRegistered;
+        if (onRegistered == null) {
+          throw const MiniAppDenied('本版未提供：miniapp 服务运行时');
+        }
+        onRegistered();
+        return {'registered': true, 'appId': manifest.id};
       case 'miniApp.onOpen':
       case 'miniApp.getLaunchOptions':
       case 'miniApp.exitMiniApp':
@@ -271,6 +287,12 @@ class MiniAppBridge {
   Future<void> handleMessage(String message) async {
     final decoded = jsonDecode(message);
     if (decoded is! Map<String, Object?>) return;
+    if (decoded['type'] == 'serveReply') {
+      final id = decoded['id'];
+      if (id is! int) return;
+      onServeReply?.call(id, decoded['result'], decoded['error']?.toString());
+      return;
+    }
     if (decoded['type'] != 'invoke') return;
     final id = decoded['id'];
     final api = decoded['api'];
@@ -341,7 +363,7 @@ class MiniAppBridge {
     permissions.require(MiniAppPermissions.network);
     final scheme = Uri.tryParse(raw)?.scheme.toLowerCase();
     if (scheme == 'miniapp') {
-      throw const MiniAppDenied('本版未提供：miniapp 服务运行时');
+      return _fetchService(raw, headers: headers);
     }
     final uri = _allowedUri(raw);
     final fetch = this.fetch;
@@ -349,6 +371,41 @@ class MiniAppBridge {
       throw const MiniAppDenied('network fetch is not available');
     }
     return fetch(uri, headers: headers, timeout: timeout);
+  }
+
+  Future<MiniAppHttpResponse> _fetchService(
+    String raw, {
+    Map<String, String> headers = const {},
+  }) async {
+    final uri = Uri.tryParse(raw);
+    final appId = uri?.host ?? '';
+    if (appId.isEmpty) {
+      throw const MiniAppDenied('miniapp service address is invalid');
+    }
+    MiniAppServiceRequest serviceRequest() => MiniAppServiceRequest(
+      method: 'GET',
+      path: uri!.path.isEmpty ? '/' : uri.path,
+      query: uri.queryParameters,
+      params: uri.queryParameters,
+      headers: headers,
+      body: const [],
+      url: raw,
+    );
+    var dispatched = await _services.dispatchLocal(appId, serviceRequest());
+    if (dispatched == null) {
+      final wake = _services.onWakeRequest;
+      if (wake != null && await wake(appId)) {
+        dispatched = await _services.dispatchLocal(appId, serviceRequest());
+      }
+    }
+    if (dispatched == null) {
+      throw const MiniAppDenied('本版未提供：miniapp 服务运行时');
+    }
+    return MiniAppHttpResponse(
+      status: dispatched.status,
+      bytes: dispatched.body,
+      headers: dispatched.headers,
+    );
   }
 
   static Map<String, String> _requestHeaders(Object? raw) {
@@ -469,7 +526,42 @@ class MiniAppBridge {
   window.ant.version = 4;
   window.ant.onShow = function(cb){ return window.ant.on('show', cb); };
   window.ant.onHide = function(cb){ return window.ant.on('hide', cb); };
-  window.ant.serve = function(){ return window.ant.invoke('serve', {}); };
+  window.ant.serve = function(handler){
+    if (typeof handler !== 'function') {
+      return Promise.reject(new Error('serve handler must be a function'));
+    }
+    window.__antServeHandler = handler;
+    return window.ant.invoke('serve', {});
+  };
+  window.__antServeCall = function(id, req){
+    function reply(result, error){
+      post({type: 'serveReply', id: id, result: result, error: error || null});
+    }
+    try {
+      var handler = window.__antServeHandler;
+      if (typeof handler !== 'function') {
+        reply(null, 'serve handler not registered');
+        return;
+      }
+      Promise.resolve().then(function(){ return handler(req); }).then(function(res){
+        if (res === null || res === undefined) { reply(null, null); return; }
+        if (typeof res === 'string') { reply(res, null); return; }
+        if (res && typeof res.text === 'function' && typeof res.status === 'number') {
+          var headers = {};
+          try {
+            res.headers.forEach(function(value, name){ headers[name] = value; });
+          } catch (e) {}
+          res.text().then(function(body){
+            reply({status: res.status, headers: headers, body: body}, null);
+          }).catch(function(e){ reply(null, String(e && e.message || e)); });
+          return;
+        }
+        reply(res, null);
+      }).catch(function(e){ reply(null, String(e && e.message || e)); });
+    } catch (e) {
+      reply(null, String(e && e.message || e));
+    }
+  };
   window.ant.miniApp = {
     onOpen: function(){ return window.ant.invoke('miniApp.onOpen', {}); },
     getLaunchOptions: function(){ return window.ant.invoke('miniApp.getLaunchOptions', {}); },

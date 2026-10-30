@@ -1051,6 +1051,25 @@ class CatalogFilterGroup {
 int intValue(Object? value) =>
     value is num ? value.toInt() : int.tryParse('$value') ?? 0;
 
+String retagHongguoDramaId(String id, String source) {
+  if (source != 'hongguo' && source != 'hongguo-oversea') return id;
+  final trimmed = id.trim();
+  if (trimmed.isEmpty ||
+      trimmed.startsWith('http://') ||
+      trimmed.startsWith('https://')) {
+    return id;
+  }
+  final cut = trimmed.indexOf(':');
+  if (cut < 0) return '$source:$trimmed';
+  final prefix = trimmed.substring(0, cut);
+  final rest = trimmed.substring(cut + 1);
+  if (rest.isEmpty || prefix == source) return id;
+  if (prefix == 'hongguo' || prefix == 'hongguo-oversea') {
+    return '$source:$rest';
+  }
+  return id;
+}
+
 class Drama {
   const Drama({
     required this.id,
@@ -1102,7 +1121,10 @@ class Drama {
   };
 
   factory Drama.fromJson(Map<String, dynamic> json) => Drama(
-    id: json['id'] as String? ?? '',
+    id: retagHongguoDramaId(
+      json['id'] as String? ?? '',
+      json['source'] as String? ?? 'hongguo',
+    ),
     source: json['source'] as String? ?? 'hongguo',
     sourceId: json['sourceId'] as String? ?? '',
     title: json['title'] as String? ?? '短剧',

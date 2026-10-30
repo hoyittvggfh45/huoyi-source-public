@@ -6,15 +6,19 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core_bridge.dart';
 import '../local_store.dart';
+import 'bridge.dart';
 import 'installer.dart';
 import 'manifest.dart';
 import 'market.dart';
 import 'renderer.dart';
+import 'service_host.dart';
+import 'service_manager.dart';
 import 'storage.dart';
 
 class PluginCenterScreen extends StatefulWidget {
@@ -32,6 +36,7 @@ class _PluginCenterScreenState extends State<PluginCenterScreen> {
   bool _loading = true;
   String? _error;
   bool _busy = false;
+  bool _lanEnabled = false;
   late final TextEditingController _marketUrl = TextEditingController();
   late final MarketSettings _marketSettings;
   List<MarketItem> _marketItems = [];
@@ -44,6 +49,34 @@ class _PluginCenterScreenState extends State<PluginCenterScreen> {
     _marketSettings = MarketSettings(widget.store.preferences);
     _marketUrl.text = _marketSettings.url;
     _refresh();
+    unawaited(_loadLan());
+  }
+
+  Future<void> _loadLan() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (!mounted) return;
+      setState(
+        () => _lanEnabled = prefs.getBool(miniappServiceLanPrefKey) ?? false,
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _toggleLan(bool enabled) async {
+    setState(() => _lanEnabled = enabled);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(miniappServiceLanPrefKey, enabled);
+    } catch (_) {}
+    try {
+      await MiniAppBridge.sharedServices.setLanEnabled(enabled);
+    } catch (_) {}
+    if (mounted) setState(() {});
+  }
+
+  void _copyAddress(String address) {
+    unawaited(Clipboard.setData(ClipboardData(text: address)));
+    _showMessage('地址已复制');
   }
 
   @override
@@ -344,14 +377,18 @@ class _PluginCenterScreenState extends State<PluginCenterScreen> {
         ),
       );
     }
-    return GridView.builder(
-      padding: const EdgeInsets.all(16),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
-        mainAxisSpacing: 16,
-        crossAxisSpacing: 12,
-        childAspectRatio: 0.85,
-      ),
+    return Column(
+      children: [
+        _servicesSection(),
+        Expanded(
+          child: GridView.builder(
+            padding: const EdgeInsets.all(16),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 4,
+              mainAxisSpacing: 16,
+              crossAxisSpacing: 12,
+              childAspectRatio: 0.85,
+            ),
       itemCount: _apps.length,
       itemBuilder: (context, index) {
         final app = _apps[index];
@@ -389,6 +426,126 @@ class _PluginCenterScreenState extends State<PluginCenterScreen> {
           ),
         );
       },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _servicesSection() {
+    final manager = MiniAppBridge.sharedServices;
+    return StreamBuilder<List<MiniAppServiceInstance>>(
+      stream: manager.changes,
+      initialData: manager.instances,
+      builder: (context, snapshot) {
+        final instances = snapshot.data ?? const <MiniAppServiceInstance>[];
+        final names = {for (final app in _apps) app.id: app.name};
+        return Card(
+          margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        '运行中的服务',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    if (manager.isRunning)
+                      Text(
+                        '端口 ${manager.port}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                if (instances.isEmpty)
+                  const Text('暂无运行中的服务；打开带 service 权限的小程序并调用 ant.serve 后出现在这里。')
+                else
+                  for (final instance in instances)
+                    _serviceRow(instance, names[instance.appId]),
+                const Divider(),
+                SwitchListTile(
+                  title: const Text('局域网共享'),
+                  subtitle: const Text(
+                    '默认只本机访问；开启后同一局域网设备可用带 token 的地址访问，非私网来源会被拒绝。',
+                  ),
+                  value: _lanEnabled,
+                  onChanged: (value) => unawaited(_toggleLan(value)),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _serviceRow(MiniAppServiceInstance instance, String? name) {
+    final manager = MiniAppBridge.sharedServices;
+    final address = manager.localAddress(instance.appId);
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(child: Text(name ?? instance.appId)),
+              TextButton(
+                onPressed: () =>
+                    manager.unregisterApp(instance.appId),
+                child: const Text('停止'),
+              ),
+            ],
+          ),
+          if (address != null)
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    address,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => _copyAddress(address),
+                  child: const Text('复制'),
+                ),
+              ],
+            ),
+          if (_lanEnabled)
+            FutureBuilder<String?>(
+              future: manager.lanAddress(instance.appId),
+              builder: (context, snapshot) {
+                final lan = snapshot.data;
+                if (lan == null) return const SizedBox.shrink();
+                return Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '局域网：$lan',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => _copyAddress(lan),
+                      child: const Text('复制'),
+                    ),
+                  ],
+                );
+              },
+            ),
+        ],
+      ),
     );
   }
 

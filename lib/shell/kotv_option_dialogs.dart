@@ -2,12 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../playback_parse.dart';
 import '../playback_preferences.dart';
-import '../player_core.dart';
 import 'kotv_theme.dart';
 
 enum KotvAspectRatio { fit }
-
-enum KotvPlayerAutoSwitch { automatic, off }
 
 String kotvDecoderLabel(TelevisionDecoder decoder) => switch (decoder) {
   TelevisionDecoder.optimized => '自动优化',
@@ -24,35 +21,6 @@ Future<KotvAspectRatio?> showKotvAspectRatioDialog({
   options: KotvAspectRatio.values,
   current: current,
   label: (_) => '适应',
-);
-
-Future<KotvPlayerAutoSwitch?> showKotvPlayerAutoSwitchDialog({
-  required BuildContext context,
-  required KotvPlayerAutoSwitch current,
-}) => showKotvOptionDialog<KotvPlayerAutoSwitch>(
-  context: context,
-  title: '自动切换播放器',
-  options: KotvPlayerAutoSwitch.values,
-  current: current,
-  label: (value) => switch (value) {
-    KotvPlayerAutoSwitch.automatic => '自动',
-    KotvPlayerAutoSwitch.off => '关闭',
-  },
-);
-
-Future<PlayerCore?> showKotvRenderBackendDialog({
-  required BuildContext context,
-  required PlayerCore current,
-  required bool exoAvailable,
-}) => showKotvOptionDialog<PlayerCore>(
-  context: context,
-  title: '渲染方式',
-  options: [
-    for (final core in PlayerCore.values)
-      if (core != PlayerCore.exo || exoAvailable) core,
-  ],
-  current: current,
-  label: (core) => core.dialogTitle,
 );
 
 Future<TelevisionDecoder?> showKotvDecoderDialog({

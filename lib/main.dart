@@ -25,6 +25,7 @@ import 'zoo_builtin_seed.dart';
 import 'home_screen.dart';
 import 'hongguo_account.dart';
 import 'js_runtime/miniapp_router.dart';
+import 'miniapp/service_host.dart';
 import 'local_store.dart';
 import 'midnight_zone.dart';
 import 'profiles_screen.dart';
@@ -441,7 +442,12 @@ class DuanjuApp extends StatelessWidget {
                     ): ActivateIntent(),
                     SingleActivator(LogicalKeyboardKey.goBack): DismissIntent(),
                   },
-                  child: FocusTraversalGroup(child: child!),
+                  child: Stack(
+                    children: [
+                      FocusTraversalGroup(child: child!),
+                      const MiniAppServiceHost(),
+                    ],
+                  ),
                 ),
               ),
             ),

@@ -270,40 +270,71 @@ class KotvBottomBar extends StatelessWidget {
                               KotvTokens.capsuleRadius,
                             ),
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.max,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                page == current
-                                    ? page.selectedIcon
-                                    : page.icon,
-                                size: 22,
-                                color: page == current
-                                    ? Colors.white
-                                    : KotvTokens.unselectedColor,
-                              ),
-                              if (pages.length <= 6) ...[
-                                const SizedBox(width: 4),
-                                Flexible(
-                                  child: Text(
-                                    page.label,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: page == current
-                                          ? FontWeight.w700
-                                          : FontWeight.w500,
+                          child: pages.length <= 6
+                              ? Row(
+                                  mainAxisSize: MainAxisSize.max,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      page == current
+                                          ? page.selectedIcon
+                                          : page.icon,
+                                      size: 22,
                                       color: page == current
                                           ? Colors.white
                                           : KotvTokens.unselectedColor,
                                     ),
-                                  ),
+                                    const SizedBox(width: 4),
+                                    Flexible(
+                                      child: Text(
+                                        page.label,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: page == current
+                                              ? FontWeight.w700
+                                              : FontWeight.w500,
+                                          color: page == current
+                                              ? Colors.white
+                                              : const Color(0xFF55555E),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      page == current
+                                          ? page.selectedIcon
+                                          : page.icon,
+                                      size: 22,
+                                      color: page == current
+                                          ? Colors.white
+                                          : KotvTokens.unselectedColor,
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Flexible(
+                                      child: Text(
+                                        page.label,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: page == current
+                                              ? FontWeight.w700
+                                              : FontWeight.w500,
+                                          color: page == current
+                                              ? Colors.white
+                                              : const Color(0xFF55555E),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ],
-                          ),
                         ),
                       ),
                     ),
