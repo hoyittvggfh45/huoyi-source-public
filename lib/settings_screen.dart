@@ -13,6 +13,9 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'core_bridge.dart';
+import 'gate_config.dart';
+import 'gate_console_screen.dart';
+import 'gate_guard.dart';
 import 'account_screen.dart';
 import 'hongguo_account.dart';
 import 'app_update.dart';
@@ -534,17 +537,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
               appPageRoute<void>(builder: (_) => const AppUpdateScreen()),
             ),
           ),
-          ListTile(
-            key: const ValueKey('proxy-kernel-entry'),
-            leading: const Icon(Icons.shield_outlined),
-            title: const Text('代理内核'),
-            subtitle: const Text('mihomo 本地代理：内置核、更新内核、订阅、选节点、测速、自启'),
-            trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: () => Navigator.push(
-              context,
-              appPageRoute<void>(
-                builder: (_) =>
-                    ProxyKernelScreen(repository: widget.repository),
+          GateGuard(
+            feature: GateFeature.proxyKernel,
+            child: ListTile(
+              key: const ValueKey('proxy-kernel-entry'),
+              leading: const Icon(Icons.shield_outlined),
+              title: const Text('代理内核'),
+              subtitle: const Text('mihomo 本地代理：内置核、更新内核、订阅、选节点、测速、自启'),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => Navigator.push(
+                context,
+                appPageRoute<void>(
+                  builder: (_) =>
+                      ProxyKernelScreen(repository: widget.repository),
+                ),
               ),
             ),
           ),
@@ -632,6 +638,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: _chooseDisplayMode,
           ),
+          if (gateConsoleVisible)
+            ListTile(
+              leading: const Icon(Icons.admin_panel_settings_outlined),
+              title: const Text('鉴权控制台'),
+              subtitle: const Text('功能、区域与模块开关管理'),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => Navigator.push(
+                context,
+                appPageRoute<void>(builder: (_) => const GateConsoleScreen()),
+              ),
+            ),
           ListTile(
             leading: const Icon(Icons.swap_horiz_rounded),
             title: const Text('新旧壳切换'),
@@ -724,18 +741,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onTap: () => _openSavedLibrary(history: true),
           ),
           if (widget.store.canDownload)
-            ListTile(
-              key: const ValueKey('downloads-entry'),
-              leading: const Icon(Icons.download_rounded),
-              title: const Text('下载'),
-              subtitle: const Text('查看与管理已下载内容'),
-              trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: () => Navigator.push(
-                context,
-                appPageRoute<void>(
-                  builder: (_) => DownloadsScreen(
-                    repository: widget.repository,
-                    store: widget.store,
+            GateGuard(
+              feature: GateFeature.download,
+              child: ListTile(
+                key: const ValueKey('downloads-entry'),
+                leading: const Icon(Icons.download_rounded),
+                title: const Text('下载'),
+                subtitle: const Text('查看与管理已下载内容'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => Navigator.push(
+                  context,
+                  appPageRoute<void>(
+                    builder: (_) => DownloadsScreen(
+                      repository: widget.repository,
+                      store: widget.store,
+                    ),
                   ),
                 ),
               ),

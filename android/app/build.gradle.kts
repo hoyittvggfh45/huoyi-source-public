@@ -53,6 +53,18 @@ android {
         manifestPlaceholders["appBanner"] = if (allSources) "@drawable/tv_banner_all_sources" else "@drawable/tv_banner"
     }
 
+    flavorDimensions += "edition"
+    productFlavors {
+        create("auth") {
+            dimension = "edition"
+            applicationId = "com.seku.huoyi"
+        }
+        create("client") {
+            dimension = "edition"
+            applicationId = "com.seku.huoyi"
+        }
+    }
+
     signingConfigs {
         if (releaseKey.exists()) {
             create("release") {

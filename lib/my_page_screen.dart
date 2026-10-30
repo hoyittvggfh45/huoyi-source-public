@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 import 'app_page_route.dart';
 
+import 'gate_config.dart';
+import 'gate_guard.dart';
 import 'app_update_screen.dart';
 import 'core_bridge.dart';
 import 'downloads_screen.dart';
@@ -99,15 +101,18 @@ class MyPageScreen extends StatelessWidget {
             onTap: () => _openSaved(context, history: true),
           ),
           if (store.canDownload)
-            ListTile(
-              leading: const Icon(Icons.download_rounded),
-              title: const Text('下载'),
-              subtitle: const Text('查看与管理已下载内容'),
-              trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: () => Navigator.of(context).push(
-                appPageRoute<void>(
-                  builder: (_) =>
-                      DownloadsScreen(repository: repository, store: store),
+            GateGuard(
+              feature: GateFeature.download,
+              child: ListTile(
+                leading: const Icon(Icons.download_rounded),
+                title: const Text('下载'),
+                subtitle: const Text('查看与管理已下载内容'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => Navigator.of(context).push(
+                  appPageRoute<void>(
+                    builder: (_) =>
+                        DownloadsScreen(repository: repository, store: store),
+                  ),
                 ),
               ),
             ),

@@ -13,6 +13,7 @@ root = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser()
 parser.add_argument('--platform', choices=['android', 'windows', 'macos'], required=True)
 parser.add_argument('--abi', action='append', choices=['arm64-v8a', 'armeabi-v7a', 'x86_64'])
+parser.add_argument('--flavor', choices=['auth', 'client'])
 add_variant_argument(parser)
 options = parser.parse_args()
 variant = BuildVariant(options.all_sources)
@@ -26,13 +27,17 @@ artifacts = []
 
 if options.platform == 'android':
     for abi in options.abi or ['arm64-v8a', 'armeabi-v7a', 'x86_64']:
-        source = root / 'build' / 'app' / 'outputs' / 'flutter-apk' / f'app-{abi}-release.apk'
-        if not source.is_file():
-            single = root / 'build' / 'app' / 'outputs' / 'flutter-apk' / 'app-release.apk'
-            if len(options.abi or []) == 1 and single.is_file():
-                source = single
-            else:
-                raise SystemExit('缺少 APK：' + str(source))
+        apk_dir = root / 'build' / 'app' / 'outputs' / 'flutter-apk'
+        candidates = []
+        if options.flavor:
+            candidates.append(apk_dir / f'app-{options.flavor}-{abi}-release.apk')
+            candidates.append(apk_dir / f'app-{options.flavor}-release.apk')
+        candidates.append(apk_dir / f'app-{abi}-release.apk')
+        if len(options.abi or []) == 1:
+            candidates.append(apk_dir / 'app-release.apk')
+        source = next((c for c in candidates if c.is_file()), None)
+        if source is None:
+            raise SystemExit('缺少 APK：' + str(candidates[0]))
         with zipfile.ZipFile(source) as archive:
             names = set(archive.namelist())
             required = [f'lib/{abi}/{library}' for library in
@@ -40,7 +45,7 @@ if options.platform == 'android':
             missing = set(required) - names
             if missing:
                 raise SystemExit('APK 缺少原生库：' + ', '.join(sorted(missing)))
-        target = output / f'{variant.slug}-{version}-{abi}.apk'
+        target = output / f'{variant.slug}-{options.flavor + "-" if options.flavor else ""}{version}-{abi}.apk'
         shutil.copy2(source, target)
         artifacts.append(target)
 elif options.platform == 'windows':

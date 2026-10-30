@@ -33,6 +33,7 @@ import 'package_smoke.dart';
 import 'lan_controller.dart';
 import 'player_picker.dart';
 import 'proxy_kernel_service.dart';
+import 'gate_service.dart';
 import 'shell/kotv_shell_screen.dart';
 import 'signature_check.dart';
 import 'video_enhancement_assets.dart';
@@ -228,6 +229,7 @@ class _AppBootstrapState extends State<AppBootstrap>
       unawaited(_refreshDevice());
     }
     if (state == AppLifecycleState.resumed) {
+      GateService.instance.refresh();
       unawaited(_refreshMidnight());
     }
     if (!Platform.isIOS) return;
@@ -266,6 +268,7 @@ class _AppBootstrapState extends State<AppBootstrap>
   }
 
   Future<void> _initialize() async {
+    GateService.instance.refresh();
     setState(() {
       error = null;
     });
@@ -390,7 +393,7 @@ class DuanjuApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-    animation: Listenable.merge([store]),
+    animation: Listenable.merge([store, GateService.instance]),
     builder: (_, _) => _application(),
   );
 

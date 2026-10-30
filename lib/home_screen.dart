@@ -7,6 +7,8 @@ import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'app_layout.dart';
+import 'gate_config.dart';
+import 'gate_service.dart';
 import 'back_history.dart';
 import 'liquid_glass.dart';
 import 'app_drawer.dart';
@@ -1238,6 +1240,37 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _applyZoneChange(HomeZone zone, {bool recordHistory = false}) {
+    final module = switch (zone) {
+      HomeZone.drama => GateModule.drama,
+      HomeZone.vod => GateModule.vod,
+      HomeZone.midnight => GateModule.midnight,
+      HomeZone.live => GateModule.live,
+      HomeZone.novel => GateModule.novel,
+      HomeZone.comic => GateModule.comic,
+      HomeZone.audio => GateModule.audio,
+    };
+    if (!GateService.instance.isModuleEnabled(module) ||
+        (zone == HomeZone.live && !GateService.instance.regionAllowed)) {
+      HomeZone? fallback;
+      for (final candidate in HomeZone.values) {
+        if (candidate == zone) continue;
+        final candidateModule = switch (candidate) {
+          HomeZone.drama => GateModule.drama,
+          HomeZone.vod => GateModule.vod,
+          HomeZone.midnight => GateModule.midnight,
+          HomeZone.live => GateModule.live,
+          HomeZone.novel => GateModule.novel,
+          HomeZone.comic => GateModule.comic,
+          HomeZone.audio => GateModule.audio,
+        };
+        if (GateService.instance.isModuleEnabled(candidateModule)) {
+          fallback = candidate;
+          break;
+        }
+      }
+      if (fallback == null || fallback == _zone) return;
+      zone = fallback;
+    }
     if (recordHistory && zone != _zone) _zoneHistory.push(_zone);
     setState(() {
       _zone = zone;
@@ -1398,6 +1431,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onWatchRoom() {
+    if (!GateService.instance.isFeatureEnabled(GateFeature.watchroom)) return;
     Navigator.of(context).pop();
     unawaited(
       Navigator.of(context).push<void>(
@@ -2182,7 +2216,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
           body: SafeArea(
-            top: false,
+            top: widget.bare,
             bottom: !glass || desktop,
             child: Row(
               children: [

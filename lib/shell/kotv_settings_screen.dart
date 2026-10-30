@@ -23,6 +23,9 @@ import '../downloads_screen.dart';
 import '../hongguo_account.dart';
 import '../import_center_screen.dart';
 import '../lan_screen.dart';
+import '../gate_config.dart';
+import '../gate_console_screen.dart';
+import '../gate_guard.dart';
 import '../local_store.dart';
 import '../midnight_zone.dart';
 import '../miniapp/plugin_center_screen.dart';
@@ -445,6 +448,12 @@ class KotvSettingsScreen extends StatelessWidget {
                   title: '切换说明',
                   value: '关闭后回到旧壳，重启 App 后生效',
                 ),
+                if (gateConsoleVisible)
+                  KotvSettingsRow(
+                    title: '鉴权控制台',
+                    value: '功能、区域与模块开关管理',
+                    onTap: () => _push(context, const GateConsoleScreen()),
+                  ),
               ],
             ),
             KotvGroupCard(
@@ -486,10 +495,8 @@ class KotvSettingsScreen extends StatelessWidget {
                 KotvSettingsRow(
                   title: '蜘蛛规则编辑器',
                   value: '编辑、校验与本地试跑 XBPQ 规则',
-                  onTap: () => _push(
-                    context,
-                    RuleEditorScreen(repository: repository),
-                  ),
+                  onTap: () =>
+                      _push(context, RuleEditorScreen(repository: repository)),
                 ),
                 KotvSettingsRow(
                   title: '站点验证',
@@ -513,12 +520,15 @@ class KotvSettingsScreen extends StatelessWidget {
                       ),
                     ),
                   ),
-                KotvSettingsRow(
-                  title: '代理内核',
-                  value: 'mihomo 本地代理：内置核、更新内核、订阅、选节点、测速、自启',
-                  onTap: () => _push(
-                    context,
-                    ProxyKernelScreen(repository: repository),
+                GateGuard(
+                  feature: GateFeature.proxyKernel,
+                  child: KotvSettingsRow(
+                    title: '代理内核',
+                    value: 'mihomo 本地代理：内置核、更新内核、订阅、选节点、测速、自启',
+                    onTap: () => _push(
+                      context,
+                      ProxyKernelScreen(repository: repository),
+                    ),
                   ),
                 ),
                 KotvSettingsRow(
@@ -623,11 +633,14 @@ class KotvSettingsScreen extends StatelessWidget {
                   preferences.preload,
                   (current, changed) => current.copyWith(preload: changed),
                 ),
-                _playbackSwitch(
-                  context,
-                  '显示弹幕',
-                  preferences.danmaku,
-                  (current, changed) => current.copyWith(danmaku: changed),
+                GateGuard(
+                  feature: GateFeature.danmaku,
+                  child: _playbackSwitch(
+                    context,
+                    '显示弹幕',
+                    preferences.danmaku,
+                    (current, changed) => current.copyWith(danmaku: changed),
+                  ),
                 ),
                 _playbackSwitch(
                   context,
@@ -760,30 +773,39 @@ class KotvSettingsScreen extends StatelessWidget {
                   onTap: () => _openSavedLibrary(context, history: true),
                 ),
                 if (canDownload)
-                  KotvSettingsRow(
-                    title: '下载',
-                    value: '查看与管理已下载内容',
-                    onTap: () => _push(
-                      context,
-                      DownloadsScreen(repository: repository, store: store),
+                  GateGuard(
+                    feature: GateFeature.download,
+                    child: KotvSettingsRow(
+                      title: '下载',
+                      value: '查看与管理已下载内容',
+                      onTap: () => _push(
+                        context,
+                        DownloadsScreen(repository: repository, store: store),
+                      ),
                     ),
                   ),
                 if (canDownload)
-                  KotvSettingsRow(
-                    title: '下载偏好',
-                    value: store.downloadPreferences.qualityLabel,
-                    onTap: () => _push(
-                      context,
-                      DownloadPreferencesScreen(store: store),
+                  GateGuard(
+                    feature: GateFeature.download,
+                    child: KotvSettingsRow(
+                      title: '下载偏好',
+                      value: store.downloadPreferences.qualityLabel,
+                      onTap: () => _push(
+                        context,
+                        DownloadPreferencesScreen(store: store),
+                      ),
                     ),
                   ),
                 if (canDownload)
-                  KotvSettingsRow(
-                    title: '下载目录与空间',
-                    value: '查看存储用量、迁移已下载文件',
-                    onTap: () => _push(
-                      context,
-                      StorageScreen(repository: repository, store: store),
+                  GateGuard(
+                    feature: GateFeature.download,
+                    child: KotvSettingsRow(
+                      title: '下载目录与空间',
+                      value: '查看存储用量、迁移已下载文件',
+                      onTap: () => _push(
+                        context,
+                        StorageScreen(repository: repository, store: store),
+                      ),
                     ),
                   ),
                 KotvSettingsRow(
@@ -826,12 +848,15 @@ class KotvSettingsScreen extends StatelessWidget {
                       ),
                     ),
                   ),
-                KotvSettingsRow(
-                  title: '下载页',
-                  value: '查看下载中、排队中与已完成任务',
-                  onTap: () => _push(
-                    context,
-                    KotvDownloadsPage(repository: repository, store: store),
+                GateGuard(
+                  feature: GateFeature.download,
+                  child: KotvSettingsRow(
+                    title: '下载页',
+                    value: '查看下载中、排队中与已完成任务',
+                    onTap: () => _push(
+                      context,
+                      KotvDownloadsPage(repository: repository, store: store),
+                    ),
                   ),
                 ),
                 KotvSettingsRow(

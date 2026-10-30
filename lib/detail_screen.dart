@@ -12,6 +12,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:media_kit/media_kit.dart';
 
 import 'app_layout.dart';
+import 'gate_config.dart';
+import 'gate_service.dart';
 import 'atmosphere_background.dart';
 import 'detail_inline_player.dart';
 import 'ios_dialogs.dart';
@@ -390,7 +392,8 @@ class _DetailScreenState extends State<DetailScreen> {
     }
     final drama = detail.drama;
     if (widget.store.profileEpoch != _profileEpoch ||
-        !widget.store.allowsSource(drama.source)) {
+        !widget.store.allowsSource(drama.source) ||
+        !GateService.instance.isFeatureEnabled(GateFeature.watchroom)) {
       return;
     }
     final watched = widget.store.watched(drama.id);
@@ -540,6 +543,8 @@ class _DetailScreenState extends State<DetailScreen> {
     final allowed =
         widget.store.profileEpoch == _profileEpoch &&
         widget.store.allowsSource(drama.source);
+    final watchroomAllowed =
+        allowed && GateService.instance.isFeatureEnabled(GateFeature.watchroom);
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.escape): () =>
@@ -554,7 +559,9 @@ class _DetailScreenState extends State<DetailScreen> {
           actions: [
             IconButton(
               tooltip: '推送到一起看',
-              onPressed: allowed ? () => unawaited(_pushToWatchRoom()) : null,
+              onPressed: watchroomAllowed
+                  ? () => unawaited(_pushToWatchRoom())
+                  : null,
               icon: const Icon(Icons.meeting_room_rounded),
             ),
             RefreshAction(
@@ -1035,7 +1042,9 @@ class _DetailScreenState extends State<DetailScreen> {
 
   Widget _commentsSection() {
     final detail = _detail;
-    if (detail == null || detail.episodes.isEmpty) {
+    if (detail == null ||
+        detail.episodes.isEmpty ||
+        !GateService.instance.isFeatureEnabled(GateFeature.comment)) {
       return const SizedBox.shrink();
     }
     final index = resumeEpisodeIndex(

@@ -57,8 +57,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - edition: huoyi
+          - edition: huoyi-client
+            flavor: client
             arguments: '--all-sources'
+            dart_defines: ''
+          - edition: huoyi-auth
+            flavor: auth
+            arguments: '--all-sources'
+            dart_defines: '--dart-define=AUTH_CONSOLE=true'
     steps:
       - uses: actions/checkout@v4
       - name: Free disk space
@@ -95,7 +101,7 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-      - run: python scripts/build_android.py ${{ matrix.arguments }} --abi arm64-v8a
+      - run: python scripts/build_android.py ${{ matrix.arguments }} --abi arm64-v8a --flavor ${{ matrix.flavor }} ${{ matrix.dart_defines }}
         env:
           JIANHUANG_AUTH_KEY: ${{ secrets.JIANHUANG_AUTH_KEY }}
       - name: Remove signing files

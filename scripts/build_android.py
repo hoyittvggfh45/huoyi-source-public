@@ -13,6 +13,8 @@ from android_build_retry import run_android_build
 root = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser()
 parser.add_argument('--abi', action='append', choices=['arm64-v8a', 'armeabi-v7a', 'x86_64'])
+parser.add_argument('--flavor', choices=['auth', 'client'])
+parser.add_argument('--dart-define', action='append', default=[])
 parser.add_argument('--cn-mirrors', action='store_true', help='使用 Flutter 中国镜像和阿里云 Maven 镜像')
 add_variant_argument(parser)
 options = parser.parse_args()
@@ -34,6 +36,10 @@ with china_mirror_environment(environment, options.cn_mirrors) as env, mirrored_
                    cwd=root, env=env, check=True)
     subprocess.run([flutter, 'pub', 'get', '--enforce-lockfile'], cwd=root, env=env, check=True)
     build_args = [flutter, 'build', 'apk', '--release', '--no-tree-shake-icons', '--no-pub', '--obfuscate', '--split-debug-info=build/app/outputs/symbols', *variant.flutter_arguments]
+    if options.flavor:
+        build_args += ['--flavor', options.flavor]
+    for define in options.dart_define:
+        build_args.append('--dart-define=' + define)
     auth_key = os.environ.get('JIANHUANG_AUTH_KEY', '')
     if auth_key:
         build_args.append('--dart-define=JIANHUANG_AUTH_KEY=' + auth_key)
@@ -46,5 +52,5 @@ with china_mirror_environment(environment, options.cn_mirrors) as env, mirrored_
         run_android_build(build_args, cwd=root, env=env, edition=variant.slug)
     except subprocess.CalledProcessError as error:
         raise SystemExit(error.returncode) from None
-    subprocess.run([sys.executable, str(root / 'scripts' / 'package_release.py'), '--platform', 'android', *abi_args, *variant.arguments],
+    subprocess.run([sys.executable, str(root / 'scripts' / 'package_release.py'), '--platform', 'android', *abi_args, *variant.arguments, *(['--flavor', options.flavor] if options.flavor else [])],
                    cwd=root, env=env, check=True)

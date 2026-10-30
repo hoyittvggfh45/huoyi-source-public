@@ -8,6 +8,8 @@ import '../content_models.dart';
 import '../content_zone_binding.dart';
 import '../content_zone_screen.dart';
 import '../core_bridge.dart';
+import '../gate_config.dart';
+import '../gate_service.dart';
 import '../home_screen.dart';
 import '../legado_screen.dart';
 import '../local_store.dart';
@@ -41,16 +43,34 @@ class _KotvShellScreenState extends ConsumerState<KotvShellScreen> {
   final _comicBinding = ContentZoneBinding();
   final _audioBinding = ContentZoneBinding();
 
-  List<KotvPage> _pagesFor(bool midnightActivated) => [
-    KotvPage.drama,
-    KotvPage.vod,
-    if (midnightActivated) KotvPage.midnight,
-    KotvPage.live,
-    KotvPage.novel,
-    KotvPage.comic,
-    KotvPage.audio,
-    KotvPage.settings,
-  ];
+  List<KotvPage> _pagesFor(bool midnightActivated) {
+    final service = GateService.instance;
+    String? moduleOf(KotvPage page) => switch (page.kind) {
+      KotvPageKind.drama => GateModule.drama,
+      KotvPageKind.vod => GateModule.vod,
+      KotvPageKind.midnight => GateModule.midnight,
+      KotvPageKind.live => GateModule.live,
+      KotvPageKind.novel => GateModule.novel,
+      KotvPageKind.comic => GateModule.comic,
+      KotvPageKind.audio => GateModule.audio,
+      _ => null,
+    };
+    return [
+      KotvPage.drama,
+      KotvPage.vod,
+      if (midnightActivated) KotvPage.midnight,
+      KotvPage.live,
+      KotvPage.novel,
+      KotvPage.comic,
+      KotvPage.audio,
+      KotvPage.settings,
+    ].where((page) {
+      final module = moduleOf(page);
+      if (module != null && !service.isModuleEnabled(module)) return false;
+      if (page == KotvPage.live && !service.regionAllowed) return false;
+      return true;
+    }).toList();
+  }
 
   @override
   void initState() {
@@ -177,22 +197,28 @@ class _KotvShellScreenState extends ConsumerState<KotvShellScreen> {
     final pages = _pagesFor(midnightActivated);
     final effectiveCurrent = pages.contains(current)
         ? current
-        : KotvPage.vod;
+        : pages.firstWhere(
+            (page) => page != KotvPage.settings,
+            orElse: () => KotvPage.settings,
+          );
     final currentIndex = pages.indexOf(effectiveCurrent);
-    return Scaffold(
-      body: IndexedStack(
-        index: currentIndex,
-        children: [
-          for (int i = 0; i < pages.length; i++)
-            (i - currentIndex).abs() <= 1
-                ? _pageBody(pages[i])
-                : const SizedBox.shrink(),
-        ],
-      ),
-      bottomNavigationBar: KotvBottomBar(
-        pages: pages,
-        current: effectiveCurrent,
-        onSelect: _onSelect,
+    return AnimatedBuilder(
+      animation: GateService.instance,
+      builder: (context, _) => Scaffold(
+        body: IndexedStack(
+          index: currentIndex,
+          children: [
+            for (int i = 0; i < pages.length; i++)
+              (i - currentIndex).abs() <= 1
+                  ? _pageBody(pages[i])
+                  : const SizedBox.shrink(),
+          ],
+        ),
+        bottomNavigationBar: KotvBottomBar(
+          pages: pages,
+          current: effectiveCurrent,
+          onSelect: _onSelect,
+        ),
       ),
     );
   }
