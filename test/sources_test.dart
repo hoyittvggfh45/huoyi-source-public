@@ -177,7 +177,14 @@ void main() {
     (tester) async {
       SharedPreferences.setMockInitialValues({
         'profiles': jsonEncode([
-          const LocalProfile(id: 'default', name: '管理员', admin: true).toJson(),
+          const LocalProfile(
+            id: 'default',
+            name: '管理员',
+            admin: true,
+            salt: '11111111111111111111111111111111',
+            pinHash:
+                'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+          ).toJson(),
           const LocalProfile(
             id: 'viewer',
             name: '只看红果',
@@ -264,6 +271,7 @@ void main() {
         expect(repository.operations, ['hongguo:$operation']);
         expect(sample, findsOneWidget);
         await tester.ensureVisible(toggle);
+        await tester.pump();
         await tester.tap(toggle);
         await tester.pump();
         expect(sample, findsNothing);
@@ -367,6 +375,7 @@ void main() {
       expect(find.textContaining('HTTP 403'), findsNothing);
       final toggle = find.byKey(const ValueKey('health-toggle-hongguo'));
       await tester.ensureVisible(toggle);
+      await tester.pump();
       await tester.tap(toggle);
       await tester.pumpAndSettle();
       expect(find.textContaining('HTTP 403'), findsOneWidget);

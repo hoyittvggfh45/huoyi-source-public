@@ -125,6 +125,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final _activationCounter = MidnightActivationCounter();
   String _catalogSection = SourceSite.sectionDrama;
   final _sectionSourceIds = <String, String>{};
+  final _zoneSourceIds = <HomeZone, String>{};
   final _sectionSnapshots = <String, _SectionSnapshot>{};
   final _sectionFetchedAt = <String, DateTime>{};
   List<Drama>? _visibleCache;
@@ -723,9 +724,14 @@ class _HomeScreenState extends State<HomeScreen> {
     final snapshot = _sectionSnapshots[section];
     if (snapshot != null) {
       _restoreSectionSnapshot(section, snapshot);
+      if (section == SourceSite.sectionVideo &&
+          _sectionSources.isNotEmpty &&
+          !_sectionSources.any((site) => site.id == _source.id)) {
+        _reloadVideoZone();
+      }
       return;
     }
-    final remembered = _sectionSourceIds[section];
+    final remembered = _zoneSourceIds[_zone] ?? _sectionSourceIds[section];
     setState(() {
       _catalogSection = section;
       _drillStack.clear();
@@ -1225,7 +1231,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _applyZoneChange(HomeZone zone, {bool recordHistory = false}) {
+    final previousZone = _zone;
     if (recordHistory && zone != _zone) _zoneHistory.push(_zone);
+    if (zone != _zone) _zoneSourceIds[_zone] = _source.id;
     setState(() {
       _zone = zone;
       _selectionMode = false;
@@ -1234,7 +1242,49 @@ class _HomeScreenState extends State<HomeScreen> {
     if (zone == HomeZone.drama) {
       _changeSection(SourceSite.sectionDrama);
     } else if (zone == HomeZone.vod || zone == HomeZone.midnight) {
-      _changeSection(SourceSite.sectionVideo);
+      if ((previousZone == HomeZone.vod ||
+              previousZone == HomeZone.midnight) &&
+          previousZone != zone) {
+        _reloadVideoZone();
+      } else {
+        _changeSection(SourceSite.sectionVideo);
+      }
+    }
+  }
+
+  void _reloadVideoZone() {
+    _pauseCatalog();
+    setState(() {
+      _catalogSection = SourceSite.sectionVideo;
+      _drillStack.clear();
+      _catalogTags = const [];
+      _tagLevel2 = null;
+      _tagLevel3 = null;
+      _showRecommendations = false;
+      _selectionMode = false;
+      _selectedDramas.clear();
+      _search.clear();
+      _submittedQuery = '';
+      _items = [];
+      _hasMore = true;
+      _error = null;
+      final candidates = _sectionSources;
+      if (candidates.isNotEmpty &&
+          !candidates.any((site) => site.id == _source.id)) {
+        _source =
+            candidates
+                .where((site) => site.id == _zoneSourceIds[_zone])
+                .firstOrNull ??
+            candidates.first;
+        _allSources = false;
+      }
+    });
+    if (_scroll.hasClients) _scroll.jumpTo(0);
+    if (_sectionSources.isNotEmpty) {
+      _load(useCache: true);
+      _loadCategories();
+    } else {
+      setState(() => _loading = false);
     }
   }
 

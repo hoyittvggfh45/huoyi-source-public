@@ -377,7 +377,9 @@ class _SourcesScreenState extends State<SourcesScreen> {
                   if (groups.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
-                      child: Row(
+                      child: Wrap(
+                        spacing: 8,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           TextButton.icon(
                             key: const ValueKey('expand-all-source-groups'),
@@ -393,7 +395,6 @@ class _SourcesScreenState extends State<SourcesScreen> {
                             icon: const Icon(Icons.unfold_less_rounded),
                             label: const Text('全部折叠'),
                           ),
-                          const Spacer(),
                           Text('${sources.length} 个站源'),
                         ],
                       ),

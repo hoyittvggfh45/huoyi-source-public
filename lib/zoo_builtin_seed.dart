@@ -31,10 +31,8 @@ class ZooBuiltinStation {
 
 class ZooBuiltinSeeder {
   static const _seededKey = 'zoo_builtin_seeded_v1';
-  static const _configPrefixes = {'zoo_', 'luna_'};
 
-  static bool isBuiltinConfig(String configId) =>
-      _configPrefixes.any(configId.startsWith);
+  static bool isBuiltinConfig(String configId) => isBuiltinConfigId(configId);
 
   static List<Map<String, dynamic>> dataConfigs() {
     final decoded = jsonDecode(zooBuiltinConfigsJson);

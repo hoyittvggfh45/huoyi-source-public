@@ -836,9 +836,13 @@ class SourceSite {
   };
 }
 
+bool isBuiltinConfigId(String configId) =>
+    configId.startsWith('zoo_') || configId.startsWith('luna_');
+
 bool isVodZoneSource(SourceSite site) =>
     site.isVideoSection &&
-    (site.origin == SourceSite.originConfig ||
+    ((site.origin == SourceSite.originConfig &&
+            !isBuiltinConfigId(site.configId)) ||
         (site.origin == SourceSite.originImport && site.importType == 'py'));
 
 bool isMidnightZoneSource(SourceSite site) =>

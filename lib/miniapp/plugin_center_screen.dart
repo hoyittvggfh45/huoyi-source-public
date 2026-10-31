@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import '../app_page_route.dart';
 
@@ -44,6 +45,31 @@ class _PluginCenterScreenState extends State<PluginCenterScreen> {
     _marketSettings = MarketSettings(widget.store.preferences);
     _marketUrl.text = _marketSettings.url;
     _refresh();
+    unawaited(_loadBuiltinMarket());
+  }
+
+  Future<List<MarketItem>?> _builtinMarketItems() async {
+    try {
+      final text = await rootBundle.loadString(
+        'assets/miniapps/market/market.json',
+      );
+      return parseMarketJson(jsonDecode(text));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _loadBuiltinMarket() async {
+    final items = await _builtinMarketItems();
+    if (!mounted) return;
+    setState(() {
+      if (items != null) {
+        _marketItems = items;
+        _marketError = null;
+      } else if (_marketItems.isEmpty) {
+        _marketError = '内置市场数据读取失败';
+      }
+    });
   }
 
   @override
@@ -248,8 +274,13 @@ class _PluginCenterScreenState extends State<PluginCenterScreen> {
       });
     } catch (error) {
       if (!mounted) return;
+      final fallback = await _builtinMarketItems();
+      if (!mounted) return;
       setState(() {
-        _marketError = error.toString();
+        if (fallback != null) _marketItems = fallback;
+        _marketError = fallback == null
+            ? error.toString()
+            : '远端加载失败，已显示内置市场：$error';
         _marketLoading = false;
       });
     }
@@ -430,10 +461,10 @@ class _PluginCenterScreenState extends State<PluginCenterScreen> {
             style: TextStyle(color: Theme.of(context).colorScheme.error),
           ),
         ],
-        if (!_marketLoading && _marketError == null) ...[
+        if (!_marketLoading) ...[
           const SizedBox(height: 12),
           if (_marketItems.isEmpty)
-            const Text('点加载拉取市场条目')
+            const Text('暂无市场条目')
           else
             for (final item in _marketItems)
               _marketCard(item, isInstalled(item)),
