@@ -1,7 +1,7 @@
 name: duanju_app
 description: 独立运行的多端短剧应用
 publish_to: none
-version: 1.0.4+12
+version: 1.0.4+9
 
 environment:
   sdk: '>=3.12.0 <4.0.0'
@@ -51,7 +51,6 @@ flutter:
   uses-material-design: true
   assets:
     - assets/miniapps/hello/
-    - assets/miniapps/market/
     - assets/video_enhancement/
     - assets/live/
     - assets/proxy_kernel/

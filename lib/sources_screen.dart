@@ -377,9 +377,7 @@ class _SourcesScreenState extends State<SourcesScreen> {
                   if (groups.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
-                      child: Wrap(
-                        spacing: 8,
-                        crossAxisAlignment: WrapCrossAlignment.center,
+                      child: Row(
                         children: [
                           TextButton.icon(
                             key: const ValueKey('expand-all-source-groups'),
@@ -395,6 +393,7 @@ class _SourcesScreenState extends State<SourcesScreen> {
                             icon: const Icon(Icons.unfold_less_rounded),
                             label: const Text('全部折叠'),
                           ),
+                          const Spacer(),
                           Text('${sources.length} 个站源'),
                         ],
                       ),
@@ -663,29 +662,6 @@ class _SourcesScreenState extends State<SourcesScreen> {
                           ),
                         ),
                       ],
-                    ),
-                  ),
-                if (health.state == 'failed' &&
-                    !widget.store.hiddenSites.contains(source.id))
-                  Padding(
-                    padding: const EdgeInsets.only(top: 12),
-                    child: OutlinedButton.icon(
-                      key: ValueKey('block-${source.id}'),
-                      onPressed: () async {
-                        await saveUserChange(
-                          context,
-                          () => widget.store.setSiteVisible(source.id, false),
-                        );
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('已屏蔽，可在源显示列表恢复'),
-                            ),
-                          );
-                        }
-                      },
-                      icon: const Icon(Icons.block_outlined),
-                      label: const Text('屏蔽该站源'),
                     ),
                   ),
               ],

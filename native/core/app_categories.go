@@ -35,14 +35,6 @@ func nativeCatalogKey(source, category string) string {
 }
 
 func validNativeCategory(source, category string) bool {
-	if source == sourceYouTube {
-		for _, id := range seku.YoutubeCategoryIDs() {
-			if category == id {
-				return true
-			}
-		}
-		return false
-	}
 	if category == "" {
 		return true
 	}
@@ -71,10 +63,6 @@ func validNativeCategory(source, category string) bool {
 				return true
 			}
 		}
-	case sourceHongguotv:
-		if _, ok := hongguotvCategoryFor(category); ok {
-			return true
-		}
 	case sourceHuangguoAI:
 		for _, entry := range nativeAICategories {
 			if category == entry.ID {
@@ -100,14 +88,6 @@ func validNativeCategory(source, category string) bool {
 		return validIkanbotCategory(category)
 	case sourceA123:
 		return validA123Category(category)
-	case sourcePornhub:
-		return category == "111" || category == "65" || category == "15"
-	case sourceRedtube:
-		return category == "amateur"
-	case sourceYangguo:
-		return category == "amateur"
-	case sourceFengguo:
-		return category == "111" || category == "65" || category == "15"
 	}
 	if isDuanjuProviderSource(source) {
 		return validDuanjuCategory(source, category)
@@ -129,43 +109,9 @@ func (engine *nativeEngine) nativeCategories(ctx context.Context, source string,
 			all = append(all, nativeCategory{ID: genre.key, Name: genre.name})
 		}
 		return all, nil
-	case sourceHongguotv:
-		for _, entry := range hongguotvCategories {
-			all = append(all, nativeCategory{ID: entry.id, Name: entry.name})
-		}
-		return all, nil
 	case sourceHuangguoAI:
 		return append(all, nativeAICategories...), nil
 	case sourceHuangdou:
-		return all, nil
-	case sourceChengguo:
-		return all, nil
-	case sourcePornhub:
-		return append(all,
-			nativeCategory{ID: "111", Name: "日本人"},
-			nativeCategory{ID: "65", Name: "3P"},
-			nativeCategory{ID: "15", Name: "内射中出"},
-		), nil
-	case sourceRedtube:
-		return append(all, nativeCategory{ID: "amateur", Name: "amateur"}), nil
-	case sourceYangguo:
-		return append(all, nativeCategory{ID: "amateur", Name: "amateur"}), nil
-	case sourceFengguo:
-		return append(all,
-			nativeCategory{ID: "111", Name: "日本人"},
-			nativeCategory{ID: "65", Name: "3P"},
-			nativeCategory{ID: "15", Name: "内射中出"},
-		), nil
-	case sourceYouTube:
-		for _, entry := range seku.YoutubeCategories(sourceYouTube) {
-			if m, ok := entry.(map[string]interface{}); ok {
-				if id, _ := m["id"].(string); id != "" {
-					if name, _ := m["name"].(string); name != "" {
-						all = append(all, nativeCategory{ID: id, Name: name})
-					}
-				}
-			}
-		}
 		return all, nil
 	}
 	if slot, ok := sekuSlotForSource(source); ok {

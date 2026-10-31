@@ -7,6 +7,7 @@ import 'package:duanju_app/jar_bridge.dart';
 import 'package:duanju_app/models.dart';
 import 'package:duanju_app/tvbox_config.dart';
 import 'package:duanju_app/zoo_builtin_seed.dart';
+
 import 'fixtures.dart';
 
 class _RecordingRepository extends FixtureRepository {

@@ -13,7 +13,6 @@ import 'package:duanju_app/downloads_screen.dart';
 import 'package:duanju_app/drama_style_home.dart';
 import 'package:duanju_app/fullscreen_feed_screen.dart';
 import 'package:duanju_app/home_screen.dart';
-import 'package:duanju_app/legado_screen.dart';
 import 'package:duanju_app/live_playback.dart';
 import 'package:duanju_app/live_player_screen.dart';
 import 'package:duanju_app/live_repository.dart';
@@ -158,9 +157,8 @@ Future<void> capturePreview(
 void main() {
   setUpAll(() async {
     try {
-      final bytes = File(
-        '/home/hatch/workspace/huoyi_new/cjk_subset.ttf',
-      ).readAsBytesSync();
+      final bytes = File('/home/hatch/workspace/huoyi_new/cjk_subset.ttf')
+          .readAsBytesSync();
       final loader = FontLoader('PreviewCJK')
         ..addFont(Future.value(ByteData.view(bytes.buffer)));
       await loader.load();
@@ -330,22 +328,6 @@ void main() {
         appStore: store,
       ),
       'preview_live',
-    );
-  });
-
-  testWidgets('preview novel', (tester) async {
-    await capturePreview(
-      tester,
-      LegadoScreen(repository: FixtureRepository()),
-      'preview_novel',
-    );
-  });
-
-  testWidgets('preview comic', (tester) async {
-    await capturePreview(
-      tester,
-      const ContentZoneScreen(section: ContentSection.comic),
-      'preview_comic',
     );
   });
 

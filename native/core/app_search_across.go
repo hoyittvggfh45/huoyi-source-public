@@ -34,9 +34,8 @@ func nativeSourceSupportsSearch(source string) bool {
 		return true
 	}
 	switch source {
-	case sourceHongguo, sourceHongguotv, sourceHuangju, sourceGuipian, sourceHanxiaoquan,
-		sourceYeguo, sourceDSD, sourceA123, sourceIkanbot, sourceHGTV, sourceChengguo, sourceYouTube,
-		sourceYangguo, sourceFengguo:
+	case sourceHongguo, sourceHuangju, sourceGuipian, sourceHanxiaoquan,
+		sourceYeguo, sourceDSD, sourceA123, sourceIkanbot, sourceHGTV:
 		return true
 	}
 	if isDuanjuProviderSource(source) {
@@ -84,19 +83,6 @@ func (engine *nativeEngine) nativeSearchSource(ctx context.Context, source, quer
 			result.Warning = "已显示当前可获取的匹配结果，使用更完整的剧名可继续查找"
 		}
 		return result, nil
-	case source == sourceHongguotv:
-		entry, err := d.searchHongguotvDramas(ctx, query)
-		if err != nil {
-			return result, err
-		}
-		for _, drama := range entry.Dramas {
-			result.Items = append(result.Items, nativeNormalize(drama))
-		}
-		result.Warning, result.Page = entry.Warning, 1
-		if entry.Limited && result.Warning == "" {
-			result.Warning = "已显示当前可获取的匹配结果，使用更完整的剧名可继续查找"
-		}
-		return result, nil
 
 	case source == sourceHuangju:
 		items, more, err := d.fetchHuangjuCatalogPage(ctx, page, "", query)
@@ -131,46 +117,6 @@ func (engine *nativeEngine) nativeSearchSource(ctx context.Context, source, quer
 		result.HasMore = more
 		return result, nil
 
-	case source == sourceChengguo:
-		items, err := d.searchChengguo(ctx, query)
-		if err != nil {
-			return result, err
-		}
-		for _, drama := range items {
-			result.Items = append(result.Items, nativeNormalize(drama))
-		}
-		result.HasMore = false
-		return result, nil
-	case source == sourceYangguo:
-		items, err := d.searchYangguo(ctx, query)
-		if err != nil {
-			return result, err
-		}
-		for _, drama := range items {
-			result.Items = append(result.Items, nativeNormalize(drama))
-		}
-		result.HasMore = false
-		return result, nil
-	case source == sourceFengguo:
-		items, err := d.searchFengguo(ctx, query)
-		if err != nil {
-			return result, err
-		}
-		for _, drama := range items {
-			result.Items = append(result.Items, nativeNormalize(drama))
-		}
-		result.HasMore = false
-		return result, nil
-	case source == sourceYouTube:
-		items, err := d.searchYoutube(ctx, query)
-		if err != nil {
-			return result, err
-		}
-		for _, drama := range items {
-			result.Items = append(result.Items, nativeNormalize(drama))
-		}
-		result.HasMore = false
-		return result, nil
 	case source == sourceYeguo || source == sourceDSD:
 		var items []Drama
 		var more bool

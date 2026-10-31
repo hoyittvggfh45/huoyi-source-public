@@ -560,34 +560,7 @@ void main() {
       (site('js', 'video', 'import', 'js'), false, false),
       (site('bd', 'drama', 'builtin', ''), false, false),
       (site('cd', 'drama', 'config', ''), false, false),
-      (
-        SourceSite(
-          'zoo1',
-          'zoo1',
-          '',
-          section: 'video',
-          origin: 'config',
-          configId: 'zoo_17d2304045ff',
-        ),
-        false,
-        false,
-      ),
-      (
-        SourceSite(
-          'luna1',
-          'luna1',
-          '',
-          section: 'video',
-          origin: 'config',
-          configId: 'luna_full',
-        ),
-        false,
-        false,
-      ),
     ];
-    expect(isBuiltinConfigId('zoo_17d2304045ff'), isTrue);
-    expect(isBuiltinConfigId('luna_full'), isTrue);
-    expect(isBuiltinConfigId('user_remote'), isFalse);
     for (final entry in cases) {
       expect(isVodZoneSource(entry.$1), entry.$2, reason: entry.$1.id);
       expect(isMidnightZoneSource(entry.$1), entry.$3, reason: entry.$1.id);

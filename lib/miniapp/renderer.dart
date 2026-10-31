@@ -89,10 +89,20 @@ class _MiniAppScreenState extends State<MiniAppScreen> {
     }
   }
 
+  bool get _isOnlineEntry =>
+      widget.manifest.entry.startsWith('http://') ||
+      widget.manifest.entry.startsWith('https://');
+
   Future<void> _start() async {
-    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-    _server = server;
-    server.listen(_serve);
+    HttpServer? server;
+    if (!_isOnlineEntry) {
+      server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      _server = server;
+      server.listen(_serve);
+    }
+    final onlineOrigin = _isOnlineEntry
+        ? Uri.tryParse(widget.manifest.entry)?.origin
+        : null;
     final controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..addJavaScriptChannel(
@@ -104,7 +114,12 @@ class _MiniAppScreenState extends State<MiniAppScreen> {
       ..setNavigationDelegate(
         NavigationDelegate(
           onNavigationRequest: (request) {
-            if (request.url.startsWith('http://127.0.0.1:${server.port}/')) {
+            if (server != null &&
+                request.url.startsWith('http://127.0.0.1:${server.port}/')) {
+              return NavigationDecision.navigate;
+            }
+            if (onlineOrigin != null &&
+                Uri.tryParse(request.url)?.origin == onlineOrigin) {
               return NavigationDecision.navigate;
             }
             return NavigationDecision.prevent;
@@ -118,7 +133,11 @@ class _MiniAppScreenState extends State<MiniAppScreen> {
       );
     _controller = controller;
     await controller.loadRequest(
-      Uri.parse('http://127.0.0.1:${server.port}/${widget.manifest.entry}'),
+      _isOnlineEntry
+          ? Uri.parse(widget.manifest.entry)
+          : Uri.parse(
+              'http://127.0.0.1:${server!.port}/${widget.manifest.entry}',
+            ),
     );
     if (mounted) setState(() {});
   }
@@ -624,9 +643,8 @@ class _MiniAppHostImpl extends MiniAppHost {
 
   @override
   void toast(String message) {
-    ScaffoldMessenger.of(
-      _context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(_context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -660,8 +678,24 @@ class _MiniAppHostImpl extends MiniAppHost {
   @override
   Future<Object?> navigateTo(String url) async {
     final controller = _state._controller;
+    if (controller == null) {
+      throw const MiniAppDenied('页面尚未就绪');
+    }
+    if (_state._isOnlineEntry) {
+      final entryOrigin = Uri.tryParse(_state.widget.manifest.entry)?.origin;
+      final targetUri = Uri.tryParse(url);
+      if (targetUri != null &&
+          targetUri.hasScheme &&
+          targetUri.origin == entryOrigin) {
+        await controller.loadRequest(targetUri);
+        return {'url': targetUri.toString()};
+      }
+      if (targetUri == null || !targetUri.hasScheme) {
+        throw MiniAppDenied('无法打开的地址：$url');
+      }
+    }
     final port = _state._server?.port;
-    if (controller == null || port == null) {
+    if (port == null) {
       throw const MiniAppDenied('页面尚未就绪');
     }
     final origin = 'http://127.0.0.1:$port/';

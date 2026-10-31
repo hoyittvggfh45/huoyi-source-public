@@ -29,7 +29,7 @@ var errNativeBuildSource = errors.New("当前版本不包含此站源")
 
 func nativeSourceAvailable(source string) bool {
 	source = canonicalProviderSource(source)
-	if source == sourceHongguo || source == sourceHongguotv {
+	if source == sourceHongguo {
 		return true
 	}
 	if isCustomMaccmsSource(source) {

@@ -29,9 +29,8 @@ class MiniAppInstaller {
   }
 
   Future<MiniAppManifest> load(Directory directory) async {
-    final text = await File(
-      p.join(directory.path, 'manifest.json'),
-    ).readAsString();
+    final text = await File(p.join(directory.path, 'manifest.json'))
+        .readAsString();
     final decoded = jsonDecode(text);
     if (decoded is! Map<String, Object?>) {
       throw const FormatException('miniapp manifest must be a JSON object');
@@ -72,9 +71,24 @@ class MiniAppInstaller {
         await entity.copy(dest);
       }
     }
-    await File(
-      p.join(target.path, 'manifest.json'),
-    ).writeAsString(manifestJson);
+    await File(p.join(target.path, 'manifest.json'))
+        .writeAsString(manifestJson);
+    return manifest;
+  }
+
+  Future<MiniAppManifest> installManifest(String manifestJson) async {
+    final decoded = jsonDecode(manifestJson);
+    if (decoded is! Map<String, Object?>) {
+      throw const FormatException('miniapp manifest must be a JSON object');
+    }
+    final manifest = MiniAppManifest.fromJson(decoded);
+    final target = directoryFor(manifest.id);
+    if (await target.exists()) {
+      await target.delete(recursive: true);
+    }
+    await target.create(recursive: true);
+    await File(p.join(target.path, 'manifest.json'))
+        .writeAsString(manifestJson);
     return manifest;
   }
 
@@ -119,9 +133,8 @@ class MiniAppInstaller {
 
   Future<bool> _hasValidManifest(Directory dir) async {
     try {
-      final manifestJson = await File(
-        p.join(dir.path, 'manifest.json'),
-      ).readAsString();
+      final manifestJson = await File(p.join(dir.path, 'manifest.json'))
+          .readAsString();
       final decoded = jsonDecode(manifestJson);
       if (decoded is! Map<String, Object?>) return false;
       final manifest = MiniAppManifest.fromJson(decoded);

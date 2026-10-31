@@ -177,9 +177,8 @@ class _ContentSourceScreenState extends State<ContentSourceScreen> {
     await _run(() async {
       if (record.type == ImportedSiteRecord.typePy) {
         unawaited(
-          ImportFileStore.pathOf(
-            record.fileName,
-          ).then((path) => PyBridge.dispose(path)),
+          ImportFileStore.pathOf(record.fileName)
+              .then((path) => PyBridge.dispose(path)),
         );
       }
       await ImportFileStore.delete(record.fileName);
@@ -188,170 +187,6 @@ class _ContentSourceScreenState extends State<ContentSourceScreen> {
           if (item.id != record.id) item,
       ]);
       if (mounted) _refresh();
-    });
-  }
-
-  Future<void> _removeZooSite(String configId, TvBoxSiteRecord site) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('删除内置站点'),
-        content: Text('确定删除「${site.name}」吗？该站点将从列表中移除，可在内置站管理里恢复默认找回。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('删除'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-    await _run(() async {
-      await ZooBuiltinSeeder.deleteSite(widget.repository, configId, site);
-      if (mounted) _refresh();
-    });
-  }
-
-  Future<void> _removeZooStation(ZooBuiltinStation station) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('删除整站'),
-        content: Text(
-          '确定删除「${station.name}」吗？该站在全部仓库中的 ${station.lines.length} 条线路将一并移除，可在内置站管理里恢复默认找回。',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('删除'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-    await _run(() async {
-      await ZooBuiltinSeeder.deleteStation(widget.repository, station.key);
-      if (mounted) _refresh();
-    });
-  }
-
-  Future<void> _removeZooConfig(TvBoxConfigRecord record) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('删除仓库'),
-        content: Text('确定删除仓库「${record.name}」吗？该仓全部站点将一并移除，可在内置站管理里恢复默认找回。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('删除'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-    await _run(() async {
-      await ZooBuiltinSeeder.deleteConfig(widget.repository, record.configId);
-      if (mounted) _refresh();
-    });
-  }
-
-  List<Widget> _builtinStationSection() {
-    final stations = ZooBuiltinSeeder.builtinStations();
-    if (stations.isEmpty) return const [];
-    return [
-      Padding(
-        padding: const EdgeInsets.only(top: 8, bottom: 4),
-        child: Text(
-          '内置站点（多仓多线路）',
-          style: Theme.of(context).textTheme.titleSmall,
-        ),
-      ),
-      for (final station in stations)
-        Card(
-          margin: const EdgeInsets.only(bottom: 8),
-          child: Column(
-            children: [
-              ListTile(
-                title: Text(station.name),
-                subtitle: Text('共 ${station.lines.length} 条线路'),
-                trailing: IconButton(
-                  tooltip: '删除整站',
-                  onPressed: _busy
-                      ? null
-                      : () => unawaited(_removeZooStation(station)),
-                  icon: const Icon(Icons.delete_outline_rounded),
-                ),
-              ),
-              for (final line in station.lines)
-                ListTile(
-                  dense: true,
-                  contentPadding: const EdgeInsets.only(left: 32, right: 16),
-                  title: Text(line.site.name),
-                  subtitle: Text(
-                    '${line.configName} · ${ZooBuiltinSeeder.kindLabel(line.site.kind)}',
-                  ),
-                  trailing: IconButton(
-                    tooltip: '删除线路',
-                    onPressed: _busy
-                        ? null
-                        : () => unawaited(
-                            _removeZooSite(line.configId, line.site),
-                          ),
-                    icon: const Icon(Icons.delete_outline_rounded),
-                  ),
-                ),
-            ],
-          ),
-        ),
-    ];
-  }
-
-  List<Widget> _builtinWarehouseSection() {
-    final warehouses = ZooBuiltinSeeder.builtinConfigs();
-    if (warehouses.isEmpty) return const [];
-    return [
-      Padding(
-        padding: const EdgeInsets.only(top: 8, bottom: 4),
-        child: Text('内置仓库', style: Theme.of(context).textTheme.titleSmall),
-      ),
-      for (final warehouse in warehouses)
-        Card(
-          margin: const EdgeInsets.only(bottom: 8),
-          child: ListTile(
-            title: Text(warehouse.name),
-            subtitle: Text(warehouse.summaryLine),
-            trailing: IconButton(
-              tooltip: '删除仓库',
-              onPressed: _busy
-                  ? null
-                  : () => unawaited(_removeZooConfig(warehouse)),
-              icon: const Icon(Icons.delete_outline_rounded),
-            ),
-          ),
-        ),
-    ];
-  }
-
-  Future<void> _restoreZooSites() async {
-    await _run(() async {
-      final added = await ZooBuiltinSeeder.restore(widget.repository);
-      if (mounted) {
-        _refresh();
-        _showMessage(added > 0 ? '已恢复 $added 个内置站点' : '内置站点已是完整状态');
-      }
     });
   }
 
@@ -401,11 +236,7 @@ class _ContentSourceScreenState extends State<ContentSourceScreen> {
             children: [
               Text('接口配置', style: Theme.of(context).textTheme.titleMedium),
               const Spacer(),
-              IconButton(
-                tooltip: '恢复内置站点',
-                onPressed: _busy ? null : () => unawaited(_restoreZooSites()),
-                icon: const Icon(Icons.restore_rounded),
-              ),
+
               IconButton(
                 tooltip: '添加 TVBox 远程配置',
                 onPressed: _busy ? null : () => unawaited(_addInterface()),
@@ -489,32 +320,29 @@ class _ContentSourceScreenState extends State<ContentSourceScreen> {
             if (groups.isEmpty)
               const Text('还没有导入的远程配置')
             else ...[
-              ..._builtinStationSection(),
-              ..._builtinWarehouseSection(),
-              for (final group in groups)
-                if (!ZooBuiltinSeeder.isBuiltinConfig(group.configId)) ...[
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8, bottom: 4),
-                    child: Text(
-                      group.name,
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
+              for (final group in groups) ...[
+                Padding(
+                  padding: const EdgeInsets.only(top: 8, bottom: 4),
+                  child: Text(
+                    group.name,
+                    style: Theme.of(context).textTheme.titleSmall,
                   ),
-                  for (final site in group.sites)
-                    Card(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      child: ListTile(
-                        title: Text(site.name),
-                        subtitle: Text(
-                          site.kind == 'py'
-                              ? 'py 站'
-                              : site.kind == 'jar'
-                              ? 'jar 站'
-                              : '接口',
-                        ),
+                ),
+                for (final site in group.sites)
+                  Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      title: Text(site.name),
+                      subtitle: Text(
+                        site.kind == 'py'
+                            ? 'py 站'
+                            : site.kind == 'jar'
+                            ? 'jar 站'
+                            : '接口',
                       ),
                     ),
-                ],
+                  ),
+              ],
             ],
           ],
         ],

@@ -37,7 +37,6 @@ class DramaStyleHome extends StatelessWidget {
     required this.repository,
     required this.onOpenDrama,
     required this.onOpenFeed,
-    this.onOpenTheater,
     required this.onPickSource,
     required this.sourceLabel,
     required this.feedEnabled,
@@ -63,7 +62,6 @@ class DramaStyleHome extends StatelessWidget {
   final AppRepository repository;
   final ValueChanged<Drama> onOpenDrama;
   final VoidCallback onOpenFeed;
-  final VoidCallback? onOpenTheater;
   final VoidCallback onPickSource;
   final String sourceLabel;
   final bool feedEnabled;
@@ -193,13 +191,6 @@ class DramaStyleHome extends StatelessWidget {
                       ),
                     ),
                     const Spacer(),
-                    if (onOpenTheater != null)
-                      OutlinedButton.icon(
-                        onPressed: onOpenTheater,
-                        icon: const Icon(Icons.theater_comedy_outlined),
-                        label: const Text('剧场'),
-                      ),
-                    if (onOpenTheater != null) const SizedBox(width: 8),
                     FilledButton.tonalIcon(
                       onPressed: feedEnabled ? onOpenFeed : null,
                       icon: const Icon(Icons.play_arrow_rounded),

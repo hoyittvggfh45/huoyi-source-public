@@ -3,7 +3,6 @@ import 'dart:async';
 import 'app_page_route.dart';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -15,9 +14,7 @@ import 'midnight_zone.dart';
 import 'content_zone_screen.dart';
 import 'content_models.dart';
 import 'miniapp/plugin_center_screen.dart';
-import 'legado_screen.dart';
 import 'player_picker.dart';
-import 'builtin_sites_screen.dart';
 import 'app_update_screen.dart';
 import 'content_source_screen.dart';
 import 'import_center_screen.dart';
@@ -37,14 +34,9 @@ import 'catalog_sort_sheet.dart';
 import 'recommendations_screen.dart';
 import 'rankings_screen.dart';
 import 'detail_screen.dart';
-import 'hongguotv_official_screen.dart';
-import 'hongguotv_vertical_screen.dart';
 import 'folder_catalog_screen.dart';
 import 'fullscreen_feed_screen.dart';
 import 'drama_style_home.dart';
-import 'drama_theater_screen.dart';
-import 'drama_page_prefetcher.dart';
-import 'video_station_switch_dialog.dart';
 import 'import_file_store.dart';
 import 'imported_site_record.dart';
 import 'py_bridge.dart';
@@ -75,7 +67,8 @@ import 'live_screen.dart';
 import 'live_store.dart';
 
 bool shouldSilentRefreshOnRestore(DateTime? fetchedAt, DateTime now) {
-  return false;
+  if (fetchedAt == null) return true;
+  return now.difference(fetchedAt) >= const Duration(minutes: 5);
 }
 
 class HomeScreen extends StatefulWidget {
@@ -122,9 +115,6 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _hasMore = true;
   String? _error;
   int _generation = 0;
-  bool _loadInFlight = false;
-  bool _updaterBusy = false;
-  String _updaterBusyGroup = '';
   HomeZone _zone = HomeZone.drama;
   final _zoneHistory = BackHistory<HomeZone>();
   final _scaffoldKey = GlobalKey<ScaffoldState>();
@@ -133,12 +123,8 @@ class _HomeScreenState extends State<HomeScreen> {
   final _activationCounter = MidnightActivationCounter();
   String _catalogSection = SourceSite.sectionDrama;
   final _sectionSourceIds = <String, String>{};
-  final _zoneSourceIds = <HomeZone, String>{};
   final _sectionSnapshots = <String, _SectionSnapshot>{};
   final _sectionFetchedAt = <String, DateTime>{};
-  final _dramaPrefetcher = DramaPagePrefetcher();
-  String _dramaPrefetchKey = '';
-  bool _dramaPrefetchPending = false;
   List<Drama>? _visibleCache;
   String _visibleCacheKey = '';
   List<String>? _level2TagsCache;
@@ -185,8 +171,6 @@ class _HomeScreenState extends State<HomeScreen> {
     HomeZone.vod => '点播',
     HomeZone.midnight => '午夜区',
     HomeZone.live => '直播',
-    HomeZone.novel => '小说',
-    HomeZone.comic => '漫画',
     HomeZone.audio => '听书',
     _ => appName,
   };
@@ -325,12 +309,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _updateChanged() {
-    if (!mounted) return;
-    final busy = _group.sources.any((source) => _updater.busy(source.id));
-    if (busy == _updaterBusy && _updaterBusyGroup == _group.id) return;
-    _updaterBusy = busy;
-    _updaterBusyGroup = _group.id;
-    setState(() {});
+    if (mounted) setState(() {});
   }
 
   void _catalogUpdated(String source) {
@@ -391,7 +370,6 @@ class _HomeScreenState extends State<HomeScreen> {
           if (mounted &&
               !_loading &&
               !_loadingMore &&
-              !_loadInFlight &&
               (!_onlineSearch || _search.text.trim().isEmpty)) {
             await _load(cacheOnly: true);
           }
@@ -444,22 +422,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ? '点播'
       : '短剧';
 
-  Future<String?> _pickVideoStation() {
-    return showVideoStationSwitchDialog(
-      context,
-      currentId: _allSources ? _allSourcesEntryId : _source.id,
-      hiddenIds: widget.store.hiddenSites,
-    );
-  }
-
   Future<void> _pickSource({bool editMode = false}) async {
-    _updater.startWatching();
-    if (_zone == HomeZone.drama && !editMode) {
-      final picked = await _pickVideoStation();
-      if (picked == null || !mounted) return;
-      _applySourcePick(picked);
-      return;
-    }
     final picked = await showSitePickerDialog(
       context,
       sectionName: _sourcePickerSectionName(),
@@ -473,7 +436,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _pickSourceCentered() async {
-    _updater.startWatching();
     final picked = await showSitePickerDialog(
       context,
       sectionName: _sourcePickerSectionName(),
@@ -492,9 +454,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (entry.id == _allSourcesEntryId) return false;
     if (_sectionSources.length <= 1 &&
         _sectionSources.any((site) => site.id == entry.id)) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('至少保留一个站源')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('至少保留一个站源')));
       return false;
     }
     final imported = widget.store.importedSiteRecords
@@ -521,9 +482,8 @@ class _HomeScreenState extends State<HomeScreen> {
       if (confirmed != true) return false;
       if (imported.type == ImportedSiteRecord.typePy) {
         unawaited(
-          ImportFileStore.pathOf(
-            imported.fileName,
-          ).then((path) => PyBridge.dispose(path)),
+          ImportFileStore.pathOf(imported.fileName)
+              .then((path) => PyBridge.dispose(path)),
         );
       }
       await ImportFileStore.delete(imported.fileName);
@@ -575,13 +535,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
     final site = _sectionSources.where((site) => site.id == picked).firstOrNull;
-    if (site != null) {
-      _changeSource(site);
-    } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('该站源尚未接通，播放待协议证据')),
-      );
-    }
+    if (site != null) _changeSource(site);
   }
 
   void _changeFilter(String groupKey, String optionId) {
@@ -763,14 +717,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final snapshot = _sectionSnapshots[section];
     if (snapshot != null) {
       _restoreSectionSnapshot(section, snapshot);
-      if (section == SourceSite.sectionVideo &&
-          _sectionSources.isNotEmpty &&
-          !_sectionSources.any((site) => site.id == _source.id)) {
-        _reloadVideoZone();
-      }
       return;
     }
-    final remembered = _zoneSourceIds[_zone] ?? _sectionSourceIds[section];
+    final remembered = _sectionSourceIds[section];
     setState(() {
       _catalogSection = section;
       _drillStack.clear();
@@ -846,7 +795,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _manageSources() async {
-    _updater.startWatching();
     _pauseCatalog();
     await Navigator.push<void>(
       context,
@@ -937,6 +885,7 @@ class _HomeScreenState extends State<HomeScreen> {
       widget.store,
       onCatalogChanged: _catalogUpdated,
     )..addListener(_updateChanged);
+    _updater.startWatching();
     widget.repository.catalogUpdates.addListener(_metadataChanged);
     if (_sectionSources.isNotEmpty) {
       _load(useCache: true);
@@ -944,6 +893,8 @@ class _HomeScreenState extends State<HomeScreen> {
     } else {
       _loading = false;
     }
+    unawaited(_loadMidnightActivated());
+    unawaited(_loadCurrentVersion());
     _dramaStyle = dramaUiStyleNotifier.value;
     dramaUiStyleNotifier.addListener(_syncDramaStyle);
     unawaited(ensureDramaUiStyleLoaded());
@@ -1010,7 +961,6 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
     _browser.updateDrama(drama);
-    if (!_items.any((item) => item.id == drama.id)) return;
     setState(() {
       _items = [
         for (final item in _items)
@@ -1032,9 +982,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final generation = ++_generation;
     final group = _effectiveGroup;
     final query = _canSearchOnline ? _search.text.trim() : '';
-    final cacheOnlyEffective =
-        cacheOnly || (useCache && !force && !more && query.isEmpty);
-    _loadInFlight = true;
     setState(() {
       if (!silent) _error = null;
       if (query.isNotEmpty && !silent) {
@@ -1059,36 +1006,27 @@ class _HomeScreenState extends State<HomeScreen> {
         _loading = silent ? false : (cached && !result.fresh);
         _loadingMore = false;
         _error = result.warning.isEmpty ? null : result.warning;
-        if (cacheOnlyEffective &&
-            result.items.isEmpty &&
-            result.warning.isEmpty &&
-            !silent) {
-          _error = '本地暂无缓存，下拉或点“更新剧库”现抓';
-        }
         _sectionFetchedAt[_catalogSection] = DateTime.now();
       });
       unawaited(
         saveUserChange(context, () => widget.store.refreshDramas(result.items)),
       );
-      if (more && !silent) _maybeStartDramaPrefetch();
     }
 
     try {
-      final result = await _browser
-          .load(
-            group,
-            category: _effectiveCategory,
-            query: query,
-            more: more,
-            useCache: useCache,
-            force: force,
-            cacheOnly: cacheOnlyEffective,
-            crossSource: _crossSourceSearch,
-            crossSources: _crossSourceSearch ? _visibleSourceIds : null,
-            onCached: (result) => accept(result, cached: true),
-            filters: _allSources ? const {} : _selectedFilters,
-          )
-          .timeout(const Duration(seconds: 60));
+      final result = await _browser.load(
+        group,
+        category: _effectiveCategory,
+        query: query,
+        more: more,
+        useCache: useCache,
+        force: force,
+        cacheOnly: cacheOnly,
+        crossSource: _crossSourceSearch,
+        crossSources: _crossSourceSearch ? _visibleSourceIds : null,
+        onCached: (result) => accept(result, cached: true),
+        filters: _allSources ? const {} : _selectedFilters,
+      );
       accept(result);
     } catch (error) {
       if (!mounted || generation != _generation) return;
@@ -1097,39 +1035,10 @@ class _HomeScreenState extends State<HomeScreen> {
         _loadingMore = false;
         if (!silent) _error = error.toString();
       });
-    } finally {
-      if (generation == _generation) _loadInFlight = false;
     }
   }
 
   void _changeSource(SourceSite source, {bool allSources = false}) {
-    if (source.id == hongguotvSourceId && !allSources) {
-      final variant = widget.store.hongguotvUi;
-      if (variant == 'vertical') {
-        Navigator.push<void>(
-          context,
-          MaterialPageRoute(
-            builder: (_) => HongguotvVerticalScreen(
-              repository: widget.repository,
-              store: widget.store,
-            ),
-          ),
-        );
-        return;
-      }
-      if (variant == 'official') {
-        Navigator.push<void>(
-          context,
-          MaterialPageRoute(
-            builder: (_) => HongguotvOfficialScreen(
-              repository: widget.repository,
-              store: widget.store,
-            ),
-          ),
-        );
-        return;
-      }
-    }
     if (_source.id == source.id && _allSources == allSources) {
       return;
     }
@@ -1310,9 +1219,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _applyZoneChange(HomeZone zone, {bool recordHistory = false}) {
-    final previousZone = _zone;
     if (recordHistory && zone != _zone) _zoneHistory.push(_zone);
-    if (zone != _zone) _zoneSourceIds[_zone] = _source.id;
     setState(() {
       _zone = zone;
       _selectionMode = false;
@@ -1321,49 +1228,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (zone == HomeZone.drama) {
       _changeSection(SourceSite.sectionDrama);
     } else if (zone == HomeZone.vod || zone == HomeZone.midnight) {
-      if ((previousZone == HomeZone.vod ||
-              previousZone == HomeZone.midnight) &&
-          previousZone != zone) {
-        _reloadVideoZone();
-      } else {
-        _changeSection(SourceSite.sectionVideo);
-      }
-    }
-  }
-
-  void _reloadVideoZone() {
-    _pauseCatalog();
-    setState(() {
-      _catalogSection = SourceSite.sectionVideo;
-      _drillStack.clear();
-      _catalogTags = const [];
-      _tagLevel2 = null;
-      _tagLevel3 = null;
-      _showRecommendations = false;
-      _selectionMode = false;
-      _selectedDramas.clear();
-      _search.clear();
-      _submittedQuery = '';
-      _items = [];
-      _hasMore = true;
-      _error = null;
-      final candidates = _sectionSources;
-      if (candidates.isNotEmpty &&
-          !candidates.any((site) => site.id == _source.id)) {
-        _source =
-            candidates
-                .where((site) => site.id == _zoneSourceIds[_zone])
-                .firstOrNull ??
-            candidates.first;
-        _allSources = false;
-      }
-    });
-    if (_scroll.hasClients) _scroll.jumpTo(0);
-    if (_sectionSources.isNotEmpty) {
-      _load(useCache: true);
-      _loadCategories();
-    } else {
-      setState(() => _loading = false);
+      _changeSection(SourceSite.sectionVideo);
     }
   }
 
@@ -1374,12 +1239,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return true;
   }
 
-  void _openDrawer() {
-    _updater.startWatching();
-    unawaited(_loadMidnightActivated());
-    unawaited(_loadCurrentVersion());
-    _scaffoldKey.currentState?.openDrawer();
-  }
+  void _openDrawer() => _scaffoldKey.currentState?.openDrawer();
 
   AppDrawer _drawer() => AppDrawer(
     zone: _zone,
@@ -1441,9 +1301,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _openDownloads() {
     if (!widget.store.canDownload) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('当前版本未开启下载功能')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('当前版本未开启下载功能')));
       return;
     }
     _pushTool(
@@ -1544,71 +1403,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _openTheater() {
-    unawaited(
-      Navigator.of(context).push<void>(
-        appPageRoute<void>(
-          builder: (_) => DramaTheaterScreen(
-            dramas: List.of(_visible),
-            repository: widget.repository,
-            categories: _categories,
-            onOpenDrama: _openDrama,
-            onOpenFeed: _openFullscreenFeed,
-            onSearchSubmitted: _submitSearch,
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _dramaPrefetchKeyNow() {
-    final filters = _selectedFilters.entries.toList()
-      ..sort((a, b) => a.key.compareTo(b.key));
-    return '$_catalogSection|${_effectiveGroup.id}|$_effectiveCategory|'
-        '${_source.id}|$_allSources|$_submittedQuery|'
-        '${filters.map((entry) => '${entry.key}=${entry.value}').join(',')}';
-  }
-
-  void _maybeStartDramaPrefetch() {
-    if (!mounted ||
-        _catalogSection != SourceSite.sectionDrama ||
-        !_hasMore ||
-        !widget.store.playbackPreferences.preload) {
-      return;
-    }
-    _dramaPrefetchKey = _dramaPrefetchKeyNow();
-    if (_dramaPrefetcher.running) {
-      _dramaPrefetchPending = true;
-      return;
-    }
-    unawaited(
-      _dramaPrefetcher
-          .run(
-            isCurrent: () =>
-                mounted &&
-                _catalogSection == SourceSite.sectionDrama &&
-                _hasMore &&
-                widget.store.playbackPreferences.preload &&
-                _dramaPrefetchKeyNow() == _dramaPrefetchKey,
-            isBusy: () => _loading || _loadingMore,
-            loadMore: () async {
-              if (!mounted) return false;
-              final before = _items.length;
-              await _load(more: true, silent: true);
-              if (!mounted) return false;
-              return _items.length > before;
-            },
-          )
-          .then((_) {
-            if (!mounted) return;
-            if (_dramaPrefetchPending) {
-              _dramaPrefetchPending = false;
-              _maybeStartDramaPrefetch();
-            }
-          }),
-    );
-  }
-
   void _onTool(AppDrawerTool tool) {
     Navigator.of(context).pop();
     switch (tool) {
@@ -1624,8 +1418,6 @@ class _HomeScreenState extends State<HomeScreen> {
         _openSettings();
       case AppDrawerTool.player:
         _pushTool(PlayerPickerScreen(store: widget.store));
-      case AppDrawerTool.builtinSites:
-        _pushTool(BuiltinSitesScreen(store: widget.store));
       case AppDrawerTool.appUpdate:
         _pushTool(const AppUpdateScreen());
       case AppDrawerTool.importCenter:
@@ -1653,9 +1445,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _pushTool(Widget screen) {
     unawaited(
-      Navigator.of(
-        context,
-      ).push<void>(appPageRoute<void>(builder: (_) => screen)),
+      Navigator.of(context)
+          .push<void>(appPageRoute<void>(builder: (_) => screen)),
     );
   }
 
@@ -1699,9 +1490,8 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     if (!_selectedDramas.containsKey(drama.id) &&
         _selectedDramas.length >= BatchDownloads.maxDramas) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('一次最多选择 50 部短剧，请分批下载')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('一次最多选择 50 部短剧，请分批下载')));
       return;
     }
     setState(() {
@@ -1795,7 +1585,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<Drama> get _visible {
     final view = widget.store.catalogView;
-    final hidden = widget.store.hiddenSites;
     final key = [
       identityHashCode(_items),
       _items.length,
@@ -1805,7 +1594,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _search.text.trim().toLowerCase(),
       _onlineSearch,
       _hideVip,
-      hidden.join(','),
+      widget.store.hiddenSites.join(','),
       widget.store.profileEpoch,
       widget.store.locked,
       view.sort,
@@ -1816,6 +1605,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return _visibleCache!;
     }
     final query = _search.text.trim().toLowerCase();
+    final hidden = widget.store.hiddenSites;
     final visible = sortCatalog(
       _items.where((drama) {
         if (!widget.store.allowsSource(drama.source)) return false;
@@ -1864,8 +1654,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<String> get _level3Tags {
     final level2 = _tagLevel2;
     if (level2 == null) return const [];
-    final key =
-        '${identityHashCode(_items)}|${_items.length}|$level2';
+    final key = '${identityHashCode(_items)}|${_items.length}|$level2';
     if (_level3TagsCache != null && _level3TagsCacheKey == key) {
       return _level3TagsCache!;
     }
@@ -2166,7 +1955,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   repository: widget.repository,
                   onOpenDrama: _openDrama,
                   onOpenFeed: _openFullscreenFeed,
-                  onOpenTheater: _openTheater,
                   onPickSource: () => unawaited(_pickSource()),
                   sourceLabel: '${_group.name} (${_group.sources.length})',
                   feedEnabled: _visible.isNotEmpty,
@@ -2540,12 +2328,6 @@ class _HomeScreenState extends State<HomeScreen> {
         appStore: widget.store,
       );
     }
-    if (_zone == HomeZone.novel) {
-      return LegadoScreen(repository: widget.repository);
-    }
-    if (_zone == HomeZone.comic) {
-      return LegadoScreen(repository: widget.repository, initialComic: true);
-    }
     if (_zone == HomeZone.audio) {
       return const ContentZoneScreen(section: ContentSection.audio);
     }
@@ -2729,9 +2511,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       avatar: const Icon(Icons.label_outline_rounded, size: 16),
                       label: Text(tag.name),
                       labelStyle: const TextStyle(fontSize: 12),
-                      backgroundColor: Theme.of(
-                        context,
-                      ).colorScheme.surfaceContainerHighest,
+                      backgroundColor: Theme.of(context)
+                          .colorScheme
+                          .surfaceContainerHighest,
                       onPressed: () => _openTag(tag),
                     ),
                   ),
@@ -2756,9 +2538,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     selected: _tagLevel2 == null,
                     showCheckmark: false,
                     selectedColor: const Color(0xFFC8E6C9),
-                    backgroundColor: Theme.of(
-                      context,
-                    ).colorScheme.surfaceContainerHighest,
+                    backgroundColor: Theme.of(context)
+                        .colorScheme
+                        .surfaceContainerHighest,
                     onSelected: (_) => _selectTagLevel2(null),
                   ),
                 ),
@@ -2775,9 +2557,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       selected: _tagLevel2 == tag,
                       showCheckmark: false,
                       selectedColor: const Color(0xFFC8E6C9),
-                      backgroundColor: Theme.of(
-                        context,
-                      ).colorScheme.surfaceContainerHighest,
+                      backgroundColor: Theme.of(context)
+                          .colorScheme
+                          .surfaceContainerHighest,
                       onSelected: (_) =>
                           _selectTagLevel2(_tagLevel2 == tag ? null : tag),
                     ),
@@ -2805,9 +2587,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     selected: _tagLevel3 == null,
                     showCheckmark: false,
                     selectedColor: const Color(0xFFC8E6C9),
-                    backgroundColor: Theme.of(
-                      context,
-                    ).colorScheme.surfaceContainerHighest,
+                    backgroundColor: Theme.of(context)
+                        .colorScheme
+                        .surfaceContainerHighest,
                     onSelected: (_) => _selectTagLevel3(null),
                   ),
                 ),
@@ -2824,9 +2606,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       selected: _tagLevel3 == tag,
                       showCheckmark: false,
                       selectedColor: const Color(0xFFC8E6C9),
-                      backgroundColor: Theme.of(
-                        context,
-                      ).colorScheme.surfaceContainerHighest,
+                      backgroundColor: Theme.of(context)
+                          .colorScheme
+                          .surfaceContainerHighest,
                       onSelected: (_) =>
                           _selectTagLevel3(_tagLevel3 == tag ? null : tag),
                     ),
@@ -2954,7 +2736,6 @@ class _HomeScreenState extends State<HomeScreen> {
                           onRefresh: _refreshCatalog,
                           child: CustomScrollView(
                             controller: _scroll,
-                            scrollCacheExtent: const ScrollCacheExtent.pixels(800),
                             physics: const AlwaysScrollableScrollPhysics(),
                             slivers: [
                               if (_showCarouselStrip &&
@@ -3016,9 +2797,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                         : Text(
                                             '已经看到这里的全部剧集',
                                             style: TextStyle(
-                                              color: Theme.of(
-                                                context,
-                                              ).colorScheme.onSurfaceVariant,
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .onSurfaceVariant,
                                               fontSize: 12,
                                             ),
                                           ),

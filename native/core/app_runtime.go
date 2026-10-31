@@ -731,8 +731,6 @@ func (engine *nativeEngine) nativeCatalog(ctx context.Context, input nativeInput
 			items, totalPages, err = d.fetchHongguoCategoryPage(ctx, "real-drama?page="+strconv.Itoa(page), "真人剧")
 			result.HasMore = page < totalPages
 		}
-	case sourceHongguotv:
-		items, result.HasMore, err = d.fetchHongguotvCatalog(ctx, category, page)
 	case sourceHuangdou:
 		client := newHuangdouAPIClient(d)
 		var decoded any
@@ -762,18 +760,6 @@ func (engine *nativeEngine) nativeCatalog(ctx context.Context, input nativeInput
 		items, result.HasMore, err = d.fetchIkanbotCatalogPage(ctx, page, category, "")
 	case sourceA123:
 		items, result.HasMore, err = d.fetchA123CatalogPage(ctx, page, category, "")
-	case sourceChengguo:
-		items, result.HasMore, err = d.fetchChengguoCatalogPage(ctx, page)
-	case sourcePornhub:
-		items, result.HasMore, err = d.fetchPornhubCatalogPage(ctx, page, category)
-	case sourceRedtube:
-		items, result.HasMore, err = d.fetchRedtubeCatalogPage(ctx, page, category)
-	case sourceYangguo:
-		items, result.HasMore, err = d.fetchYangguoCatalogPage(ctx, page, category)
-	case sourceFengguo:
-		items, result.HasMore, err = d.fetchFengguoCatalogPage(ctx, page, category)
-	case sourceYouTube:
-		items, result.HasMore, err = d.fetchYoutubeCatalogPage(ctx, page, category)
 	case sourceHuangguoVideo:
 		address := fmt.Sprintf("%s/videos?page=%d", d.providerBaseURL(source), page)
 		if category != "" {

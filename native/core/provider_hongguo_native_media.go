@@ -83,6 +83,24 @@ func (downloader *Downloader) resolveHongguoAppMediaLine(ctx context.Context, vi
 				}
 			}
 		}
+		if fallbackURL := hongguoFallbackAPIURL(model); fallbackURL != "" {
+			if body, fetchErr := downloader.fetchProviderText(ctx, fallbackURL, "https://novel.snssdk.com/"); fetchErr == nil {
+				if rows, parseErr := hongguoFallbackVideoRows(body); parseErr == nil && len(rows) > 0 {
+					merged := anyList(model["video_list"])
+					if rowsMap, ok := model["video_list"].(map[string]any); ok && len(merged) == 0 {
+						keys := make([]string, 0, len(rowsMap))
+						for key := range rowsMap {
+							keys = append(keys, key)
+						}
+						sort.Strings(keys)
+						for _, key := range keys {
+							merged = append(merged, rowsMap[key])
+						}
+					}
+					model["video_list"] = append(merged, rows...)
+				}
+			}
+		}
 		if len(model) == 0 {
 			downloader.markHongguoDeviceLimited()
 			lastErr = errHongguoAppEmptyBody
@@ -95,6 +113,74 @@ func (downloader *Downloader) resolveHongguoAppMediaLine(ctx context.Context, vi
 		return providerMedia{}, lastErr
 	}
 	return providerMedia{}, errHongguoAppEmptyBody
+}
+
+func hongguoFallbackAPIURL(model map[string]any) string {
+	var extract func(value any) string
+	extract = func(value any) string {
+		switch item := value.(type) {
+		case string:
+			text := strings.TrimSpace(item)
+			if strings.HasPrefix(text, "{") {
+				var decoded map[string]any
+				if err := json.Unmarshal([]byte(text), &decoded); err == nil {
+					return strings.TrimSpace(mapString(decoded, "fallback_api"))
+				}
+				return ""
+			}
+			return text
+		case []any:
+			if len(item) > 0 {
+				return extract(item[0])
+			}
+			return ""
+		case map[string]any:
+			return strings.TrimSpace(mapString(item, "fallback_api"))
+		}
+		return ""
+	}
+	return extract(model["fallback_api"])
+}
+
+func hongguoFallbackVideoRows(body string) ([]any, error) {
+	var outer map[string]any
+	decoder := json.NewDecoder(strings.NewReader(body))
+	decoder.UseNumber()
+	if err := decoder.Decode(&outer); err != nil {
+		return nil, errors.New("红果备用取流返回了无效数据")
+	}
+	info := nestedMap(outer, "video_info", "data")
+	if len(info) == 0 {
+		info = nestedMap(outer, "data")
+	}
+	rows := anyList(info["video_list"])
+	if rowsMap, ok := info["video_list"].(map[string]any); ok && len(rows) == 0 {
+		keys := make([]string, 0, len(rowsMap))
+		for key := range rowsMap {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			rows = append(rows, rowsMap[key])
+		}
+	}
+	if len(rows) == 0 {
+		return nil, errors.New("红果备用取流未返回清晰度列表")
+	}
+	out := make([]any, 0, len(rows))
+	for _, row := range rows {
+		variant, _ := row.(map[string]any)
+		if variant == nil {
+			continue
+		}
+		if _, hasEncrypt := variant["encrypt_info"]; !hasEncrypt {
+			if spade := mapString(variant, "spade_a"); spade != "" {
+				variant["encrypt_info"] = map[string]any{"spade_a": spade}
+			}
+		}
+		out = append(out, variant)
+	}
+	return out, nil
 }
 
 func selectHongguoAppMedia(model map[string]any) (providerMedia, error) {

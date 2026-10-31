@@ -100,16 +100,15 @@ void main() {
     expect(find.text('短剧'), findsOneWidget);
     expect(find.text('点播'), findsOneWidget);
     expect(find.text('直播'), findsOneWidget);
-    expect(find.text('小说'), findsOneWidget);
-    expect(find.text('漫画'), findsOneWidget);
+    expect(find.text('听书'), findsOneWidget);
     expect(find.text('蚂蚁'), findsOneWidget);
     expect(find.text('午夜区'), findsNothing);
     expect(find.text('未成年保护'), findsNothing);
     expect(find.text('站源管理'), findsOneWidget);
     expect(find.text('软件更新'), findsOneWidget);
-    await tester.ensureVisible(find.text('小说'));
-    await tester.tap(find.text('小说'));
-    expect(zones, [HomeZone.novel]);
+    await tester.ensureVisible(find.text('听书'));
+    await tester.tap(find.text('听书'));
+    expect(zones, [HomeZone.audio]);
   });
 
   testWidgets('drawer shows midnight module and switch after activation', (

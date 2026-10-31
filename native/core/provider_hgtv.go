@@ -213,12 +213,77 @@ func hgtvStillsFromDetail(detail map[string]any, seriesCover string, max int) (s
 	return backdrop, stills
 }
 
+func hongguoAnyID(value any) string {
+	switch item := value.(type) {
+	case string:
+		return strings.TrimSpace(item)
+	case json.Number:
+		return item.String()
+	case float64:
+		if item == float64(int64(item)) {
+			return strconv.FormatInt(int64(item), 10)
+		}
+		return strconv.FormatFloat(item, 'f', -1, 64)
+	case int:
+		return strconv.Itoa(item)
+	}
+	return ""
+}
+
+func parseHGTVWebDetail(body, seriesID string) (Drama, []Chapter, error) {
+	page := routerLoaderMap(parseRouterData(body), "detail_page")
+	series := nestedMap(page, "seriesDetail")
+	if len(series) == 0 {
+		return Drama{}, nil, errors.New("HGTV 网页详情未返回剧集")
+	}
+	vidList := anyList(series["vid_list"])
+	if len(vidList) == 0 {
+		return Drama{}, nil, errors.New("HGTV 网页详情未返回分集")
+	}
+	title := mapString(series, "series_title", "series_name", "title")
+	cover := mapString(series, "series_cover", "cover", "img")
+	drama := hgtvRewriteDrama(hongguoDramaFromAny(map[string]any{
+		"series_id_str": seriesID,
+		"series_title":  title,
+		"series_cover":  cover,
+	}, "短剧"), seriesID)
+	chapters := []Chapter{}
+	seen := map[string]bool{}
+	for index, raw := range vidList {
+		videoID := hongguoAnyID(raw)
+		if !hongguoNumericID.MatchString(videoID) || seen[videoID] {
+			continue
+		}
+		seen[videoID] = true
+		chapters = append(chapters, Chapter{
+			ID: providerChapterID(sourceHGTV, seriesID, videoID), Source: sourceHGTV,
+			Title: fmt.Sprintf("第%d集", index+1), VideoURL: "hongguo-cenc://" + videoID,
+			CurrentEpisode: rawEpisode(index + 1),
+		})
+	}
+	if len(chapters) == 0 {
+		return Drama{}, nil, errors.New("HGTV 网页详情未返回有效分集")
+	}
+	return drama, chapters, nil
+}
+
+func (d *Downloader) fetchHGTVWebDetail(ctx context.Context, sourceID string) (Drama, []Chapter, error) {
+	body, err := d.fetchProviderText(ctx, hongguoBaseURL+"/detail?series_id="+url.QueryEscape(sourceID), hongguoBaseURL+"/")
+	if err != nil {
+		return Drama{}, nil, err
+	}
+	return parseHGTVWebDetail(body, sourceID)
+}
+
 func (d *Downloader) fetchHGTVDetail(ctx context.Context, sourceID string) (Drama, []Chapter, error) {
 	if !hongguoNumericID.MatchString(sourceID) {
 		return Drama{}, nil, errors.New("HGTV 剧集 ID 无效")
 	}
 	result, err := d.hongguoAppRequest(ctx, http.MethodPost, "/novel/player/video_detail/v1/", nil, map[string]any{"series_id": sourceID})
 	if err != nil {
+		if drama, chapters, webErr := d.fetchHGTVWebDetail(ctx, sourceID); webErr == nil {
+			return drama, chapters, nil
+		}
 		return Drama{}, nil, err
 	}
 	detail := nestedMap(result, "data", "video_data")
@@ -262,6 +327,9 @@ func (d *Downloader) fetchHGTVDetail(ctx context.Context, sourceID string) (Dram
 	}
 	total, _ := strconv.Atoi(mapString(detail, "episode_cnt"))
 	if len(chapters) == 0 || total > len(chapters) {
+		if drama, chapters, webErr := d.fetchHGTVWebDetail(ctx, sourceID); webErr == nil {
+			return drama, chapters, nil
+		}
 		return Drama{}, nil, errors.New("HGTV App 未返回完整分集")
 	}
 	sort.Slice(chapters, func(i, j int) bool {

@@ -2,13 +2,12 @@ import 'package:flutter/material.dart';
 
 import 'app_build.dart';
 
-enum HomeZone { drama, vod, midnight, live, novel, comic, audio }
+enum HomeZone { drama, vod, midnight, live, audio }
 
 enum AppDrawerTool {
   sources,
   settings,
   player,
-  builtinSites,
   appUpdate,
   importCenter,
   contentSources,
@@ -188,18 +187,6 @@ class AppDrawer extends StatelessWidget {
           ),
           _sectionTitle('阅读'),
           _moduleTile(
-            icon: Icons.menu_book_rounded,
-            label: '小说',
-            selected: zone == HomeZone.novel,
-            onTap: () => onZoneSelected(HomeZone.novel),
-          ),
-          _moduleTile(
-            icon: Icons.image_rounded,
-            label: '漫画',
-            selected: zone == HomeZone.comic,
-            onTap: () => onZoneSelected(HomeZone.comic),
-          ),
-          _moduleTile(
             icon: Icons.headphones_rounded,
             label: '听书',
             selected: zone == HomeZone.audio,
@@ -234,11 +221,7 @@ class AppDrawer extends StatelessWidget {
             label: '播放器选择',
             onTap: () => onTool(AppDrawerTool.player),
           ),
-          _toolTile(
-            icon: Icons.web_asset_rounded,
-            label: '内置站管理',
-            onTap: () => onTool(AppDrawerTool.builtinSites),
-          ),
+
           InkWell(
             onTap: () => onTool(AppDrawerTool.appUpdate),
             onDoubleTap: onVersionDoubleTap,

@@ -112,12 +112,35 @@ class MarketClient {
     return bytes;
   }
 
+  Future<String> fetchManifestText(MarketItem item) async {
+    final bytes = await _fetchBytes(item.url);
+    return utf8.decode(bytes, allowMalformed: true);
+  }
+
   Future<String> _fetchText(String url) async {
     final bytes = await _fetchBytes(url);
     return utf8.decode(bytes, allowMalformed: true);
   }
 
+  static String? directFallbackUrl(String url) {
+    const prefix = 'https://ghfast.top/https://';
+    if (url.startsWith(prefix)) {
+      return 'https://${url.substring(prefix.length)}';
+    }
+    return null;
+  }
+
   Future<List<int>> _fetchBytes(String url) async {
+    try {
+      return await _fetchBytesOnce(url);
+    } catch (_) {
+      final fallback = directFallbackUrl(url);
+      if (fallback == null) rethrow;
+      return await _fetchBytesOnce(fallback);
+    }
+  }
+
+  Future<List<int>> _fetchBytesOnce(String url) async {
     final uri = Uri.tryParse(url);
     if (uri == null || !uri.hasScheme || uri.scheme != 'https') {
       throw const FormatException('market url must be an https address');
@@ -145,7 +168,7 @@ class MarketSettings {
   MarketSettings(this.preferences);
 
   static const defaultUrl =
-      'https://ghfast.top/https://raw.githubusercontent.com/ant-video/ant-video/refs/heads/main/mini-app/market/market.json';
+      'https://raw.githubusercontent.com/ant-video/ant-video/refs/heads/main/mini-app/market/market.json';
   static const _key = 'miniapp.marketUrl';
   static const _installedMapKey = 'miniapp.marketInstalledMap';
 

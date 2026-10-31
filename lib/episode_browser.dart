@@ -100,8 +100,7 @@ class EpisodeRangeBar extends StatelessWidget {
             ],
           ),
           if (count > 1)
-            if (AppLayout.isTelevision(context))
-              Row(
+            Row(
               children: [
                 IconButton(
                   tooltip: '上一组选集',
@@ -139,27 +138,7 @@ class EpisodeRangeBar extends StatelessWidget {
                   icon: const Icon(Icons.chevron_right_rounded),
                 ),
               ],
-            )
-            else
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    for (var i = 0; i < count; i++)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: ChoiceChip(
-                          key: ValueKey('episode-range-$i'),
-                          label: Text(
-                            '${episodes[i * episodePageSize].number}-${episodes[min((i + 1) * episodePageSize, episodes.length) - 1].number}',
-                          ),
-                          selected: i == page,
-                          onSelected: (_) => onLocate(i * episodePageSize),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
+            ),
         ],
       ),
     );

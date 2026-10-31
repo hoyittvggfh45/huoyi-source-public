@@ -33,7 +33,6 @@ class ZoneSettingsScreen extends StatelessWidget {
     HomeZone.midnight => '午夜设置',
     HomeZone.live => '直播设置',
     HomeZone.audio => '听书设置',
-    _ => '设置',
   };
 
   Future<void> _push(BuildContext context, Widget page) =>
@@ -89,8 +88,6 @@ class ZoneSettingsScreen extends StatelessWidget {
             onTap: () => Navigator.pop(context),
           ),
         );
-      case HomeZone.novel:
-      case HomeZone.comic:
       case HomeZone.audio:
         break;
     }

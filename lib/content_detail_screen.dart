@@ -4,7 +4,6 @@ import 'app_page_route.dart';
 
 import 'content_audio_player.dart';
 import 'content_models.dart';
-import 'content_readers.dart';
 import 'core_bridge.dart';
 
 /// 三区共用详情页：封面/简介/说明 + 章节（集数）列表，
@@ -70,19 +69,12 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
   void _openChapter(int index) {
     final detail = _detail;
     if (detail == null) return;
-    final page = widget.source.section == ContentSection.audio
-        ? ContentAudioPlayerScreen(
-            source: widget.source,
-            book: detail.book,
-            chapters: detail.chapters,
-            initialIndex: index,
-          )
-        : ComicReaderScreen(
-            source: widget.source,
-            book: detail.book,
-            chapters: detail.chapters,
-            initialIndex: index,
-          );
+    final page = ContentAudioPlayerScreen(
+      source: widget.source,
+      book: detail.book,
+      chapters: detail.chapters,
+      initialIndex: index,
+    );
     Navigator.of(context).push(appPageRoute(builder: (_) => page));
   }
 

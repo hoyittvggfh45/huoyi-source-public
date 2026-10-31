@@ -122,36 +122,6 @@ class LiveSource {
       greenMode && !_greenCategory.hasMatch(name);
 
   /// 在既有内置源之外追加一个源，仅用于验证绿色模式的整源过滤。
-  static List<({String title, List<LiveSource> sources})> pickerGroups(
-    List<LiveSource> sources,
-  ) {
-    final regular = <LiveSource>[];
-    final adult = <LiveSource>[];
-    final imported = <LiveSource>[];
-    for (final source in sources) {
-      if (!source.builtin) {
-        imported.add(source);
-      } else if (source.adult) {
-        adult.add(source);
-      } else {
-        regular.add(source);
-      }
-    }
-    final titled =
-        [regular, adult, imported].where((item) => item.isNotEmpty).length > 1;
-    final groups = <({String title, List<LiveSource> sources})>[];
-    if (regular.isNotEmpty) {
-      groups.add((title: titled ? '平台源' : '', sources: regular));
-    }
-    if (adult.isNotEmpty) {
-      groups.add((title: '成人直播间', sources: adult));
-    }
-    if (imported.isNotEmpty) {
-      groups.add((title: titled ? '导入源' : '', sources: imported));
-    }
-    return groups;
-  }
-
   static List<LiveSource> spreadWith(
     LiveSource extra, {
     required bool greenMode,

@@ -21,34 +21,22 @@ void main() {
     expect(ContentRegistry.isKnownId('not-a-source'), isFalse);
   });
 
-  test('comic zone exposes its built-in sources for management', () {
-    expect(
-      ContentRegistry.sourcesFor(ContentSection.comic),
-      isNotEmpty,
-      reason: ContentSection.comic.title,
-    );
-    expect(
-      ContentRegistry.sourcesFor(ContentSection.audio),
-      isEmpty,
-      reason: '听书已删，改走开源阅读',
-    );
-    expect(
-      ContentRegistry.sourcesFor(ContentSection.novel),
-      isEmpty,
-      reason: '小说已删，改走开源阅读',
-    );
+  test('audio zone exposes its built-in source for management', () {
+    expect(ContentRegistry.sourcesFor(ContentSection.audio).map((s) => s.id), [
+      'tingshuwang',
+    ]);
   });
 
   test('hidden content ids are honored by siteVisible', () async {
     SharedPreferences.setMockInitialValues({});
     final store = LocalStore(await SharedPreferences.getInstance());
-    expect(store.siteVisible('dongmanla'), isTrue);
+    expect(store.siteVisible('tingshuwang'), isTrue);
     expect(store.siteVisible('hongguo'), isTrue);
     store.dispose();
   });
 
   test('zone binding provider filters hidden sources live', () {
-    final hidden = <String>{'dongmanla'};
+    final hidden = <String>{'tingshuwang'};
     final binding = ContentZoneBinding(
       sourcesProvider: (section) => [
         for (final source in ContentRegistry.sourcesFor(section))
@@ -57,15 +45,14 @@ void main() {
       readPersisted: (_) => null,
       writePersisted: (_, _) async {},
     );
-    final comicIds = [
-      for (final source in binding.sourcesFor(ContentSection.comic)) source.id,
+    final audioIds = [
+      for (final source in binding.sourcesFor(ContentSection.audio)) source.id,
     ];
-    expect(comicIds, isNot(contains('dongmanla')));
-    expect(comicIds, contains('mangadex'));
+    expect(audioIds, isNot(contains('tingshuwang')));
     hidden.clear();
     final restoredIds = [
-      for (final source in binding.sourcesFor(ContentSection.comic)) source.id,
+      for (final source in binding.sourcesFor(ContentSection.audio)) source.id,
     ];
-    expect(restoredIds, contains('dongmanla'));
+    expect(restoredIds, contains('tingshuwang'));
   });
 }

@@ -915,11 +915,6 @@ func (c *legadoJSCtx) evalList(body, rule string) []string {
 		if v == "" {
 			return nil
 		}
-		if strings.HasPrefix(strings.TrimSpace(v), "[") {
-			if blocks := legadoJSONListBlocks(v, "$[*]"); len(blocks) > 0 {
-				return blocks
-			}
-		}
 		return []string{v}
 	}
 	return nil

@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 
 import 'search_input.dart';
 import 'app_layout.dart';
@@ -425,7 +424,6 @@ class RemoteGridState extends State<RemoteGrid> {
     onKeyEvent: _key,
     child: CustomScrollView(
       controller: _scroll,
-      scrollCacheExtent: const ScrollCacheExtent.pixels(800),
       slivers: [
         SliverPadding(
           padding: widget.padding,
@@ -908,7 +906,6 @@ class RemoteEpisodeButton extends StatelessWidget {
     this.vip = false,
     this.current = false,
     this.compact = false,
-    this.selectedForegroundColor,
     this.focusNode,
     this.onFocus,
   });
@@ -916,7 +913,6 @@ class RemoteEpisodeButton extends StatelessWidget {
   final bool vip;
   final bool current;
   final bool compact;
-  final Color? selectedForegroundColor;
   final VoidCallback onPressed;
   final FocusNode? focusNode;
   final VoidCallback? onFocus;
@@ -944,7 +940,6 @@ class RemoteEpisodeButton extends StatelessWidget {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: current ? FontWeight.w700 : FontWeight.w500,
-                color: current ? selectedForegroundColor : null,
               ),
             ),
           ),

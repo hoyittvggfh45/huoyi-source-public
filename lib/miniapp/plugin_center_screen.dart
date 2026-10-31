@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import '../app_page_route.dart';
 
@@ -45,31 +44,6 @@ class _PluginCenterScreenState extends State<PluginCenterScreen> {
     _marketSettings = MarketSettings(widget.store.preferences);
     _marketUrl.text = _marketSettings.url;
     _refresh();
-    unawaited(_loadBuiltinMarket());
-  }
-
-  Future<List<MarketItem>?> _builtinMarketItems() async {
-    try {
-      final text = await rootBundle.loadString(
-        'assets/miniapps/market/market.json',
-      );
-      return parseMarketJson(jsonDecode(text));
-    } catch (_) {
-      return null;
-    }
-  }
-
-  Future<void> _loadBuiltinMarket() async {
-    final items = await _builtinMarketItems();
-    if (!mounted) return;
-    setState(() {
-      if (items != null) {
-        _marketItems = items;
-        _marketError = null;
-      } else if (_marketItems.isEmpty) {
-        _marketError = '内置市场数据读取失败';
-      }
-    });
   }
 
   @override
@@ -274,28 +248,25 @@ class _PluginCenterScreenState extends State<PluginCenterScreen> {
       });
     } catch (error) {
       if (!mounted) return;
-      final fallback = await _builtinMarketItems();
-      if (!mounted) return;
       setState(() {
-        if (fallback != null) _marketItems = fallback;
-        _marketError = fallback == null
-            ? error.toString()
-            : '远端加载失败，已显示内置市场：$error';
+        _marketError = error.toString();
         _marketLoading = false;
       });
     }
   }
 
   Future<void> _installMarketItem(MarketItem item) async {
-    if (!item.isZip) {
-      _showMessage('该条目为在线站点型，当前版本仅支持压缩包安装');
-      return;
-    }
     setState(() => _busy = true);
     try {
-      final bytes = await MarketClient().downloadPackage(item);
       final installer = _installer ?? MiniAppInstaller(await _root());
-      final manifest = await installer.installFromZip(bytes);
+      final MiniAppManifest manifest;
+      if (item.isZip) {
+        final bytes = await MarketClient().downloadPackage(item);
+        manifest = await installer.installFromZip(bytes);
+      } else {
+        final manifestText = await MarketClient().fetchManifestText(item);
+        manifest = await installer.installManifest(manifestText);
+      }
       await _marketSettings.recordInstalled(item.appId, manifest.id);
       _showMessage(_installedMessage(manifest));
       await _refresh();
@@ -307,9 +278,8 @@ class _PluginCenterScreenState extends State<PluginCenterScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -412,9 +382,8 @@ class _PluginCenterScreenState extends State<PluginCenterScreen> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.tertiary,
-                  ),
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: Theme.of(context).colorScheme.tertiary),
                 ),
             ],
           ),
@@ -461,10 +430,10 @@ class _PluginCenterScreenState extends State<PluginCenterScreen> {
             style: TextStyle(color: Theme.of(context).colorScheme.error),
           ),
         ],
-        if (!_marketLoading) ...[
+        if (!_marketLoading && _marketError == null) ...[
           const SizedBox(height: 12),
           if (_marketItems.isEmpty)
-            const Text('暂无市场条目')
+            const Text('点加载拉取市场条目')
           else
             for (final item in _marketItems)
               _marketCard(item, isInstalled(item)),

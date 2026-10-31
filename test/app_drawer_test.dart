@@ -60,10 +60,8 @@ void main() {
     expect(zones, [HomeZone.vod, HomeZone.midnight]);
     await tester.tap(find.text('直播'));
     expect(zones, [HomeZone.vod, HomeZone.midnight, HomeZone.live]);
-    await tester.tap(find.text('小说'));
-    expect(zones.last, HomeZone.novel);
-    await tester.tap(find.text('漫画'));
-    expect(zones.last, HomeZone.comic);
+    await tester.tap(find.text('听书'));
+    expect(zones.last, HomeZone.audio);
     await tester.tap(find.text('蚂蚁'));
     expect(miniApp, 1);
     await tester.tap(find.text('一起看房间'));
@@ -85,7 +83,6 @@ void main() {
       '内容源管理': AppDrawerTool.contentSources,
       '设置': AppDrawerTool.settings,
       '播放器选择': AppDrawerTool.player,
-      '内置站管理': AppDrawerTool.builtinSites,
       '软件更新': AppDrawerTool.appUpdate,
       '导入中心': AppDrawerTool.importCenter,
       '解析接口': AppDrawerTool.parse,
@@ -126,8 +123,6 @@ void main() {
       '午夜区',
       '直播',
       '一起看房间',
-      '小说',
-      '漫画',
       '听书',
       '蚂蚁',
       '站源管理',

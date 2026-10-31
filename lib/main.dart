@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'core_bridge.dart';
+import 'app_update.dart';
 import 'app_layout.dart';
 import 'app_orientation.dart';
 import 'app_theme.dart';
@@ -245,6 +246,7 @@ class _AppBootstrapState extends State<AppBootstrap>
       unawaited(ensureHongguoAccountLoaded());
       await _refreshDevice();
       await repository.initialize();
+      unawaited(AppUpdateChecker.maybeCheckSilently());
       unawaited(ProxyKernelService.maybeAutostart());
       if (mounted) {
         setState(() {

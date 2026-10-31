@@ -1,8 +1,4 @@
-import 'dart:convert';
-
 import 'package:duanju_app/content_audio.dart';
-import 'package:duanju_app/legado_builtin_data.dart';
-import 'package:duanju_app/legado_source.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const _categoryIndex = '''
@@ -95,41 +91,4 @@ void main() {
       );
     });
   });
-
-  group('内置规则书源种子', () {
-    test('216 条全带名，搜索地址缺失者仅限猫果且带发现地址', () {
-      final sources = parseLegadoSources(builtinLegadoRulesJson);
-      expect(sources, hasLength(216));
-      for (final source in sources) {
-        expect(source.name, isNotEmpty);
-        if (source.searchUrl.isEmpty) {
-          expect(source.name, '猫果');
-          expect(source.exploreUrl, isNotEmpty);
-        }
-      }
-    });
-
-    test('成人分组现状：🔞 分组仅 2 条旧补，新增 5 条以 R18 分组标记', () {
-      final decoded = jsonDecode(builtinLegadoRulesJson);
-      expect(decoded, isA<List>());
-      final flagged = <String>[];
-      final r18 = <String>[];
-      for (final item in decoded as List) {
-        final map = item as Map;
-        final name = '${map['bookSourceName']}';
-        final group = '${map['bookSourceGroup'] ?? ''}';
-        if (group.contains('🔞')) flagged.add(name);
-        if (group.contains('R18')) r18.add(name);
-      }
-      expect(flagged, ['啵乐屋🔞', '🔞 夜色韩漫']);
-      expect(r18, [
-        'XiuRenBox 秀人网写真',
-        '美人图 写真美图',
-        'MMRGB 魅色MM',
-        '漫小肆韓漫',
-        '4KHD 高清写真',
-      ]);
-    });
-  });
-
 }
