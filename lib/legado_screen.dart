@@ -10,9 +10,10 @@ import 'legado_source.dart';
 import 'local_book_store.dart';
 
 class LegadoScreen extends StatefulWidget {
-  const LegadoScreen({super.key, required this.repository});
+  const LegadoScreen({super.key, required this.repository, this.initialComic = false});
 
   final AppRepository repository;
+  final bool initialComic;
 
   @override
   State<LegadoScreen> createState() => _LegadoScreenState();
@@ -54,7 +55,10 @@ class _LegadoScreenState extends State<LegadoScreen> {
 
   Future<void> _refresh() async {
     await LegadoStore.seedBuiltin();
-    final sources = await LegadoStore.load();
+    final allSources = await LegadoStore.load();
+    final sources = widget.initialComic
+        ? [for (final source in allSources) if (source.type == 2) source]
+        : allSources;
     final localBooks = await LocalBookStore.load();
     if (mounted) {
       setState(() {

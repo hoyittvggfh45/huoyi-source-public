@@ -528,6 +528,17 @@ class LocalStore extends ChangeNotifier {
     return {'light', 'dark', 'system'}.contains(value) ? value! : 'system';
   }
 
+  String get hongguotvUi {
+    final value =
+        _configurationError == null ? _string(_key('hongguotvUi')) : null;
+    return {'existing', 'vertical', 'official'}.contains(value)
+        ? value!
+        : 'existing';
+  }
+
+  Future<void> setHongguotvUi(String value) =>
+      _setting(_key('hongguotvUi'), value);
+
   String get source {
     if (locked) return '';
     final visible = visibleSources;

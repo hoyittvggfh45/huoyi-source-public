@@ -665,6 +665,29 @@ class _SourcesScreenState extends State<SourcesScreen> {
                       ],
                     ),
                   ),
+                if (health.state == 'failed' &&
+                    !widget.store.hiddenSites.contains(source.id))
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: OutlinedButton.icon(
+                      key: ValueKey('block-${source.id}'),
+                      onPressed: () async {
+                        await saveUserChange(
+                          context,
+                          () => widget.store.setSiteVisible(source.id, false),
+                        );
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('已屏蔽，可在源显示列表恢复'),
+                            ),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.block_outlined),
+                      label: const Text('屏蔽该站源'),
+                    ),
+                  ),
               ],
             ] else ...[
               const SizedBox(height: 12),

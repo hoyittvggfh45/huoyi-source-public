@@ -99,7 +99,11 @@ class SourceSite {
   bool get isDramaSection => section != sectionVideo;
   String get coreSlotId => slotId.isEmpty ? id : slotId;
   bool get onlineSearch =>
-      isVideoSection || id == 'hongguo' || pagedSearch || duanjuOnlineSearch;
+      isVideoSection ||
+      id == 'hongguo' ||
+      id == 'hongguotv' ||
+      pagedSearch ||
+      duanjuOnlineSearch;
   bool get duanjuOnlineSearch => const {
     'yaguo',
     'maoguo',
@@ -151,6 +155,12 @@ class SourceSite {
     'hongguo',
     '红果',
     '短剧 · 漫剧 · AI 剧',
+    section: sectionDrama,
+  );
+  static const hongguotv = SourceSite(
+    'hongguotv',
+    '红果TV',
+    '短剧 · 漫剧 · AI 剧 · 榜单',
     section: sectionDrama,
   );
   static const dsd = SourceSite('dsd', '帝果', '分类视频 · 在线搜索');
@@ -736,6 +746,7 @@ class SourceSite {
   ];
   static const knownValues = [
     hongguo,
+    hongguotv,
     SourceSite('hgtv', 'HGTV', '短剧 · 漫剧 · AI 剧', section: sectionDrama),
     ikanbot,
     a123,
@@ -744,6 +755,12 @@ class SourceSite {
     SourceSite('huangdou', '黄豆', '精选短剧', section: sectionDrama),
     SourceSite('huangju', '剧果', '热门 · 最新 · 分类短剧', section: sectionDrama),
     SourceSite('yeguo', '野果', '分类短剧 · 在线搜索', section: sectionDrama),
+    SourceSite('chengguodj', '橙果', '短剧 · 在线搜索', section: sectionDrama),
+    SourceSite('pornhub', 'Pornhub', '视频 · 分类', section: sectionDrama),
+    SourceSite('redtube', 'Redtube', '视频 · 分类', section: sectionDrama),
+    SourceSite('yangguo', '艳果', '视频 · 分类 · 搜索', section: sectionDrama),
+    SourceSite('fengguo', 'Fengguo', '视频 · 分类 · 搜索', section: sectionDrama),
+    SourceSite('youtube', 'YouTube', '视频 · 分类 · 搜索', section: sectionDrama),
     dsd,
     SourceSite('huangguo-video', '黄果视频', '视频剧集'),
     SourceSite('huangguoai', '黄果 AI', 'AI 短剧'),
@@ -753,6 +770,7 @@ class SourceSite {
   ];
   static const allValues = [
     hongguo,
+    hongguotv,
     SourceSite('hgtv', 'HGTV', '短剧 · 漫剧 · AI 剧', section: sectionDrama),
     ikanbot,
     a123,
@@ -761,6 +779,12 @@ class SourceSite {
     SourceSite('huangdou', '黄豆', '精选短剧', section: sectionDrama),
     SourceSite('huangju', '剧果', '热门 · 最新 · 分类短剧', section: sectionDrama),
     SourceSite('yeguo', '野果', '分类短剧 · 在线搜索', section: sectionDrama),
+    SourceSite('chengguodj', '橙果', '短剧 · 在线搜索', section: sectionDrama),
+    SourceSite('pornhub', 'Pornhub', '视频 · 分类', section: sectionDrama),
+    SourceSite('redtube', 'Redtube', '视频 · 分类', section: sectionDrama),
+    SourceSite('yangguo', '艳果', '视频 · 分类 · 搜索', section: sectionDrama),
+    SourceSite('fengguo', 'Fengguo', '视频 · 分类 · 搜索', section: sectionDrama),
+    SourceSite('youtube', 'YouTube', '视频 · 分类 · 搜索', section: sectionDrama),
     dsd,
     SourceSite('huangguo-video', '黄果视频', '视频剧集'),
     SourceSite('huangguoai', '黄果 AI', 'AI 短剧'),

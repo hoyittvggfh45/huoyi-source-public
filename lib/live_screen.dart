@@ -350,33 +350,16 @@ class _LiveScreenState extends State<LiveScreen> {
 
   Future<void> _pickSource() async {
     final sources = _sources;
-    final builtin = [
-      for (final source in sources)
-        if (source.builtin) source,
-    ];
-    final imported = [
-      for (final source in sources)
-        if (!source.builtin) source,
-    ];
-    final grouped = builtin.isNotEmpty && imported.isNotEmpty;
     final picked = await showSitePickerDialog(
       context,
       sectionName: '直播',
       currentId: _source?.id ?? '',
       groups: [
-        if (builtin.isNotEmpty)
+        for (final group in LiveSource.pickerGroups(sources))
           SourcePickerGroup(
-            title: grouped ? '平台源' : '',
+            title: group.title,
             entries: [
-              for (final source in builtin)
-                SourcePickerEntry(id: source.id, name: source.name),
-            ],
-          ),
-        if (imported.isNotEmpty)
-          SourcePickerGroup(
-            title: grouped ? '导入源' : '',
-            entries: [
-              for (final source in imported)
+              for (final source in group.sources)
                 SourcePickerEntry(id: source.id, name: source.name),
             ],
           ),

@@ -36,9 +36,14 @@ import 'catalog_sort_sheet.dart';
 import 'recommendations_screen.dart';
 import 'rankings_screen.dart';
 import 'detail_screen.dart';
+import 'hongguotv_official_screen.dart';
+import 'hongguotv_vertical_screen.dart';
 import 'folder_catalog_screen.dart';
 import 'fullscreen_feed_screen.dart';
 import 'drama_style_home.dart';
+import 'drama_theater_screen.dart';
+import 'drama_page_prefetcher.dart';
+import 'video_station_switch_dialog.dart';
 import 'import_file_store.dart';
 import 'imported_site_record.dart';
 import 'py_bridge.dart';
@@ -128,6 +133,9 @@ class _HomeScreenState extends State<HomeScreen> {
   final _zoneSourceIds = <HomeZone, String>{};
   final _sectionSnapshots = <String, _SectionSnapshot>{};
   final _sectionFetchedAt = <String, DateTime>{};
+  final _dramaPrefetcher = DramaPagePrefetcher();
+  String _dramaPrefetchKey = '';
+  bool _dramaPrefetchPending = false;
   List<Drama>? _visibleCache;
   String _visibleCacheKey = '';
   List<String>? _level2TagsCache;
@@ -427,7 +435,21 @@ class _HomeScreenState extends State<HomeScreen> {
       ? '点播'
       : '短剧';
 
+  Future<String?> _pickVideoStation() {
+    return showVideoStationSwitchDialog(
+      context,
+      currentId: _allSources ? _allSourcesEntryId : _source.id,
+      hiddenIds: widget.store.hiddenSites,
+    );
+  }
+
   Future<void> _pickSource({bool editMode = false}) async {
+    if (_zone == HomeZone.drama && !editMode) {
+      final picked = await _pickVideoStation();
+      if (picked == null || !mounted) return;
+      _applySourcePick(picked);
+      return;
+    }
     final picked = await showSitePickerDialog(
       context,
       sectionName: _sourcePickerSectionName(),
@@ -542,7 +564,13 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
     final site = _sectionSources.where((site) => site.id == picked).firstOrNull;
-    if (site != null) _changeSource(site);
+    if (site != null) {
+      _changeSource(site);
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('该站源尚未接通，播放待协议证据')),
+      );
+    }
   }
 
   void _changeFilter(String groupKey, String optionId) {
@@ -1023,6 +1051,7 @@ class _HomeScreenState extends State<HomeScreen> {
       unawaited(
         saveUserChange(context, () => widget.store.refreshDramas(result.items)),
       );
+      _maybeStartDramaPrefetch();
     }
 
     try {
@@ -1051,6 +1080,33 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _changeSource(SourceSite source, {bool allSources = false}) {
+    if (source.id == hongguotvSourceId && !allSources) {
+      final variant = widget.store.hongguotvUi;
+      if (variant == 'vertical') {
+        Navigator.push<void>(
+          context,
+          MaterialPageRoute(
+            builder: (_) => HongguotvVerticalScreen(
+              repository: widget.repository,
+              store: widget.store,
+            ),
+          ),
+        );
+        return;
+      }
+      if (variant == 'official') {
+        Navigator.push<void>(
+          context,
+          MaterialPageRoute(
+            builder: (_) => HongguotvOfficialScreen(
+              repository: widget.repository,
+              store: widget.store,
+            ),
+          ),
+        );
+        return;
+      }
+    }
     if (_source.id == source.id && _allSources == allSources) {
       return;
     }
@@ -1457,6 +1513,71 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  void _openTheater() {
+    unawaited(
+      Navigator.of(context).push<void>(
+        appPageRoute<void>(
+          builder: (_) => DramaTheaterScreen(
+            dramas: List.of(_visible),
+            repository: widget.repository,
+            categories: _categories,
+            onOpenDrama: _openDrama,
+            onOpenFeed: _openFullscreenFeed,
+            onSearchSubmitted: _submitSearch,
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _dramaPrefetchKeyNow() {
+    final filters = _selectedFilters.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+    return '$_catalogSection|${_effectiveGroup.id}|$_effectiveCategory|'
+        '${_source.id}|$_allSources|$_submittedQuery|'
+        '${filters.map((entry) => '${entry.key}=${entry.value}').join(',')}';
+  }
+
+  void _maybeStartDramaPrefetch() {
+    if (!mounted ||
+        _catalogSection != SourceSite.sectionDrama ||
+        !_hasMore ||
+        !widget.store.playbackPreferences.preload) {
+      return;
+    }
+    _dramaPrefetchKey = _dramaPrefetchKeyNow();
+    if (_dramaPrefetcher.running) {
+      _dramaPrefetchPending = true;
+      return;
+    }
+    unawaited(
+      _dramaPrefetcher
+          .run(
+            isCurrent: () =>
+                mounted &&
+                _catalogSection == SourceSite.sectionDrama &&
+                _hasMore &&
+                widget.store.playbackPreferences.preload &&
+                _dramaPrefetchKeyNow() == _dramaPrefetchKey,
+            isBusy: () => _loading || _loadingMore,
+            loadMore: () async {
+              if (!mounted) return false;
+              final before = _items.length;
+              await _load(more: true, silent: true);
+              if (!mounted) return false;
+              return _items.length > before;
+            },
+          )
+          .then((_) {
+            if (!mounted) return;
+            if (_dramaPrefetchPending) {
+              _dramaPrefetchPending = false;
+              _maybeStartDramaPrefetch();
+            }
+          }),
     );
   }
 
@@ -2017,6 +2138,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   repository: widget.repository,
                   onOpenDrama: _openDrama,
                   onOpenFeed: _openFullscreenFeed,
+                  onOpenTheater: _openTheater,
                   onPickSource: () => unawaited(_pickSource()),
                   sourceLabel: '${_group.name} (${_group.sources.length})',
                   feedEnabled: _visible.isNotEmpty,
@@ -2394,7 +2516,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return LegadoScreen(repository: widget.repository);
     }
     if (_zone == HomeZone.comic) {
-      return const ContentZoneScreen(section: ContentSection.comic);
+      return LegadoScreen(repository: widget.repository, initialComic: true);
     }
     if (_zone == HomeZone.audio) {
       return const ContentZoneScreen(section: ContentSection.audio);

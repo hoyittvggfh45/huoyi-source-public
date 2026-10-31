@@ -13,6 +13,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'core_bridge.dart';
+import 'hongguotv_vertical_screen.dart';
 import 'account_screen.dart';
 import 'hongguo_account.dart';
 import 'app_update.dart';
@@ -35,8 +36,8 @@ import 'remote_widgets.dart';
 import 'sources_screen.dart';
 import 'widgets.dart';
 import 'resource_settings_screen.dart';
+import 'lab_screen.dart';
 import 'lan_screen.dart';
-import 'proxy_kernel_screen.dart';
 import 'rule_editor_screen.dart';
 import 'drama_settings.dart';
 import 'ui_style.dart';
@@ -489,6 +490,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
           ),
+          if (labSupported)
+            ListTile(
+              key: const ValueKey('lab-entry'),
+              leading: const Icon(Icons.science_outlined),
+              title: const Text('实验室'),
+              subtitle: const Text('Python 终端'),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => Navigator.push(
+                context,
+                appPageRoute<void>(
+                  builder: (_) => LabScreen(repository: widget.repository),
+                ),
+              ),
+            ),
           ListTile(
             leading: const Icon(Icons.video_settings_outlined),
             title: const Text('播放器选择'),
@@ -499,6 +514,50 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 builder: (_) => PlayerPickerScreen(store: widget.store),
               ),
             ),
+          ),
+          ListTile(
+            key: const ValueKey('hongguotv-ui-entry'),
+            leading: const Icon(Icons.style_outlined),
+            title: const Text('红果TV 界面'),
+            subtitle: Text(hongguotvUiLabel(widget.store.hongguotvUi)),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () async {
+              final selected = await showDialog<String>(
+                context: context,
+                builder: (context) => SimpleDialog(
+                  title: const Text('红果TV 界面'),
+                  children: [
+                    RadioGroup<String>(
+                      groupValue: widget.store.hongguotvUi,
+                      onChanged: (value) => Navigator.pop(context, value),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (final variant in const [
+                            'existing',
+                            'vertical',
+                            'official',
+                          ])
+                            RadioListTile<String>(
+                              value: variant,
+                              title: Text(hongguotvUiLabel(variant)),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+              if (selected != null && mounted) {
+                await saveUserChange(
+                  context,
+                  () => widget.store.setHongguotvUi(selected),
+                );
+                if (mounted) {
+                  setState(() {});
+                }
+              }
+            },
           ),
           ListTile(
             key: const ValueKey('builtin-sites-entry'),
@@ -525,20 +584,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onTap: () => Navigator.push(
               context,
               appPageRoute<void>(builder: (_) => const AppUpdateScreen()),
-            ),
-          ),
-          ListTile(
-            key: const ValueKey('proxy-kernel-entry'),
-            leading: const Icon(Icons.shield_outlined),
-            title: const Text('代理内核'),
-            subtitle: const Text('mihomo 本地代理：内置核、更新内核、订阅、选节点、测速、自启'),
-            trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: () => Navigator.push(
-              context,
-              appPageRoute<void>(
-                builder: (_) =>
-                    ProxyKernelScreen(repository: widget.repository),
-              ),
             ),
           ),
           ListTile(
@@ -1048,6 +1093,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: '蜘蛛规则编辑器',
             onTap: () => _push(RuleEditorScreen(repository: widget.repository)),
           ),
+          if (labSupported)
+            _glassRow(
+              key: const ValueKey('lab-entry'),
+              icon: Icons.science_outlined,
+              color: const Color(0xFF7D7AFF),
+              title: '实验室',
+              detail: 'Python 终端',
+              onTap: () => _push(LabScreen(repository: widget.repository)),
+            ),
           _glassRow(
             icon: LucideIcons.clapperboard,
             color: const Color(0xFF64D2FF),
@@ -1097,15 +1151,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: '站点验证',
             detail: '浏览器过盾回填',
             onTap: () => openClearanceFlow(context, widget.repository),
-          ),
-          _glassRow(
-            key: const ValueKey('proxy-kernel-entry'),
-            icon: LucideIcons.shield,
-            color: const Color(0xFF5E5CE6),
-            title: '代理内核',
-            detail: 'mihomo 本地代理',
-            onTap: () =>
-                _push(ProxyKernelScreen(repository: widget.repository)),
           ),
           _glassRow(
             key: const ValueKey('theme-setting'),

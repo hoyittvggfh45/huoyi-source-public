@@ -20,6 +20,25 @@ class LegadoSource {
 
   String get id => name.isNotEmpty ? name : url;
 
+  String get exploreUrl {
+    try {
+      final value = jsonDecode(rawJson)['exploreUrl'];
+      return value?.toString() ?? '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  int get type {
+    try {
+      final value = jsonDecode(rawJson)['bookSourceType'];
+      if (value is num) return value.toInt();
+      return int.tryParse(value.toString()) ?? 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
   factory LegadoSource.fromJson(Map<String, dynamic> json) {
     return LegadoSource(
       name: (json['bookSourceName'] ?? '').toString(),
@@ -74,7 +93,7 @@ void _collectLegadoItems(
       dropped.add(
         LegadoDrop(name: source.url, reason: LegadoDrop.reasonMissingName),
       );
-    } else if (source.searchUrl.isEmpty) {
+    } else if (source.searchUrl.isEmpty && source.exploreUrl.isEmpty) {
       dropped.add(
         LegadoDrop(
           name: source.name,
@@ -170,7 +189,7 @@ String legadoCheckReasonText(Map<String, dynamic> check) {
 
 class LegadoStore {
   static const _key = 'legado_sources_v1';
-  static const _seededKey = 'legado_builtin_seeded_v2';
+  static const _seededKey = 'legado_builtin_seeded_v3';
 
   static Future<int> seedBuiltin() async {
     final prefs = await SharedPreferences.getInstance();

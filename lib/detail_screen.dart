@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'app_layout.dart';
+import 'app_gradient.dart';
 import 'atmosphere_background.dart';
 import 'ios_dialogs.dart';
 import 'liquid_glass.dart';
@@ -74,6 +75,7 @@ class _DetailScreenState extends State<DetailScreen> {
   final _detailScroll = ScrollController();
   final _playFocus = FocusNode(debugLabel: 'tv-detail-play');
   bool _initialActionHandled = false;
+  AtmospherePalette? _palette;
   late final int _profileEpoch;
   Widget? get _sourceDiagnostics => widget.repository.supportsSourceManagement
       ? SourceDiagnosticsButton(
@@ -89,6 +91,7 @@ class _DetailScreenState extends State<DetailScreen> {
     _profileEpoch = widget.store.profileEpoch;
     widget.store.addListener(_onStoreChanged);
     _load();
+    _resolvePalette(widget.drama);
   }
 
   @override
@@ -113,6 +116,12 @@ class _DetailScreenState extends State<DetailScreen> {
     if (mounted) {
       setState(() {});
     }
+  }
+
+  Future<void> _resolvePalette(Drama drama) async {
+    final palette = await defaultAtmosphereLoader(widget.repository, drama);
+    if (!mounted) return;
+    setState(() => _palette = palette);
   }
 
   Future<void> _load() async {
@@ -465,14 +474,19 @@ class _DetailScreenState extends State<DetailScreen> {
     final allowed =
         widget.store.profileEpoch == _profileEpoch &&
         widget.store.allowsSource(drama.source);
-    return CallbackShortcuts(
-      bindings: {
+    return Theme(
+      data: gradientDarkThemeData(),
+      child: AppGradientBackground(
+        colors: gradientColorsForPalette(_palette),
+        child: CallbackShortcuts(
+          bindings: {
         const SingleActivator(LogicalKeyboardKey.escape): () =>
             Navigator.of(context).maybePop(),
         const SingleActivator(LogicalKeyboardKey.goBack): () =>
             Navigator.of(context).maybePop(),
       },
       child: Scaffold(
+        backgroundColor: Colors.transparent,
         appBar: AppBar(
           toolbarHeight: television ? 64 : null,
           title: Text(drama.title, overflow: TextOverflow.ellipsis),
@@ -705,6 +719,7 @@ class _DetailScreenState extends State<DetailScreen> {
                   ),
                 ),
               ),
+        ),
       ),
     );
   }
