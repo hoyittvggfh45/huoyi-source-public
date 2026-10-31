@@ -23,15 +23,6 @@ func init() {
 		Search:     jmSearch,
 		Headers:    jmHeaders,
 	}, "javmenu")
-	registerSite("pektino", &siteImpl{
-		Key: "pektino", Name: "🔞Pektino", DefaultCat: "hot", HomeURL: pkHost + "/",
-		Categories: pkCategories,
-		Catalog:    pkCatalog,
-		Detail:     pkDetail,
-		Resolve:    pkResolve,
-		Search:     pkSearch,
-		Headers:    pkHeaders,
-	}, "pektino")
 	registerSite("xszav", &siteImpl{
 		Key: "xszav", Name: "🔞XSZAV", DefaultCat: "japanese", HomeURL: "https://cn.xsz-av.com/",
 		Categories: xsCategories,

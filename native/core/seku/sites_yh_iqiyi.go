@@ -400,18 +400,3 @@ func yhIQYSearch(slot, kw string) ([]interface{}, error) {
 func yhIQYHeaders() map[string]string {
 	return map[string]string{"User-Agent": yhIQYUA}
 }
-
-func init() {
-	registerSite(yhIQYSlot, &siteImpl{
-		Key:        yhIQYSlot,
-		Name:       "🔞快手短视频",
-		DefaultCat: "recommend",
-		HomeURL:    yhIQYBases[0] + "/",
-		Headers:    yhIQYHeaders,
-		Categories: yhIQYCategories,
-		Catalog:    yhIQYCatalog,
-		Detail:     yhIQYDetail,
-		Resolve:    yhIQYResolve,
-		Search:     yhIQYSearch,
-	})
-}

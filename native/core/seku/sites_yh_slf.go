@@ -387,18 +387,3 @@ func yhSLFSearch(slot, kw string) ([]interface{}, error) {
 func yhSLFHeaders() map[string]string {
 	return map[string]string{"User-Agent": yhSLFUA}
 }
-
-func init() {
-	registerSite(yhSLFSlot, &siteImpl{
-		Key:        yhSLFSlot,
-		Name:       "🔞SLF",
-		DefaultCat: "new",
-		HomeURL:    yhSLFBase + "/",
-		Headers:    yhSLFHeaders,
-		Categories: yhSLFCategories,
-		Catalog:    yhSLFCatalog,
-		Detail:     yhSLFDetail,
-		Resolve:    yhSLFResolve,
-		Search:     yhSLFSearch,
-	})
-}

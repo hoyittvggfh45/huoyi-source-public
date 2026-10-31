@@ -668,20 +668,3 @@ func yhNanaSearch(slot, kw string) ([]interface{}, error) {
 	}
 	return out, nil
 }
-
-func init() {
-	registerSite(yhNanaSlot, &siteImpl{
-		Key:        yhNanaSlot,
-		Name:       "🔞娜娜",
-		DefaultCat: "menu:long:0:time:",
-		HomeURL:    "https://public.zhengfengkeji.cn/",
-		Headers:    yhNanaHeaders,
-		Categories: yhNanaCategories,
-		Catalog:    yhNanaCatalog,
-		Detail:     yhNanaDetail,
-		Resolve:    yhNanaResolve,
-		Search:     yhNanaSearch,
-	})
-	// Integration: append "yh_nana" to slotOrder (registry.go tail) and
-	// add the builtin_config entry — see port_out integration notes.
-}

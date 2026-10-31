@@ -74,6 +74,11 @@ class PlayerScreen extends StatefulWidget {
     this.handoff,
     this.queue,
     this.startFullscreen = false,
+    this.embedded = false,
+    this.embeddedFullscreen = false,
+    this.onEmbeddedClose,
+    this.onEmbeddedFullscreen,
+    this.onEmbeddedIndexChanged,
   });
   final DramaDetail detail;
   final int initialIndex;
@@ -86,6 +91,11 @@ class PlayerScreen extends StatefulWidget {
   final LanIncomingPlayback? handoff;
   final PlaybackQueue? queue;
   final bool startFullscreen;
+  final bool embedded;
+  final bool embeddedFullscreen;
+  final VoidCallback? onEmbeddedClose;
+  final VoidCallback? onEmbeddedFullscreen;
+  final ValueChanged<int>? onEmbeddedIndexChanged;
   @visibleForTesting
   final Player Function()? playerFactory;
   @visibleForTesting
@@ -335,7 +345,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       baseSpeed: () => _speed,
       onTogglePlayback: _togglePlayback,
       onSeek: _seekTo,
-      onFullscreen: _rotate,
+      onFullscreen: widget.embedded ? _notifyEmbeddedFullscreen : _rotate,
       onEpisode: (direction) {
         if (widget.detail.episodes.length > 1) {
           final next = _index + direction;
@@ -485,7 +495,7 @@ class _PlayerScreenState extends State<PlayerScreen>
           widget.repository.catalogUpdates.current(widget.detail.drama),
           retryCover: true,
         );
-        unawaited(_applyOrientation());
+        if (!widget.embedded) unawaited(_applyOrientation());
       }
     });
   }
@@ -1239,6 +1249,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       _ => '正在准备播放',
     };
     if (routeSelection != null) loadingMessage = '正在切换播放线路';
+    final previousIndex = _index;
     setState(() {
       _index = index;
       _loading = true;
@@ -1246,6 +1257,9 @@ class _PlayerScreenState extends State<PlayerScreen>
       _localFailure = false;
       _loadingMessage = loadingMessage;
     });
+    if (widget.embedded && previousIndex != index) {
+      widget.onEmbeddedIndexChanged?.call(index);
+    }
     LanController.current?.detachPlayback(_lanIdentity);
     _lanIdentity = Object();
     _attachLanPlayback();
@@ -1571,7 +1585,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   Future<void> _rotate() async {
-    if (_rotating || _television) {
+    if (widget.embedded || _rotating || _television) {
       return;
     }
     final windows = Platform.isWindows;
@@ -1655,8 +1669,20 @@ class _PlayerScreenState extends State<PlayerScreen>
     });
   }
 
+  void _notifyEmbeddedFullscreen() {
+    widget.onEmbeddedFullscreen?.call();
+  }
+
+  void _handleEmbeddedBack() {
+    if (widget.embeddedFullscreen) {
+      widget.onEmbeddedFullscreen?.call();
+    } else {
+      widget.onEmbeddedClose?.call();
+    }
+  }
+
   Future<void> _applyOrientation() async {
-    if (_television || !_mobile || _closed) return;
+    if (widget.embedded || _television || !_mobile || _closed) return;
     final fullscreen = _orientationMode != PlaybackOrientationMode.auto
         ? true
         : _showFullscreen;
@@ -1727,7 +1753,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     int direction,
     Drama target,
   ) async {
-    if (_closed || !mounted) return;
+    if (_closed || !mounted || widget.embedded) return;
     try {
       final detail = await widget.repository.detail(target);
       if (_closed || !mounted) return;
@@ -2154,6 +2180,10 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   void _backToList() {
     if (_closed) return;
+    if (widget.embedded) {
+      _handleEmbeddedBack();
+      return;
+    }
     if (_episodePanelVisible && !_mobile) {
       _toggleEpisodePanel();
       return;
@@ -2266,6 +2296,12 @@ class _PlayerScreenState extends State<PlayerScreen>
   Widget build(BuildContext context) {
     final inherited = Theme.of(context);
     final theme = _television ? televisionTheme(inherited) : inherited;
+    if (widget.embedded) {
+      return Theme(
+        data: theme,
+        child: Focus(focusNode: _playerFocus, child: _videoPane(context)),
+      );
+    }
     return Theme(
       data: theme,
       child: Builder(
@@ -2491,14 +2527,16 @@ class _PlayerScreenState extends State<PlayerScreen>
             enabled: !_loading && _error == null,
             enhancement: _enhancementForUi,
             panelOpen: _panelOpen,
-            fullscreen: _showFullscreen,
+            fullscreen: widget.embedded
+                ? widget.embeddedFullscreen
+                : _showFullscreen,
             pageFullscreen: _pageFullscreen,
             windowFullscreen: _windowFullscreen,
             showOnPlaybackReady: _showControlsOnPlaybackReady,
             title: title,
             onTogglePlayback: _togglePlayback,
             swipeEnabled: _mobile,
-            onFullscreen: _rotate,
+            onFullscreen: widget.embedded ? _notifyEmbeddedFullscreen : _rotate,
             onPageFullscreen: Platform.isWindows ? _togglePageFullscreen : null,
             onExitFullscreen: _backToList,
             onBack: _backToList,
@@ -2602,8 +2640,14 @@ class _PlayerScreenState extends State<PlayerScreen>
                   onCompleted: _onTvboxCompleted,
                   onError: _onTvboxError,
                   onBack: _television ? null : _backToList,
-                  onFullscreen: _television ? null : _rotate,
-                  isFullscreen: _showFullscreen,
+                  onFullscreen: _television
+                      ? null
+                      : widget.embedded
+                      ? _notifyEmbeddedFullscreen
+                      : _rotate,
+                  isFullscreen: widget.embedded
+                      ? widget.embeddedFullscreen
+                      : _showFullscreen,
                 )
               else if (_useMdkCore)
                 MdkVideoPane(
@@ -2617,8 +2661,12 @@ class _PlayerScreenState extends State<PlayerScreen>
                   onCoreTap: _openCoreDialog,
                   title: title,
                   onBack: _backToList,
-                  onFullscreen: _rotate,
-                  isFullscreen: _showFullscreen,
+                  onFullscreen: widget.embedded
+                      ? _notifyEmbeddedFullscreen
+                      : _rotate,
+                  isFullscreen: widget.embedded
+                      ? widget.embeddedFullscreen
+                      : _showFullscreen,
                 )
               else
                 Video(
@@ -3227,7 +3275,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     Drama target, {
     required int episodeIndex,
   }) async {
-    if (_closed) return;
+    if (_closed || widget.embedded) return;
     try {
       final detail = await widget.repository.detail(target);
       if (!mounted || _closed) return;

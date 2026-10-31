@@ -214,15 +214,3 @@ func z2ThdhResolve(slot, rawID string) (map[string]interface{}, error) {
 	}
 	return playResult(u, slot, rawID, z2UA, z2ThdhHosts[0]+"/", format, proto), nil
 }
-
-func init() {
-	registerSite("z2_thdh", &siteImpl{
-		Key: "z2_thdh", Name: "🔞探花短视频", DefaultCat: "latest", HomeURL: z2ThdhHosts[0] + "/",
-		Categories: z2ThdhCategories,
-		Catalog:    z2ThdhCatalog,
-		Detail:     z2ThdhDetail,
-		Resolve:    z2ThdhResolve,
-		Search:     func(slot, kw string) ([]interface{}, error) { return []interface{}{}, nil },
-		Headers:    z2ThdhHeaders,
-	}, "thdh")
-}

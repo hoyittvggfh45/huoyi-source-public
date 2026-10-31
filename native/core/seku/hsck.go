@@ -44,13 +44,39 @@ func hsckCatName(category string) string {
 const hsckHost = "https://hsck123.com"
 const hsckUA = "Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
 
+var hsckHosts = []string{
+	hsckHost,
+	"https://hsck123.25img.com",
+	"https://hsck0.cctv38.com",
+}
+
 func hsckHeaders() map[string]string {
+	return hsckHeadersFor(hsckHost)
+}
+
+func hsckHeadersFor(host string) map[string]string {
 	return map[string]string{
 		"User-Agent":      hsckUA,
 		"Accept":          "text/html,application/xhtml+xml,*/*;q=0.8",
 		"Accept-Language": "zh-CN,zh;q=0.9",
-		"Referer":         hsckHost + "/",
+		"Referer":         host + "/",
 	}
+}
+
+func hsckGet(path string) ([]byte, string, error) {
+	var lastErr error
+	var lastCode int
+	for _, host := range hsckHosts {
+		body, code, _, err := httpGet(host+path, hsckHeadersFor(host))
+		if err == nil && code == 200 {
+			return body, host, nil
+		}
+		if err != nil {
+			lastErr = err
+		}
+		lastCode = code
+	}
+	return nil, "", fmt.Errorf("hsck http %d err %v", lastCode, lastErr)
 }
 
 var (
@@ -95,10 +121,9 @@ func hsckCatalog(slot, category string, page int) ([]interface{}, int, bool, err
 	if page < 1 {
 		page = 1
 	}
-	u := fmt.Sprintf("%s/?type=%s&p=%d", hsckHost, typ, page)
-	body, code, _, err := httpGet(u, hsckHeaders())
-	if err != nil || code != 200 {
-		return nil, 0, false, fmt.Errorf("hsck catalog http %d err %v", code, err)
+	body, _, err := hsckGet(fmt.Sprintf("/?type=%s&p=%d", typ, page))
+	if err != nil {
+		return nil, 0, false, fmt.Errorf("hsck catalog %v", err)
 	}
 	html := string(body)
 	items := hsckParseListAs(slot, html, hsckCatName(category))
@@ -110,20 +135,18 @@ func hsckCatalog(slot, category string, page int) ([]interface{}, int, bool, err
 }
 
 func hsckSearch(slot, kw string, page int) ([]interface{}, int, bool, error) {
-	u := fmt.Sprintf("%s/?p=%d&search2=ndafeoafa&search=%s", hsckHost, page, url.QueryEscape(kw))
-	body, code, _, err := httpGet(u, hsckHeaders())
-	if err != nil || code != 200 {
-		return nil, 0, false, fmt.Errorf("hsck search http %d err %v", code, err)
+	body, _, err := hsckGet(fmt.Sprintf("/?p=%d&search2=ndafeoafa&search=%s", page, url.QueryEscape(kw)))
+	if err != nil {
+		return nil, 0, false, fmt.Errorf("hsck search %v", err)
 	}
 	items := hsckParseListAs(slot, string(body), "搜索")
 	return items, len(items), false, nil
 }
 
-func hsckFetchDetail(rawID string) (title, cover, playURL string, err error) {
-	u := fmt.Sprintf("%s/view/?id=%s", hsckHost, rawID)
-	body, code, _, err := httpGet(u, hsckHeaders())
-	if err != nil || code != 200 {
-		return "", "", "", fmt.Errorf("hsck detail http %d err %v", code, err)
+func hsckFetchDetail(rawID string) (title, cover, playURL, host string, err error) {
+	body, host, err := hsckGet(fmt.Sprintf("/view/?id=%s", rawID))
+	if err != nil {
+		return "", "", "", "", fmt.Errorf("hsck detail %v", err)
 	}
 	html := string(body)
 	if m := hsckTitleRe.FindStringSubmatch(html); m != nil {
@@ -141,11 +164,11 @@ func hsckFetchDetail(rawID string) (title, cover, playURL string, err error) {
 			playURL = m
 		}
 	}
-	return title, cover, playURL, nil
+	return title, cover, playURL, host, nil
 }
 
 func hsckDetail(slot, rawID string) (map[string]interface{}, error) {
-	title, cover, playURL, err := hsckFetchDetail(rawID)
+	title, cover, playURL, _, err := hsckFetchDetail(rawID)
 	if err != nil {
 		return nil, err
 	}
@@ -158,14 +181,17 @@ func hsckDetail(slot, rawID string) (map[string]interface{}, error) {
 }
 
 func hsckResolve(slot, rawID string) (map[string]interface{}, error) {
-	_, _, playURL, err := hsckFetchDetail(rawID)
+	_, _, playURL, host, err := hsckFetchDetail(rawID)
 	if err != nil {
 		return nil, err
 	}
 	if playURL == "" {
 		return nil, fmt.Errorf("no play url")
 	}
-	return playResult(playURL, slot, rawID, hsckUA, hsckHost+"/", "m3u8", "hls"), nil
+	if host == "" {
+		host = hsckHost
+	}
+	return playResult(playURL, slot, rawID, hsckUA, host+"/", "m3u8", "hls"), nil
 }
 
 func playResult(u, prov, rawID, ua, referer, format, protocol string) map[string]interface{} {

@@ -203,7 +203,7 @@ class SourceSite {
     SourceSite(
       'v_xvideos',
       'XVideos',
-      'XVideos · 槽位 ikanbot',
+      'XVideos · 需梯子',
       section: sectionVideo,
       slotId: 'ikanbot',
     ),
@@ -362,13 +362,6 @@ class SourceSite {
       slotId: 'javmenu',
     ),
     SourceSite(
-      'v_pektino',
-      'Pektino',
-      'pektino.com',
-      section: sectionVideo,
-      slotId: 'pektino',
-    ),
-    SourceSite(
       'v_xszav',
       'XSZAV',
       'cn.xsz-av.com',
@@ -451,13 +444,6 @@ class SourceSite {
       'cnlovehubx18.xyz',
       section: sectionVideo,
       slotId: 'z2_cn',
-    ),
-    SourceSite(
-      'v_z2_thdh',
-      '🔞探花短视频',
-      'thdhhaj.xyz',
-      section: sectionVideo,
-      slotId: 'z2_thdh',
     ),
     SourceSite(
       'v_xhy11',
@@ -566,32 +552,11 @@ class SourceSite {
       slotId: 'yh_maomi',
     ),
     SourceSite(
-      'v_slf',
-      '🔞SLF',
-      '欲火移植 · 待真机验',
-      section: sectionVideo,
-      slotId: 'yh_slf',
-    ),
-    SourceSite(
-      'v_iqiyi',
-      '🔞快手短视频',
-      '欲火移植 · 待真机验',
-      section: sectionVideo,
-      slotId: 'yh_iqiyi',
-    ),
-    SourceSite(
       'v_fulao2',
       '🔞腐老二',
       '欲火移植 · 令牌门待解',
       section: sectionVideo,
       slotId: 'yh_fulao2',
-    ),
-    SourceSite(
-      'v_nana',
-      '🔞娜娜',
-      '欲火移植 · 待真机验',
-      section: sectionVideo,
-      slotId: 'yh_nana',
     ),
     SourceSite(
       'v_xj',
@@ -608,13 +573,6 @@ class SourceSite {
       slotId: 'yh_cucumber',
     ),
     SourceSite(
-      'v_tomato',
-      '🔞番茄直播',
-      '欲火移植 · 直播间目录 · 待真机验',
-      section: sectionVideo,
-      slotId: 'yh_tomato',
-    ),
-    SourceSite(
       'v_avbobo',
       '🔞AVbobo',
       '欲火移植 · 内置共享账号登录',
@@ -627,13 +585,6 @@ class SourceSite {
       '欲火移植 · 待真机验',
       section: sectionVideo,
       slotId: 'yh_bilibili',
-    ),
-    SourceSite(
-      'v_bili2tx',
-      '🔞逼哩腾讯版',
-      '欲火移植 · 待真机验',
-      section: sectionVideo,
-      slotId: 'yh_bili2tx',
     ),
     SourceSite(
       'v_fruitpie',

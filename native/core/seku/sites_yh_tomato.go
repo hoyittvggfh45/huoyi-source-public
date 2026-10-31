@@ -511,22 +511,6 @@ func yhTomSearch(slot, kw string) ([]interface{}, error) {
 	return out, nil
 }
 
-func init() {
-	registerSite("yh_tomato", &siteImpl{
-		Key:        "yh_tomato",
-		Name:       "🔞番茄直播",
-		DefaultCat: "live",
-		HomeURL:    yhTomBase + "/",
-		Categories: yhTomCategories,
-		Catalog:    yhTomCatalog,
-		Detail:     yhTomDetail,
-		Resolve:    yhTomResolve,
-		Search:     yhTomSearch,
-		Headers:    yhTomHeaders,
-		CoverFetch: yhTomCoverFetch,
-	}, "yh_tomato", "tomato", "番茄")
-}
-
 // yhTomCoverFetch: 直载封面字节 (tsfsb CDN), 只做明文魔数门禁。
 func yhTomCoverFetch(u string) ([]byte, error) {
 	b, code, _, err := httpGet(u, yhTomHeaders())

@@ -330,6 +330,63 @@ class _MiniAppScreenState extends State<MiniAppScreen> {
   }
 }
 
+bool miniappIsLocalUrl(String url) {
+  final host = Uri.tryParse(url)?.host;
+  return host == '127.0.0.1' || host == '::1';
+}
+
+Future<PlaybackPlan> miniappSettlePlayPlan(
+  PlaybackPlan plan, {
+  required Future<PlaybackPlan> Function(
+    PlaybackPlan plan,
+    List<ParseInterface> apis,
+  )
+  resolveParse,
+  List<ParseInterface> parseApis = const [],
+}) async {
+  if (!plan.needsParse) return plan;
+  if (looksLikeDirectMedia(plan.url) || miniappIsLocalUrl(plan.url)) {
+    return plan.withNeedsParse(false);
+  }
+  if (parseApis.isEmpty) return plan;
+  try {
+    final parsed = await resolveParse(plan, parseApis);
+    if (parsed.url.isNotEmpty &&
+        (!parsed.needsParse || looksLikeDirectMedia(parsed.url))) {
+      return parsed.withNeedsParse(false);
+    }
+  } catch (_) {}
+  return plan;
+}
+
+Future<Map<String, Object?>> miniappSourcePlayMap(
+  PlaybackPlan plan, {
+  required String flag,
+  required String sourceId,
+  required Future<PlaybackPlan> Function(
+    PlaybackPlan plan,
+    List<ParseInterface> apis,
+  )
+  resolveParse,
+  List<ParseInterface> parseApis = const [],
+}) async {
+  if (plan.url.isEmpty) throw StateError('empty plan');
+  final settled = await miniappSettlePlayPlan(
+    plan,
+    resolveParse: resolveParse,
+    parseApis: parseApis,
+  );
+  return {
+    'url': settled.url,
+    'header': settled.headers,
+    'parse': settled.needsParse ? '1' : '0',
+    'jx': '0',
+    'flag': flag,
+    'key': sourceId,
+    'playUrl': plan.originalUrl.isEmpty ? settled.url : plan.originalUrl,
+  };
+}
+
 class _MiniAppHostImpl extends MiniAppHost {
   _MiniAppHostImpl(this._state);
   final _MiniAppScreenState _state;
@@ -537,16 +594,15 @@ class _MiniAppHostImpl extends MiniAppHost {
         Drama(id: '', source: sourceId, title: ''),
         Episode({'id': id, 'flag': flag}, 1),
       );
-      if (plan.url.isEmpty) throw StateError('empty plan');
-      return {
-        'url': plan.url,
-        'header': plan.headers,
-        'parse': plan.needsParse ? '1' : '0',
-        'jx': '0',
-        'flag': flag,
-        'key': sourceId,
-        'playUrl': plan.originalUrl,
-      };
+      return await miniappSourcePlayMap(
+        plan,
+        flag: flag,
+        sourceId: sourceId,
+        resolveParse: repository.resolveParse,
+        parseApis: plan.needsParse
+            ? await ParseInterfaceStore.loadEnabled()
+            : const [],
+      );
     } catch (error) {
       if (id.startsWith('http://') || id.startsWith('https://')) {
         final parse = miniappLooksLikeMedia(id) ? '0' : '1';
@@ -557,7 +613,7 @@ class _MiniAppHostImpl extends MiniAppHost {
           'jx': '0',
           'flag': flag,
           'key': sourceId,
-          'playUrl': '',
+          'playUrl': id,
         };
       }
       rethrow;
@@ -609,6 +665,20 @@ class _MiniAppHostImpl extends MiniAppHost {
           ),
         );
         return {'route': '/player', 'url': playUrl};
+      }
+      final repository = _repository;
+      if (repository != null &&
+          !miniappIsLocalUrl(playUrl) &&
+          looksLikeWebPage(playUrl)) {
+        final settled = await miniappSettlePlayPlan(
+          PlaybackPlan(url: playUrl, headers: playHeaders, needsParse: true),
+          resolveParse: repository.resolveParse,
+          parseApis: await ParseInterfaceStore.loadEnabled(),
+        );
+        if (settled.url.isNotEmpty && !settled.needsParse) {
+          playUrl = settled.url;
+          if (settled.headers.isNotEmpty) playHeaders = settled.headers;
+        }
       }
       await Navigator.of(_context).push<void>(
         appPageRoute<void>(
