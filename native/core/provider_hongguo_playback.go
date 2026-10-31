@@ -18,6 +18,19 @@ import (
 
 const hongguoPlaybackAPI = "https://djapi.999888456.xyz/api/hongguo/play"
 
+func hongguoPlaybackTransportFailed(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	for _, fragment := range []string{"EOF", "connection reset", "connection refused", "empty reply", "server closed", "TLS handshake"} {
+		if strings.Contains(msg, fragment) {
+			return true
+		}
+	}
+	return false
+}
+
 var hongguoNumericID = regexp.MustCompile(`^[0-9]{1,32}$`)
 
 var hongguoQualityNumber = regexp.MustCompile(`[0-9]+`)
@@ -51,6 +64,10 @@ func (d *Downloader) resolveHongguoPlaybackAPI(ctx context.Context, seriesID, vi
 	}
 	query := url.Values{"id": {base64.StdEncoding.EncodeToString(reference)}}
 	body, err := d.fetchProviderText(ctx, hongguoPlaybackAPI+"?"+query.Encode(), hongguoBaseURL+"/")
+	if err != nil && hongguoPlaybackTransportFailed(err) {
+		httpAPI := strings.Replace(hongguoPlaybackAPI, "https://", "http://", 1)
+		body, err = d.fetchProviderText(ctx, httpAPI+"?"+query.Encode(), hongguoBaseURL+"/")
+	}
 	if err != nil {
 		return providerMedia{}, err
 	}

@@ -72,18 +72,34 @@ List<ContentBook> parseTingshuwangCards(String html) {
   return books;
 }
 
+bool tingshuwangHasMore(String html, int page) {
+  if (html.contains('index_${page + 1}.html')) return true;
+  if (html.contains('class="next"')) return true;
+  final info = RegExp(r'当前:\s*(\d+)\s*/\s*(\d+)').firstMatch(html);
+  if (info != null) {
+    final current = int.tryParse(info.group(1)!) ?? page;
+    final total = int.tryParse(info.group(2)!) ?? page;
+    return current < total;
+  }
+  return false;
+}
+
 ContentPage parseTingshuwangCatalog(String html, int page) {
   final items = parseTingshuwangCards(html);
   return ContentPage(
     items: items,
-    hasMore: items.isNotEmpty && html.contains('index_${page + 1}.html'),
+    hasMore: items.isNotEmpty && tingshuwangHasMore(html, page),
     total: items.length,
   );
 }
 
-ContentPage parseTingshuwangSearch(String html) {
+ContentPage parseTingshuwangSearch(String html, [int page = 1]) {
   final items = parseTingshuwangCards(html);
-  return ContentPage(items: items, hasMore: false, total: items.length);
+  return ContentPage(
+    items: items,
+    hasMore: items.isNotEmpty && tingshuwangHasMore(html, page),
+    total: items.length,
+  );
 }
 
 ContentBookDetail parseTingshuwangDetail(String html, String slug) {
@@ -166,10 +182,12 @@ class TingshuwangSource extends ContentSource {
 
   @override
   Future<ContentPage> search(String keyword, int page) async {
-    if (page > 1) return const ContentPage(items: []);
     final encoded = Uri.encodeComponent(keyword);
-    final html = await _http.get('$tingshuwangHost/so/$encoded/');
-    return parseTingshuwangSearch(html);
+    final url = page <= 1
+        ? '$tingshuwangHost/so/$encoded/'
+        : '$tingshuwangHost/so/$encoded/index_$page.html';
+    final html = await _http.get(url);
+    return parseTingshuwangSearch(html, page);
   }
 
   @override

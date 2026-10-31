@@ -420,7 +420,7 @@ class _PlayerControlsState extends State<PlayerControls> {
               _overlayIconButton(
                 tooltip: '推送到一起看',
                 onPressed: widget.onPushToWatchRoom,
-                icon: Icons.meeting_room_rounded,
+                icon: Icons.home_rounded,
               ),
             if (compact)
               _overlayIconButton(

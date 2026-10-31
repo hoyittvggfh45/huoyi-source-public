@@ -168,6 +168,8 @@ func TestSourceJobsDeduplicateCancelAndRecoverAfterRestart(t *testing.T) {
 func TestSourceHealthRejectsHTML200AndPreservesFailureStage(t *testing.T) {
 	engine := sourceFixtureEngine(t, func(request *http.Request) (*http.Response, error) {
 		switch request.URL.Path {
+		case "/":
+			return sourceFixtureResponse(request, 200, `<html><body>ok</body></html>`), nil
 		case "/videos":
 			return sourceFixtureResponse(request, 200, `<article class="video-card"><a href="/video/fixture" title="合成检测剧">合成检测剧</a></article>`), nil
 		case "/video/fixture":
@@ -183,10 +185,10 @@ func TestSourceHealthRejectsHTML200AndPreservesFailureStage(t *testing.T) {
 	})
 	err := engine.checkSource(context.Background(), sourceHuangguoVideo, nativeDrama{}, true)
 	status := engine.sourceStatus(sourceHuangguoVideo)
-	if err == nil || status.Health == nil || status.Health.State != "failed" || len(status.Health.Steps) != 3 || status.Health.Steps[2].State != "failed" {
+	if err == nil || status.Health == nil || status.Health.State != "failed" || len(status.Health.Steps) != 5 || status.Health.Steps[4].State != "failed" {
 		t.Fatal("HTML 200 was reported as playable", err, status.Health)
 	}
-	if status.Health.Steps[2].HTTPStatus != 200 || !strings.Contains(status.Health.Steps[2].Message, "浏览器验证") {
+	if status.Health.Steps[4].HTTPStatus != 200 || !strings.Contains(status.Health.Steps[4].Message, "浏览器验证") {
 		t.Fatal("missing CF failure detail", status.Health.Steps)
 	}
 }
@@ -195,6 +197,8 @@ func TestSourceHealthChecksHLSKeyAndBoundedMedia(t *testing.T) {
 	var segments atomic.Int32
 	engine := sourceFixtureEngine(t, func(request *http.Request) (*http.Response, error) {
 		switch request.URL.Path {
+		case "/":
+			return sourceFixtureResponse(request, 200, `<html><body>ok</body></html>`), nil
 		case "/videos":
 			return sourceFixtureResponse(request, 200, `<article class="video-card"><a href="/video/fixture" title="合成检测剧">合成检测剧</a></article>`), nil
 		case "/video/fixture":
@@ -228,7 +232,7 @@ func TestSourceHealthChecksHLSKeyAndBoundedMedia(t *testing.T) {
 		t.Fatal(err)
 	}
 	health := engine.sourceStatus(sourceHuangguoVideo).Health
-	if health.State != "ok" || len(health.Steps) != 5 || segments.Load() != 1 {
+	if health.State != "ok" || len(health.Steps) != 7 || segments.Load() != 1 {
 		t.Fatal("incomplete health report", health)
 	}
 	body, err := os.ReadFile(filepath.Join(engine.directory, "sources.json"))

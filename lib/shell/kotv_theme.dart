@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../app_gradient.dart';
 import 'kotv_page.dart';
 
 abstract final class KotvTokens {
@@ -19,6 +20,15 @@ class KotvPastelBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (Theme.of(context).brightness == Brightness.dark) {
+      return AppGradientBackground(
+        colors: const [
+          AppGradientColors.fixedTop,
+          AppGradientColors.fixedBottom,
+        ],
+        child: child,
+      );
+    }
     return Container(
       color: KotvTokens.background,
       child: Stack(
@@ -63,10 +73,13 @@ class KotvGroupCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: KotvTokens.cardColor,
+        color: dark
+            ? Colors.white.withValues(alpha: 0.10)
+            : KotvTokens.cardColor,
         borderRadius: BorderRadius.circular(KotvTokens.cardRadius),
       ),
       child: Column(
@@ -76,10 +89,7 @@ class KotvGroupCard extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: Text(
               title,
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-              ),
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
             ),
           ),
           ...children,
@@ -106,6 +116,9 @@ class KotvSettingsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dimmed = Theme.of(context).brightness == Brightness.dark
+        ? Colors.white70
+        : KotvTokens.unselectedColor;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -115,10 +128,7 @@ class KotvSettingsRow extends StatelessWidget {
           child: Row(
             children: [
               Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(fontSize: 14),
-                ),
+                child: Text(title, style: const TextStyle(fontSize: 14)),
               ),
               if (trailing != null)
                 trailing!
@@ -128,19 +138,12 @@ class KotvSettingsRow extends StatelessWidget {
                     value!,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: KotvTokens.unselectedColor,
-                    ),
+                    style: TextStyle(fontSize: 13, color: dimmed),
                   ),
                 ),
               if (onTap != null) ...[
                 const SizedBox(width: 4),
-                const Icon(
-                  Icons.chevron_right_rounded,
-                  size: 20,
-                  color: KotvTokens.unselectedColor,
-                ),
+                Icon(Icons.chevron_right_rounded, size: 20, color: dimmed),
               ],
             ],
           ),
@@ -234,13 +237,16 @@ class KotvBottomBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: Colors.black.withValues(alpha: 0.35),
       child: SafeArea(
         top: false,
         child: DecoratedBox(
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             border: Border(
-              top: BorderSide(color: Color(0xFFE8E8EC), width: 0.5),
+              top: BorderSide(
+                color: Colors.white.withValues(alpha: 0.12),
+                width: 0.5,
+              ),
             ),
           ),
           child: ConstrainedBox(
@@ -282,7 +288,7 @@ class KotvBottomBar extends StatelessWidget {
                                       size: 22,
                                       color: page == current
                                           ? Colors.white
-                                          : KotvTokens.unselectedColor,
+                                          : Colors.white70,
                                     ),
                                     const SizedBox(width: 4),
                                     Flexible(
@@ -297,7 +303,7 @@ class KotvBottomBar extends StatelessWidget {
                                               : FontWeight.w500,
                                           color: page == current
                                               ? Colors.white
-                                              : const Color(0xFF55555E),
+                                              : Colors.white70,
                                         ),
                                       ),
                                     ),
@@ -314,7 +320,7 @@ class KotvBottomBar extends StatelessWidget {
                                       size: 22,
                                       color: page == current
                                           ? Colors.white
-                                          : KotvTokens.unselectedColor,
+                                          : Colors.white70,
                                     ),
                                     const SizedBox(height: 2),
                                     Flexible(
@@ -329,7 +335,7 @@ class KotvBottomBar extends StatelessWidget {
                                               : FontWeight.w500,
                                           color: page == current
                                               ? Colors.white
-                                              : const Color(0xFF55555E),
+                                              : Colors.white70,
                                         ),
                                       ),
                                     ),

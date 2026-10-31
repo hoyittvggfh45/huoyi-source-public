@@ -4,10 +4,99 @@ import 'package:duanju_app/content_baozimh.dart';
 import 'package:duanju_app/content_cms.dart';
 import 'package:duanju_app/content_copymanga.dart';
 import 'package:duanju_app/content_dongmanla.dart';
+import 'package:duanju_app/content_http.dart';
 import 'package:duanju_app/content_mangadex.dart';
+import 'package:duanju_app/content_models.dart';
+import 'package:duanju_app/content_readers.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+class _FakeCopyHttp extends ContentHttp {
+  _FakeCopyHttp(this.fullPages);
+
+  final bool fullPages;
+
+  @override
+  Future<String> get(
+    String url, {
+    Map<String, String> headers = const {},
+    Duration timeout = const Duration(seconds: 20),
+  }) async {
+    if (url.contains('group/default/chapters')) {
+      final count = fullPages ? 100 : 45;
+      final rows = List.generate(
+        count,
+        (i) => '{"uuid":"u$i","name":"第${i + 1}话","size":10}',
+      ).join(',');
+      return '{"code":200,"results":{"list":[$rows]}}';
+    }
+    return '{"code":200,"results":{"comic":{"path_word":"test","name":"合成漫画","cover":"c.jpg","brief":"简介"}}}';
+  }
+}
+
+class _FakeDexHttp extends ContentHttp {
+  @override
+  Future<String> get(
+    String url, {
+    Map<String, String> headers = const {},
+    Duration timeout = const Duration(seconds: 20),
+  }) async {
+    if (url.contains('/feed?')) {
+      final rows = List.generate(
+        100,
+        (i) =>
+            '{"id":"ch$i","attributes":{"chapter":"${i + 1}","title":"","pages":10}}',
+      ).join(',');
+      return '{"data":[$rows],"limit":100,"offset":0,"total":5000}';
+    }
+    return '{"data":{"id":"m1","attributes":{"title":{"en":"合成漫画"},"status":"ongoing"},"relationships":[]}}';
+  }
+}
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  group('漫画阅读进度与章节截断', () {
+    test('comic progress roundtrips per book', () async {
+      SharedPreferences.setMockInitialValues({});
+      await ComicReadingProgress.save('copymanga', 'book-a', 3, 5);
+      await ComicReadingProgress.save('copymanga', 'book-b', 0, 0);
+      final loaded = await ComicReadingProgress.load('copymanga', 'book-a');
+      expect(loaded?.chapter, 3);
+      expect(loaded?.page, 5);
+      expect(
+        await ComicReadingProgress.load('copymanga', 'missing'),
+        isNull,
+      );
+    });
+
+    test('detail chaptersTruncated defaults to false', () {
+      const detail = ContentBookDetail(
+        book: ContentBook(id: 'b', title: 'T'),
+        chapters: [],
+      );
+      expect(detail.chaptersTruncated, isFalse);
+    });
+
+    test('copymanga full pages hit the 1000 cap and flag truncation', () async {
+      final detail = await CopymangaSource(_FakeCopyHttp(true)).detail('test');
+      expect(detail.chapters, hasLength(1000));
+      expect(detail.chaptersTruncated, isTrue);
+    });
+
+    test('copymanga short list is not flagged', () async {
+      final detail = await CopymangaSource(_FakeCopyHttp(false)).detail('test');
+      expect(detail.chapters, hasLength(45));
+      expect(detail.chaptersTruncated, isFalse);
+    });
+
+    test('mangadex full pages hit the 1000 cap and flag truncation', () async {
+      final detail = await MangaDexSource(_FakeDexHttp()).detail('m1');
+      expect(detail.chapters, hasLength(1000));
+      expect(detail.chaptersTruncated, isTrue);
+    });
+  });
+
   group('MacCMS 通用引擎解析', () {
     test('分类与列表', () {
       final cats = parseMacCmsCategories(

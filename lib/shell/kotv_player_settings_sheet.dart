@@ -129,7 +129,7 @@ class _KotvPlayerSettingsSheet extends StatelessWidget {
                   children: [
                     _switch(
                       context,
-                      '预加载下一集',
+                      '预加载下一集／下一部',
                       preferences.preload,
                       (current, changed) =>
                           current.copyWith(preload: changed),

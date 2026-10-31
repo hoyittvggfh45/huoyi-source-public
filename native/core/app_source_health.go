@@ -75,9 +75,9 @@ func (engine *nativeEngine) checkSource(ctx context.Context, source string, sele
 	run := func(name string, action func() (string, error)) bool {
 		engine.changeSourceRecord(source, func(record *nativeSourceRecord) {
 			record.Stage, record.Completed = name, len(report.Steps)
-			record.Total = 1
+			record.Total = 3
 			if playback {
-				record.Total = 5
+				record.Total = 7
 			}
 		})
 		trace.mu.Lock()
@@ -100,6 +100,40 @@ func (engine *nativeEngine) checkSource(ctx context.Context, source string, sele
 		report.Steps = append(report.Steps, step)
 		publish()
 		return err == nil
+	}
+	if !run("域名", func() (string, error) {
+		if isSekuSource(source) {
+			return "站源域名由 seku 侧管理，跳过", nil
+		}
+		base := engine.downloader.providerBaseURL(source)
+		if source != sourceCloudFront && base == legacyFrontendURL {
+			return "无固定域名，跳过", nil
+		}
+		request, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"/", nil)
+		if err != nil {
+			return "", err
+		}
+		response, err := engine.downloader.doCatalogRequestWithTimeout(request, 15*time.Second)
+		if err != nil {
+			return "", err
+		}
+		defer response.Body.Close()
+		io.Copy(io.Discard, io.LimitReader(response.Body, 1024))
+		return fmt.Sprintf("域名可达（HTTP %d）", response.StatusCode), nil
+	}) {
+		return failure
+	}
+	if !run("分类", func() (string, error) {
+		categories, err := engine.nativeCategories(ctx, source, true)
+		if err != nil {
+			if strings.Contains(err.Error(), "暂未返回内容分类") {
+				return "无细分分类，仅全部", nil
+			}
+			return "", err
+		}
+		return fmt.Sprintf("已返回 %d 个分类", len(categories)), nil
+	}) {
+		return failure
 	}
 	var page nativeCatalogResult
 	if !run("入口与目录", func() (string, error) {

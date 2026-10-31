@@ -5,30 +5,44 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import 'content_http.dart';
+import 'content_readers.dart';
 import 'core_bridge.dart';
 import 'legado_builtin_data.dart';
 import 'legado_source.dart';
 import 'local_book_store.dart';
 
 class LegadoScreen extends StatefulWidget {
-  const LegadoScreen({super.key, required this.repository});
+  const LegadoScreen({super.key, required this.repository, this.initialComic = false});
 
   final AppRepository repository;
+  final bool initialComic;
 
   @override
   State<LegadoScreen> createState() => _LegadoScreenState();
 }
 
+enum _LegadoFilter { novel, comic, all }
+
 class _LegadoScreenState extends State<LegadoScreen> {
   List<LegadoSource> _sources = [];
   LegadoSource? _selected;
-  bool _novelOnly = true;
+  _LegadoFilter _filter = _LegadoFilter.novel;
   late final _builtinCount = parseLegadoSources(builtinLegadoRulesJson).length;
   final _query = TextEditingController();
   List<Map<String, dynamic>> _books = [];
   List<Map<String, dynamic>> _chapters = [];
+  Map<String, dynamic>? _currentBook;
+  int _chapterIndex = -1;
+  int? _resumeChapter;
   String _content = '';
+  List<String> _pages = [];
+  int _pageIndex = 0;
+  double _fontSize = 16;
+  final _readPageController = PageController();
+  int _searchPage = 1;
   List<Map<String, dynamic>> _contentImages = [];
+  int _imageIndex = 1;
+  final _imageRetry = <String, int>{};
   List<Map<String, dynamic>> _exploreCategories = [];
   String _exploreUrl = '';
   int _explorePage = 1;
@@ -46,18 +60,23 @@ class _LegadoScreenState extends State<LegadoScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialComic) _filter = _LegadoFilter.comic;
     _refresh();
   }
 
   @override
   void dispose() {
     _query.dispose();
+    _readPageController.dispose();
     super.dispose();
   }
 
-  List<LegadoSource> get _visibleSources => _novelOnly
-      ? _sources.where((s) => s.type == '0' || s.type.isEmpty).toList()
-      : _sources;
+  List<LegadoSource> get _visibleSources => switch (_filter) {
+    _LegadoFilter.novel =>
+      _sources.where((s) => s.type == '0' || s.type.isEmpty).toList(),
+    _LegadoFilter.comic => _sources.where((s) => s.type == '2').toList(),
+    _LegadoFilter.all => _sources,
+  };
 
   void _ensureVisibleSelection() {
     final visible = _visibleSources;
@@ -461,10 +480,17 @@ class _LegadoScreenState extends State<LegadoScreen> {
     return out;
   }
 
-  Future<void> _search() async {
+  Future<void> _search([int page = 1]) async {
     final source = _selected;
     final keyword = _query.text.trim();
     if (source == null || keyword.isEmpty) return;
+    if (source.searchUrl.isEmpty) {
+      setState(() {
+        _error = '该书源搜索地址待用户定夺（签名类材料未还原），可先点发现浏览分类。';
+        _mode = 'books';
+      });
+      return;
+    }
     setState(() {
       _busy = true;
       _error = '';
@@ -472,12 +498,13 @@ class _LegadoScreenState extends State<LegadoScreen> {
       _searchUnsupported = false;
       _searchUnsupportedReason = '';
       _explored = false;
+      _searchPage = page;
     });
     try {
       final result = await widget.repository.legadoRun(
         source.rawJson,
         'search',
-        keyword,
+        '$keyword\x01$page',
       );
       final books = _toMaps(result);
       var unsupported = false;
@@ -501,6 +528,7 @@ class _LegadoScreenState extends State<LegadoScreen> {
           _books = books;
           _busy = false;
           _searched = true;
+          _searchPage = page;
           _searchUnsupported = unsupported;
           _searchUnsupportedReason = reason;
         });
@@ -590,6 +618,11 @@ class _LegadoScreenState extends State<LegadoScreen> {
     setState(() {
       _busy = true;
       _error = '';
+      _currentBook = book;
+      _chapterIndex = -1;
+      _resumeChapter = null;
+      _pages = [];
+      _pageIndex = 0;
     });
     try {
       final result = await widget.repository.legadoRun(
@@ -597,12 +630,20 @@ class _LegadoScreenState extends State<LegadoScreen> {
         'toc',
         url,
       );
+      final chapters = _toMaps(result);
       if (mounted) {
         setState(() {
-          _chapters = _toMaps(result);
+          _chapters = chapters;
           _mode = 'toc';
           _busy = false;
         });
+      }
+      final progress = await NovelReadingProgress.load(source.id, url);
+      if (mounted &&
+          progress != null &&
+          progress.chapter >= 0 &&
+          progress.chapter < chapters.length) {
+        setState(() => _resumeChapter = progress.chapter);
       }
     } catch (e) {
       if (mounted) {
@@ -614,15 +655,25 @@ class _LegadoScreenState extends State<LegadoScreen> {
     }
   }
 
-  Future<void> _openChapter(Map<String, dynamic> chapter) async {
+  Future<void> _openChapter(Map<String, dynamic> chapter, [int? index]) async {
     final source = _selected;
     final url = (chapter['url'] ?? '').toString();
+    final bookUrl = (_currentBook?['url'] ?? '').toString();
     if (source == null || url.isEmpty) return;
+    final chapterIndex = index ??
+        _chapters.indexWhere((c) => (c['url'] ?? '').toString() == url);
     setState(() {
       _busy = true;
       _error = '';
       _contentImages = [];
+      _imageIndex = 1;
+      _chapterIndex = chapterIndex;
+      _pageIndex = 0;
+      _pages = [];
     });
+    if (bookUrl.isNotEmpty && chapterIndex >= 0) {
+      await NovelReadingProgress.save(source.id, bookUrl, chapterIndex, 0);
+    }
     try {
       final result = await widget.repository.legadoRun(
         source.rawJson,
@@ -645,13 +696,23 @@ class _LegadoScreenState extends State<LegadoScreen> {
           text = result;
         }
       }
+      final pages = paginateNovelText(text, _fontSize);
       if (mounted) {
         setState(() {
           _content = text;
           _contentImages = images;
+          _pages = pages;
+          _pageIndex = 0;
           _mode = 'read';
           _busy = false;
         });
+        if (pages.isNotEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && _readPageController.hasClients) {
+              _readPageController.jumpToPage(0);
+            }
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -661,6 +722,22 @@ class _LegadoScreenState extends State<LegadoScreen> {
         });
       }
     }
+  }
+
+  void _changeLegadoFont(double delta) {
+    final next = (_fontSize + delta).clamp(12, 26).toDouble();
+    if (next == _fontSize) return;
+    setState(() {
+      _fontSize = next;
+      _pages = paginateNovelText(_content, _fontSize);
+      _pageIndex = 0;
+    });
+    if (_readPageController.hasClients) _readPageController.jumpToPage(0);
+  }
+
+  void _switchLegadoChapter(int index) {
+    if (index < 0 || index >= _chapters.length) return;
+    _openChapter(_chapters[index], index);
   }
 
   @override
@@ -696,7 +773,7 @@ class _LegadoScreenState extends State<LegadoScreen> {
                 ),
               ),
               const SizedBox(width: 8),
-              FilledButton(onPressed: _search, child: const Text('搜索')),
+              FilledButton(onPressed: () => _search(), child: const Text('搜索')),
               IconButton(
                 icon: const Icon(Icons.explore_rounded),
                 tooltip: '发现',
@@ -720,10 +797,12 @@ class _LegadoScreenState extends State<LegadoScreen> {
           child: Row(
             children: [
               ChoiceChip(
-                label: const Text('小说'),
-                selected: _novelOnly,
+                label: Text(widget.initialComic ? '漫画' : '小说'),
+                selected: _filter != _LegadoFilter.all,
                 onSelected: (_) => setState(() {
-                  _novelOnly = true;
+                  _filter = widget.initialComic
+                      ? _LegadoFilter.comic
+                      : _LegadoFilter.novel;
                   _ensureVisibleSelection();
                   _books = [];
                   _searched = false;
@@ -732,9 +811,9 @@ class _LegadoScreenState extends State<LegadoScreen> {
               const SizedBox(width: 8),
               ChoiceChip(
                 label: const Text('全部书源'),
-                selected: !_novelOnly,
+                selected: _filter == _LegadoFilter.all,
                 onSelected: (_) => setState(() {
-                  _novelOnly = false;
+                  _filter = _LegadoFilter.all;
                   _ensureVisibleSelection();
                   _books = [];
                   _searched = false;
@@ -750,9 +829,13 @@ class _LegadoScreenState extends State<LegadoScreen> {
           ),
         ),
         if (_sources.isNotEmpty && _visibleSources.isEmpty)
-          const Padding(
-            padding: EdgeInsets.all(16),
-            child: Text('小说分类下暂无书源，可切到全部书源查看。'),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              _filter == _LegadoFilter.comic
+                  ? '漫画分类下暂无书源，可切到全部书源查看。'
+                  : '小说分类下暂无书源，可切到全部书源查看。',
+            ),
           ),
         if (_visibleSources.isNotEmpty)
           SizedBox(
@@ -840,6 +923,26 @@ class _LegadoScreenState extends State<LegadoScreen> {
               ],
             ),
           ),
+        if (!_explored && _searched && _mode == 'books')
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Row(
+              children: [
+                Text('第 $_searchPage 页'),
+                const Spacer(),
+                TextButton(
+                  onPressed: _searchPage > 1
+                      ? () => _search(_searchPage - 1)
+                      : null,
+                  child: const Text('上一页'),
+                ),
+                TextButton(
+                  onPressed: () => _search(_searchPage + 1),
+                  child: const Text('下一页'),
+                ),
+              ],
+            ),
+          ),
         if (_explored && _mode == 'books')
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
@@ -870,48 +973,266 @@ class _LegadoScreenState extends State<LegadoScreen> {
                         child: Text('没有读到目录，可能是目录规则暂不支持，换个书源试试'),
                       ),
                     )
-                  : ListView.builder(
-                      itemCount: _chapters.length,
-                      itemBuilder: (_, i) {
-                        final chapter = _chapters[i];
-                        return ListTile(
-                          title: Text((chapter['title'] ?? '').toString()),
-                          onTap: () => _openChapter(chapter),
-                        );
-                      },
-                    ),
-            'read' =>
-              _contentImages.isNotEmpty
-                  ? SingleChildScrollView(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (_content.isNotEmpty)
-                            SelectableText(
-                              _content,
-                              style: const TextStyle(fontSize: 12, height: 1.7),
-                            ),
-                          for (final img in _contentImages)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Image.network(
-                                (img['url'] ?? '').toString(),
-                                headers: _stringHeaders(img['headers']),
-                                errorBuilder: (_, _, _) =>
-                                    Text((img['url'] ?? '').toString()),
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (_resumeChapter != null &&
+                            _resumeChapter! < _chapters.length)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                            child: FilledButton.icon(
+                              onPressed: () => _openChapter(
+                                _chapters[_resumeChapter!],
+                                _resumeChapter,
+                              ),
+                              icon: const Icon(Icons.bookmark_rounded),
+                              label: Text(
+                                '续读：${(_chapters[_resumeChapter!]['title'] ?? '').toString()}',
                               ),
                             ),
-                        ],
-                      ),
-                    )
-                  : SingleChildScrollView(
-                      padding: const EdgeInsets.all(16),
-                      child: SelectableText(
-                        _content.isEmpty ? '正文为空' : _content,
-                        style: const TextStyle(fontSize: 12, height: 1.7),
-                      ),
+                          ),
+                        Expanded(
+                          child: ListView.builder(
+                            itemCount: _chapters.length,
+                            itemBuilder: (_, i) {
+                              final chapter = _chapters[i];
+                              return ListTile(
+                                title: Text(
+                                  (chapter['title'] ?? '').toString(),
+                                ),
+                                selected: i == _chapterIndex,
+                                onTap: () => _openChapter(chapter, i),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
                     ),
+            'read' => Column(
+              children: [
+                Expanded(
+                  child: _contentImages.isNotEmpty
+                      ? Column(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                              child: Row(
+                                children: [
+                                  Text(
+                                    '第 $_imageIndex / ${_contentImages.length} 张',
+                                  ),
+                                  const Spacer(),
+                                  TextButton(
+                                    onPressed: () => setState(() {
+                                      _mode = 'toc';
+                                    }),
+                                    child: const Text('目录'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Expanded(
+                              child: NotificationListener<ScrollNotification>(
+                                onNotification: (notification) {
+                                  if (notification.metrics.maxScrollExtent <=
+                                      0) {
+                                    return false;
+                                  }
+                                  final ratio =
+                                      (notification.metrics.pixels /
+                                              notification
+                                                  .metrics.maxScrollExtent)
+                                          .clamp(0, 1);
+                                  final index =
+                                      (ratio * _contentImages.length)
+                                          .ceil()
+                                          .clamp(1, _contentImages.length);
+                                  if (index != _imageIndex) {
+                                    setState(() => _imageIndex = index);
+                                  }
+                                  return false;
+                                },
+                                child: SingleChildScrollView(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      if (_content.isNotEmpty)
+                                        SelectableText(
+                                          _content,
+                                          style: TextStyle(
+                                            fontSize: _fontSize,
+                                            height: 1.7,
+                                          ),
+                                        ),
+                                      for (var i = 0;
+                                          i < _contentImages.length;
+                                          i++)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            top: 8,
+                                          ),
+                                          child: InteractiveViewer(
+                                            minScale: 1,
+                                            maxScale: 4,
+                                            child: Image.network(
+                                              (_contentImages[i]['url'] ?? '')
+                                                  .toString(),
+                                              key: ValueKey(
+                                                '${(_contentImages[i]['url'] ?? '').toString()}-${_imageRetry[(_contentImages[i]['url'] ?? '').toString()] ?? 0}',
+                                              ),
+                                              headers: _stringHeaders(
+                                                _contentImages[i]['headers'],
+                                              ),
+                                              errorBuilder: (_, _, _) =>
+                                                  Column(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      Text(
+                                                        '第 ${i + 1} 张加载失败',
+                                                      ),
+                                                      TextButton(
+                                                        onPressed: () =>
+                                                            setState(() {
+                                                              final url =
+                                                                  (_contentImages[i]['url'] ??
+                                                                          '')
+                                                                      .toString();
+                                                              _imageRetry[url] =
+                                                                  (_imageRetry[url] ??
+                                                                          0) +
+                                                                      1;
+                                                            }),
+                                                        child: const Text(
+                                                          '重试',
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        )
+                      : _pages.isEmpty
+                      ? SingleChildScrollView(
+                          padding: const EdgeInsets.all(16),
+                          child: SelectableText(
+                            _content.isEmpty ? '正文为空' : _content,
+                            style: TextStyle(
+                              fontSize: _fontSize,
+                              height: 1.7,
+                            ),
+                          ),
+                        )
+                      : PageView.builder(
+                          controller: _readPageController,
+                          itemCount: _pages.length,
+                          onPageChanged: (page) async {
+                            setState(() => _pageIndex = page);
+                            final bookUrl =
+                                (_currentBook?['url'] ?? '').toString();
+                            final source = _selected;
+                            if (bookUrl.isNotEmpty &&
+                                source != null &&
+                                _chapterIndex >= 0) {
+                              await NovelReadingProgress.save(
+                                source.id,
+                                bookUrl,
+                                _chapterIndex,
+                                page,
+                              );
+                            }
+                          },
+                          itemBuilder: (context, i) =>
+                              SingleChildScrollView(
+                                padding: const EdgeInsets.all(16),
+                                child: SelectableText(
+                                  _pages[i],
+                                  style: TextStyle(
+                                    fontSize: _fontSize,
+                                    height: 1.7,
+                                  ),
+                                ),
+                              ),
+                        ),
+                ),
+                SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    child: Row(
+                      children: [
+                        TextButton.icon(
+                          onPressed: _chapterIndex > 0
+                              ? () => _switchLegadoChapter(_chapterIndex - 1)
+                              : null,
+                          icon: const Icon(Icons.arrow_back_rounded),
+                          label: const Text('上一章'),
+                        ),
+                        TextButton(
+                          onPressed: _pages.isNotEmpty && _pageIndex > 0
+                              ? () => _readPageController.previousPage(
+                                  duration: const Duration(milliseconds: 200),
+                                  curve: Curves.easeOut,
+                                )
+                              : null,
+                          child: const Text('上一页'),
+                        ),
+                        Expanded(
+                          child: Center(
+                            child: Text(
+                              _pages.isEmpty
+                                  ? ''
+                                  : '${_pageIndex + 1} / ${_pages.length}',
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.text_decrease_rounded),
+                          tooltip: '减小字号',
+                          onPressed: () => _changeLegadoFont(-2),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.text_increase_rounded),
+                          tooltip: '增大字号',
+                          onPressed: () => _changeLegadoFont(2),
+                        ),
+                        TextButton(
+                          onPressed:
+                              _pages.isNotEmpty &&
+                                  _pageIndex + 1 < _pages.length
+                              ? () => _readPageController.nextPage(
+                                  duration: const Duration(milliseconds: 200),
+                                  curve: Curves.easeOut,
+                                )
+                              : null,
+                          child: const Text('下一页'),
+                        ),
+                        TextButton.icon(
+                          onPressed: _chapterIndex >= 0 &&
+                                  _chapterIndex + 1 < _chapters.length
+                              ? () =>
+                                  _switchLegadoChapter(_chapterIndex + 1)
+                              : null,
+                          icon: const Icon(Icons.arrow_forward_rounded),
+                          label: const Text('下一章'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
             _ =>
               _books.isEmpty && _searched && !_busy && _error.isEmpty
                   ? Center(

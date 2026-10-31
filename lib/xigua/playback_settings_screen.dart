@@ -136,7 +136,7 @@ class PlaybackSettingsScreen extends StatelessWidget {
                 ),
                 SwitchListTile(
                   value: preferences.preload,
-                  title: const Text('预加载下一集'),
+                  title: const Text('预加载下一集／下一部'),
                   subtitle: const Text('后台提前缓冲下一集，加快切换速度，消耗更多流量。'),
                   onChanged: !enabled
                       ? null

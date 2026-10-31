@@ -452,6 +452,40 @@ func (d *Downloader) resolveSekuMedia(ctx context.Context, task Task) (providerM
 	return media, nil
 }
 
+func sekuRelatedCoverBase(engine *nativeEngine, source string) string {
+	if engine == nil || engine.downloader == nil {
+		return ""
+	}
+	base := engine.downloader.providerBaseURL(source)
+	if base == "" || base == legacyFrontendURL {
+		return ""
+	}
+	return base
+}
+
+func resolveSekuDramaCover(related Drama, base string) Drama {
+	if base == "" {
+		return related
+	}
+	for _, value := range []any{related.Cover, related.CoverURL, related.CoverURLSnake, related.Image, related.ImageURL, related.ImageURLSnake, related.Img, related.Pic, related.Picture, related.Poster, related.Thumb, related.Thumbnail} {
+		candidate := nativeText(value)
+		if candidate == "" {
+			continue
+		}
+		if strings.HasPrefix(candidate, "//") {
+			candidate = "https:" + candidate
+		}
+		if isProviderHTTPMediaURL(candidate) {
+			return related
+		}
+		if resolved := resolveProviderURL(base, candidate); isProviderHTTPMediaURL(resolved) {
+			related.Cover = resolved
+			return related
+		}
+	}
+	return related
+}
+
 func (engine *nativeEngine) nativeSekuDetail(ctx context.Context, drama nativeDrama, source, sourceID string) (any, error) {
 	slot, ok := sekuSlotForSource(source)
 	if !ok {
@@ -478,10 +512,13 @@ func (engine *nativeEngine) nativeSekuDetail(ctx context.Context, drama nativeDr
 	if len(drama.Stills) == 0 {
 		drama.Stills = sekuMapStrings(m["stills"])
 	}
-	if len(drama.Related) == 0 {
-		for _, related := range raw.Related {
-			drama.Related = append(drama.Related, nativeNormalize(related))
+	if len(raw.Related) > 0 && (raw.ID == drama.ID || len(drama.Related) == 0) {
+		base := sekuRelatedCoverBase(engine, source)
+		resolved := make([]nativeDrama, 0, len(raw.Related))
+		for _, item := range raw.Related {
+			resolved = append(resolved, nativeNormalize(resolveSekuDramaCover(item, base)))
 		}
+		drama.Related = resolved
 	}
 	warning := ""
 	if err := engine.saveDetailMetadata(drama); err != nil {

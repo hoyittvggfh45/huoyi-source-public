@@ -337,7 +337,7 @@ class _PlayerMenuState extends State<PlayerMenu> {
           SwitchListTile.adaptive(
             key: const ValueKey('player-preload-enabled'),
             contentPadding: EdgeInsets.zero,
-            title: const Text('下一集预加载'),
+            title: const Text('下一集／下一部预加载'),
             subtitle: Text(widget.local ? '本地播放不预取网络视频' : widget.preloadStatus),
             value: preferences.preload,
             onChanged: _busy

@@ -145,7 +145,7 @@ void main() {
           ContentRegistry.sourcesFor(section).map((s) => s.id),
         );
       }
-      expect(binding.sourceFor(ContentSection.audio), isNull);
+      expect(binding.sourceFor(ContentSection.audio)?.id, 'tingshuwang');
       expect(binding.sourceFor(ContentSection.comic)?.id, 'dongmanla');
       expect(binding.sourceFor(ContentSection.novel), isNull);
     });
@@ -201,7 +201,7 @@ void main() {
       expect(find.text('小说甲'), findsNothing);
 
       await tester.tap(
-        find.byKey(const ValueKey('source-picker-fake_comic_b')),
+        find.byKey(const ValueKey('site-picker-row-fake_comic_b')),
       );
       await settle(tester);
       expect(find.text('漫画乙'), findsOneWidget);
@@ -220,7 +220,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       await tester.tap(
-        find.byKey(const ValueKey('source-picker-fake_audio_b')),
+        find.byKey(const ValueKey('site-picker-row-fake_audio_b')),
       );
       await settle(tester);
       expect(find.text('听书乙'), findsOneWidget);

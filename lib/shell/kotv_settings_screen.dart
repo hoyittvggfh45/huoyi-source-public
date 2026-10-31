@@ -138,9 +138,7 @@ class KotvSettingsScreen extends StatelessWidget {
     try {
       final current = await AppUpdateChecker.currentVersion();
       final latest = await AppUpdateChecker.cachedLatestVersion();
-      return latest.isEmpty
-          ? '当前版本 $current'
-          : '当前版本 $current · 最新 $latest';
+      return latest.isEmpty ? '当前版本 $current' : '当前版本 $current · 最新 $latest';
     } catch (_) {
       return '检查整包新版本';
     }
@@ -166,6 +164,61 @@ class KotvSettingsScreen extends StatelessWidget {
     if (selected != null && context.mounted) {
       await saveUserChange(context, () => store.setThemeMode(selected));
     }
+  }
+
+  Future<void> _editHongguoBridgeHost(BuildContext context) async {
+    final value = await _editHongguoBridgeText(
+      context,
+      title: '红果桥接地址',
+      initial: store.hongguoBridgeHost,
+      keyboardType: TextInputType.url,
+    );
+    if (value != null && context.mounted) {
+      await saveUserChange(context, () => store.setHongguoBridgeHost(value));
+    }
+  }
+
+  Future<void> _editHongguoBridgePort(BuildContext context) async {
+    final value = await _editHongguoBridgeText(
+      context,
+      title: '红果桥接端口',
+      initial: '${store.hongguoBridgePort}',
+      keyboardType: TextInputType.number,
+    );
+    if (value != null && context.mounted) {
+      await saveUserChange(context, () => store.setHongguoBridgePort(value));
+    }
+  }
+
+  Future<String?> _editHongguoBridgeText(
+    BuildContext context, {
+    required String title,
+    required String initial,
+    required TextInputType keyboardType,
+  }) {
+    final controller = TextEditingController(text: initial);
+    return showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: controller,
+          autocorrect: false,
+          keyboardType: keyboardType,
+          decoration: const InputDecoration(border: OutlineInputBorder()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    ).whenComplete(controller.dispose);
   }
 
   Future<void> _chooseDisplayMode(BuildContext context) async {
@@ -336,10 +389,7 @@ class KotvSettingsScreen extends StatelessWidget {
       selectedId: selectedId,
     );
     if (chosen != null && context.mounted) {
-      await saveUserChange(
-        context,
-        () => store.setDefaultParserId(chosen),
-      );
+      await saveUserChange(context, () => store.setDefaultParserId(chosen));
     }
   }
 
@@ -382,7 +432,9 @@ class KotvSettingsScreen extends StatelessWidget {
             Container(
               margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               decoration: BoxDecoration(
-                color: KotvTokens.cardColor,
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white.withValues(alpha: 0.10)
+                    : KotvTokens.cardColor,
                 borderRadius: BorderRadius.circular(KotvTokens.cardRadius),
               ),
               child: Material(
@@ -582,15 +634,23 @@ class KotvSettingsScreen extends StatelessWidget {
                   title: '播放设置',
                   value:
                       '${PlayerCoreStorage.read(store.preferences).label} · ${speedLabel(preferences.speed)}x',
-                  onTap: () => _push(
-                    context,
-                    KotvPlaybackSettingsScreen(store: store),
-                  ),
+                  onTap: () =>
+                      _push(context, KotvPlaybackSettingsScreen(store: store)),
                 ),
                 KotvSettingsRow(
                   title: '解析接口',
                   value: '播放解析接口列表与默认选中',
                   onTap: () => _push(context, const ParseSettingsScreen()),
+                ),
+                KotvSettingsRow(
+                  title: '红果桥接地址',
+                  value: store.hongguoBridgeHost,
+                  onTap: () => _editHongguoBridgeHost(context),
+                ),
+                KotvSettingsRow(
+                  title: '红果桥接端口',
+                  value: '${store.hongguoBridgePort}',
+                  onTap: () => _editHongguoBridgePort(context),
                 ),
                 KotvSettingsRow(
                   title: '滑动快进秒数',
@@ -700,10 +760,8 @@ class KotvSettingsScreen extends StatelessWidget {
                 KotvSettingsRow(
                   title: '播放器设置',
                   value: '画质、弹幕、解码与增强',
-                  onTap: () => showKotvPlayerSettingsSheet(
-                    context,
-                    store: store,
-                  ),
+                  onTap: () =>
+                      showKotvPlayerSettingsSheet(context, store: store),
                 ),
                 KotvSettingsRow(
                   title: '画面比例',
@@ -836,10 +894,8 @@ class KotvSettingsScreen extends StatelessWidget {
                 KotvSettingsRow(
                   title: '用户管理',
                   value: '管理本机用户与远端鉴权',
-                  onTap: () => _push(
-                    context,
-                    KotvUserAdminScreen(store: store),
-                  ),
+                  onTap: () =>
+                      _push(context, KotvUserAdminScreen(store: store)),
                 ),
               ],
             ),
@@ -961,8 +1017,7 @@ class KotvSettingsScreen extends StatelessWidget {
                 KotvSettingsRow(
                   title: '发送到设备',
                   value: '局域网同步追剧与观看进度',
-                  onTap: () =>
-                      showKotvSendToDeviceDialog(context: context),
+                  onTap: () => showKotvSendToDeviceDialog(context: context),
                 ),
               ],
             ),
@@ -988,8 +1043,7 @@ class KotvSettingsScreen extends StatelessWidget {
                 KotvSettingsRow(
                   title: '更新地址',
                   value: '查看既有更新地址，确定后打开软件更新屏',
-                  onTap: () =>
-                      showKotvUpdateAddressDialog(context: context),
+                  onTap: () => showKotvUpdateAddressDialog(context: context),
                 ),
                 KotvSettingsRow(
                   title: '数据备份',
@@ -1002,10 +1056,8 @@ class KotvSettingsScreen extends StatelessWidget {
                 KotvSettingsRow(
                   title: '恢复备份',
                   value: '从备份文件恢复用户与设置',
-                  onTap: () => showKotvBackupFileDialog(
-                    context: context,
-                    store: store,
-                  ),
+                  onTap: () =>
+                      showKotvBackupFileDialog(context: context, store: store),
                 ),
                 KotvSettingsRow(
                   title: '清理缓存',
@@ -1018,8 +1070,7 @@ class KotvSettingsScreen extends StatelessWidget {
                 KotvSettingsRow(
                   title: '运行时信息',
                   value: '应用、平台、桥与局域网状态',
-                  onTap: () =>
-                      showKotvRuntimeInfoDialog(context: context),
+                  onTap: () => showKotvRuntimeInfoDialog(context: context),
                 ),
                 KotvSettingsRow(
                   title: '关于$appName',

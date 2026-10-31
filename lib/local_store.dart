@@ -713,6 +713,29 @@ class LocalStore extends ChangeNotifier {
       ? _setting('player', value)
       : Future.value();
 
+  String get hongguoBridgeHost {
+    final value = _string('hongguoBridgeHost');
+    return value == null || value.isEmpty ? '127.0.0.1' : value;
+  }
+
+  Future<void> setHongguoBridgeHost(String value) {
+    final host = value.trim();
+    return _setting('hongguoBridgeHost', host.isEmpty ? '127.0.0.1' : host);
+  }
+
+  int get hongguoBridgePort {
+    final value = int.tryParse(_string('hongguoBridgePort') ?? '');
+    return value != null && value > 0 && value <= 65535 ? value : 8917;
+  }
+
+  Future<void> setHongguoBridgePort(String value) {
+    final port = int.tryParse(value.trim());
+    return _setting(
+      'hongguoBridgePort',
+      port != null && port > 0 && port <= 65535 ? port.toString() : '8917',
+    );
+  }
+
   bool get useNewShell => _bool('useNewShell') ?? true;
 
   Future<void> setUseNewShell(bool value) => _setting('useNewShell', value);

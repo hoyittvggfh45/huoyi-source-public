@@ -38,6 +38,12 @@ type LegadoSource struct {
 	ChapterURL      string `json:"chapterUrl"`
 	ContentRule     string `json:"content"`
 	NextContent     string `json:"nextContentUrl"`
+	Headers         map[string]string
+	MaxTocPages     int
+	ContentReplace  string
+	ContentWebJS    string
+	ContentSrcRegex string
+	ContentInit     string
 	ExploreURL      string `json:"exploreUrl"`
 	ImageStyle      string `json:"imageStyle"`
 	BookInfo        map[string]string
@@ -53,6 +59,7 @@ type legadoRaw struct {
 	Name         string            `json:"bookSourceName"`
 	URL          string            `json:"bookSourceUrl"`
 	Type         int               `json:"bookSourceType"`
+	Header       string            `json:"header"`
 	Comment      string            `json:"bookSourceComment"`
 	LoginURL     string            `json:"loginUrl"`
 	SearchURL    string            `json:"searchUrl"`
@@ -73,6 +80,12 @@ func legadoParseSource(data []byte) (LegadoSource, error) {
 		return LegadoSource{}, err
 	}
 	s := LegadoSource{Name: raw.Name, URL: raw.URL, Type: raw.Type, Comment: raw.Comment, LoginURL: raw.LoginURL, SearchURL: raw.SearchURL, ExploreURL: raw.ExploreURL, ImageStyle: raw.ImageStyle, BookInfo: raw.RuleBookInfo}
+	if strings.TrimSpace(raw.Header) != "" {
+		var headers map[string]string
+		if err := json.Unmarshal([]byte(raw.Header), &headers); err == nil && len(headers) > 0 {
+			s.Headers = headers
+		}
+	}
 	if raw.RuleSearch != nil {
 		s.BookList = raw.RuleSearch["bookList"]
 		s.NameRule = raw.RuleSearch["name"]
@@ -85,6 +98,11 @@ func legadoParseSource(data []byte) (LegadoSource, error) {
 		s.TocURL = raw.RuleBookInfo["tocUrl"]
 	}
 	if raw.RuleToc != nil {
+		if v := strings.TrimSpace(raw.RuleToc["maxTocPages"]); v != "" {
+			if n, err := strconv.Atoi(v); err == nil && n > 0 {
+				s.MaxTocPages = n
+			}
+		}
 		s.TocList = raw.RuleToc["tocList"]
 		if s.TocList == "" {
 			s.TocList = raw.RuleToc["chapterList"]
@@ -96,6 +114,10 @@ func legadoParseSource(data []byte) (LegadoSource, error) {
 	if raw.RuleContent != nil {
 		s.ContentRule = raw.RuleContent["content"]
 		s.NextContent = raw.RuleContent["nextContentUrl"]
+		s.ContentReplace = raw.RuleContent["replaceRegex"]
+		s.ContentWebJS = raw.RuleContent["webJs"]
+		s.ContentSrcRegex = raw.RuleContent["sourceRegex"]
+		s.ContentInit = raw.RuleContent["init"]
 	}
 	if raw.RuleExplore != nil {
 		s.ExploreBookList = raw.RuleExplore["bookList"]
@@ -110,6 +132,36 @@ func legadoParseSource(data []byte) (LegadoSource, error) {
 
 func legadoFetch(rawurl string) (string, error) {
 	return legadoRequest(rawurl, "GET", "", nil)
+}
+
+func legadoMergeHeaders(base, over map[string]string) map[string]string {
+	out := map[string]string{}
+	for k, v := range base {
+		out[k] = v
+	}
+	for k, v := range over {
+		out[k] = v
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func legadoFetchSrc(src LegadoSource, rawurl string) (string, error) {
+	return legadoRequest(rawurl, "GET", "", src.Headers)
+}
+
+func legadoApplyReplaceRegex(s, replaceRegex string) string {
+	if strings.TrimSpace(replaceRegex) == "" {
+		return s
+	}
+	parts := strings.Split(replaceRegex, "##")
+	spec := parts
+	if len(parts) > 0 && parts[0] == "" {
+		spec = parts[1:]
+	}
+	return legadoApplyReplace(s, spec)
 }
 
 func legadoRequest(rawurl, method, body string, headers map[string]string) (string, error) {
@@ -680,13 +732,13 @@ func legadoSearch(src LegadoSource, keyword string, page int) (interface{}, erro
 				u2 = base
 			}
 			u2 = legadoAbs(src.URL, u2)
-			pageBody, err := legadoRequest(u2, method2, body2, headers2)
+			pageBody, err := legadoRequest(u2, method2, body2, legadoMergeHeaders(src.Headers, headers2))
 			if err != nil {
 				return nil, err
 			}
-			return legadoSearchExtract(src, ctx, pageBody)
+			return legadoSearchExtractURL(src, ctx, pageBody, u2)
 		}
-		return legadoSearchExtract(src, ctx, res)
+		return legadoSearchExtractURL(src, ctx, res, src.URL)
 	}
 	method := "GET"
 	body := ""
@@ -709,14 +761,19 @@ func legadoSearch(src LegadoSource, keyword string, page int) (interface{}, erro
 	for k := range headers {
 		headers[k] = sub(headers[k])
 	}
-	pageBody, err := legadoRequest(u, method, body, headers)
+	pageBody, err := legadoRequest(u, method, body, legadoMergeHeaders(src.Headers, headers))
 	if err != nil {
 		return nil, err
 	}
-	return legadoSearchExtract(src, ctx, pageBody)
+	return legadoSearchExtractURL(src, ctx, pageBody, u)
 }
 
 func legadoSearchExtract(src LegadoSource, ctx *legadoJSCtx, pageBody string) (interface{}, error) {
+	return legadoSearchExtractURL(src, ctx, pageBody, src.URL)
+}
+
+func legadoSearchExtractURL(src LegadoSource, ctx *legadoJSCtx, pageBody, pageURL string) (interface{}, error) {
+	ctx.setBaseURL(pageURL)
 	blocks := ctx.evalList(pageBody, src.BookList)
 	out := []map[string]string{}
 	for _, b := range blocks {
@@ -749,10 +806,11 @@ func legadoToc(src LegadoSource, bookURL string) (interface{}, error) {
 	ctx := newLegadoJSCtx(src.URL)
 	ctx.setSource(src)
 	ctx.bookURL = bookURL
-	pageBody, err := legadoFetch(bookURL)
+	pageBody, err := legadoFetchSrc(src, bookURL)
 	if err != nil {
 		return nil, err
 	}
+	ctx.setBaseURL(bookURL)
 	ctx.setBlock(pageBody)
 	orderedKeys := []string{"name", "author", "coverUrl", "intro", "tocUrl"}
 	seenKeys := map[string]bool{}
@@ -780,12 +838,13 @@ func legadoToc(src LegadoSource, bookURL string) (interface{}, error) {
 	}
 	if tocURLVal != "" {
 		if tocURL := legadoAbs(bookURL, tocURLVal); tocURL != "" && tocURL != bookURL {
-			if b2, err2 := legadoFetch(tocURL); err2 == nil {
+			if b2, err2 := legadoFetchSrc(src, tocURL); err2 == nil {
 				pageBody = b2
 				bookURL = tocURL
 			}
 		}
 	}
+	ctx.setBaseURL(bookURL)
 	blocks := ctx.evalList(pageBody, src.TocList)
 	blockBases := []string{}
 	for range blocks {
@@ -793,14 +852,27 @@ func legadoToc(src LegadoSource, bookURL string) (interface{}, error) {
 	}
 	if src.NextTocURL != "" {
 		seenToc := map[string]bool{bookURL: true}
+		curTocURL := bookURL
+		ctx.setBaseURL(curTocURL)
 		ctx.setBlock(pageBody)
-		next := legadoAbs(bookURL, ctx.evalScalar(pageBody, src.NextTocURL))
-		for i := 0; i < 5 && next != "" && !seenToc[next]; i++ {
+		next := legadoAbs(curTocURL, ctx.evalScalar(pageBody, src.NextTocURL))
+		tocLimit := 6
+		if src.MaxTocPages > 0 {
+			tocLimit = src.MaxTocPages
+			if tocLimit > 1000 {
+				tocLimit = 1000
+			}
+		}
+		tocFetched := 1
+		for tocFetched < tocLimit && next != "" && !seenToc[next] {
+			tocFetched++
 			seenToc[next] = true
-			b2, err := legadoFetch(next)
+			b2, err := legadoFetchSrc(src, next)
 			if err != nil {
 				break
 			}
+			curTocURL = next
+			ctx.setBaseURL(curTocURL)
 			more := ctx.evalList(b2, src.TocList)
 			blocks = append(blocks, more...)
 			for range more {
@@ -808,7 +880,7 @@ func legadoToc(src LegadoSource, bookURL string) (interface{}, error) {
 			}
 			pageBody = b2
 			ctx.setBlock(pageBody)
-			next = legadoAbs(next, ctx.evalScalar(pageBody, src.NextTocURL))
+			next = legadoAbs(curTocURL, ctx.evalScalar(pageBody, src.NextTocURL))
 		}
 	}
 	out := []map[string]string{}
@@ -831,35 +903,45 @@ func legadoContent(src LegadoSource, chapterURL string) (interface{}, error) {
 	ctx := newLegadoJSCtx(src.URL)
 	ctx.setSource(src)
 	contentOf := func(body, pageURL string) (string, []legadoImage, bool) {
+		ctx.setBaseURL(pageURL)
 		ctx.setBlock(body)
-		if legadoHasMarkers(src.ContentRule) {
-			r := ctx.evalScalar(body, src.ContentRule)
+		baseRule, ruleSpec := legadoSplitReplace(src.ContentRule)
+		applySpec := func(s string) string {
+			if ruleSpec == nil {
+				return s
+			}
+			return legadoApplyReplace(s, ruleSpec)
+		}
+		if legadoHasMarkers(baseRule) {
+			r := ctx.evalScalar(body, baseRule)
 			if r == "" {
 				return "", nil, false
 			}
+			r = legadoApplyReplaceRegex(applySpec(r), src.ContentReplace)
 			images, text := legadoExtractImages(r, pageURL)
 			if len(images) > 0 {
-				return text, images, true
+				return applySpec(text), images, true
 			}
-			return legadoHTMLToText(r), nil, true
+			return applySpec(legadoHTMLToText(r)), nil, true
 		}
-		if strings.HasPrefix(strings.TrimSpace(src.ContentRule), "$") && legadoIsJSONBody(body) {
-			outer := legadoField(body, src.ContentRule)
+		if strings.HasPrefix(strings.TrimSpace(baseRule), "$") && legadoIsJSONBody(body) {
+			outer := legadoField(body, baseRule)
 			if outer == "" {
 				return "", nil, false
 			}
+			outer = legadoApplyReplaceRegex(outer, src.ContentReplace)
 			images, text := legadoExtractImages(outer, pageURL)
 			if len(images) > 0 {
-				return text, images, true
+				return applySpec(text), images, true
 			}
-			return outer, nil, true
+			return applySpec(outer), nil, true
 		}
-		sel, _ := legadoSplitAttr(src.ContentRule)
+		sel, _ := legadoSplitAttr(baseRule)
 		if sel == "" {
 			return "", nil, false
 		}
 		outer := ""
-		if nodes, value, ok := legadoEvalDialect(body, src.ContentRule, false); ok && len(nodes) > 0 {
+		if nodes, value, ok := legadoEvalDialect(body, baseRule, false); ok && len(nodes) > 0 {
 			outer = legadoScalarFromNodes(nodes, value)
 		}
 		if outer == "" {
@@ -868,13 +950,14 @@ func legadoContent(src LegadoSource, chapterURL string) (interface{}, error) {
 		if outer == "" {
 			return "", nil, false
 		}
+		outer = legadoApplyReplaceRegex(outer, src.ContentReplace)
 		images, text := legadoExtractImages(outer, pageURL)
 		if len(images) > 0 {
-			return text, images, true
+			return applySpec(text), images, true
 		}
-		return legadoHTMLToText(outer), nil, true
+		return applySpec(legadoHTMLToText(outer)), nil, true
 	}
-	pageBody, err := legadoFetch(chapterURL)
+	pageBody, err := legadoFetchSrc(src, chapterURL)
 	if err != nil {
 		return nil, err
 	}
@@ -895,16 +978,21 @@ func legadoContent(src LegadoSource, chapterURL string) (interface{}, error) {
 	text, images = finishContent(text, images, chapterURL)
 	seen := map[string]bool{chapterURL: true}
 	next := ""
+	curContentURL := chapterURL
 	if src.NextContent != "" {
+		ctx.setBaseURL(curContentURL)
 		ctx.setBlock(pageBody)
-		next = legadoAbs(chapterURL, ctx.evalScalar(pageBody, src.NextContent))
+		next = legadoAbs(curContentURL, ctx.evalScalar(pageBody, src.NextContent))
 	}
-	for i := 0; i < 5 && next != "" && !seen[next]; i++ {
+	contentFetched := 1
+	for contentFetched < 100 && next != "" && !seen[next] {
+		contentFetched++
 		seen[next] = true
-		b2, err := legadoFetch(next)
+		b2, err := legadoFetchSrc(src, next)
 		if err != nil {
 			break
 		}
+		curContentURL = next
 		t2, imgs2, ok2 := contentOf(b2, next)
 		if !ok2 {
 			break
@@ -915,8 +1003,9 @@ func legadoContent(src LegadoSource, chapterURL string) (interface{}, error) {
 		}
 		images = append(images, imgs2...)
 		pageBody = b2
+		ctx.setBaseURL(curContentURL)
 		ctx.setBlock(pageBody)
-		next = legadoAbs(next, ctx.evalScalar(pageBody, src.NextContent))
+		next = legadoAbs(curContentURL, ctx.evalScalar(pageBody, src.NextContent))
 	}
 	result := map[string]string{"content": text}
 	if len(images) > 0 {
@@ -969,10 +1058,11 @@ func legadoExplore(src LegadoSource, urlTmpl string, page int) (interface{}, err
 	if u == "" {
 		return nil, fmt.Errorf("legado explore url empty")
 	}
-	pageBody, err := legadoFetch(u)
+	pageBody, err := legadoFetchSrc(src, u)
 	if err != nil {
 		return nil, err
 	}
+	ctx.setBaseURL(u)
 	blocks := ctx.evalList(pageBody, src.ExploreBookList)
 	out := []map[string]string{}
 	for _, b := range blocks {
@@ -1031,6 +1121,33 @@ func legadoCheck(src LegadoSource) legadoCheckResult {
 		{"intro", src.IntroRule},
 	}
 	out := legadoCheckResult{Supported: true, UnsupportedFields: []legadoCheckField{}}
+	for _, f := range []struct {
+		name string
+		rule string
+	}{
+		{"tocList", src.TocList},
+		{"chapterName", src.ChapterName},
+		{"chapterUrl", src.ChapterURL},
+		{"nextTocUrl", src.NextTocURL},
+		{"content", src.ContentRule},
+		{"nextContentUrl", src.NextContent},
+	} {
+		fields = append(fields, f)
+	}
+	for _, f := range []struct {
+		name   string
+		rule   string
+		reason string
+	}{
+		{"webJs", src.ContentWebJS, "webJs"},
+		{"sourceRegex", src.ContentSrcRegex, "sourceRegex"},
+		{"init", src.ContentInit, "init"},
+	} {
+		if strings.TrimSpace(f.rule) != "" {
+			out.Supported = false
+			out.UnsupportedFields = append(out.UnsupportedFields, legadoCheckField{Field: f.name, Rule: f.rule, Reason: f.reason})
+		}
+	}
 	for _, f := range fields {
 		reason := ""
 		hasSupported := false

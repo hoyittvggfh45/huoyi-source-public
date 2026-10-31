@@ -27,11 +27,23 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
   ContentBookDetail? _detail;
   String _error = '';
   bool _loading = true;
+  ({int chapter, int page})? _resume;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _loadResume();
+  }
+
+  Future<void> _loadResume() async {
+    final progress = await NovelReadingProgress.load(
+      widget.source.id,
+      widget.book.id,
+    );
+    if (mounted && progress != null) {
+      setState(() => _resume = progress);
+    }
   }
 
   Future<void> _load() async {
@@ -67,22 +79,30 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
     }
   }
 
-  void _openChapter(int index) {
+  void _openChapter(int index, {int initialPage = 0}) {
     final detail = _detail;
     if (detail == null) return;
-    final page = widget.source.section == ContentSection.audio
-        ? ContentAudioPlayerScreen(
-            source: widget.source,
-            book: detail.book,
-            chapters: detail.chapters,
-            initialIndex: index,
-          )
-        : ComicReaderScreen(
-            source: widget.source,
-            book: detail.book,
-            chapters: detail.chapters,
-            initialIndex: index,
-          );
+    final page = switch (widget.source.section) {
+      ContentSection.audio => ContentAudioPlayerScreen(
+        source: widget.source,
+        book: detail.book,
+        chapters: detail.chapters,
+        initialIndex: index,
+      ),
+      ContentSection.novel => NovelReaderScreen(
+        source: widget.source,
+        book: detail.book,
+        chapters: detail.chapters,
+        initialIndex: index,
+        initialPage: initialPage,
+      ),
+      ContentSection.comic => ComicReaderScreen(
+        source: widget.source,
+        book: detail.book,
+        chapters: detail.chapters,
+        initialIndex: index,
+      ),
+    };
     Navigator.of(context).push(appPageRoute(builder: (_) => page));
   }
 
@@ -197,6 +217,23 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
                   ),
                 ],
                 const SizedBox(height: 18),
+                if (_resume != null &&
+                    widget.source.section == ContentSection.novel &&
+                    _detail != null &&
+                    _resume!.chapter < _detail!.chapters.length)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: FilledButton.icon(
+                      onPressed: () => _openChapter(
+                        _resume!.chapter,
+                        initialPage: _resume!.page,
+                      ),
+                      icon: const Icon(Icons.bookmark_rounded),
+                      label: Text(
+                        '续读：${_detail!.chapters[_resume!.chapter].title}',
+                      ),
+                    ),
+                  ),
                 Text(
                   widget.source.section == ContentSection.audio ? '集数' : '章节',
                   style: Theme.of(context).textTheme.titleSmall,

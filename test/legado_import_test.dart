@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:duanju_app/legado_builtin_data.dart';
 import 'package:duanju_app/legado_source.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -137,6 +138,70 @@ void main() {
     const text =
         '[{"bookSourceName":"U","bookSourceUrl":"https://u.example","searchUrl":"https://u.example/s"}]';
     expect(decodeLegadoImportBytes(text.codeUnits), text);
+  });
+
+  test('builtin comic set is 210 including seven added rules', () {
+    final decoded = jsonDecode(builtinLegadoRulesJson) as List<dynamic>;
+    final comics = decoded
+        .where((e) => (e as Map<String, dynamic>)['bookSourceType'] == 2)
+        .toList();
+    expect(decoded, hasLength(216));
+    expect(comics, hasLength(210));
+    final keys = comics
+        .map((e) => '${e['bookSourceName']}::${e['bookSourceUrl']}')
+        .toList();
+    expect(keys.toSet(), hasLength(210));
+    for (final name in [
+      '啵乐屋🔞',
+      '🔞 夜色韩漫',
+      'XiuRenBox 秀人网写真',
+      '美人图 写真美图',
+      'MMRGB 魅色MM',
+      '漫小肆韓漫',
+      '4KHD 高清写真',
+    ]) {
+      final found = comics.where((e) => e['bookSourceName'] == name).toList();
+      expect(found, hasLength(1));
+      expect((found.first['searchUrl'] as String).isNotEmpty, isTrue);
+    }
+    expect(
+      comics.where((e) => e['bookSourceName'] == '🔞 快乐图书').length,
+      1,
+    );
+    final novels = decoded
+        .where((e) => (e as Map<String, dynamic>)['bookSourceType'] != 2)
+        .map((e) => (e as Map<String, dynamic>)['bookSourceName'])
+        .toList();
+    expect(novels, ['顶果', '趣果', '棠果', '墨果', '同果', '猫果']);
+  });
+
+  test('v3 seed merges seven new comic entries but gate blocks rerun', () async {
+    const newNames = {
+      '啵乐屋🔞',
+      '🔞 夜色韩漫',
+      'XiuRenBox 秀人网写真',
+      '美人图 写真美图',
+      'MMRGB 魅色MM',
+      '漫小肆韓漫',
+      '4KHD 高清写真',
+    };
+    final parsed = parseLegadoSources(builtinLegadoRulesJson);
+    final oldRaw = parsed
+        .where((s) => !newNames.contains(s.name))
+        .map((s) => jsonDecode(s.rawJson))
+        .toList();
+    SharedPreferences.setMockInitialValues({
+      'legado_sources_v1': jsonEncode(oldRaw),
+    });
+    final added = await LegadoStore.seedBuiltin();
+    expect(added, 7);
+    expect((await LegadoStore.load()).length, 216);
+    SharedPreferences.setMockInitialValues({
+      'legado_sources_v1': jsonEncode(oldRaw),
+      'legado_builtin_seeded_v3': true,
+    });
+    expect(await LegadoStore.seedBuiltin(), 0);
+    expect((await LegadoStore.load()).length, 209);
   });
 
   test('check reason text', () {

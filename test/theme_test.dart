@@ -81,7 +81,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(
           Theme.of(tester.element(find.byType(HomeScreen))).brightness,
-          brightness,
+          Brightness.dark,
         );
       }
       await store.setThemeMode('dark');

@@ -20,19 +20,25 @@ import (
 )
 
 const (
-	sourceHuangguoAI    = "huangguoai"
-	sourceHuangguoVideo = "huangguo-video"
-	sourceHuangdou      = "huangdou"
-	sourceHongguo       = "hongguo"
+	sourceHuangguoAI     = "huangguoai"
+	sourceHuangguoVideo  = "huangguo-video"
+	sourceHuangdou       = "huangdou"
+	sourceHongguo        = "hongguo"
 	sourceHongguoOversea = "hongguo-oversea"
-	sourceHuangju       = "huangju"
-	sourceYeguo         = "yeguo"
-	sourceDSD           = "dsd"
-	sourceCloudFront    = "cloudfront"
-	sourceGuipian       = "guipian"
-	sourceHanxiaoquan   = "hanxiaoquan"
-	sourceIkanbot       = "ikanbot"
-	sourceA123          = "a123"
+	sourceHuangju        = "huangju"
+	sourceYeguo          = "yeguo"
+	sourceDSD            = "dsd"
+	sourceCloudFront     = "cloudfront"
+	sourceGuipian        = "guipian"
+	sourceHanxiaoquan    = "hanxiaoquan"
+	sourceIkanbot        = "ikanbot"
+	sourceA123           = "a123"
+	sourceChengguo       = "chengguodj"
+	sourcePornhub        = "pornhub"
+	sourceRedtube        = "redtube"
+	sourceYangguo        = "yangguo"
+	sourceFengguo        = "fengguo"
+	sourceYouTube        = "youtube"
 
 	providerMaxBodyBytes = 20 * 1024 * 1024
 	providerTimeout      = 12 * time.Second
@@ -105,7 +111,7 @@ func splitProviderDramaID(id string) (source, sourceID string, ok bool) {
 
 func isHuangguoProviderSource(source string) bool {
 	switch canonicalProviderSource(source) {
-	case sourceHuangguoAI, sourceHuangguoVideo, sourceHuangdou, sourceHongguo, sourceHongguoOversea, sourceHuangju, sourceYeguo, sourceDSD, sourceCloudFront, sourceGuipian, sourceHanxiaoquan, sourceIkanbot, sourceA123, sourceHGTV:
+	case sourceHuangguoAI, sourceHuangguoVideo, sourceHuangdou, sourceHongguo, sourceHongguoOversea, sourceHuangju, sourceYeguo, sourceDSD, sourceCloudFront, sourceGuipian, sourceHanxiaoquan, sourceIkanbot, sourceA123, sourceHGTV, sourceChengguo, sourcePornhub, sourceRedtube, sourceYangguo, sourceFengguo, sourceYouTube:
 		return true
 	default:
 		return isDuanjuProviderSource(source) || isSekuSource(source)
@@ -143,6 +149,18 @@ func canonicalProviderSource(source string) string {
 		return sourceA123
 	case "hgtv":
 		return sourceHGTV
+	case "chengguodj", "chengguodj.com":
+		return sourceChengguo
+	case "pornhub", "pornhub.com", "cn.pornhub.com":
+		return sourcePornhub
+	case "redtube", "redtube.com", "redtube.net", "www.redtube.net":
+		return sourceRedtube
+	case "yangguo":
+		return sourceYangguo
+	case "fengguo":
+		return sourceFengguo
+	case "youtube", "youtube.com", "www.youtube.com":
+		return sourceYouTube
 	}
 	if canonical, found := duanjuSourceAliases[key]; found {
 		return canonical
@@ -270,6 +288,24 @@ func (d *Downloader) GetHuangguoChapters(ctx context.Context, source, sourceID s
 		return drama.DisplayTitle(), chapters, err
 	case sourceA123:
 		drama, chapters, err := d.fetchA123Detail(ctx, sourceID)
+		return drama.DisplayTitle(), chapters, err
+	case sourceChengguo:
+		drama, chapters, err := d.fetchChengguoDetail(ctx, sourceID)
+		return drama.DisplayTitle(), chapters, err
+	case sourcePornhub:
+		drama, chapters, err := d.fetchPornhubDetail(ctx, sourceID)
+		return drama.DisplayTitle(), chapters, err
+	case sourceRedtube:
+		drama, chapters, err := d.fetchRedtubeDetail(ctx, sourceID)
+		return drama.DisplayTitle(), chapters, err
+	case sourceYangguo:
+		drama, chapters, err := d.fetchYangguoDetail(ctx, sourceID)
+		return drama.DisplayTitle(), chapters, err
+	case sourceFengguo:
+		drama, chapters, err := d.fetchFengguoDetail(ctx, sourceID)
+		return drama.DisplayTitle(), chapters, err
+	case sourceYouTube:
+		drama, chapters, err := d.fetchYoutubeDetail(ctx, sourceID)
 		return drama.DisplayTitle(), chapters, err
 	default:
 		if isDuanjuProviderSource(source) {

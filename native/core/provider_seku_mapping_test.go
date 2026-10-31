@@ -81,3 +81,56 @@ func TestSekuSlotMappingMatchesDartRegistry(t *testing.T) {
 		t.Fatalf("sekuSlotForSource(huangdou_yh) = %q, %v, want yh_huangdou", got, ok)
 	}
 }
+
+func TestResolveSekuDramaCoverRelative(t *testing.T) {
+	base := "https://site.test"
+	if got := nativeNormalize(resolveSekuDramaCover(Drama{Cover: "/covers/x.jpg"}, base)).Cover; got != "https://site.test/covers/x.jpg" {
+		t.Fatalf("root-relative cover = %q", got)
+	}
+	if got := nativeNormalize(resolveSekuDramaCover(Drama{Cover: "covers/y.jpg"}, base)).Cover; got != "https://site.test/covers/y.jpg" {
+		t.Fatalf("bare relative cover = %q", got)
+	}
+	if got := nativeNormalize(resolveSekuDramaCover(Drama{Cover: "//cdn.test/z.jpg"}, base)).Cover; got != "https://cdn.test/z.jpg" {
+		t.Fatalf("protocol-relative cover = %q", got)
+	}
+	if got := nativeNormalize(resolveSekuDramaCover(Drama{Cover: "https://cdn.test/a.jpg"}, base)).Cover; got != "https://cdn.test/a.jpg" {
+		t.Fatalf("absolute cover = %q", got)
+	}
+	if got := nativeNormalize(resolveSekuDramaCover(Drama{Cover: "/covers/x.jpg"}, "")).Cover; got != "" {
+		t.Fatalf("no base cover = %q, want empty", got)
+	}
+	if got := nativeNormalize(resolveSekuDramaCover(Drama{Cover: "/covers/first.jpg", Pic: "https://cdn.test/second.jpg"}, base)).Cover; got != "https://site.test/covers/first.jpg" {
+		t.Fatalf("first field cover = %q", got)
+	}
+}
+
+func TestSekuRelatedCoverBaseNilSafe(t *testing.T) {
+	if got := sekuRelatedCoverBase(nil, "javdb"); got != "" {
+		t.Fatalf("nil engine base = %q", got)
+	}
+	if got := sekuRelatedCoverBase(&nativeEngine{}, "javdb"); got != "" {
+		t.Fatalf("nil downloader base = %q", got)
+	}
+}
+
+func TestSekuRelatedFixtureKeepsCover(t *testing.T) {
+	m := map[string]interface{}{
+		"vod_id": "main1",
+		"title":  "主剧",
+		"related": []interface{}{
+			map[string]interface{}{"vod_id": "rel1", "title": "相关一", "cover": "/covers/rel1.jpg"},
+			map[string]interface{}{"vod_id": "rel2", "title": "相关二"},
+		},
+	}
+	drama := sekuDramaFromMap("javdb", m)
+	if len(drama.Related) != 2 {
+		t.Fatalf("related = %d, want 2", len(drama.Related))
+	}
+	base := "https://site.test"
+	if got := nativeNormalize(resolveSekuDramaCover(drama.Related[0], base)).Cover; got != "https://site.test/covers/rel1.jpg" {
+		t.Fatalf("related cover = %q", got)
+	}
+	if got := nativeNormalize(resolveSekuDramaCover(drama.Related[1], base)).Cover; got != "" {
+		t.Fatalf("coverless related cover = %q, want empty", got)
+	}
+}

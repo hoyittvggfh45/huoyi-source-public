@@ -13,6 +13,7 @@ import 'back_history.dart';
 import 'liquid_glass.dart';
 import 'app_drawer.dart';
 import 'midnight_zone.dart';
+import 'content_zone_binding.dart';
 import 'content_zone_screen.dart';
 import 'content_models.dart';
 import 'miniapp/plugin_center_screen.dart';
@@ -34,6 +35,7 @@ import 'core_bridge.dart';
 import 'catalog_filters.dart';
 import 'tv_filter_bar.dart';
 import 'catalog_browser.dart';
+import 'drama_page_prefetcher.dart';
 import 'catalog_sort.dart';
 import 'catalog_sort_sheet.dart';
 import 'rfw_theme/rfw_theme_data.dart';
@@ -46,6 +48,7 @@ import 'detail_screen.dart';
 import 'folder_catalog_screen.dart';
 import 'fullscreen_feed_screen.dart';
 import 'drama_style_home.dart';
+import 'drama_theater_screen.dart';
 import 'import_file_store.dart';
 import 'imported_site_record.dart';
 import 'py_bridge.dart';
@@ -66,6 +69,7 @@ import 'zone_settings_screen.dart';
 import 'vip_icon.dart';
 import 'search_input.dart';
 import 'source_picker_sheet.dart';
+import 'video_station_switch_dialog.dart';
 import 'sources_screen.dart';
 import 'batch_download_screen.dart';
 import 'batch_downloads.dart';
@@ -81,8 +85,7 @@ bool shouldSilentRefreshOnRestore(DateTime? fetchedAt, DateTime now) =>
     now.difference(fetchedAt) >= const Duration(minutes: 5);
 
 bool vodZoneShowsSource(SourceSite site) =>
-    isVodZoneSource(site) &&
-    !ZooBuiltinSeeder.isBuiltinConfig(site.configId);
+    isVodZoneSource(site) && !ZooBuiltinSeeder.isBuiltinConfig(site.configId);
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -128,6 +131,12 @@ class _HomeScreenState extends State<HomeScreen> {
   final _gridKey = GlobalKey<RemoteGridState>();
   final _navKey = GlobalKey<RemoteListState>();
   Timer? _debounce;
+  late final _audioBinding = ContentZoneBinding(
+    readPersisted: widget.store.preferences.getString,
+    writePersisted: (key, value) {
+      unawaited(widget.store.preferences.setString(key, value));
+    },
+  );
   late SourceSite _source;
   bool _allSources = false;
   List<Drama> _items = [];
@@ -163,7 +172,8 @@ class _HomeScreenState extends State<HomeScreen> {
     int hiddenHash,
     int epoch,
     bool locked,
-  })? _visibleCacheKey;
+  })?
+  _visibleCacheKey;
   List<String>? _level2TagsCache;
   List<Drama>? _level2TagsCacheSource;
   List<String>? _level3TagsCache;
@@ -178,6 +188,9 @@ class _HomeScreenState extends State<HomeScreen> {
   String _submittedQuery = '';
   final _categorySelections = <String, String>{};
   late final CatalogBrowser _browser;
+  final _dramaPrefetcher = DramaPagePrefetcher();
+  String _dramaPrefetchKey = '';
+  bool _dramaPrefetchPending = false;
   bool _searchVisible = false;
   // 勾选后并发搜索所有可见站源并归一去重，取消勾选只搜索当前站源。
   bool _crossSourceSearch = false;
@@ -467,7 +480,21 @@ class _HomeScreenState extends State<HomeScreen> {
       ? '点播'
       : '短剧';
 
+  Future<String?> _pickVideoStation() {
+    return showVideoStationSwitchDialog(
+      context,
+      currentId: _allSources ? _allSourcesEntryId : _source.id,
+      hiddenIds: widget.store.hiddenSites,
+    );
+  }
+
   Future<void> _pickSource({bool editMode = false}) async {
+    if (_zone == HomeZone.drama && !editMode) {
+      final picked = await _pickVideoStation();
+      if (picked == null || !mounted) return;
+      _applySourcePick(picked);
+      return;
+    }
     final picked = await showSitePickerDialog(
       context,
       sectionName: _sourcePickerSectionName(),
@@ -481,6 +508,15 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _pickSourceCentered() async {
+    if (_zone == HomeZone.drama) {
+      final picked = await _pickVideoStation();
+      if (picked == null || !mounted) return;
+      if (_scaffoldKey.currentState?.isDrawerOpen == true) {
+        Navigator.of(context).pop();
+      }
+      _applySourcePick(picked);
+      return;
+    }
     final picked = await showSitePickerDialog(
       context,
       sectionName: _sourcePickerSectionName(),
@@ -582,7 +618,13 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
     final site = _sectionSources.where((site) => site.id == picked).firstOrNull;
-    if (site != null) _changeSource(site);
+    if (site != null) {
+      _changeSource(site);
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('该站源尚未接通，播放待协议证据')),
+      );
+    }
   }
 
   void _changeFilter(String groupKey, String optionId) {
@@ -754,6 +796,55 @@ class _HomeScreenState extends State<HomeScreen> {
         )) {
       unawaited(_load(silent: true));
     }
+    _maybeStartDramaPrefetch();
+  }
+
+  String _dramaPrefetchKeyNow() {
+    final filters = _selectedFilters.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+    return '$_catalogSection|${_effectiveGroup.id}|$_effectiveCategory|'
+        '${_source.id}|$_allSources|$_submittedQuery|'
+        '${filters.map((entry) => '${entry.key}=${entry.value}').join(',')}';
+  }
+
+  void _maybeStartDramaPrefetch() {
+    if (!mounted ||
+        _catalogSection != SourceSite.sectionDrama ||
+        !_hasMore ||
+        !widget.store.playbackPreferences.preload) {
+      return;
+    }
+    _dramaPrefetchKey = _dramaPrefetchKeyNow();
+    if (_dramaPrefetcher.running) {
+      _dramaPrefetchPending = true;
+      return;
+    }
+    unawaited(
+      _dramaPrefetcher
+          .run(
+            isCurrent: () =>
+                mounted &&
+                _catalogSection == SourceSite.sectionDrama &&
+                _hasMore &&
+                widget.store.playbackPreferences.preload &&
+                _dramaPrefetchKeyNow() == _dramaPrefetchKey,
+            isBusy: () => _loading || _loadingMore,
+            loadMore: () async {
+              if (!mounted) return false;
+              final before = _items.length;
+              await _load(more: true, silent: true);
+              if (!mounted) return false;
+              return _items.length > before;
+            },
+          )
+          .then((_) {
+            if (!mounted) return;
+            if (_dramaPrefetchPending) {
+              _dramaPrefetchPending = false;
+              _maybeStartDramaPrefetch();
+            }
+          }),
+    );
   }
 
   void _changeSection(String section) {
@@ -1061,6 +1152,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _error = result.warning.isEmpty ? null : result.warning;
       });
       _sectionFetchedAt[_catalogSection] = DateTime.now();
+      _maybeStartDramaPrefetch();
       unawaited(
         saveUserChange(context, () => widget.store.refreshDramas(result.items)),
       );
@@ -1493,6 +1585,23 @@ class _HomeScreenState extends State<HomeScreen> {
             dramas: List.of(_visible),
             repository: widget.repository,
             store: widget.store,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openTheater() {
+    unawaited(
+      Navigator.of(context).push<void>(
+        appPageRoute<void>(
+          builder: (_) => DramaTheaterScreen(
+            dramas: List.of(_visible),
+            repository: widget.repository,
+            categories: _categories,
+            onOpenDrama: _openDrama,
+            onOpenFeed: _openFullscreenFeed,
+            onSearchSubmitted: _submitSearch,
           ),
         ),
       ),
@@ -2035,6 +2144,7 @@ class _HomeScreenState extends State<HomeScreen> {
             if (_visible.isEmpty) {
               return Scaffold(
                 key: _scaffoldKey,
+                backgroundColor: widget.bare ? Colors.transparent : null,
                 drawer: widget.bare ? null : _drawer(),
                 extendBody: glass,
                 body: const SafeArea(
@@ -2044,6 +2154,7 @@ class _HomeScreenState extends State<HomeScreen> {
             }
             return Scaffold(
               key: _scaffoldKey,
+              backgroundColor: widget.bare ? Colors.transparent : null,
               drawer: widget.bare ? null : _drawer(),
               extendBody: glass,
               body: SafeArea(
@@ -2065,6 +2176,7 @@ class _HomeScreenState extends State<HomeScreen> {
           if (_dramaStyle == DramaUiStyle.drama) {
             return Scaffold(
               key: _scaffoldKey,
+              backgroundColor: widget.bare ? Colors.transparent : null,
               drawer: widget.bare ? null : _drawer(),
               extendBody: glass,
               body: SafeArea(
@@ -2074,6 +2186,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   repository: widget.repository,
                   onOpenDrama: _openDrama,
                   onOpenFeed: _openFullscreenFeed,
+                  onOpenTheater: _openTheater,
                   onPickSource: () => unawaited(_pickSource()),
                   sourceLabel: '${_group.name} (${_group.sources.length})',
                   feedEnabled: _visible.isNotEmpty,
@@ -2137,6 +2250,7 @@ class _HomeScreenState extends State<HomeScreen> {
         }
         final scaffold = Scaffold(
           key: _scaffoldKey,
+          backgroundColor: widget.bare ? Colors.transparent : null,
           drawer: widget.bare ? null : _drawer(),
           extendBody: glass && !desktop,
           appBar: widget.bare
@@ -2446,7 +2560,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return LiveScreen(
         repository: _liveRepository,
         store: _liveStore,
-        greenMode: false,
+        greenMode: !_midnightActivated,
         onExitLeft: () => _navKey.currentState?.focusCurrent(),
         appStore: widget.store,
       );
@@ -2458,7 +2572,10 @@ class _HomeScreenState extends State<HomeScreen> {
       return const ContentZoneScreen(section: ContentSection.comic);
     }
     if (_zone == HomeZone.audio) {
-      return const ContentZoneScreen(section: ContentSection.audio);
+      return ContentZoneScreen(
+        section: ContentSection.audio,
+        binding: _audioBinding,
+      );
     }
     if (_sectionSources.isEmpty) {
       return StatusPanel(

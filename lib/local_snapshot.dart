@@ -49,6 +49,8 @@ class LocalSnapshot {
     'player',
     'useNewShell',
     'autoSwitchPlayer',
+    'hongguoBridgeHost',
+    'hongguoBridgePort',
   };
   final SharedPreferences preferences;
   Map<String, Object> _values = {};

@@ -764,6 +764,18 @@ func (engine *nativeEngine) nativeCatalog(ctx context.Context, input nativeInput
 		items, result.HasMore, err = d.fetchIkanbotCatalogPage(ctx, page, category, "")
 	case sourceA123:
 		items, result.HasMore, err = d.fetchA123CatalogPage(ctx, page, category, "")
+	case sourceChengguo:
+		items, result.HasMore, err = d.fetchChengguoCatalogPage(ctx, page)
+	case sourcePornhub:
+		items, result.HasMore, err = d.fetchPornhubCatalogPage(ctx, page, category)
+	case sourceRedtube:
+		items, result.HasMore, err = d.fetchRedtubeCatalogPage(ctx, page, category)
+	case sourceYangguo:
+		items, result.HasMore, err = d.fetchYangguoCatalogPage(ctx, page, category)
+	case sourceFengguo:
+		items, result.HasMore, err = d.fetchFengguoCatalogPage(ctx, page, category)
+	case sourceYouTube:
+		items, result.HasMore, err = d.fetchYoutubeCatalogPage(ctx, page, category)
 	case sourceHuangguoVideo:
 		address := fmt.Sprintf("%s/videos?page=%d", d.providerBaseURL(source), page)
 		if category != "" {
@@ -906,6 +918,42 @@ func (engine *nativeEngine) nativeResolve(ctx context.Context, input nativeInput
 		}
 	}
 	task := Task{DramaID: input.Drama.ID, DramaTitle: input.Drama.Title, Chapter: input.Chapter, Index: input.Index}
+	if hongguoSource, hongguoSeries, hongguoVideo, hongguoOK := hongguoResolveIDs(task); hongguoOK {
+		choice := nativePlaybackChoice{
+			hongguo: true, hongguoSource: hongguoSource, hongguoSeries: hongguoSeries, hongguoVideo: hongguoVideo,
+			hongguoRoute: nativePreferredRoute(input.Route, hongguoRouteCount), hongguoQuality: input.Quality,
+			danmakuSeries: hongguoSeries, danmakuVideo: hongguoVideo,
+			adBlock: input.AdBlock == nil || *input.AdBlock,
+		}
+		resolved, resolveErr := engine.hongguoResolveChoice(ctx, choice)
+		if resolveErr != nil {
+			return nativePlan{}, resolveErr
+		}
+		choice = resolved
+		if choice.media[choice.index].NeedsParse {
+			pageURL := choice.media[choice.index].URL
+			referer := choice.media[choice.index].Referer
+			real, parsedHeaders, err := resolveViaParseAPIs(ctx, pageURL, referer, input.ParseAPIs)
+			if err != nil {
+				return nativePlan{}, err
+			}
+			if h := parsedHeaders["Referer"]; h != "" {
+				referer = h
+			} else if h := parsedHeaders["referer"]; h != "" {
+				referer = h
+			}
+			choice.media[choice.index].URL = real
+			choice.media[choice.index].Referer = referer
+			choice.media[choice.index].NeedsParse = false
+			plan, err := engine.nativeOpenPlayback(ctx, choice)
+			if err != nil {
+				return nativePlan{}, err
+			}
+			plan.OriginalURL = pageURL
+			return plan, nil
+		}
+		return engine.nativeOpenPlayback(ctx, choice)
+	}
 	media, err := engine.downloader.resolveProviderMedia(ctx, task)
 	if err != nil {
 		return nativePlan{}, err

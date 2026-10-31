@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../app_drawer.dart';
+import '../app_gradient.dart';
 import '../content_models.dart';
 import '../content_zone_binding.dart';
 import '../content_zone_screen.dart';
@@ -40,8 +41,12 @@ class _KotvShellScreenState extends ConsumerState<KotvShellScreen> {
   final _vodZoneSync = ValueNotifier<HomeZone>(HomeZone.vod);
   final _midnightZoneSync = ValueNotifier<HomeZone>(HomeZone.midnight);
   final _liveZoneSync = ValueNotifier<HomeZone>(HomeZone.live);
-  final _comicBinding = ContentZoneBinding();
-  final _audioBinding = ContentZoneBinding();
+  late final _audioBinding = ContentZoneBinding(
+    readPersisted: widget.store.preferences.getString,
+    writePersisted: (key, value) {
+      unawaited(widget.store.preferences.setString(key, value));
+    },
+  );
 
   List<KotvPage> _pagesFor(bool midnightActivated) {
     final service = GateService.instance;
@@ -87,9 +92,9 @@ class _KotvShellScreenState extends ConsumerState<KotvShellScreen> {
   @override
   void didUpdateWidget(covariant KotvShellScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    ref.read(kotvShellControllerProvider.notifier).setMidnightActivated(
-      widget.midnightActivated,
-    );
+    ref
+        .read(kotvShellControllerProvider.notifier)
+        .setMidnightActivated(widget.midnightActivated);
   }
 
   @override
@@ -168,10 +173,7 @@ class _KotvShellScreenState extends ConsumerState<KotvShellScreen> {
       return LegadoScreen(repository: widget.repository);
     }
     if (page == KotvPage.comic) {
-      return ContentZoneScreen(
-        section: ContentSection.comic,
-        binding: _comicBinding,
-      );
+      return LegadoScreen(repository: widget.repository, initialComic: true);
     }
     if (page == KotvPage.audio) {
       return ContentZoneScreen(
@@ -205,14 +207,24 @@ class _KotvShellScreenState extends ConsumerState<KotvShellScreen> {
     return AnimatedBuilder(
       animation: GateService.instance,
       builder: (context, _) => Scaffold(
-        body: IndexedStack(
-          index: currentIndex,
-          children: [
-            for (int i = 0; i < pages.length; i++)
-              (i - currentIndex).abs() <= 1
-                  ? _pageBody(pages[i])
-                  : const SizedBox.shrink(),
-          ],
+        backgroundColor: Colors.transparent,
+        body: Theme(
+          data: gradientDarkThemeData(),
+          child: AppGradientBackground(
+            colors: const [
+              AppGradientColors.fixedTop,
+              AppGradientColors.fixedBottom,
+            ],
+            child: IndexedStack(
+              index: currentIndex,
+              children: [
+                for (int i = 0; i < pages.length; i++)
+                  (i - currentIndex).abs() <= 1
+                      ? _pageBody(pages[i])
+                      : const SizedBox.shrink(),
+              ],
+            ),
+          ),
         ),
         bottomNavigationBar: KotvBottomBar(
           pages: pages,

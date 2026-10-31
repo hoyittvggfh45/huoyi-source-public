@@ -100,45 +100,68 @@ class EpisodeRangeBar extends StatelessWidget {
             ],
           ),
           if (count > 1)
-            Row(
-              children: [
-                IconButton(
-                  tooltip: '上一组选集',
-                  onPressed: page > 0
-                      ? () => onLocate((page - 1) * episodePageSize)
-                      : null,
-                  icon: const Icon(Icons.chevron_left_rounded),
-                ),
-                Expanded(
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<int>(
-                      key: const ValueKey('episode-range'),
-                      isExpanded: true,
-                      value: page.clamp(0, count - 1),
-                      items: [
-                        for (var i = 0; i < count; i++)
-                          DropdownMenuItem(
-                            value: i,
-                            child: Text(
-                              '第 ${episodes[i * episodePageSize].number}–${episodes[min((i + 1) * episodePageSize, episodes.length) - 1].number} 集',
+            if (AppLayout.isTelevision(context))
+              Row(
+                children: [
+                  IconButton(
+                    tooltip: '上一组选集',
+                    onPressed: page > 0
+                        ? () => onLocate((page - 1) * episodePageSize)
+                        : null,
+                    icon: const Icon(Icons.chevron_left_rounded),
+                  ),
+                  Expanded(
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<int>(
+                        key: const ValueKey('episode-range'),
+                        isExpanded: true,
+                        value: page.clamp(0, count - 1),
+                        items: [
+                          for (var i = 0; i < count; i++)
+                            DropdownMenuItem(
+                              value: i,
+                              child: Text(
+                                '第 ${episodes[i * episodePageSize].number}–${episodes[min((i + 1) * episodePageSize, episodes.length) - 1].number} 集',
+                              ),
                             ),
-                          ),
-                      ],
-                      onChanged: (value) {
-                        if (value != null) onLocate(value * episodePageSize);
-                      },
+                        ],
+                        onChanged: (value) {
+                          if (value != null) {
+                            onLocate(value * episodePageSize);
+                          }
+                        },
+                      ),
                     ),
                   ),
+                  IconButton(
+                    tooltip: '下一组选集',
+                    onPressed: page + 1 < count
+                        ? () => onLocate((page + 1) * episodePageSize)
+                        : null,
+                    icon: const Icon(Icons.chevron_right_rounded),
+                  ),
+                ],
+              )
+            else
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    for (var i = 0; i < count; i++)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          key: ValueKey('episode-range-$i'),
+                          label: Text(
+                            '${episodes[i * episodePageSize].number}-${episodes[min((i + 1) * episodePageSize, episodes.length) - 1].number}',
+                          ),
+                          selected: i == page,
+                          onSelected: (_) => onLocate(i * episodePageSize),
+                        ),
+                      ),
+                  ],
                 ),
-                IconButton(
-                  tooltip: '下一组选集',
-                  onPressed: page + 1 < count
-                      ? () => onLocate((page + 1) * episodePageSize)
-                      : null,
-                  icon: const Icon(Icons.chevron_right_rounded),
-                ),
-              ],
-            ),
+              ),
         ],
       ),
     );

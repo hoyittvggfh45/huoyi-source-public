@@ -188,7 +188,7 @@ class AppDrawer extends StatelessWidget {
             onTap: () => onTool(AppDrawerTool.driveLibrary),
           ),
           _moduleTile(
-            icon: Icons.meeting_room_rounded,
+            icon: Icons.home_rounded,
             label: '一起看房间',
             selected: false,
             onTap: onWatchRoom,

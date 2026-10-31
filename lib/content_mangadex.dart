@@ -72,6 +72,7 @@ class MangaDexSource extends ContentSource {
     if (data is! Map) throw AppFailure('MangaDex 未返回详情');
     final book = mangaDexBook(Map<String, dynamic>.from(data));
     final chapters = <ContentChapter>[];
+    var chaptersTruncated = false;
     for (var offset = 0; offset < 1000; offset += 100) {
       final feed = contentJsonObject(
         await _http.get(
@@ -91,8 +92,13 @@ class MangaDexSource extends ContentSource {
         }
       }
       if (rows.length < 100) break;
+      if (offset + 100 >= 1000) chaptersTruncated = true;
     }
-    return ContentBookDetail(book: book, chapters: chapters);
+    return ContentBookDetail(
+      book: book,
+      chapters: chapters,
+      chaptersTruncated: chaptersTruncated,
+    );
   }
 
   @override

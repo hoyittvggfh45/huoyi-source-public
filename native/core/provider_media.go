@@ -20,6 +20,8 @@ type providerMedia struct {
 	HLSKey      []byte
 	CENCKey     []byte
 	Quality     int
+	SeriesID    string
+	VideoID     string
 	NeedsParse  bool
 	Variants    []providerMedia
 	Hook        seku.StreamHook
@@ -51,6 +53,18 @@ func (d *Downloader) providerBaseURL(source string) string {
 		configured, fallback = d.cfg.IkanbotURL, ikanbotSiteBaseURL
 	case sourceA123:
 		configured, fallback = d.cfg.A123URL, a123SiteBaseURL
+	case sourceChengguo:
+		fallback = chengguoBaseURL
+	case sourcePornhub:
+		fallback = pornhubBaseURL
+	case sourceRedtube:
+		fallback = redtubeBaseURL
+	case sourceYangguo:
+		fallback = redtubeBaseURL
+	case sourceFengguo:
+		fallback = pornhubBaseURL
+	case sourceYouTube:
+		fallback = youtubeBaseURL
 	default:
 		if spec, found := duanjuSourceSpecFor(source); found {
 			return d.duanjuBaseURL(spec.ID)
@@ -158,6 +172,24 @@ func (d *Downloader) resolveProviderMedia(ctx context.Context, task Task) (provi
 	}
 	if chapter.Source == sourceA123 {
 		return d.resolveA123Media(ctx, task)
+	}
+	if chapter.Source == sourceChengguo {
+		return d.resolveChengguoMedia(ctx, task)
+	}
+	if chapter.Source == sourcePornhub {
+		return d.resolvePornhubMedia(ctx, task)
+	}
+	if chapter.Source == sourceRedtube {
+		return d.resolveRedtubeMedia(ctx, task)
+	}
+	if chapter.Source == sourceYangguo {
+		return d.resolveYangguoMedia(ctx, task)
+	}
+	if chapter.Source == sourceFengguo {
+		return d.resolveFengguoMedia(ctx, task)
+	}
+	if chapter.Source == sourceYouTube {
+		return d.resolveYoutubeMedia(ctx, task)
 	}
 	if isDuanjuProviderSource(chapter.Source) {
 		return d.resolveDuanjuMedia(ctx, task)

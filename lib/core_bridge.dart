@@ -78,6 +78,220 @@ class AppFailure implements Exception {
   String toString() => message;
 }
 
+String hongguoBridgeResolveUrl(String host, int port) =>
+    'http://$host:$port/resolve';
+
+const String hongguoBridgeSessionPrefix = 'hongguo-bridge:';
+
+String hongguoBridgeSessionForKey(String dramaKey) =>
+    '$hongguoBridgeSessionPrefix$dramaKey';
+
+String? hongguoBridgeKeyFromSession(String session) =>
+    session.startsWith(hongguoBridgeSessionPrefix)
+    ? session.substring(hongguoBridgeSessionPrefix.length)
+    : null;
+
+bool hongguoBridgeIsBridgeRoute(int? bridgeIndex, int route) =>
+    bridgeIndex != null && route == bridgeIndex;
+
+PlaybackPlan hongguoBridgePlanFromJson(
+  Map<String, dynamic> json, {
+  required int routeIndex,
+  required int routeCount,
+  required String session,
+}) {
+  final url = json['url'] as String? ?? '';
+  if (url.isEmpty) {
+    throw AppFailure('桥接线路解析失败：桥接服务未返回可播放地址');
+  }
+  final headers = <String, String>{};
+  final rawHeaders = json['headers'] as Map? ?? {};
+  for (final entry in rawHeaders.entries) {
+    headers[entry.key.toString()] = entry.value.toString();
+  }
+  final referer = json['referer'] as String? ?? '';
+  if (referer.isNotEmpty &&
+      !headers.keys.any((key) => key.toLowerCase() == 'referer')) {
+    headers['Referer'] = referer;
+  }
+  return PlaybackPlan(
+    url: url,
+    headers: headers,
+    decryptionKey: json['decryptionKey'] as String? ?? '',
+    quality: intValue(json['quality']),
+    qualities: (json['qualities'] as List? ?? [])
+        .map(intValue)
+        .toSet()
+        .toList()
+      ..sort((a, b) => b.compareTo(a)),
+    session: session,
+    routeIndex: routeIndex,
+    routeCount: routeCount > 0 ? routeCount : 1,
+  );
+}
+
+PlaybackPlan hongguoBridgePlanWithRouteCount(
+  PlaybackPlan plan,
+  int bridgeIndex,
+) => PlaybackPlan(
+  url: plan.url,
+  originalUrl: plan.originalUrl,
+  headers: plan.headers,
+  decryptionKey: plan.decryptionKey,
+  quality: plan.quality,
+  qualities: plan.qualities,
+  session: plan.session,
+  danmakuId: plan.danmakuId,
+  prefetchedBytes: plan.prefetchedBytes,
+  expiresAt: plan.expiresAt,
+  routeIndex: plan.routeIndex,
+  routeCount: bridgeIndex + 1,
+  local: plan.local,
+  needsParse: plan.needsParse,
+);
+
+class _HongguoBridgeEntry {
+  const _HongguoBridgeEntry({required this.episode, required this.bridgeIndex});
+  final Episode episode;
+  final int bridgeIndex;
+}
+
+const int hongguoGoRouteCount = 6;
+const int hongguoBridgeRoute = 6;
+const int hongguoTotalRoutes = 7;
+
+String hongguoRouteLabel(int route) {
+  switch (route) {
+    case 0:
+      return '线路1 App大陆线';
+    case 1:
+      return '线路2 App海外线';
+    case 2:
+      return '线路3 App批量线';
+    case 3:
+      return '线路4 网页兜底线';
+    case 4:
+      return '线路5 网页取流线';
+    case 5:
+      return '线路6 备用接口线';
+    case hongguoBridgeRoute:
+      return '线路7 桥接线';
+    default:
+      return '线路${route + 1}';
+  }
+}
+
+List<int> hongguoRouteTrialOrder({
+  required int start,
+  required bool oversea,
+  Map<int, Duration> latencies = const {},
+  Set<int> failed = const {},
+}) {
+  final initial = oversea
+      ? const [1, 0, 2, 3, 4, 5, 6]
+      : const [0, 1, 2, 3, 4, 5, 6];
+  final succeeded = initial
+      .where(latencies.containsKey)
+      .toList()
+    ..sort((a, b) {
+      final byTime = latencies[a]!.compareTo(latencies[b]!);
+      if (byTime != 0) return byTime;
+      return initial.indexOf(a).compareTo(initial.indexOf(b));
+    });
+  final untried = initial
+      .where((route) => !latencies.containsKey(route) && !failed.contains(route))
+      .toList();
+  final sunk = initial.where(failed.contains).toList();
+  final ordered = [...succeeded, ...untried, ...sunk];
+  var effectiveStart = start;
+  if (oversea &&
+      start == 0 &&
+      latencies.isEmpty &&
+      failed.isEmpty) {
+    effectiveStart = 1;
+  }
+  final at = ordered.indexOf(effectiveStart);
+  if (at < 0) return ordered;
+  return [...ordered.sublist(at), ...ordered.sublist(0, at)];
+}
+
+class HongguoRouteSpeedTracker {
+  final Map<int, Duration> _latencies = {};
+  final Set<int> _failed = {};
+
+  Map<int, Duration> get latencies => Map.unmodifiable(_latencies);
+  Set<int> get failed => Set.unmodifiable(_failed);
+
+  void recordSuccess(int route, Duration elapsed) {
+    _latencies[route] = elapsed;
+    _failed.remove(route);
+  }
+
+  void recordFailure(int route) {
+    _failed.add(route);
+    _latencies.remove(route);
+  }
+
+  List<int> order({required int start, required bool oversea}) =>
+      hongguoRouteTrialOrder(
+        start: start,
+        oversea: oversea,
+        latencies: _latencies,
+        failed: _failed,
+      );
+}
+
+class HongguoRouteAttemptResult {
+  const HongguoRouteAttemptResult({required this.plan, required this.failures});
+  final PlaybackPlan? plan;
+  final Map<int, String> failures;
+}
+
+String hongguoRouteFailuresText(
+  Map<int, String> failures,
+  List<int> order,
+) {
+  final lines = [
+    for (final route in order)
+      if (failures.containsKey(route))
+        '${hongguoRouteLabel(route)}失败：${failures[route]}',
+  ];
+  return '红果全部线路均失败：\n${lines.join('\n')}';
+}
+
+bool hongguoRoutePlanMatches(
+  PlaybackPlan plan,
+  String videoId,
+  int route,
+) {
+  if (plan.url.isEmpty || plan.routeIndex != route) return false;
+  if (plan.danmakuId.isNotEmpty && plan.danmakuId != videoId) return false;
+  return true;
+}
+
+Future<HongguoRouteAttemptResult> hongguoTryRoutesSequentially(
+  List<int> order,
+  Future<PlaybackPlan> Function(int route) attempt,
+  HongguoRouteSpeedTracker tracker,
+) async {
+  final failures = <int, String>{};
+  for (final route in order) {
+    final started = DateTime.now();
+    try {
+      final plan = await attempt(route);
+      if (plan.url.isEmpty) {
+        throw AppFailure('该线路未返回可播放地址');
+      }
+      tracker.recordSuccess(route, DateTime.now().difference(started));
+      return HongguoRouteAttemptResult(plan: plan, failures: failures);
+    } catch (error) {
+      tracker.recordFailure(route);
+      failures[route] = error is AppFailure ? error.message : error.toString();
+    }
+  }
+  return HongguoRouteAttemptResult(plan: null, failures: failures);
+}
+
 abstract class AppRepository {
   Future<Map<String, dynamic>> lan(
     String command,
@@ -1424,6 +1638,127 @@ class NativeRepository extends AppRepository {
     );
   }
 
+  final Map<String, _HongguoBridgeEntry> _hongguoBridgeByDrama = {};
+  final Map<String, String> _hongguoSessionToDramaKey = {};
+  final HongguoRouteSpeedTracker hongguoRouteSpeed =
+      HongguoRouteSpeedTracker();
+
+  bool _isHongguoPyDrama(Drama drama) {
+    final site = SourceSite.importedSites[drama.source];
+    if (site == null) return false;
+    return site.name.contains('红果') ||
+        drama.source.toLowerCase().contains('hongguo');
+  }
+
+  String _hongguoDramaKey(Drama drama) {
+    final seriesId = _hongguoNumericId(
+      drama.sourceId.isNotEmpty ? drama.sourceId : drama.id,
+    );
+    return '${drama.source}:${seriesId.isNotEmpty ? seriesId : drama.id}';
+  }
+
+  Drama _hongguoDramaFromKey(String dramaKey) {
+    final colon = dramaKey.lastIndexOf(':');
+    if (colon < 0) return Drama(id: dramaKey, source: dramaKey, title: '');
+    return Drama(
+      id: dramaKey,
+      source: dramaKey.substring(0, colon),
+      sourceId: dramaKey.substring(colon + 1),
+      title: '',
+    );
+  }
+
+  void _hongguoBridgeCache(
+    String dramaKey,
+    Episode episode,
+    int bridgeIndex,
+  ) {
+    if (_hongguoBridgeByDrama.length >= 64) {
+      _hongguoBridgeByDrama.clear();
+      _hongguoSessionToDramaKey.clear();
+    }
+    _hongguoBridgeByDrama[dramaKey] = _HongguoBridgeEntry(
+      episode: episode,
+      bridgeIndex: bridgeIndex,
+    );
+  }
+
+  void _hongguoBridgeMapSession(String session, String dramaKey) {
+    if (session.isEmpty ||
+        session.startsWith(hongguoBridgeSessionPrefix)) {
+      return;
+    }
+    _hongguoSessionToDramaKey[session] = dramaKey;
+  }
+
+  int? _hongguoBridgeIndexForSession(String session) {
+    final bridgeKey = hongguoBridgeKeyFromSession(session);
+    if (bridgeKey != null) {
+      return _hongguoBridgeByDrama[bridgeKey]?.bridgeIndex;
+    }
+    final dramaKey = _hongguoSessionToDramaKey[session];
+    if (dramaKey == null) return null;
+    return _hongguoBridgeByDrama[dramaKey]?.bridgeIndex;
+  }
+
+  Future<PlaybackPlan> _hongguoBridgeResolve(
+    Drama drama,
+    Episode episode, {
+    required int bridgeIndex,
+  }) async {
+    final dramaKey = _hongguoDramaKey(drama);
+    final videoId = _hongguoNumericId(
+      episode.raw['id'] as String? ?? episode.id,
+    );
+    if (videoId.isEmpty) {
+      throw AppFailure('桥接线路解析失败：本集缺少红果视频编号');
+    }
+    final host = access?.hongguoBridgeHost ?? '127.0.0.1';
+    final port = access?.hongguoBridgePort ?? 8917;
+    final client = HttpClient();
+    client.connectionTimeout = const Duration(seconds: 20);
+    try {
+      final request = await client
+          .postUrl(Uri.parse(hongguoBridgeResolveUrl(host, port)))
+          .timeout(const Duration(seconds: 20));
+      request.headers.contentType = ContentType.json;
+      request.write(
+        jsonEncode({
+          'videoId': videoId,
+          'oversea': drama.source == 'hongguo-oversea',
+        }),
+      );
+      final response = await request
+          .close()
+          .timeout(const Duration(seconds: 20));
+      final body = await response
+          .transform(utf8.decoder)
+          .join()
+          .timeout(const Duration(seconds: 20));
+      if (response.statusCode != 200) {
+        throw AppFailure(
+          '桥接线路解析失败：桥接服务返回 ${response.statusCode}',
+        );
+      }
+      final decoded = jsonDecode(body);
+      if (decoded is! Map) {
+        throw AppFailure('桥接线路解析失败：桥接服务返回内容无法解析');
+      }
+      return hongguoBridgePlanFromJson(
+        Map<String, dynamic>.from(decoded),
+        routeIndex: bridgeIndex,
+        routeCount: bridgeIndex + 1,
+        session: hongguoBridgeSessionForKey(dramaKey),
+      );
+    } on AppFailure {
+      rethrow;
+    } catch (error) {
+      throw AppFailure('桥接线路解析失败：$error');
+    } finally {
+      client.close();
+    }
+  }
+
   String _hongguoNumericId(String raw) {
     var value = raw;
     final colon = value.lastIndexOf(':');
@@ -1431,7 +1766,7 @@ class NativeRepository extends AppRepository {
     return value.replaceAll(RegExp(r'[^0-9]'), '');
   }
 
-  Future<PlaybackPlan?> _tryGoHongguoPlan(
+  Future<PlaybackPlan> _goHongguoPlan(
     Drama drama,
     Episode episode, {
     required int quality,
@@ -1439,53 +1774,86 @@ class NativeRepository extends AppRepository {
     required bool adBlock,
     bool force = false,
   }) async {
-    final site = SourceSite.importedSites[drama.source];
-    if (site == null) return null;
-    if (!site.name.contains('红果') &&
-        !drama.source.toLowerCase().contains('hongguo')) {
-      return null;
-    }
     final seriesId = _hongguoNumericId(
       drama.sourceId.isNotEmpty ? drama.sourceId : drama.id,
     );
     final videoId = _hongguoNumericId(
       episode.raw['id'] as String? ?? episode.id,
     );
-    if (seriesId.isEmpty || videoId.isEmpty) return null;
-    try {
-      final parseApis = await ParseInterfaceStore.loadEnabled();
-      final nativeDrama = Drama(
-        id: 'hongguo:$seriesId',
-        source: 'hongguo',
-        sourceId: seriesId,
-        title: drama.title,
-        description: drama.description,
-        cover: drama.cover,
-      );
-      final plan = PlaybackPlan.fromJson(
-        await _call({
-          'action': 'resolve',
-          'drama': nativeDrama.toJson(),
-          'chapter': {
-            'id': videoId,
-            'title': episode.title,
-            'videoUrl': 'hongguo-cenc://$videoId',
-            'currentEpisode': episode.number,
-          },
-          'index': episode.number,
-          'quality': quality,
-          'route': route,
-          'adBlock': adBlock,
-          if (force) 'force': true,
-          'parseApis': [for (final api in parseApis) api.url],
-          'sequence': ++_playbackSequence,
-        }),
-      );
-      if (plan.url.isEmpty) return null;
-      return plan;
-    } catch (_) {
-      return null;
+    if (seriesId.isEmpty || videoId.isEmpty) {
+      throw AppFailure('红果线路解析失败：本集缺少红果视频编号');
     }
+    final parseApis = await ParseInterfaceStore.loadEnabled();
+    final nativeDrama = Drama(
+      id: 'hongguo:$seriesId',
+      source: 'hongguo',
+      sourceId: seriesId,
+      title: drama.title,
+      description: drama.description,
+      cover: drama.cover,
+    );
+    final plan = PlaybackPlan.fromJson(
+      await _call({
+        'action': 'resolve',
+        'drama': nativeDrama.toJson(),
+        'chapter': {
+          'id': videoId,
+          'title': episode.title,
+          'videoUrl': 'hongguo-cenc://$videoId',
+          'currentEpisode': episode.number,
+        },
+        'index': episode.number,
+        'quality': quality,
+        'route': route,
+        'adBlock': adBlock,
+        if (force) 'force': true,
+        'parseApis': [for (final api in parseApis) api.url],
+        'sequence': ++_playbackSequence,
+      }),
+    );
+    if (!hongguoRoutePlanMatches(plan, videoId, route)) {
+      throw AppFailure('该线路返回的集数与当前集数不符');
+    }
+    return plan;
+  }
+
+  Future<PlaybackPlan> _hongguoAutoResolve(
+    Drama drama,
+    Episode episode, {
+    required int quality,
+    required int route,
+    required bool adBlock,
+    bool force = false,
+    required Future<PlaybackPlan> Function(int route) goAttempt,
+  }) async {
+    final dramaKey = _hongguoDramaKey(drama);
+    final oversea = drama.source == 'hongguo-oversea';
+    final order = hongguoRouteSpeed.order(start: route, oversea: oversea);
+    final result = await hongguoTryRoutesSequentially(
+      order,
+      (attemptRoute) async {
+        if (attemptRoute == hongguoBridgeRoute) {
+          return _hongguoBridgeResolve(
+            drama,
+            episode,
+            bridgeIndex: hongguoBridgeRoute,
+          );
+        }
+        return goAttempt(attemptRoute);
+      },
+      hongguoRouteSpeed,
+    );
+    final plan = result.plan;
+    if (plan == null) {
+      throw AppFailure(hongguoRouteFailuresText(result.failures, order));
+    }
+    if (plan.routeIndex == hongguoBridgeRoute) {
+      _hongguoBridgeCache(dramaKey, episode, hongguoBridgeRoute);
+      return plan;
+    }
+    _hongguoBridgeCache(dramaKey, episode, hongguoBridgeRoute);
+    _hongguoBridgeMapSession(plan.session, dramaKey);
+    return hongguoBridgePlanWithRouteCount(plan, hongguoBridgeRoute);
   }
 
   @override
@@ -1504,18 +1872,72 @@ class NativeRepository extends AppRepository {
     }
     _guardImported(drama.source);
     if (isPySource(drama.source)) {
-      final goPlan = await _tryGoHongguoPlan(
+      if (_isHongguoPyDrama(drama)) {
+        try {
+          return await _hongguoAutoResolve(
+            drama,
+            episode,
+            quality: quality,
+            route: route,
+            adBlock: adBlock,
+            goAttempt: (attemptRoute) => _goHongguoPlan(
+              drama,
+              episode,
+              quality: quality,
+              route: attemptRoute,
+              adBlock: adBlock,
+            ),
+          );
+        } on AppFailure catch (autoFailure) {
+          try {
+            return await _pyResolvePlan(
+              drama.source,
+              episode.raw['flag'] as String? ?? '',
+              episode.raw['id'] as String? ?? episode.id,
+            );
+          } catch (pyError) {
+            throw AppFailure(
+              '${autoFailure.message}\n导入源备用也失败：$pyError',
+            );
+          }
+        }
+      }
+      return _pyResolvePlan(
+        drama.source,
+        episode.raw['flag'] as String? ?? '',
+        episode.raw['id'] as String? ?? episode.id,
+      );
+    }
+    if (drama.source == 'hongguo' || drama.source == 'hongguo-oversea') {
+      return _hongguoAutoResolve(
         drama,
         episode,
         quality: quality,
         route: route,
         adBlock: adBlock,
-      );
-      if (goPlan != null) return goPlan;
-      return _pyResolvePlan(
-        drama.source,
-        episode.raw['flag'] as String? ?? '',
-        episode.raw['id'] as String? ?? episode.id,
+        goAttempt: (attemptRoute) async {
+          final parseApis = await ParseInterfaceStore.loadEnabled();
+          final videoId = _hongguoNumericId(
+            episode.raw['id'] as String? ?? episode.id,
+          );
+          final plan = PlaybackPlan.fromJson(
+            await _call({
+              'action': 'resolve',
+              'drama': drama.toJson(),
+              'chapter': episode.raw,
+              'index': episode.number,
+              'quality': quality,
+              'route': attemptRoute,
+              'adBlock': adBlock,
+              'parseApis': [for (final api in parseApis) api.url],
+              'sequence': ++_playbackSequence,
+            }),
+          );
+          if (!hongguoRoutePlanMatches(plan, videoId, attemptRoute)) {
+            throw AppFailure('该线路返回的集数与当前集数不符');
+          }
+          return plan;
+        },
       );
     }
     final parseApis = await ParseInterfaceStore.loadEnabled();
@@ -1551,25 +1973,154 @@ class NativeRepository extends AppRepository {
     );
   }
 
+  ({String dramaKey, Drama drama, Episode episode})?
+      _hongguoCachedForPlan(PlaybackPlan current) {
+    final bridgeKey = hongguoBridgeKeyFromSession(current.session);
+    if (bridgeKey != null) {
+      final cached = _hongguoBridgeByDrama[bridgeKey];
+      if (cached != null) {
+        return (
+          dramaKey: bridgeKey,
+          drama: _hongguoDramaFromKey(bridgeKey),
+          episode: cached.episode,
+        );
+      }
+      return null;
+    }
+    final dramaKey = _hongguoSessionToDramaKey[current.session];
+    if (dramaKey != null) {
+      final cached = _hongguoBridgeByDrama[dramaKey];
+      if (cached != null) {
+        return (
+          dramaKey: dramaKey,
+          drama: _hongguoDramaFromKey(dramaKey),
+          episode: cached.episode,
+        );
+      }
+    }
+    return null;
+  }
+
+  Future<PlaybackPlan> _hongguoAutoFromPlan(
+    PlaybackPlan current,
+    int start, {
+    required bool excludeStart,
+    required String dramaKey,
+    required Drama drama,
+    required Episode episode,
+  }) async {
+    final videoId = _hongguoNumericId(
+      episode.raw['id'] as String? ?? episode.id,
+    );
+    if (current.danmakuId.isNotEmpty &&
+        videoId.isNotEmpty &&
+        videoId != current.danmakuId) {
+      throw AppFailure('该线路返回的集数与当前集数不符');
+    }
+    final oversea = drama.source == 'hongguo-oversea';
+    var order = hongguoRouteSpeed.order(start: start, oversea: oversea);
+    if (excludeStart) {
+      order = order.where((route) => route != start).toList();
+    }
+    final result = await hongguoTryRoutesSequentially(
+      order,
+      (attemptRoute) async {
+        if (attemptRoute == hongguoBridgeRoute) {
+          return _hongguoBridgeResolve(
+            drama,
+            episode,
+            bridgeIndex: hongguoBridgeRoute,
+          );
+        }
+        final plan =
+            hongguoBridgeKeyFromSession(current.session) != null
+            ? await _goHongguoPlan(
+                drama,
+                episode,
+                quality: current.quality,
+                route: attemptRoute,
+                adBlock: true,
+              )
+            : PlaybackPlan.fromJson(
+                await _call({
+                  'action': 'selectRoute',
+                  'session': current.session,
+                  'route': attemptRoute,
+                  'sequence': ++_playbackSequence,
+                }),
+              );
+        if (!hongguoRoutePlanMatches(plan, videoId, attemptRoute)) {
+          throw AppFailure('该线路返回的集数与当前集数不符');
+        }
+        return plan;
+      },
+      hongguoRouteSpeed,
+    );
+    final plan = result.plan;
+    if (plan == null) {
+      throw AppFailure(hongguoRouteFailuresText(result.failures, order));
+    }
+    if (plan.routeIndex == hongguoBridgeRoute) {
+      _hongguoBridgeCache(dramaKey, episode, hongguoBridgeRoute);
+      return plan;
+    }
+    _hongguoBridgeCache(dramaKey, episode, hongguoBridgeRoute);
+    _hongguoBridgeMapSession(plan.session, dramaKey);
+    return hongguoBridgePlanWithRouteCount(plan, hongguoBridgeRoute);
+  }
+
   @override
-  Future<PlaybackPlan> fallback(PlaybackPlan current) async =>
-      PlaybackPlan.fromJson(
-        await _call({
-          'action': 'fallback',
-          'session': current.session,
-          'sequence': ++_playbackSequence,
-        }),
+  Future<PlaybackPlan> fallback(PlaybackPlan current) async {
+    final cached = _hongguoCachedForPlan(current);
+    if (cached != null) {
+      return _hongguoAutoFromPlan(
+        current,
+        current.routeIndex,
+        excludeStart: true,
+        dramaKey: cached.dramaKey,
+        drama: cached.drama,
+        episode: cached.episode,
       );
+    }
+    final plan = PlaybackPlan.fromJson(
+      await _call({
+        'action': 'fallback',
+        'session': current.session,
+        'sequence': ++_playbackSequence,
+      }),
+    );
+    final bridgeIndex = _hongguoBridgeIndexForSession(current.session);
+    if (bridgeIndex != null) {
+      return hongguoBridgePlanWithRouteCount(plan, bridgeIndex);
+    }
+    return plan;
+  }
+
   @override
-  Future<PlaybackPlan> selectRoute(PlaybackPlan current, int route) async =>
-      PlaybackPlan.fromJson(
-        await _call({
-          'action': 'selectRoute',
-          'session': current.session,
-          'route': route,
-          'sequence': ++_playbackSequence,
-        }),
+  Future<PlaybackPlan> selectRoute(PlaybackPlan current, int route) async {
+    final cached = _hongguoCachedForPlan(current);
+    if (cached != null) {
+      return _hongguoAutoFromPlan(
+        current,
+        route,
+        excludeStart: false,
+        dramaKey: cached.dramaKey,
+        drama: cached.drama,
+        episode: cached.episode,
       );
+    }
+    if (hongguoBridgeKeyFromSession(current.session) != null) {
+      throw AppFailure('桥接线路解析失败：桥接线路缓存已失效，请重新播放本集');
+    }
+    return PlaybackPlan.fromJson(
+      await _call({
+        'action': 'selectRoute',
+        'session': current.session,
+        'route': route,
+        'sequence': ++_playbackSequence,
+      }),
+    );
+  }
   @override
   Future<void> cancelPlayback() async {
     await _call({'action': 'cancelPlayback', 'sequence': ++_playbackSequence});
@@ -1726,19 +2277,76 @@ class NativeRepository extends AppRepository {
     }
     _guardImported(drama.source);
     if (isPySource(drama.source)) {
-      final goPlan = await _tryGoHongguoPlan(
+      if (_isHongguoPyDrama(drama)) {
+        try {
+          return await _hongguoAutoResolve(
+            drama,
+            episode,
+            quality: quality,
+            route: route,
+            adBlock: adBlock,
+            force: true,
+            goAttempt: (attemptRoute) => _goHongguoPlan(
+              drama,
+              episode,
+              quality: quality,
+              route: attemptRoute,
+              adBlock: adBlock,
+              force: true,
+            ),
+          );
+        } on AppFailure catch (autoFailure) {
+          try {
+            return await _pyResolvePlan(
+              drama.source,
+              episode.raw['flag'] as String? ?? '',
+              episode.raw['id'] as String? ?? episode.id,
+            );
+          } catch (pyError) {
+            throw AppFailure(
+              '${autoFailure.message}\n导入源备用也失败：$pyError',
+            );
+          }
+        }
+      }
+      return _pyResolvePlan(
+        drama.source,
+        episode.raw['flag'] as String? ?? '',
+        episode.raw['id'] as String? ?? episode.id,
+      );
+    }
+    if (drama.source == 'hongguo' || drama.source == 'hongguo-oversea') {
+      return _hongguoAutoResolve(
         drama,
         episode,
         quality: quality,
         route: route,
         adBlock: adBlock,
         force: true,
-      );
-      if (goPlan != null) return goPlan;
-      return _pyResolvePlan(
-        drama.source,
-        episode.raw['flag'] as String? ?? '',
-        episode.raw['id'] as String? ?? episode.id,
+        goAttempt: (attemptRoute) async {
+          final parseApis = await ParseInterfaceStore.loadEnabled();
+          final videoId = _hongguoNumericId(
+            episode.raw['id'] as String? ?? episode.id,
+          );
+          final plan = PlaybackPlan.fromJson(
+            await _call({
+              'action': 'resolve',
+              'drama': drama.toJson(),
+              'chapter': episode.raw,
+              'index': episode.number,
+              'quality': quality,
+              'route': attemptRoute,
+              'adBlock': adBlock,
+              'force': true,
+              'parseApis': [for (final api in parseApis) api.url],
+              'sequence': ++_playbackSequence,
+            }),
+          );
+          if (!hongguoRoutePlanMatches(plan, videoId, attemptRoute)) {
+            throw AppFailure('该线路返回的集数与当前集数不符');
+          }
+          return plan;
+        },
       );
     }
     final parseApis = await ParseInterfaceStore.loadEnabled();
@@ -1760,6 +2368,7 @@ class NativeRepository extends AppRepository {
 
   @override
   Future<void> release(String session) async {
+    _hongguoSessionToDramaKey.remove(session);
     if (session.isEmpty) {
       return;
     }

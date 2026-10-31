@@ -34,6 +34,8 @@ class PlaybackPreloader extends ChangeNotifier {
     return error.isNotEmpty ? '下一集预加载暂不可用，切集时会重新获取' : '播放后段提前准备下一集';
   }
 
+  bool get busy => loading || _delay != null;
+
   String _key(
     Drama drama,
     Episode episode,

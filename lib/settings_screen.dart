@@ -145,6 +145,64 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _editHongguoBridgeHost() async {
+    final value = await _editHongguoBridgeText(
+      title: '红果桥接地址',
+      initial: widget.store.hongguoBridgeHost,
+      keyboardType: TextInputType.url,
+    );
+    if (value != null && mounted) {
+      await saveUserChange(
+        context,
+        () => widget.store.setHongguoBridgeHost(value),
+      );
+    }
+  }
+
+  Future<void> _editHongguoBridgePort() async {
+    final value = await _editHongguoBridgeText(
+      title: '红果桥接端口',
+      initial: '${widget.store.hongguoBridgePort}',
+      keyboardType: TextInputType.number,
+    );
+    if (value != null && mounted) {
+      await saveUserChange(
+        context,
+        () => widget.store.setHongguoBridgePort(value),
+      );
+    }
+  }
+
+  Future<String?> _editHongguoBridgeText({
+    required String title,
+    required String initial,
+    required TextInputType keyboardType,
+  }) {
+    final controller = TextEditingController(text: initial);
+    return showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: controller,
+          autocorrect: false,
+          keyboardType: keyboardType,
+          decoration: const InputDecoration(border: OutlineInputBorder()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    ).whenComplete(controller.dispose);
+  }
+
   String _displayModeLabel(String mode) => switch (mode) {
     'television' => '电视 / 遥控器',
     'standard' => '手机 / 电脑',
@@ -804,6 +862,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
               ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.link_rounded),
+              title: const Text('红果桥接地址'),
+              subtitle: Text(widget.store.hongguoBridgeHost),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: _editHongguoBridgeHost,
+            ),
+            ListTile(
+              leading: const Icon(Icons.link_rounded),
+              title: const Text('红果桥接端口'),
+              subtitle: Text('${widget.store.hongguoBridgePort}'),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: _editHongguoBridgePort,
             ),
             SwitchListTile.adaptive(
               value: widget.store.autoExport,

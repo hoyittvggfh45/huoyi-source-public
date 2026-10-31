@@ -81,6 +81,7 @@ class CopymangaSource extends ContentSource {
     if (comic is! Map) throw AppFailure('拷贝漫画未返回详情');
     final book = copymangaBook(Map<String, dynamic>.from(comic), bookId);
     final chapters = <ContentChapter>[];
+    var chaptersTruncated = false;
     for (var offset = 0; offset < 1000; offset += 100) {
       final cj = await _apiGet(
         '/comic/$bookId/group/default/chapters?limit=100&offset=$offset',
@@ -95,9 +96,14 @@ class CopymangaSource extends ContentSource {
         }
       }
       if (rows.length < 100) break;
+      if (offset + 100 >= 1000) chaptersTruncated = true;
     }
     // 接口按 ordered 升序返回，保留原序（按标题字符串排会把第10話排到第2話前）
-    return ContentBookDetail(book: book, chapters: chapters);
+    return ContentBookDetail(
+      book: book,
+      chapters: chapters,
+      chaptersTruncated: chaptersTruncated,
+    );
   }
 
   @override

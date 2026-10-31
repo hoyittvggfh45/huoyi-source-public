@@ -10,14 +10,21 @@ import (
 )
 
 type nativePlaybackChoice struct {
-	danmakuSeries string
-	danmakuVideo  string
-	media         []providerMedia
-	index         int
-	qualities     []int
-	streamSession string
-	created       time.Time
-	adBlock       bool
+	danmakuSeries   string
+	danmakuVideo    string
+	media           []providerMedia
+	index           int
+	qualities       []int
+	streamSession   string
+	created         time.Time
+	adBlock         bool
+	hongguo         bool
+	hongguoSource   string
+	hongguoSeries   string
+	hongguoVideo    string
+	hongguoRoute    int
+	hongguoQuality  int
+	hongguoResolved bool
 }
 
 func nativePlaybackChoices(media providerMedia, quality int) nativePlaybackChoice {
@@ -56,9 +63,35 @@ func nativePlaybackChoices(media providerMedia, quality int) nativePlaybackChoic
 	return choice
 }
 
+func (engine *nativeEngine) hongguoResolveChoice(ctx context.Context, choice nativePlaybackChoice) (nativePlaybackChoice, error) {
+	if choice.hongguoRoute < 0 || choice.hongguoRoute >= hongguoRouteCount {
+		return choice, errors.New("该播放线路不可用")
+	}
+	media, err := engine.downloader.resolveHongguoMediaRoute(ctx, choice.hongguoSource, choice.hongguoSeries, choice.hongguoVideo, choice.hongguoRoute)
+	if err != nil {
+		return choice, err
+	}
+	resolved := nativePlaybackChoices(media, choice.hongguoQuality)
+	choice.media = resolved.media
+	choice.qualities = resolved.qualities
+	choice.index = 0
+	choice.hongguoResolved = true
+	if len(choice.media) == 0 {
+		return choice, errors.New("该线路未返回有效的播放地址")
+	}
+	return choice, nil
+}
+
 func (engine *nativeEngine) nativeOpenPlayback(ctx context.Context, choice nativePlaybackChoice) (nativePlan, error) {
 	if err := ctx.Err(); err != nil {
 		return nativePlan{}, err
+	}
+	if choice.hongguo && !choice.hongguoResolved {
+		resolved, err := engine.hongguoResolveChoice(ctx, choice)
+		if err != nil {
+			return nativePlan{}, err
+		}
+		choice = resolved
 	}
 	if choice.index < 0 || choice.index >= len(choice.media) {
 		return nativePlan{}, errors.New("该集没有其他可用的播放线路")
@@ -72,11 +105,15 @@ func (engine *nativeEngine) nativeOpenPlayback(ctx context.Context, choice nativ
 	if _, err := rand.Read(tokenBytes); err != nil {
 		return nativePlan{}, errors.New("无法初始化播放会话")
 	}
+	routeIndex, routeCount := choice.index, len(choice.media)
+	if choice.hongguo {
+		routeIndex, routeCount = choice.hongguoRoute, hongguoRouteCount
+	}
 	plan := nativePlan{
 		DanmakuID: choice.danmakuVideo,
 		URL:       media.URL, OriginalURL: media.URL, Headers: map[string]string{"User-Agent": userAgent, "Referer": media.Referer},
 		Key: hex.EncodeToString(media.CENCKey), Quality: media.Quality, Qualities: choice.qualities,
-		RouteIndex: choice.index, RouteCount: len(choice.media), Session: hex.EncodeToString(tokenBytes),
+		RouteIndex: routeIndex, RouteCount: routeCount, Session: hex.EncodeToString(tokenBytes),
 	}
 	if media.credentials != nil && !media.credentials.expires.IsZero() {
 		if !time.Now().Before(media.credentials.expires) {
@@ -144,6 +181,15 @@ func (engine *nativeEngine) nativeNextPlayback(ctx context.Context, session stri
 	if !exists {
 		return nativePlan{}, errors.New("播放线路已失效，请重新解析播放")
 	}
+	if choice.hongguo {
+		choice.hongguoRoute++
+		if choice.hongguoRoute >= hongguoRouteCount {
+			return nativePlan{}, errors.New("该集没有其他可用的播放线路")
+		}
+		choice.hongguoResolved = false
+		choice.media = nil
+		return engine.nativeOpenPlayback(ctx, choice)
+	}
 	choice.index++
 	return engine.nativeOpenPlayback(ctx, choice)
 }
@@ -154,6 +200,15 @@ func (engine *nativeEngine) nativeSelectRoute(ctx context.Context, session strin
 	engine.mu.Unlock()
 	if !exists {
 		return nativePlan{}, errors.New("播放线路已失效，请重新解析播放")
+	}
+	if choice.hongguo {
+		if index < 0 || index >= hongguoRouteCount {
+			return nativePlan{}, errors.New("该播放线路不可用")
+		}
+		choice.hongguoRoute = index
+		choice.hongguoResolved = false
+		choice.media = nil
+		return engine.nativeOpenPlayback(ctx, choice)
 	}
 	if index < 0 || index >= len(choice.media) {
 		return nativePlan{}, errors.New("该播放线路不可用")

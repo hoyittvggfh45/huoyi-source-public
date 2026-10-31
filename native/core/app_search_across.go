@@ -35,7 +35,8 @@ func nativeSourceSupportsSearch(source string) bool {
 	}
 	switch source {
 	case sourceHongguo, sourceHongguoOversea, sourceHuangju, sourceGuipian, sourceHanxiaoquan,
-		sourceYeguo, sourceDSD, sourceA123, sourceIkanbot, sourceHGTV:
+		sourceYeguo, sourceDSD, sourceA123, sourceIkanbot, sourceHGTV, sourceChengguo, sourceYouTube,
+		sourceYangguo, sourceFengguo:
 		return true
 	}
 	if isDuanjuProviderSource(source) {
@@ -102,6 +103,46 @@ func (engine *nativeEngine) nativeSearchSource(ctx context.Context, source, quer
 		result.HasMore = more
 		return result, nil
 
+	case source == sourceChengguo:
+		items, err := d.searchChengguo(ctx, query)
+		if err != nil {
+			return result, err
+		}
+		for _, drama := range items {
+			result.Items = append(result.Items, nativeNormalize(drama))
+		}
+		result.HasMore = false
+		return result, nil
+	case source == sourceYangguo:
+		items, err := d.searchYangguo(ctx, query)
+		if err != nil {
+			return result, err
+		}
+		for _, drama := range items {
+			result.Items = append(result.Items, nativeNormalize(drama))
+		}
+		result.HasMore = false
+		return result, nil
+	case source == sourceFengguo:
+		items, err := d.searchFengguo(ctx, query)
+		if err != nil {
+			return result, err
+		}
+		for _, drama := range items {
+			result.Items = append(result.Items, nativeNormalize(drama))
+		}
+		result.HasMore = false
+		return result, nil
+	case source == sourceYouTube:
+		items, err := d.searchYoutube(ctx, query)
+		if err != nil {
+			return result, err
+		}
+		for _, drama := range items {
+			result.Items = append(result.Items, nativeNormalize(drama))
+		}
+		result.HasMore = false
+		return result, nil
 	case source == sourceGuipian:
 		items, more, err := d.fetchGuipianCatalogPage(ctx, page, "", query)
 		if err != nil {

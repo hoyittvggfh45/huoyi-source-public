@@ -12,6 +12,7 @@ class LegadoSource {
     required this.searchUrl,
     required this.rawJson,
     this.type = '',
+    this.exploreUrl = '',
   });
 
   final String name;
@@ -19,6 +20,7 @@ class LegadoSource {
   final String searchUrl;
   final String rawJson;
   final String type;
+  final String exploreUrl;
 
   String get id => name.isNotEmpty ? name : url;
 
@@ -29,6 +31,7 @@ class LegadoSource {
       searchUrl: (json['searchUrl'] ?? '').toString(),
       rawJson: jsonEncode(json),
       type: (json['bookSourceType'] ?? '').toString(),
+      exploreUrl: (json['exploreUrl'] ?? '').toString(),
     );
   }
 }
@@ -77,7 +80,7 @@ void _collectLegadoItems(
       dropped.add(
         LegadoDrop(name: source.url, reason: LegadoDrop.reasonMissingName),
       );
-    } else if (source.searchUrl.isEmpty) {
+    } else if (source.searchUrl.isEmpty && source.exploreUrl.isEmpty) {
       dropped.add(
         LegadoDrop(
           name: source.name,
@@ -150,6 +153,15 @@ String legadoCheckReasonText(Map<String, dynamic> check) {
     'coverUrl': '封面',
     'bookUrl': '书籍链接',
     'intro': '简介',
+    'tocList': '目录列表',
+    'chapterName': '章节名',
+    'chapterUrl': '章节链接',
+    'nextTocUrl': '目录翻页',
+    'content': '正文',
+    'nextContentUrl': '正文翻页',
+    'webJs': 'Web JS',
+    'sourceRegex': '源正则',
+    'init': '初始化脚本',
   };
   const reasonNames = {
     'xpath': 'XPath',
@@ -157,6 +169,9 @@ String legadoCheckReasonText(Map<String, dynamic> check) {
     'jsonpath': '高级 JSONPath',
     'nth': ':nth 选择器',
     'child': ':first-child/:last-child',
+    'webJs': 'Web JS',
+    'sourceRegex': '源正则',
+    'init': '初始化脚本',
   };
   final parts = <String>[];
   for (final item in fields) {
@@ -173,16 +188,35 @@ String legadoCheckReasonText(Map<String, dynamic> check) {
 
 class LegadoStore {
   static const _key = 'legado_sources_v1';
-  static const _seededKey = 'legado_builtin_seeded_v2';
+  static const _seededKey = 'legado_builtin_seeded_v3';
+
+  static Future<void> _persist(List<LegadoSource> sources) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _key,
+      jsonEncode(sources.map((s) => jsonDecode(s.rawJson)).toList()),
+    );
+  }
 
   static Future<int> seedBuiltin() async {
     final prefs = await SharedPreferences.getInstance();
     if (prefs.getBool(_seededKey) == true) return 0;
     final before = await load();
     final parsed = parseLegadoSources(builtinLegadoRulesJson);
-    final merged = await addAll(parsed);
+    final existing = List<LegadoSource>.from(before);
+    var added = 0;
+    for (final source in parsed) {
+      final index = existing.indexWhere((s) => s.id == source.id);
+      if (index >= 0) {
+        existing[index] = source;
+      } else {
+        existing.add(source);
+        added++;
+      }
+    }
+    await _persist(existing);
     await prefs.setBool(_seededKey, true);
-    return merged.length - before.length;
+    return added;
   }
 
   static Future<List<LegadoSource>> load() async {

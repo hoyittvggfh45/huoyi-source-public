@@ -123,7 +123,12 @@ class _LiveScreenState extends State<LiveScreen> {
     super.didUpdateWidget(oldWidget);
     // 分级限制开关会在运行中改变可见源：开关打开时把全部源挡掉，关掉后
     // 又该重新出现，所以必须跟着重算，否则直播页会一直停在空态。
-    if (oldWidget.greenMode == widget.greenMode || _source != null) return;
+    if (oldWidget.greenMode == widget.greenMode) return;
+    final visible = LiveSource.visible(widget.greenMode);
+    if (_source != null &&
+        visible.any((item) => item.id == _source!.id)) {
+      return;
+    }
     _syncSources();
   }
 
@@ -354,33 +359,16 @@ class _LiveScreenState extends State<LiveScreen> {
 
   Future<void> _pickSource() async {
     final sources = _sources;
-    final builtin = [
-      for (final source in sources)
-        if (source.builtin) source,
-    ];
-    final imported = [
-      for (final source in sources)
-        if (!source.builtin) source,
-    ];
-    final grouped = builtin.isNotEmpty && imported.isNotEmpty;
     final picked = await showSitePickerDialog(
       context,
       sectionName: '直播',
       currentId: _source?.id ?? '',
       groups: [
-        if (builtin.isNotEmpty)
+        for (final group in LiveSource.pickerGroups(sources))
           SourcePickerGroup(
-            title: grouped ? '平台源' : '',
+            title: group.title,
             entries: [
-              for (final source in builtin)
-                SourcePickerEntry(id: source.id, name: source.name),
-            ],
-          ),
-        if (imported.isNotEmpty)
-          SourcePickerGroup(
-            title: grouped ? '导入源' : '',
-            entries: [
-              for (final source in imported)
+              for (final source in group.sources)
                 SourcePickerEntry(id: source.id, name: source.name),
             ],
           ),

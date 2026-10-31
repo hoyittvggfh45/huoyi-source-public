@@ -15,11 +15,12 @@ import (
 )
 
 type legadoJSCtx struct {
-	rt        *goja.Runtime
-	javaObj   *goja.Object
-	vars      map[string]string
-	baseURL   string
-	sourceURL string
+	rt            *goja.Runtime
+	javaObj       *goja.Object
+	vars          map[string]string
+	baseURL       string
+	sourceURL     string
+	sourceHeaders map[string]string
 	page      int
 	key       string
 	sourceObj interface{}
@@ -30,7 +31,14 @@ type legadoJSCtx struct {
 	curJSONOK bool
 }
 
+func (c *legadoJSCtx) setBaseURL(u string) {
+	if u != "" {
+		c.baseURL = u
+	}
+}
+
 func (c *legadoJSCtx) setSource(src LegadoSource) {
+	c.sourceHeaders = src.Headers
 	c.sourceObj = map[string]interface{}{
 		"bookSourceName":    src.Name,
 		"bookSourceUrl":     src.URL,
@@ -155,7 +163,7 @@ func (c *legadoJSCtx) runtime() *goja.Runtime {
 		if len(call.Arguments) == 0 {
 			return rt.ToValue("")
 		}
-		body, err := legadoFetch(call.Arguments[0].String())
+		body, err := legadoRequest(call.Arguments[0].String(), "GET", "", c.sourceHeaders)
 		if err != nil {
 			return rt.ToValue("")
 		}
@@ -232,7 +240,7 @@ func (c *legadoJSCtx) javaAjaxDo(urlStr, method, body string, headers map[string
 	if urlStr == "" {
 		return ""
 	}
-	resp, err := legadoRequest(urlStr, method, body, headers)
+	resp, err := legadoRequest(urlStr, method, body, legadoMergeHeaders(c.sourceHeaders, headers))
 	if err != nil {
 		return ""
 	}
@@ -313,7 +321,7 @@ func (c *legadoJSCtx) javaGetString(call goja.FunctionCall) string {
 		return ""
 	}
 	if strings.HasPrefix(arg, "http") {
-		resp, err := legadoRequest(arg, "GET", "", nil)
+		resp, err := legadoRequest(arg, "GET", "", c.sourceHeaders)
 		if err != nil {
 			return ""
 		}
@@ -512,6 +520,11 @@ func (c *legadoJSCtx) evalJS(script string, result goja.Value) (goja.Value, erro
 	done := make(chan evalOut, 1)
 	go func() {
 		v, err := rt.RunString(script)
+		if err != nil {
+			if wrapped, werr := rt.RunString("(function(){" + script + "})()"); werr == nil {
+				v, err = wrapped, nil
+			}
+		}
 		done <- evalOut{v: v, err: err}
 	}()
 	timer := time.NewTimer(10 * time.Second)
@@ -914,6 +927,11 @@ func (c *legadoJSCtx) evalList(body, rule string) []string {
 	case string:
 		if v == "" {
 			return nil
+		}
+		if strings.HasPrefix(strings.TrimSpace(v), "[") {
+			if blocks := legadoJSONListBlocks(v, "$[*]"); len(blocks) > 0 {
+				return blocks
+			}
 		}
 		return []string{v}
 	}

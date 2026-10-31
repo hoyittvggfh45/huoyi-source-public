@@ -36,6 +36,7 @@ import 'playback_loader.dart';
 import 'playback_parse.dart';
 import 'playback_foreground.dart';
 import 'playback_preloader.dart';
+import 'next_film_preloader.dart';
 import 'playback_queue.dart';
 import 'playback_sniffer.dart';
 import 'playback_recovery.dart';
@@ -77,6 +78,7 @@ class PlayerScreen extends StatefulWidget {
     this.videoBuilder,
     this.handoff,
     this.queue,
+    this.initialPlan,
     this.startFullscreen = false,
   });
   final DramaDetail detail;
@@ -89,6 +91,7 @@ class PlayerScreen extends StatefulWidget {
   final LocalStore store;
   final LanIncomingPlayback? handoff;
   final PlaybackQueue? queue;
+  final PlaybackPlan? initialPlan;
   final bool startFullscreen;
   @visibleForTesting
   final Player Function()? playerFactory;
@@ -106,6 +109,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   late final PictureQualityApplier _pictureQuality;
   late final PlaybackLoader _loader;
   late final PlaybackPreloader _preloader;
+  late final NextFilmPreloader _nextFilmPreloader;
   bool _preloadEnabled = true;
   late final DanmakuController _danmaku;
   int _seekSequence = 0;
@@ -288,12 +292,16 @@ class _PlayerScreenState extends State<PlayerScreen>
     _autoAdvance = true;
     _danmakuEnabled = preferences.danmaku;
     _adBlock = preferences.adBlock;
-    _preloadEnabled = true;
+    _preloadEnabled = preferences.preload;
     _televisionDecoder = preferences.televisionDecoder;
     _multiChannelAudio = preferences.multiChannelAudio;
     _orientationMode = preferences.orientationMode;
     _loader = PlaybackLoader(widget.repository);
     _preloader = PlaybackPreloader(widget.repository);
+    _nextFilmPreloader = NextFilmPreloader(
+      widget.repository,
+      widget.store.watched,
+    );
     unawaited(_loadParseSelection());
     _danmaku = DanmakuController(
       widget.repository,
@@ -404,6 +412,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         }
         _syncDanmaku();
         _syncPreload();
+        _syncNextFilmPreload();
         _acknowledgeHandoff();
       }),
     );
@@ -419,6 +428,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         stream.listen((_) {
           _syncDanmaku();
           _syncPreload();
+          _syncNextFilmPreload();
           _acknowledgeHandoff();
         }),
       );
@@ -486,7 +496,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       _play(
         _index,
         position: widget.store.resumePlayback ? widget.initialPosition : 0,
-        handoffPlan: handoff?.plan,
+        handoffPlan: widget.initialPlan ?? handoff?.plan,
       );
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -504,6 +514,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     if (!_closed &&
         (widget.store.profileEpoch != _profileEpoch || widget.store.locked)) {
       _preloader.clear();
+      _nextFilmPreloader.clear();
       _enhancement.suspend();
       _handoffOwned = false;
       _playIntent = false;
@@ -614,6 +625,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     _enhancement.setForeground(_foreground);
     _syncDanmaku();
     _syncPreload();
+    _syncNextFilmPreload();
     _health.reset();
     if (!visible) _interactions.cancel();
     if (!visible &&
@@ -856,6 +868,43 @@ class _PlayerScreenState extends State<PlayerScreen>
     _preloader.prepare(
       widget.detail.drama,
       widget.detail.episodes[_index + 1],
+      quality: _requestedQuality,
+      route: _routeIndex,
+      adBlock: _adBlock,
+    );
+  }
+
+  void _syncNextFilmPreload() {
+    if (_closed) return;
+    final queue = widget.queue;
+    if (!_preloadEnabled || queue == null) {
+      _nextFilmPreloader.clear();
+      return;
+    }
+    if (!_foreground ||
+        widget.localOnly ||
+        _plan?.local == true ||
+        _loading ||
+        _error != null ||
+        _openedIndex != _index ||
+        widget.store.profileEpoch != _profileEpoch ||
+        widget.store.locked) {
+      _nextFilmPreloader.pause();
+      return;
+    }
+    final state = _player.state;
+    if (!state.playing || state.buffering || !_playIntent) {
+      _nextFilmPreloader.pause();
+      return;
+    }
+    final position = state.position.inMilliseconds;
+    if (position < 2000 ||
+        state.buffer.inMilliseconds - position < 5000 ||
+        _preloader.busy) {
+      return;
+    }
+    _nextFilmPreloader.prepare(
+      queue,
       quality: _requestedQuality,
       route: _routeIndex,
       adBlock: _adBlock,
@@ -1322,7 +1371,12 @@ class _PlayerScreenState extends State<PlayerScreen>
       PlaybackRecoveryAction.refresh => '正在重新获取播放地址',
       _ => '正在准备播放',
     };
-    if (routeSelection != null) loadingMessage = '正在切换播放线路';
+    if (routeSelection != null) {
+      loadingMessage = widget.detail.drama.source == 'hongguo' ||
+              widget.detail.drama.source == 'hongguo-oversea'
+          ? '正在切换播放线路（红果自动试线中）'
+          : '正在切换播放线路';
+    }
     setState(() {
       _index = index;
       _loading = true;
@@ -1647,8 +1701,12 @@ class _PlayerScreenState extends State<PlayerScreen>
       routeSelection: route,
       playWhenReady: playing,
     );
-    if (_closed || !mounted || _plan?.routeIndex == route) return;
-    if (_routeIndex == route) setState(() => _routeIndex = previous);
+    if (_closed || !mounted) return;
+    if (_plan == null) {
+      if (_routeIndex == route) setState(() => _routeIndex = previous);
+    } else if (_routeIndex != _plan!.routeIndex) {
+      setState(() => _routeIndex = _plan!.routeIndex);
+    }
   }
 
   bool get _showFullscreen {
@@ -1825,9 +1883,26 @@ class _PlayerScreenState extends State<PlayerScreen>
   ) async {
     if (_closed || !mounted) return;
     try {
-      final detail = await widget.repository.detail(target);
-      if (_closed || !mounted) return;
+      final ready = _nextFilmPreloader.take(target);
+      final detail = ready?.detail ?? await widget.repository.detail(target);
+      if (_closed || !mounted) {
+        if (ready != null) {
+          unawaited(
+            widget.repository
+                .release(ready.plan.session)
+                .catchError((Object _) {}),
+          );
+        }
+        return;
+      }
       if (detail.episodes.isEmpty) {
+        if (ready != null) {
+          unawaited(
+            widget.repository
+                .release(ready.plan.session)
+                .catchError((Object _) {}),
+          );
+        }
         _notice('《${target.title}》暂时没有可播放的集数');
         return;
       }
@@ -1838,6 +1913,18 @@ class _PlayerScreenState extends State<PlayerScreen>
               watched?.finished == false
           ? watched!.position
           : 0.0;
+      PlaybackPlan? initialPlan;
+      if (ready != null) {
+        if (detail.episodes[index].id == ready.episode.id) {
+          initialPlan = ready.plan;
+        } else {
+          unawaited(
+            widget.repository
+                .release(ready.plan.session)
+                .catchError((Object _) {}),
+          );
+        }
+      }
       await Navigator.of(context).pushReplacement(
         playerRoute(
           PlayerScreen(
@@ -1847,6 +1934,7 @@ class _PlayerScreenState extends State<PlayerScreen>
             repository: widget.repository,
             store: widget.store,
             queue: queue.moved(direction),
+            initialPlan: initialPlan,
           ),
         ),
       );
@@ -1897,7 +1985,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       _autoAdvance = true;
       _danmakuEnabled = nextPreferences.danmaku;
       _adBlock = nextPreferences.adBlock;
-      _preloadEnabled = true;
+      _preloadEnabled = nextPreferences.preload;
       _televisionDecoder = nextPreferences.televisionDecoder;
       _multiChannelAudio = nextPreferences.multiChannelAudio;
       _orientationMode = nextPreferences.orientationMode;
@@ -1905,8 +1993,12 @@ class _PlayerScreenState extends State<PlayerScreen>
     if (orientationChanged) unawaited(_applyOrientation());
     _danmaku.setEnabled(_danmakuEnabled);
     _syncDanmaku();
-    if (qualityChanged || adBlockChanged) _preloader.clear();
+    if (qualityChanged || adBlockChanged) {
+      _preloader.clear();
+      _nextFilmPreloader.clear();
+    }
     _syncPreload();
+    _syncNextFilmPreload();
     _menuRevision.value++;
     await _interactions.applySpeed();
     if (_useNativeHandle) unawaited(_tvboxHandle.setSpeed(_speed));
@@ -2315,6 +2407,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     widget.store.removeListener(_syncDanmakuPreference);
     _danmaku.dispose();
     _preloader.dispose();
+    _nextFilmPreloader.dispose();
     _generation++;
     WidgetsBinding.instance.removeObserver(this);
     _saveTimer?.cancel();
@@ -2437,7 +2530,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                             episodeIndex: _index,
                           ),
                         ),
-                        icon: const Icon(Icons.meeting_room_rounded),
+                        icon: const Icon(Icons.home_rounded),
                       ),
                       PlayerCoreBadge(core: _core, onTap: _openCoreDialog),
                       IconButton(

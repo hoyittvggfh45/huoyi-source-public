@@ -57,11 +57,13 @@ class ContentBookDetail {
     required this.book,
     required this.chapters,
     this.note = '',
+    this.chaptersTruncated = false,
   });
 
   final ContentBook book;
   final List<ContentChapter> chapters;
   final String note;
+  final bool chaptersTruncated;
 }
 
 class ContentPage {

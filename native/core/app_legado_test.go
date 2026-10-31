@@ -50,6 +50,29 @@ func TestLegadoFieldAndText(t *testing.T) {
 	}
 }
 
+func TestLegadoCheckComicTocContent(t *testing.T) {
+	tocBad := LegadoSource{BookList: "div.item", TocList: "$.data[?(@.x==1)]", ChapterName: "text", ChapterURL: "href"}
+	if got := legadoCheck(tocBad); got.Supported {
+		t.Fatalf("bad toc jsonpath should be unsupported, got %+v", got)
+	} else if len(got.UnsupportedFields) != 1 || got.UnsupportedFields[0].Field != "tocList" {
+		t.Fatalf("want single tocList field, got %+v", got.UnsupportedFields)
+	}
+	contentBad := LegadoSource{BookList: "div.item", ContentRule: "$.data[?(@.x==1)]"}
+	if got := legadoCheck(contentBad); got.Supported {
+		t.Fatalf("bad content jsonpath should be unsupported, got %+v", got)
+	} else if len(got.UnsupportedFields) != 1 || got.UnsupportedFields[0].Field != "content" {
+		t.Fatalf("want single content field, got %+v", got.UnsupportedFields)
+	}
+	webJs := LegadoSource{BookList: "div.item", ContentWebJS: "document.querySelector('img')"}
+	if got := legadoCheck(webJs); got.Supported {
+		t.Fatalf("content webJs should be unsupported, got %+v", got)
+	}
+	comicOK := LegadoSource{BookList: "div.item", TocList: "id.chapters@li", ChapterName: "tag.a@text", ChapterURL: "tag.a@href", ContentRule: "div.comicpage@html"}
+	if got := legadoCheck(comicOK); !got.Supported || len(got.UnsupportedFields) != 0 {
+		t.Fatalf("plain comic toc/content should be supported, got %+v", got)
+	}
+}
+
 func TestLegadoCheck(t *testing.T) {
 	css := LegadoSource{BookList: "div.item", NameRule: "a.title@text", BookURLRule: "a.title@href"}
 	if got := legadoCheck(css); !got.Supported || len(got.UnsupportedFields) != 0 {
