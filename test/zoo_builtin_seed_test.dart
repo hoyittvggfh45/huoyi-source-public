@@ -4,44 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:duanju_app/zoo_builtin_data.dart';
 import 'package:duanju_app/zoo_builtin_seed.dart';
 
-const _credentialKeys = {
-  'password',
-  'passwd',
-  'pwd',
-  'secret',
-  'api_key',
-  'apikey',
-  'access_key',
-  'accesskey',
-  'auth',
-  'token',
-  'cookie',
-  'session',
-  'account',
-  'username',
-  'phone',
-};
-
-void _checkNoCredentials(dynamic node, List<String> path) {
-  if (node is Map) {
-    for (final entry in node.entries) {
-      final key = entry.key.toString().toLowerCase();
-      final value = entry.value;
-      if (_credentialKeys.contains(key) &&
-          value is String &&
-          value.isNotEmpty &&
-          !value.contains('{')) {
-        fail('credential value kept at ${[...path, entry.key].join('/')}');
-      }
-      _checkNoCredentials(value, [...path, entry.key.toString()]);
-    }
-  } else if (node is List) {
-    for (var i = 0; i < node.length; i++) {
-      _checkNoCredentials(node[i], [...path, '$i']);
-    }
-  }
-}
-
 void main() {
   test('builtin config seed data is empty after builtin removal', () {
     final decoded = jsonDecode(zooBuiltinConfigsJson);
