@@ -128,6 +128,7 @@ func (engine *nativeEngine) nativeCategories(ctx context.Context, source string,
 		for _, genre := range hongguoAppGenres {
 			all = append(all, nativeCategory{ID: genre.key, Name: genre.name})
 		}
+		return all, nil
 	case sourceHongguotv:
 		for _, entry := range hongguotvCategories {
 			all = append(all, nativeCategory{ID: entry.id, Name: entry.name})

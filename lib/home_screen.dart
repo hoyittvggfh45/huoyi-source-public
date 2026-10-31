@@ -3,6 +3,7 @@ import 'dart:async';
 import 'app_page_route.dart';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -74,8 +75,7 @@ import 'live_screen.dart';
 import 'live_store.dart';
 
 bool shouldSilentRefreshOnRestore(DateTime? fetchedAt, DateTime now) {
-  if (fetchedAt == null) return true;
-  return now.difference(fetchedAt) >= const Duration(minutes: 5);
+  return false;
 }
 
 class HomeScreen extends StatefulWidget {
@@ -122,6 +122,9 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _hasMore = true;
   String? _error;
   int _generation = 0;
+  bool _loadInFlight = false;
+  bool _updaterBusy = false;
+  String _updaterBusyGroup = '';
   HomeZone _zone = HomeZone.drama;
   final _zoneHistory = BackHistory<HomeZone>();
   final _scaffoldKey = GlobalKey<ScaffoldState>();
@@ -322,7 +325,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _updateChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    final busy = _group.sources.any((source) => _updater.busy(source.id));
+    if (busy == _updaterBusy && _updaterBusyGroup == _group.id) return;
+    _updaterBusy = busy;
+    _updaterBusyGroup = _group.id;
+    setState(() {});
   }
 
   void _catalogUpdated(String source) {
@@ -383,6 +391,7 @@ class _HomeScreenState extends State<HomeScreen> {
           if (mounted &&
               !_loading &&
               !_loadingMore &&
+              !_loadInFlight &&
               (!_onlineSearch || _search.text.trim().isEmpty)) {
             await _load(cacheOnly: true);
           }
@@ -444,6 +453,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _pickSource({bool editMode = false}) async {
+    _updater.startWatching();
     if (_zone == HomeZone.drama && !editMode) {
       final picked = await _pickVideoStation();
       if (picked == null || !mounted) return;
@@ -463,6 +473,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _pickSourceCentered() async {
+    _updater.startWatching();
     final picked = await showSitePickerDialog(
       context,
       sectionName: _sourcePickerSectionName(),
@@ -835,6 +846,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _manageSources() async {
+    _updater.startWatching();
     _pauseCatalog();
     await Navigator.push<void>(
       context,
@@ -925,7 +937,6 @@ class _HomeScreenState extends State<HomeScreen> {
       widget.store,
       onCatalogChanged: _catalogUpdated,
     )..addListener(_updateChanged);
-    _updater.startWatching();
     widget.repository.catalogUpdates.addListener(_metadataChanged);
     if (_sectionSources.isNotEmpty) {
       _load(useCache: true);
@@ -933,8 +944,6 @@ class _HomeScreenState extends State<HomeScreen> {
     } else {
       _loading = false;
     }
-    unawaited(_loadMidnightActivated());
-    unawaited(_loadCurrentVersion());
     _dramaStyle = dramaUiStyleNotifier.value;
     dramaUiStyleNotifier.addListener(_syncDramaStyle);
     unawaited(ensureDramaUiStyleLoaded());
@@ -1001,6 +1010,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
     _browser.updateDrama(drama);
+    if (!_items.any((item) => item.id == drama.id)) return;
     setState(() {
       _items = [
         for (final item in _items)
@@ -1022,6 +1032,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final generation = ++_generation;
     final group = _effectiveGroup;
     final query = _canSearchOnline ? _search.text.trim() : '';
+    final cacheOnlyEffective =
+        cacheOnly || (useCache && !force && !more && query.isEmpty);
+    _loadInFlight = true;
     setState(() {
       if (!silent) _error = null;
       if (query.isNotEmpty && !silent) {
@@ -1046,28 +1059,36 @@ class _HomeScreenState extends State<HomeScreen> {
         _loading = silent ? false : (cached && !result.fresh);
         _loadingMore = false;
         _error = result.warning.isEmpty ? null : result.warning;
+        if (cacheOnlyEffective &&
+            result.items.isEmpty &&
+            result.warning.isEmpty &&
+            !silent) {
+          _error = '本地暂无缓存，下拉或点“更新剧库”现抓';
+        }
         _sectionFetchedAt[_catalogSection] = DateTime.now();
       });
       unawaited(
         saveUserChange(context, () => widget.store.refreshDramas(result.items)),
       );
-      _maybeStartDramaPrefetch();
+      if (more && !silent) _maybeStartDramaPrefetch();
     }
 
     try {
-      final result = await _browser.load(
-        group,
-        category: _effectiveCategory,
-        query: query,
-        more: more,
-        useCache: useCache,
-        force: force,
-        cacheOnly: cacheOnly,
-        crossSource: _crossSourceSearch,
-        crossSources: _crossSourceSearch ? _visibleSourceIds : null,
-        onCached: (result) => accept(result, cached: true),
-        filters: _allSources ? const {} : _selectedFilters,
-      );
+      final result = await _browser
+          .load(
+            group,
+            category: _effectiveCategory,
+            query: query,
+            more: more,
+            useCache: useCache,
+            force: force,
+            cacheOnly: cacheOnlyEffective,
+            crossSource: _crossSourceSearch,
+            crossSources: _crossSourceSearch ? _visibleSourceIds : null,
+            onCached: (result) => accept(result, cached: true),
+            filters: _allSources ? const {} : _selectedFilters,
+          )
+          .timeout(const Duration(seconds: 60));
       accept(result);
     } catch (error) {
       if (!mounted || generation != _generation) return;
@@ -1076,6 +1097,8 @@ class _HomeScreenState extends State<HomeScreen> {
         _loadingMore = false;
         if (!silent) _error = error.toString();
       });
+    } finally {
+      if (generation == _generation) _loadInFlight = false;
     }
   }
 
@@ -1351,7 +1374,12 @@ class _HomeScreenState extends State<HomeScreen> {
     return true;
   }
 
-  void _openDrawer() => _scaffoldKey.currentState?.openDrawer();
+  void _openDrawer() {
+    _updater.startWatching();
+    unawaited(_loadMidnightActivated());
+    unawaited(_loadCurrentVersion());
+    _scaffoldKey.currentState?.openDrawer();
+  }
 
   AppDrawer _drawer() => AppDrawer(
     zone: _zone,
@@ -1767,6 +1795,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<Drama> get _visible {
     final view = widget.store.catalogView;
+    final hidden = widget.store.hiddenSites;
     final key = [
       identityHashCode(_items),
       _items.length,
@@ -1776,7 +1805,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _search.text.trim().toLowerCase(),
       _onlineSearch,
       _hideVip,
-      widget.store.hiddenSites.join(','),
+      hidden.join(','),
       widget.store.profileEpoch,
       widget.store.locked,
       view.sort,
@@ -1787,7 +1816,6 @@ class _HomeScreenState extends State<HomeScreen> {
       return _visibleCache!;
     }
     final query = _search.text.trim().toLowerCase();
-    final hidden = widget.store.hiddenSites;
     final visible = sortCatalog(
       _items.where((drama) {
         if (!widget.store.allowsSource(drama.source)) return false;
@@ -2926,6 +2954,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           onRefresh: _refreshCatalog,
                           child: CustomScrollView(
                             controller: _scroll,
+                            scrollCacheExtent: const ScrollCacheExtent.pixels(800),
                             physics: const AlwaysScrollableScrollPhysics(),
                             slivers: [
                               if (_showCarouselStrip &&

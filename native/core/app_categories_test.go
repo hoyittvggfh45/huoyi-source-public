@@ -57,6 +57,17 @@ func TestNativeCategoryPaginationStaysIndependent(t *testing.T) {
 	}
 }
 
+func TestNativeCategoriesHongguoReturnsGenres(t *testing.T) {
+	engine := sourceFixtureEngine(t, nil)
+	categories, err := engine.nativeCategories(context.Background(), sourceHongguo, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(categories) != 4 || categories[1].ID != "short_play" || categories[2].ID != "comic_series" || categories[3].ID != "ai_series" {
+		t.Fatalf("hongguo categories = %v, want all plus short_play/comic_series/ai_series", categories)
+	}
+}
+
 func TestNativeCategoryDiscoveryUsesSourceLinks(t *testing.T) {
 	categories := parseHuangguoVideoCategories(`<a href="/videos">全部</a><a href="/videos?category=2&amp;sort=hot"><span>合成分类甲</span></a><a href="/videos?category=5">合成分类乙</a><a href="/videos?category=2">重复</a><a href="/other?category=8">无关</a><a href="/videos?category=../bad">无效</a>`)
 	if len(categories) != 2 || categories[0].ID != "2" || categories[0].Name != "合成分类甲" || categories[1].ID != "5" {

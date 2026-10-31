@@ -5,21 +5,21 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('video station list totals match the registry dialog counts', () {
-    expect(videoStationEntries.length, 80);
+    expect(videoStationEntries.length, 51);
     expect(
       videoStationEntries
           .where((entry) => entry.group == VideoStationGroup.green)
           .length,
-      13,
+      12,
     );
     expect(
       videoStationEntries
           .where((entry) => entry.group == VideoStationGroup.restricted)
           .length,
-      67,
+      39,
     );
     final ids = videoStationEntries.map((entry) => entry.id).toSet();
-    expect(ids.length, 80);
+    expect(ids.length, 51);
     for (final name in [
       '豆果',
       '剧果',
@@ -57,10 +57,6 @@ void main() {
       '档果',
       '汉果',
       '番果',
-      '超果',
-      '熊果',
-      '草果',
-      '榜果',
     ]) {
       expect(
         videoStationEntries.any((entry) => entry.name == name),
@@ -72,7 +68,7 @@ void main() {
 
   test('hidden stations are excluded from the switch list', () {
     final visible = videoStationsVisible({'douguo', 'hongguo'});
-    expect(visible.length, 78);
+    expect(visible.length, 49);
     expect(visible.any((entry) => entry.id == 'douguo'), isFalse);
     expect(visible.any((entry) => entry.id == 'hongguo'), isFalse);
   });
@@ -102,14 +98,14 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('切换站源'), findsOneWidget);
     expect(find.text('当前：角果'), findsOneWidget);
-    expect(find.text('绿色 13'), findsOneWidget);
-    expect(find.text('限制级 66'), findsOneWidget);
+    expect(find.text('绿色 12'), findsOneWidget);
+    expect(find.text('限制级 38'), findsOneWidget);
     expect(find.text('豆果'), findsNothing);
-    await tester.tap(find.text('绿色 13'));
+    await tester.tap(find.text('绿色 12'));
     await tester.pumpAndSettle();
     expect(find.text('红果'), findsOneWidget);
     expect(find.text('角果'), findsNothing);
-    await tester.tap(find.text('绿色 13'));
+    await tester.tap(find.text('绿色 12'));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('橙果'), 200);
     await tester.tap(find.text('橙果'));

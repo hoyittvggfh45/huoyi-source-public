@@ -3,10 +3,10 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   final now = DateTime(2026, 10, 30, 9, 30);
-  test('no fetch record always refreshes on restore', () {
-    expect(shouldSilentRefreshOnRestore(null, now), isTrue);
+  test('no fetch record never refreshes on restore', () {
+    expect(shouldSilentRefreshOnRestore(null, now), isFalse);
   });
-  test('fresh snapshot skips silent refresh on restore', () {
+  test('fresh snapshot never refreshes on restore', () {
     expect(
       shouldSilentRefreshOnRestore(
         now.subtract(const Duration(minutes: 1)),
@@ -22,20 +22,20 @@ void main() {
       isFalse,
     );
   });
-  test('stale snapshot refreshes on restore', () {
+  test('stale snapshot never refreshes on restore', () {
     expect(
       shouldSilentRefreshOnRestore(
         now.subtract(const Duration(minutes: 5)),
         now,
       ),
-      isTrue,
+      isFalse,
     );
     expect(
       shouldSilentRefreshOnRestore(
         now.subtract(const Duration(minutes: 30)),
         now,
       ),
-      isTrue,
+      isFalse,
     );
   });
 }

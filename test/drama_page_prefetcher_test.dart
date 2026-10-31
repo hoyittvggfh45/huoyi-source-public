@@ -26,6 +26,21 @@ void main() {
     expect(prefetcher.running, isFalse);
   });
 
+  test('stops after five prefetched pages', () async {
+    final prefetcher = DramaPagePrefetcher();
+    var pages = 0;
+    await prefetcher.run(
+      isCurrent: () => true,
+      isBusy: () => false,
+      loadMore: () async {
+        pages++;
+        return true;
+      },
+    );
+    expect(pages, 5);
+    expect(prefetcher.running, isFalse);
+  });
+
   test('stops when a page makes no progress', () async {
     final prefetcher = DramaPagePrefetcher();
     var calls = 0;

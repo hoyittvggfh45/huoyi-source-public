@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 import 'search_input.dart';
 import 'app_layout.dart';
@@ -424,6 +425,7 @@ class RemoteGridState extends State<RemoteGrid> {
     onKeyEvent: _key,
     child: CustomScrollView(
       controller: _scroll,
+      scrollCacheExtent: const ScrollCacheExtent.pixels(800),
       slivers: [
         SliverPadding(
           padding: widget.padding,

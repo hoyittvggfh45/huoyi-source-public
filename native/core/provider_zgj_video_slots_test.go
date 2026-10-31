@@ -31,13 +31,13 @@ func TestZgjVideoSlotsRegistryShape(t *testing.T) {
 			t.Fatalf("registered slot %q must not claim an existing slot", slot.ID)
 		}
 	}
-	if len(zgjVideoSlots) != 87 {
-		t.Fatalf("registry has %d slots, want 87", len(zgjVideoSlots))
+	if len(zgjVideoSlots) != 58 {
+		t.Fatalf("registry has %d slots, want 58", len(zgjVideoSlots))
 	}
-	if counts[zgjTierComplete] != 19 || counts[zgjTierRegistered] != 65 || counts[zgjTierBlocked] != 3 {
-		t.Fatalf("tier counts = %v, want complete 19 registered 65 blocked 3", counts)
+	if counts[zgjTierComplete] != 19 || counts[zgjTierRegistered] != 36 || counts[zgjTierBlocked] != 3 {
+		t.Fatalf("tier counts = %v, want complete 19 registered 36 blocked 3", counts)
 	}
-	wantConfirmed := map[string]bool{"hongguo": true, "xingguo": true, "huangdou": true, "shanguo": true}
+	wantConfirmed := map[string]bool{"hongguo": true, "xingguo": true, "huangdou": true}
 	if len(confirmed) != len(wantConfirmed) {
 		t.Fatalf("name-confirmed slots = %v, want %v", confirmed, wantConfirmed)
 	}
@@ -67,7 +67,6 @@ func TestZgjVideoSlotLookup(t *testing.T) {
 	}{
 		{"pornhub", "pornhub", zgjTierRegistered, true},
 		{"redtube", "redtube", zgjTierRegistered, true},
-		{"shanguo", "shanguo", zgjTierRegistered, true},
 		{"legacy", "legacy", zgjTierBlocked, true},
 		{"single", "single", zgjTierBlocked, true},
 		{"miguo", "miguo", zgjTierBlocked, true},
@@ -135,8 +134,8 @@ func TestZgjVideoSlotsRegisteredAreNotLive(t *testing.T) {
 
 func TestZgjVideoSlotsDialogTotals(t *testing.T) {
 	slots := zgjVideoSlotsAll()
-	if len(slots) != 87 {
-		t.Fatalf("slot total = %d, want 87", len(slots))
+	if len(slots) != 58 {
+		t.Fatalf("slot total = %d, want 58", len(slots))
 	}
 	seen := map[string]bool{}
 	green, restricted, unknown := 0, 0, 0
@@ -158,10 +157,10 @@ func TestZgjVideoSlotsDialogTotals(t *testing.T) {
 			t.Fatalf("slot %s has ungrouped group %q", slot.ID, slot.Group)
 		}
 	}
-	if green != 13 || restricted != 67 || unknown != 7 {
-		t.Fatalf("groups green=%d restricted=%d unknown=%d, want 13/67/7", green, restricted, unknown)
+	if green != 12 || restricted != 39 || unknown != 7 {
+		t.Fatalf("groups green=%d restricted=%d unknown=%d, want 12/39/7", green, restricted, unknown)
 	}
-	screenshot := []string{"豆果", "剧果", "野果", "帝果", "黄果", "智果", "故果", "艳果", "桃果", "柚果", "榴果", "美果", "城果", "宵果", "樱果", "露果", "荔果", "橘果", "枣果", "柠果", "芒果", "橙果", "角果", "贞果", "学果", "二果", "会果", "撩果", "春果", "波果", "仓果", "巴果", "杰果", "档果", "汉果", "番果", "超果", "熊果", "草果", "榜果"}
+	screenshot := []string{"豆果", "剧果", "野果", "帝果", "黄果", "智果", "故果", "艳果", "桃果", "柚果", "榴果", "美果", "城果", "宵果", "樱果", "露果", "荔果", "橘果", "枣果", "柠果", "芒果", "橙果", "角果", "贞果", "学果", "二果", "会果", "撩果", "春果", "波果", "仓果", "巴果", "杰果", "档果", "汉果", "番果"}
 	for _, name := range screenshot {
 		id, ok := names[name]
 		if !ok {
@@ -185,7 +184,7 @@ func TestZgjVideoSlotsDialogTotals(t *testing.T) {
 			t.Fatalf("new slot %s must not claim any working route", id)
 		}
 	}
-	fills := map[string]string{"艳果": "yangguo", "榜果": "bangguo", "草果": "caoguo", "超果": "chaoguo", "熊果": "xiongguo"}
+	fills := map[string]string{"艳果": "yangguo"}
 	for name, id := range fills {
 		slot, _ := zgjVideoSlotFor(id)
 		if slot.DisplayName != name || slot.NameConfirmed {
