@@ -8,7 +8,6 @@ import 'core_bridge.dart';
 import 'local_store.dart';
 import 'parse_settings_screen.dart';
 import 'player_picker.dart';
-import 'resource_settings_screen.dart';
 import 'settings_screen.dart';
 import 'ui_style.dart';
 import 'xigua/playback_settings_screen.dart';
@@ -33,6 +32,7 @@ class ZoneSettingsScreen extends StatelessWidget {
     HomeZone.midnight => '午夜设置',
     HomeZone.live => '直播设置',
     HomeZone.audio => '听书设置',
+    HomeZone.novel => '小说设置',
   };
 
   Future<void> _push(BuildContext context, Widget page) =>
@@ -89,6 +89,7 @@ class ZoneSettingsScreen extends StatelessWidget {
           ),
         );
       case HomeZone.audio:
+      case HomeZone.novel:
         break;
     }
     if (zone == HomeZone.drama ||
@@ -132,16 +133,6 @@ class ZoneSettingsScreen extends StatelessWidget {
             context,
             ContentSourceScreen(repository: repository, store: store),
           ),
-        ),
-      );
-    }
-    if (zone == HomeZone.drama && store.canDownload) {
-      entries.add(
-        _entry(
-          icon: Icons.download_outlined,
-          label: '下载偏好',
-          subtitle: '下载清晰度与并发',
-          onTap: () => _push(context, DownloadPreferencesScreen(store: store)),
         ),
       );
     }

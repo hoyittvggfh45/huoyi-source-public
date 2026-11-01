@@ -22,13 +22,43 @@ List<ContentChapter> parsePyPlayUrl(String playFrom, String playUrl) {
   return chapters;
 }
 
+List<ContentCategory> parsePyFilterCategories(
+  Map<String, dynamic> home,
+  String fixedCategoryId,
+  String filterKey,
+) {
+  final groups = home['filters']?[fixedCategoryId] as List? ?? const [];
+  for (final group in groups) {
+    if (group is! Map) continue;
+    final map = Map<String, dynamic>.from(group);
+    if ((map['key']?.toString() ?? '') != filterKey) continue;
+    final values = map['value'] as List? ?? const [];
+    final categories = <ContentCategory>[
+      const ContentCategory(id: '', name: '全部'),
+    ];
+    for (final value in values) {
+      if (value is! Map) continue;
+      final row = Map<String, dynamic>.from(value);
+      final id = row['v']?.toString() ?? '';
+      final label = row['n']?.toString() ?? '';
+      if (id.isEmpty) continue;
+      categories.add(ContentCategory(id: id, name: label.isEmpty ? id : label));
+    }
+    if (categories.length > 1) return categories;
+  }
+  return const [];
+}
+
 class PyContentSource extends ContentSource {
   PyContentSource({
     required this.id,
     required this.name,
-    required this.assetPath,
+    this.assetPath = '',
+    this.importedFileName = '',
+    this.section = ContentSection.audio,
     this.fixedCategoryId = '',
     this.fixedCategoryName = '',
+    this.filterKey = '',
   });
 
   @override
@@ -38,20 +68,28 @@ class PyContentSource extends ContentSource {
   final String name;
 
   final String assetPath;
+  final String importedFileName;
+
+  @override
+  final ContentSection section;
+
   final String fixedCategoryId;
   final String fixedCategoryName;
+  final String filterKey;
 
   String? _path;
 
   @override
-  ContentSection get section => ContentSection.audio;
-
-  @override
-  String get note => '内置 py 蜘蛛';
+  String get note => importedFileName.isNotEmpty ? '导入 py 蜘蛛' : '内置 py 蜘蛛';
 
   Future<String> _spiderPath() async {
     final cached = _path;
     if (cached != null) return cached;
+    if (importedFileName.isNotEmpty) {
+      final path = await ImportFileStore.pathOf(importedFileName);
+      _path = path;
+      return path;
+    }
     final bytes = await rootBundle.load(assetPath);
     final fileName = await ImportFileStore.save(
       'builtin_$id',
@@ -81,12 +119,24 @@ class PyContentSource extends ContentSource {
   @override
   Future<List<ContentCategory>> categories() async {
     if (fixedCategoryId.isNotEmpty) {
-      return [
+      final fallback = [
         ContentCategory(
           id: fixedCategoryId,
           name: fixedCategoryName.isEmpty ? '听书' : fixedCategoryName,
         ),
       ];
+      if (filterKey.isEmpty) return fallback;
+      try {
+        final path = await _spiderPath();
+        final home = await PyBridge.call(path, {'action': 'categories'});
+        final categories = parsePyFilterCategories(
+          Map<String, dynamic>.from(home),
+          fixedCategoryId,
+          filterKey,
+        );
+        if (categories.isNotEmpty) return categories;
+      } catch (_) {}
+      return fallback;
     }
     final path = await _spiderPath();
     final home = await PyBridge.call(path, {'action': 'categories'});
@@ -115,11 +165,18 @@ class PyContentSource extends ContentSource {
     final effectiveCategory = fixedCategoryId.isNotEmpty
         ? fixedCategoryId
         : categoryId;
-    final result = await PyBridge.call(path, {
+    final request = <String, Object>{
       'action': 'catalog',
       'category': effectiveCategory,
       'page': page,
-    });
+    };
+    if (fixedCategoryId.isNotEmpty &&
+        filterKey.isNotEmpty &&
+        categoryId.isNotEmpty &&
+        categoryId != fixedCategoryId) {
+      request['extend'] = {filterKey: categoryId};
+    }
+    final result = await PyBridge.call(path, request);
     final rows = result['list'] as List? ?? const [];
     final items = <ContentBook>[];
     for (final row in rows) {

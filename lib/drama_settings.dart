@@ -1,14 +1,11 @@
 enum DramaSettingsTarget {
   style,
-  account,
   resource,
   sources,
   playback,
   playerChoice,
+  deviceProfile,
   videoEnhancement,
-  downloadPrefs,
-  downloads,
-  storage,
   lanSync,
   follow,
   history,
@@ -52,12 +49,6 @@ List<DramaSettingsSection> dramaStyleSettingsSections() => const [
         subtitle: '只影响短剧区',
         available: true,
       ),
-      DramaSettingsEntry(
-        target: DramaSettingsTarget.account,
-        title: '账号',
-        subtitle: '登录态与退出登录',
-        available: true,
-      ),
     ],
   ),
   DramaSettingsSection(
@@ -66,7 +57,7 @@ List<DramaSettingsSection> dramaStyleSettingsSections() => const [
       DramaSettingsEntry(
         target: DramaSettingsTarget.resource,
         title: '资源设置',
-        subtitle: '代理、目录请求间隔、下载并发与站源目录',
+        subtitle: '代理、目录请求间隔与站源目录',
         available: true,
       ),
       DramaSettingsEntry(
@@ -101,24 +92,12 @@ List<DramaSettingsSection> dramaStyleSettingsSections() => const [
     ],
   ),
   DramaSettingsSection(
-    title: '下载',
+    title: '红果',
     entries: [
       DramaSettingsEntry(
-        target: DramaSettingsTarget.downloadPrefs,
-        title: '下载偏好',
-        subtitle: '下载清晰度与并发',
-        available: true,
-      ),
-      DramaSettingsEntry(
-        target: DramaSettingsTarget.downloads,
-        title: '下载',
-        subtitle: '查看与管理已下载内容',
-        available: true,
-      ),
-      DramaSettingsEntry(
-        target: DramaSettingsTarget.storage,
-        title: '存储',
-        subtitle: '下载目录与空间',
+        target: DramaSettingsTarget.deviceProfile,
+        title: '设备注册档案',
+        subtitle: '红果设备身份与注册状态',
         available: true,
       ),
     ],
@@ -182,7 +161,7 @@ List<DramaSettingsSection> dramaStyleSettingsSections() => const [
   ),
 ];
 
-List<String> antStyleSectionTitles() => const ['通用', '内容', '下载', '管理', '备份'];
+List<String> antStyleSectionTitles() => const ['通用', '内容', '管理', '备份'];
 
 enum FeedSettingsTarget {
   playerChoice,

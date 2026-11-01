@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:duanju_app/danmaku_controller.dart';
 import 'package:duanju_app/danmaku_models.dart';
 import 'package:duanju_app/danmaku_overlay.dart';
@@ -380,7 +378,7 @@ void main() {
   );
 
   test(
-    'danmaku preference survives restart, backup, old backups and user switching',
+    'danmaku preference survives restart and user switching',
     () async {
       SharedPreferences.setMockInitialValues({});
       final store = LocalStore(await SharedPreferences.getInstance());
@@ -395,7 +393,6 @@ void main() {
       await store.setPlaybackPreferences(
         const PlaybackPreferences(danmaku: false),
       );
-      final backup = await store.exportBackup();
       await store.saveProfile(
         name: '访客',
         sources: ['hongguo'],
@@ -410,17 +407,6 @@ void main() {
       addTearDown(restarted.dispose);
       await restarted.switchProfile('default', pin: 'synthetic-pin');
       expect(restarted.playbackPreferences.danmaku, isFalse);
-      await store.importBackup(backup);
-      expect(store.locked, isTrue);
-      await store.switchProfile('default', pin: 'synthetic-pin');
-      expect(store.playbackPreferences.danmaku, isFalse);
-      final legacy = jsonDecode(backup) as Map<String, dynamic>;
-      (((legacy['libraries'] as Map)['default'] as Map)['playback'] as Map)
-          .remove('danmaku');
-      await store.importBackup(jsonEncode(legacy));
-      expect(store.locked, isTrue);
-      await store.switchProfile('default', pin: 'synthetic-pin');
-      expect(store.playbackPreferences.danmaku, isTrue);
     },
   );
 

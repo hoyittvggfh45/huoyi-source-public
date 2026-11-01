@@ -236,33 +236,237 @@ object JarBridge {
             }
         }
         val loader = DexClassLoader(jarPath, optimized.absolutePath, null, context.classLoader)
+        val dexIndex = DexSpiderIndex(file)
         val classes = names.sortedWith(
             compareBy<String> { !it.startsWith("com.github.catvod.spider.") }
                 .thenBy { it },
         ).map { name ->
             var instantiable = false
             var reason = ""
-            try {
-                val type = loader.loadClass(name)
-                when {
-                    type.isInterface -> reason = "接口，不可实例化"
-                    java.lang.reflect.Modifier.isAbstract(type.modifiers) ->
-                        reason = "抽象类，不可实例化"
-                    !com.github.catvod.crawler.Spider::class.java.isAssignableFrom(type) ->
-                        reason = "未继承 catvod Spider 基类"
-                    else -> {
-                        type.getConstructor()
-                        instantiable = true
-                    }
-                }
-            } catch (error: NoSuchMethodException) {
-                reason = "缺少公开无参构造方法"
+            val type: Class<*>? = try {
+                loader.loadClass(name)
             } catch (error: Throwable) {
-                reason = "类加载失败：${error.message ?: error.javaClass.simpleName}"
+                if (dexIndex.isSpider(name)) {
+                    instantiable = true
+                } else {
+                    reason = "类加载失败：${error.message ?: error.javaClass.simpleName}"
+                }
+                null
+            }
+            if (type != null) {
+                try {
+                    when {
+                        type.isInterface -> reason = "接口，不可实例化"
+                        java.lang.reflect.Modifier.isAbstract(type.modifiers) ->
+                            reason = "抽象类，不可实例化"
+                        !com.github.catvod.crawler.Spider::class.java.isAssignableFrom(type) ->
+                            reason = "未继承 catvod Spider 基类"
+                        else -> {
+                            type.getConstructor()
+                            instantiable = true
+                        }
+                    }
+                } catch (error: NoSuchMethodException) {
+                    reason = "缺少公开无参构造方法"
+                } catch (error: Throwable) {
+                    reason = "类加载失败：${error.message ?: error.javaClass.simpleName}"
+                }
             }
             mapOf("className" to name, "instantiable" to instantiable, "reason" to reason)
         }
         return mapOf("classes" to classes)
+    }
+
+    private class DexSpiderIndex(private val jarFile: File) {
+        private data class DexClass(
+            val superName: String?,
+            val flags: Int,
+            val hasPublicNoArgConstructor: Boolean,
+        )
+
+        private class DexReader(private val bytes: ByteArray) {
+            var pos: Int = 0
+
+            fun uleb(): Int {
+                var result = 0
+                var shift = 0
+                while (true) {
+                    val value = bytes[pos++].toInt() and 0xff
+                    result = result or ((value and 0x7f) shl shift)
+                    if (value and 0x80 == 0) break
+                    shift += 7
+                }
+                return result
+            }
+        }
+
+        private var cached: Map<String, DexClass>? = null
+
+        fun isSpider(name: String): Boolean {
+            val index = cached ?: load().also { cached = it }
+            val target = index[name] ?: return false
+            if (target.flags and 0x200 != 0 || target.flags and 0x400 != 0) return false
+            if (!target.hasPublicNoArgConstructor) return false
+            val seen = mutableSetOf<String>()
+            var superName = target.superName
+            while (superName != null && seen.add(superName)) {
+                if (superName == "com.github.catvod.crawler.Spider") return true
+                if (superName == "java.lang.Object") return false
+                superName = index[superName]?.superName ?: return false
+            }
+            return false
+        }
+
+        private fun load(): Map<String, DexClass> {
+            val result = mutableMapOf<String, DexClass>()
+            try {
+                java.util.jar.JarFile(jarFile).use { jar ->
+                    val dexNames = jar.entries().asSequence()
+                        .map { it.name }
+                        .filter { it.endsWith(".dex") }
+                        .toList()
+                    for (dexName in dexNames) {
+                        jar.getInputStream(jar.getJarEntry(dexName)).use { input ->
+                            parseDex(input.readBytes(), result)
+                        }
+                    }
+                }
+            } catch (ignored: Throwable) {
+            }
+            return result
+        }
+
+        private fun parseDex(bytes: ByteArray, result: MutableMap<String, DexClass>) {
+            try {
+                if (bytes.size < 112) return
+                val buffer = java.nio.ByteBuffer.wrap(bytes)
+                    .order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                val stringIdsSize = buffer.getInt(56)
+                val stringIdsOff = buffer.getInt(60)
+                val typeIdsSize = buffer.getInt(64)
+                val typeIdsOff = buffer.getInt(68)
+                val protoIdsSize = buffer.getInt(72)
+                val protoIdsOff = buffer.getInt(76)
+                val methodIdsSize = buffer.getInt(88)
+                val methodIdsOff = buffer.getInt(92)
+                val classDefsSize = buffer.getInt(96)
+                val classDefsOff = buffer.getInt(100)
+                if (stringIdsSize < 0 || typeIdsSize < 0 || protoIdsSize < 0 ||
+                    methodIdsSize < 0 || classDefsSize < 0
+                ) return
+                val strings = ArrayList<String>(stringIdsSize)
+                for (i in 0 until stringIdsSize) {
+                    strings.add(readDexString(bytes, buffer.getInt(stringIdsOff + i * 4)))
+                }
+                val types = ArrayList<String>(typeIdsSize)
+                for (i in 0 until typeIdsSize) {
+                    val stringIndex = buffer.getInt(typeIdsOff + i * 4)
+                    types.add(if (stringIndex in strings.indices) strings[stringIndex] else "")
+                }
+                val methodNames = ArrayList<String>(methodIdsSize)
+                val methodProtos = ArrayList<Int>(methodIdsSize)
+                for (i in 0 until methodIdsSize) {
+                    val base = methodIdsOff + i * 8
+                    val nameIndex = buffer.getInt(base + 4)
+                    methodNames.add(if (nameIndex in strings.indices) strings[nameIndex] else "")
+                    methodProtos.add(buffer.getShort(base + 2).toInt() and 0xffff)
+                }
+                for (i in 0 until classDefsSize) {
+                    try {
+                        val base = classDefsOff + i * 32
+                        val classIndex = buffer.getInt(base)
+                        val flags = buffer.getInt(base + 4)
+                        val superIndex = buffer.getInt(base + 8)
+                        val classDataOff = buffer.getInt(base + 24)
+                        val className = descriptorToName(
+                            if (classIndex in types.indices) types[classIndex] else "",
+                        )
+                        if (className.isEmpty()) continue
+                        var hasPublicNoArgConstructor = false
+                        if (classDataOff > 0 && classDataOff < bytes.size) {
+                            hasPublicNoArgConstructor = hasPublicNoArgConstructor(
+                                bytes,
+                                classDataOff,
+                                methodNames,
+                                methodProtos,
+                                buffer,
+                                protoIdsOff,
+                                protoIdsSize,
+                            )
+                        }
+                        val superName = if (superIndex == -1) {
+                            null
+                        } else {
+                            descriptorToName(
+                                if (superIndex in types.indices) types[superIndex] else "",
+                            )
+                        }
+                        result[className] = DexClass(superName, flags, hasPublicNoArgConstructor)
+                    } catch (ignored: Throwable) {
+                    }
+                }
+            } catch (ignored: Throwable) {
+            }
+        }
+
+        private fun hasPublicNoArgConstructor(
+            bytes: ByteArray,
+            classDataOff: Int,
+            methodNames: List<String>,
+            methodProtos: List<Int>,
+            buffer: java.nio.ByteBuffer,
+            protoIdsOff: Int,
+            protoIdsSize: Int,
+        ): Boolean {
+            val reader = DexReader(bytes)
+            reader.pos = classDataOff
+            val staticFields = reader.uleb()
+            val instanceFields = reader.uleb()
+            val directMethods = reader.uleb()
+            reader.uleb()
+            repeat(staticFields + instanceFields) {
+                reader.uleb()
+                reader.uleb()
+            }
+            var methodIndex = 0
+            repeat(directMethods) {
+                methodIndex += reader.uleb()
+                val methodFlags = reader.uleb()
+                reader.uleb()
+                if (methodIndex in methodNames.indices &&
+                    methodNames[methodIndex] == "<init>" &&
+                    methodFlags and 0x1 != 0
+                ) {
+                    val protoIndex = methodProtos[methodIndex]
+                    if (protoIndex in 0 until protoIdsSize) {
+                        val parametersOff = buffer.getInt(protoIdsOff + protoIndex * 12 + 8)
+                        if (parametersOff == 0) return true
+                        if (parametersOff > 0 && parametersOff + 4 <= bytes.size &&
+                            buffer.getInt(parametersOff) == 0
+                        ) return true
+                    }
+                }
+            }
+            return false
+        }
+
+        private fun readDexString(bytes: ByteArray, dataOff: Int): String {
+            if (dataOff < 0 || dataOff >= bytes.size) return ""
+            val reader = DexReader(bytes)
+            reader.pos = dataOff
+            reader.uleb()
+            val start = reader.pos
+            var end = start
+            while (end < bytes.size && bytes[end].toInt() != 0) end++
+            return String(bytes, start, end - start, java.nio.charset.StandardCharsets.UTF_8)
+        }
+
+        private fun descriptorToName(descriptor: String): String {
+            if (descriptor.length < 2 || !descriptor.startsWith("L") ||
+                !descriptor.endsWith(";")
+            ) return ""
+            return descriptor.substring(1, descriptor.length - 1).replace('/', '.')
+        }
     }
 
     private fun loaderFor(context: Context, configId: String, jarPath: String): DexClassLoader {

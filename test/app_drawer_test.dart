@@ -8,11 +8,9 @@ void main() {
   Future<void> pumpDrawer(
     WidgetTester tester, {
     bool midnightActivated = false,
-    String? siteLabel,
     required List<HomeZone> zones,
     required List<AppDrawerTool> tools,
     required VoidCallback onWatchRoom,
-    required VoidCallback onSiteBoxTap,
   }) async {
     tester.view.physicalSize = const Size(800, 2400);
     tester.view.devicePixelRatio = 1.0;
@@ -30,8 +28,6 @@ void main() {
             onTool: tools.add,
             onMinorProtectionChanged: (_) {},
             onVersionDoubleTap: () {},
-            siteLabel: siteLabel,
-            onSiteBoxTap: siteLabel == null ? null : onSiteBoxTap,
           ),
         ),
       ),
@@ -48,7 +44,6 @@ void main() {
       zones: zones,
       tools: [],
       onWatchRoom: () => room++,
-      onSiteBoxTap: () {},
     );
     await tester.tap(find.text('点播'));
     expect(zones, [HomeZone.vod]);
@@ -64,13 +59,7 @@ void main() {
 
   testWidgets('drawer tool tiles map to their tools', (tester) async {
     final tools = <AppDrawerTool>[];
-    await pumpDrawer(
-      tester,
-      zones: [],
-      tools: tools,
-      onWatchRoom: () {},
-      onSiteBoxTap: () {},
-    );
+    await pumpDrawer(tester, zones: [], tools: tools, onWatchRoom: () {});
     const expected = {
       '站源管理': AppDrawerTool.sources,
       '内容源管理': AppDrawerTool.contentSources,
@@ -101,7 +90,6 @@ void main() {
       zones: [],
       tools: [],
       onWatchRoom: () {},
-      onSiteBoxTap: () {},
     );
     expect(find.text('影视区'), findsOneWidget);
     expect(find.text('阅读'), findsOneWidget);
@@ -121,29 +109,29 @@ void main() {
     }
   });
 
-  testWidgets('drawer site box opens the site picker', (tester) async {
+  testWidgets('site source box keeps its key and tap callback', (tester) async {
     var tapped = 0;
-    await pumpDrawer(
-      tester,
-      siteLabel: '测试站 (2)',
-      zones: [],
-      tools: [],
-      onWatchRoom: () {},
-      onSiteBoxTap: () => tapped++,
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SiteSourceBox(
+            key: const ValueKey('drawer-site-box'),
+            label: '测试站 (2)',
+            onTap: () => tapped++,
+          ),
+        ),
+      ),
     );
+    await tester.pumpAndSettle();
     expect(find.text('测试站 (2)'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('drawer-site-box')));
     expect(tapped, 1);
   });
 
-  testWidgets('drawer hides the site box without a label', (tester) async {
-    await pumpDrawer(
-      tester,
-      zones: [],
-      tools: [],
-      onWatchRoom: () {},
-      onSiteBoxTap: () {},
-    );
+  testWidgets('drawer header no longer shows the site box', (tester) async {
+    await pumpDrawer(tester, zones: [], tools: [], onWatchRoom: () {});
+    expect(find.text('红蚁TV'), findsOneWidget);
+    expect(find.text('当前版本 1.0.1'), findsOneWidget);
     expect(find.byKey(const ValueKey('drawer-site-box')), findsNothing);
   });
 
@@ -154,7 +142,6 @@ void main() {
       zones: [],
       tools: [],
       onWatchRoom: () {},
-      onSiteBoxTap: () {},
     );
     expect(find.text('午夜区'), findsNothing);
   });

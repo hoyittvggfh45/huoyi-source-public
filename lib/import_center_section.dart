@@ -109,7 +109,7 @@ class _ImportCenterSectionState extends State<ImportCenterSection> {
     }
     if (!mounted) return;
     if (pending.isEmpty) {
-      _showMessage('该文件夹（含子目录）没有找到 .py/.js/.json/.jar 文件');
+      _showMessage('该文件夹（含子目录）没有找到 .py/.js/.json/.jar/.zip 文件');
       return;
     }
     pending.sort((a, b) => a.name.compareTo(b.name));
@@ -119,7 +119,7 @@ class _ImportCenterSectionState extends State<ImportCenterSection> {
   Future<void> _pickMultiple() => _runBusy('读取文件中…', () async {
     final files = await FilePicker.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['py', 'js', 'json', 'jar'],
+      allowedExtensions: ['py', 'js', 'json', 'jar', 'zip'],
     );
     if (files.isEmpty || !mounted) return;
     final pending = <_PendingFile>[];
@@ -151,7 +151,7 @@ class _ImportCenterSectionState extends State<ImportCenterSection> {
   Future<void> _pickSingleJar() => _runBusy('导入中…', () async {
     final file = await FilePicker.pickFile(
       type: FileType.custom,
-      allowedExtensions: ['jar'],
+      allowedExtensions: ['jar', 'zip'],
     );
     if (file == null || !mounted) return;
     final bytes = await file.readAsBytes();
@@ -315,9 +315,11 @@ class _ImportCenterSectionState extends State<ImportCenterSection> {
         Text('导入中心', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 4),
         const Text(
-          '批量扫描文件夹或多选文件导入 py / js / json / jar：py 经 Python 桥成站，'
+          '批量扫描文件夹或多选文件导入 py / js / json / jar / zip：py 经 Python 桥成站，'
           'XBPQ 规则 JSON 进核心规则通道，自定义源 JSON 进自定义源通道，'
           'TVBox 配置与 jar 转交 jar 桥（未接入时明确失败），js 先注册占位。'
+          'jar + 配置 JSON 的 zip 包会拆开导入，包里的站点配置自动带上 ext 与站名；'
+          '没有配置的 jar 站点会在报告里明确提醒。'
           '导入按内容哈希去重，并逐个给出结果报告。',
         ),
         const SizedBox(height: 8),
@@ -364,7 +366,7 @@ class _ImportCenterSectionState extends State<ImportCenterSection> {
               key: const ValueKey('import-pick-jar'),
               onPressed: _busy ? null : () => unawaited(_pickSingleJar()),
               icon: const Icon(Icons.archive_rounded, size: 20),
-              label: const Text('导入单个 jar'),
+              label: const Text('导入单个 jar / zip 包'),
             ),
           ],
         ),

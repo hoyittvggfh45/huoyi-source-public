@@ -1,4 +1,3 @@
-import 'package:duanju_app/app_bottom_navigation.dart';
 import 'package:duanju_app/home_screen.dart';
 import 'package:duanju_app/local_store.dart';
 import 'package:duanju_app/main.dart';
@@ -73,7 +72,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       tester
-          .widget<AppBottomNavigation>(find.byType(AppBottomNavigation))
+          .widget<NavigationBar>(find.byType(NavigationBar))
           .selectedIndex,
       1,
     );

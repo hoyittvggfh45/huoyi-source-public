@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'app_page_route.dart';
 
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -13,15 +12,12 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'core_bridge.dart';
-import 'account_screen.dart';
-import 'hongguo_account.dart';
 import 'app_update.dart';
 import 'app_update_screen.dart';
 import 'clearance_bridge.dart';
 import 'crack_config_section.dart';
 import 'custom_headers_screen.dart';
 import 'jar_bridge.dart';
-import 'downloads_screen.dart';
 import 'import_center_screen.dart';
 import 'parse_settings_screen.dart';
 import 'app_theme.dart';
@@ -31,17 +27,19 @@ import 'local_store.dart';
 import 'py_bridge.dart';
 import 'profiles_screen.dart';
 import 'remote_widgets.dart';
+import 'site_check_screen.dart';
 import 'sources_screen.dart';
 import 'widgets.dart';
 import 'resource_settings_screen.dart';
 import 'lan_screen.dart';
 import 'proxy_kernel_screen.dart';
 import 'rule_editor_screen.dart';
+import 'theme_settings_screen.dart';
 import 'drama_settings.dart';
+import 'hongguo_device_screen.dart';
 import 'ui_style.dart';
 import 'xigua/playback_settings_screen.dart';
 import 'app_layout.dart';
-import 'detail_screen.dart';
 import 'models.dart';
 import 'playback_launch_screen.dart';
 import 'player_picker.dart';
@@ -73,8 +71,6 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  bool _busy = false;
-  String? _message;
   String _appUpdateSummary = '检查整包新版本';
 
   @override
@@ -181,21 +177,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _openSavedDownload(Drama drama) {
-    Navigator.push(
-      context,
-      appPageRoute<void>(
-        settings: const RouteSettings(name: 'detail'),
-        builder: (_) => DetailScreen(
-          drama: drama,
-          repository: widget.repository,
-          store: widget.store,
-          downloadOnOpen: true,
-        ),
-      ),
-    );
-  }
-
   void _openSavedLibrary({required bool history}) {
     Navigator.push<void>(
       context,
@@ -208,10 +189,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             history: history,
             onOpen: _openSavedDrama,
             onContinue: _openSavedDrama,
-            onDownload:
-                widget.repository.supportsDownloads && widget.store.canDownload
-                ? _openSavedDownload
-                : null,
           ),
         ),
       ),
@@ -234,64 +211,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Future<void> _backup(bool restore) async {
-    setState(() {
-      _busy = true;
-      _message = null;
-    });
-    try {
-      if (!restore) {
-        final content = await widget.store.exportBackup();
-        final saved = await FilePicker.saveFile(
-          fileName:
-              '$appSlug-backup-${DateTime.now().toIso8601String().substring(0, 10)}.json',
-          bytes: Uint8List.fromList(utf8.encode(content)),
-          mimeType: 'application/json',
-        );
-        if (saved != null && mounted) setState(() => _message = '备份已保存');
-      } else {
-        final file = await FilePicker.pickFile(
-          type: FileType.custom,
-          allowedExtensions: ['json'],
-        );
-        if (file == null || !mounted) return;
-        final size = await file.length();
-        if (size == null || size > 8 * 1024 * 1024) {
-          throw const FormatException('备份文件过大或无法读取');
-        }
-        final content = utf8.decode(await file.readAsBytes());
-        final data = widget.store.validateBackup(content);
-        if (!mounted) return;
-        final accepted = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('恢复备份？'),
-            content: Text(
-              '包含 ${(data['profiles'] as List).length} 个用户。将替换本机的用户、追剧、观看记录和偏好设置；已下载视频保留。恢复后使用备份内的管理员密码登录。',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('取消'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('恢复'),
-              ),
-            ],
-          ),
-        );
-        if (accepted != true || !mounted) return;
-        await widget.store.importBackup(content);
-        if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
-      }
-    } catch (error) {
-      if (mounted) setState(() => _message = error.toString());
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: widget.store,
@@ -312,9 +231,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   bool _dramaEntryVisible(DramaSettingsTarget target) => switch (target) {
     DramaSettingsTarget.sources => widget.repository.supportsSourceManagement,
-    DramaSettingsTarget.downloadPrefs ||
-    DramaSettingsTarget.downloads ||
-    DramaSettingsTarget.storage => widget.store.canDownload,
     _ => true,
   };
 
@@ -322,10 +238,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     DramaSettingsTarget target,
   ) => switch (target) {
     DramaSettingsTarget.style => () => unawaited(chooseDramaUiStyle(context)),
-    DramaSettingsTarget.account => () => Navigator.push(
-      context,
-      appPageRoute<void>(builder: (_) => const AccountScreen()),
-    ),
     DramaSettingsTarget.resource => () => Navigator.push(
       context,
       appPageRoute<void>(
@@ -354,24 +266,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         builder: (_) => PlayerPickerScreen(store: widget.store),
       ),
     ),
-    DramaSettingsTarget.downloadPrefs => () => Navigator.push(
+    DramaSettingsTarget.deviceProfile => () => Navigator.push(
       context,
       appPageRoute<void>(
-        builder: (_) => DownloadPreferencesScreen(store: widget.store),
-      ),
-    ),
-    DramaSettingsTarget.downloads => () => Navigator.push(
-      context,
-      appPageRoute<void>(
-        builder: (_) =>
-            DownloadsScreen(repository: widget.repository, store: widget.store),
-      ),
-    ),
-    DramaSettingsTarget.storage => () => Navigator.push(
-      context,
-      appPageRoute<void>(
-        builder: (_) =>
-            StorageScreen(repository: widget.repository, store: widget.store),
+        builder: (_) => HongguoDeviceScreen(repository: widget.repository),
       ),
     ),
     DramaSettingsTarget.lanSync => () => openLanSync(context),
@@ -382,15 +280,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   IconData _dramaEntryIcon(DramaSettingsTarget target) => switch (target) {
     DramaSettingsTarget.style => Icons.style_outlined,
-    DramaSettingsTarget.account => Icons.person_outline,
     DramaSettingsTarget.resource => Icons.settings_ethernet_rounded,
     DramaSettingsTarget.sources => Icons.dns_outlined,
     DramaSettingsTarget.playback => Icons.play_circle_outline,
     DramaSettingsTarget.playerChoice => Icons.video_settings_outlined,
+    DramaSettingsTarget.deviceProfile => Icons.badge_outlined,
     DramaSettingsTarget.videoEnhancement => Icons.auto_fix_high_outlined,
-    DramaSettingsTarget.downloadPrefs => Icons.download_outlined,
-    DramaSettingsTarget.downloads => Icons.download_rounded,
-    DramaSettingsTarget.storage => Icons.folder_outlined,
     DramaSettingsTarget.lanSync => Icons.devices_rounded,
     DramaSettingsTarget.follow => Icons.bookmark_outline,
     DramaSettingsTarget.history => Icons.history_outlined,
@@ -449,6 +344,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: () => openLanSync(context),
           ),
+          ListTile(
+            key: const ValueKey('theme-settings-entry'),
+            leading: const Icon(Icons.palette_outlined),
+            title: const Text('主题设置'),
+            subtitle: const Text('模式、风格、主题色与背景'),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => Navigator.push(
+              context,
+              appPageRoute<void>(
+                builder: (_) => ThemeSettingsScreen(store: widget.store),
+              ),
+            ),
+          ),
+          if (style != DramaUiStyle.drama)
+            ListTile(
+              key: const ValueKey('hongguo-device-entry'),
+              leading: const Icon(Icons.badge_outlined),
+              title: const Text('设备注册档案'),
+              subtitle: const Text('红果设备身份与注册状态'),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => Navigator.push(
+                context,
+                appPageRoute<void>(
+                  builder: (_) =>
+                      HongguoDeviceScreen(repository: widget.repository),
+                ),
+              ),
+            ),
           if (widget.repository.supportsSourceManagement)
             ListTile(
               leading: const Icon(Icons.dns_outlined),
@@ -465,6 +388,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             ),
+          ListTile(
+            key: const ValueKey('site-check-entry'),
+            leading: const Icon(Icons.fact_check_outlined),
+            title: const Text('站点检查'),
+            subtitle: const Text('逐站测活，失效站自动隐藏'),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => Navigator.push(
+              context,
+              appPageRoute<void>(
+                builder: (_) => SiteCheckScreen(
+                  repository: widget.repository,
+                  store: widget.store,
+                ),
+              ),
+            ),
+          ),
           ListTile(
             leading: const Icon(Icons.code_rounded),
             title: const Text('蜘蛛规则编辑器'),
@@ -593,24 +532,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               trailing: const Icon(Icons.chevron_right_rounded),
               onTap: () => unawaited(chooseDramaUiStyle(context)),
             ),
-          if (style != DramaUiStyle.drama)
-            ListTile(
-              leading: const Icon(Icons.person_outline),
-              title: const Text('账号'),
-              subtitle: ValueListenableBuilder<HongguoAccount?>(
-                valueListenable: hongguoAccountNotifier,
-                builder: (context, account, _) => Text(
-                  account != null && account.loggedIn
-                      ? account.displayName
-                      : '未登录',
-                ),
-              ),
-              trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: () => Navigator.push(
-                context,
-                appPageRoute<void>(builder: (_) => const AccountScreen()),
-              ),
-            ),
           ListTile(
             leading: const Icon(Icons.people_outline),
             title: const Text('用户管理'),
@@ -640,57 +561,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: () => _openSavedLibrary(history: true),
           ),
-          if (widget.store.canDownload)
-            ListTile(
-              key: const ValueKey('downloads-entry'),
-              leading: const Icon(Icons.download_rounded),
-              title: const Text('下载'),
-              subtitle: const Text('查看与管理已下载内容'),
-              trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: () => Navigator.push(
-                context,
-                appPageRoute<void>(
-                  builder: (_) => DownloadsScreen(
-                    repository: widget.repository,
-                    store: widget.store,
-                  ),
-                ),
-              ),
-            ),
-          if (widget.store.canDownload)
-            ListTile(
-              leading: const Icon(Icons.download_outlined),
-              title: const Text('下载偏好'),
-              subtitle: Text(widget.store.downloadPreferences.qualityLabel),
-              trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: () => Navigator.push(
-                context,
-                appPageRoute<void>(
-                  builder: (_) =>
-                      DownloadPreferencesScreen(store: widget.store),
-                ),
-              ),
-            ),
-          if (widget.store.canDownload)
-            ListTile(
-              leading: const Icon(Icons.folder_outlined),
-              title: const Text('下载目录与空间'),
-              subtitle: const Text('查看存储用量、迁移已下载文件'),
-              onTap: () => Navigator.push(
-                context,
-                appPageRoute<void>(
-                  builder: (_) => StorageScreen(
-                    repository: widget.repository,
-                    store: widget.store,
-                  ),
-                ),
-              ),
-            ),
           if (widget.store.profile.admin) ...[
             ListTile(
               leading: const Icon(Icons.settings_ethernet_rounded),
               title: const Text('网络与资源'),
-              subtitle: const Text('代理、目录请求间隔、下载并发与站源目录'),
+              subtitle: const Text('代理、目录请求间隔与站源目录'),
               trailing: const Icon(Icons.chevron_right_rounded),
               onTap: () => Navigator.push(
                 context,
@@ -702,29 +577,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             ),
-            ListTile(
-              leading: const Icon(Icons.backup_outlined),
-              title: const Text('导出配置备份'),
-              subtitle: const Text('包含本地用户、追剧、历史和设置，不含视频文件'),
-              onTap: _busy ? null : () => _backup(false),
-            ),
-            ListTile(
-              leading: const Icon(Icons.restore),
-              title: const Text('恢复配置备份'),
-              onTap: _busy ? null : () => _backup(true),
-            ),
           ],
-          if (Platform.isIOS)
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('iOS 下载需要保持应用在前台；切到后台会暂停，回到前台后可继续。'),
-            ),
-          if (_busy) const LinearProgressIndicator(),
-          if (_message != null)
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: SelectableText(_message!),
-            ),
         ],
       ),
     ),
@@ -945,18 +798,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             detail: style.label,
             onTap: () => unawaited(chooseDramaUiStyle(context)),
           ),
-          ValueListenableBuilder<HongguoAccount?>(
-            valueListenable: hongguoAccountNotifier,
-            builder: (context, account, _) => _glassRow(
-              icon: Icons.person_outline,
-              color: const Color(0xFF34C759),
-              title: '账号',
-              detail: account != null && account.loggedIn
-                  ? account.displayName
-                  : '未登录',
-              onTap: () => _push(const AccountScreen()),
-            ),
-          ),
         ]),
         if (style == DramaUiStyle.drama)
           for (final section in dramaStyleSettingsSections())
@@ -964,7 +805,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ..._glassDramaSection(section, switch (section.title) {
                 '资源' => const Color(0xFF5E5CE6),
                 '播放' => const Color(0xFF64D2FF),
-                '下载' => const Color(0xFF0A84FF),
+                '红果' => const Color(0xFFFF765F),
                 '同步' => const Color(0xFF30D158),
                 '数据' => const Color(0xFFFF9F0A),
                 _ => const Color(0xFF8E8E93),
@@ -987,6 +828,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 SourcesScreen(repository: widget.repository, store: store),
               ),
             ),
+          _glassRow(
+            key: const ValueKey('site-check-entry'),
+            icon: LucideIcons.listChecks,
+            color: const Color(0xFF30B0C7),
+            title: '站点检查',
+            detail: '逐站测活 · 失效自动隐藏',
+            onTap: () => _push(
+              SiteCheckScreen(repository: widget.repository, store: store),
+            ),
+          ),
           _glassRow(
             icon: LucideIcons.code,
             color: const Color(0xFFBF5AF2),
@@ -1038,7 +889,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             icon: LucideIcons.fingerprint,
             color: const Color(0xFF30D158),
             title: 'Python 指纹过盾',
-            detail: store.pythonCfDisguise ? '已开启 · 按蜘蛛 UA 匹配浏览器' : '已关闭 · 只用普通请求',
+            detail: store.pythonCfDisguise
+                ? '已开启 · 按蜘蛛 UA 匹配浏览器'
+                : '已关闭 · 只用普通请求',
             trailing: Switch.adaptive(
               value: store.pythonCfDisguise,
               onChanged: (value) async {
@@ -1047,9 +900,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   await PyBridge.setCfDisguise(value);
                 } catch (error) {
                   if (mounted) {
-                    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-                      SnackBar(content: Text('切换失败：$error')),
-                    );
+                    ScaffoldMessenger.maybeOf(
+                      context,
+                    )?.showSnackBar(SnackBar(content: Text('切换失败：$error')));
                   }
                 }
                 if (mounted) setState(() {});
@@ -1061,7 +914,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             icon: LucideIcons.fingerprint,
             color: const Color(0xFF30D158),
             title: 'Jar 指纹过盾',
-            detail: store.jarFingerprintEnabled ? '已开启 · 按蜘蛛 UA 匹配浏览器' : '已关闭 · 只用普通请求',
+            detail: store.jarFingerprintEnabled
+                ? '已开启 · 按蜘蛛 UA 匹配浏览器'
+                : '已关闭 · 只用普通请求',
             trailing: Switch.adaptive(
               value: store.jarFingerprintEnabled,
               onChanged: (value) async {
@@ -1070,9 +925,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   await JarBridge.setJarFingerprint(value);
                 } catch (error) {
                   if (mounted) {
-                    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-                      SnackBar(content: Text('切换失败：$error')),
-                    );
+                    ScaffoldMessenger.maybeOf(
+                      context,
+                    )?.showSnackBar(SnackBar(content: Text('切换失败：$error')));
                   }
                 }
                 if (mounted) setState(() {});
@@ -1087,8 +942,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             detail: store.customHeadersEnabled
                 ? '已开启 · ${store.customHeaderRules.length} 条规则'
                 : '已关闭',
-            onTap: () =>
-                _push(CustomHeadersScreen(store: store)),
+            onTap: () => _push(CustomHeadersScreen(store: store)),
             trailing: Switch.adaptive(
               value: store.customHeadersEnabled,
               onChanged: (value) async {
@@ -1096,9 +950,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   await store.setCustomHeadersEnabled(value);
                 } catch (error) {
                   if (mounted) {
-                    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-                      SnackBar(content: Text('切换失败：$error')),
-                    );
+                    ScaffoldMessenger.maybeOf(
+                      context,
+                    )?.showSnackBar(SnackBar(content: Text('切换失败：$error')));
                   }
                 }
                 if (mounted) setState(() {});
@@ -1122,6 +976,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
             detail: AppTheme.label(store.themeMode),
             onTap: _chooseGlassTheme,
           ),
+          if (style != DramaUiStyle.drama)
+            _glassRow(
+              key: const ValueKey('hongguo-device-entry'),
+              icon: LucideIcons.badge,
+              color: const Color(0xFFFF765F),
+              title: '设备注册档案',
+              detail: '红果设备身份与注册状态',
+              onTap: () =>
+                  _push(HongguoDeviceScreen(repository: widget.repository)),
+            ),
           _glassRow(
             icon: LucideIcons.monitor,
             color: const Color(0xFF5E5CE6),
@@ -1157,38 +1021,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onTap: () => _openSavedLibrary(history: true),
           ),
         ]),
-        if (store.canDownload)
-          _glassSection(
-            '下载',
-            [
-              _glassRow(
-                key: const ValueKey('downloads-entry'),
-                icon: LucideIcons.arrowDownToLine,
-                color: const Color(0xFF0A84FF),
-                title: '下载',
-                detail: '已下载内容',
-                onTap: () => _push(
-                  DownloadsScreen(repository: widget.repository, store: store),
-                ),
-              ),
-              _glassRow(
-                icon: LucideIcons.arrowDownToLine,
-                color: const Color(0xFFFF9F0A),
-                title: '下载偏好',
-                detail: store.downloadPreferences.qualityLabel,
-                onTap: () => _push(DownloadPreferencesScreen(store: store)),
-              ),
-              _glassRow(
-                icon: LucideIcons.hardDrive,
-                color: const Color(0xFF8E8E93),
-                title: '下载目录与空间',
-                onTap: () => _push(
-                  StorageScreen(repository: widget.repository, store: store),
-                ),
-              ),
-            ],
-            footer: Platform.isIOS ? 'iOS 下载需要保持应用在前台；切到后台会暂停，回到前台后可继续。' : null,
-          ),
         if (store.profile.admin) ...[
           _glassSection('管理', [
             _glassRow(
@@ -1204,37 +1036,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
           ]),
-          _glassSection('备份', [
-            _glassRow(
-              icon: LucideIcons.databaseBackup,
-              color: const Color(0xFF0A84FF),
-              title: '导出配置备份',
-              onTap: _busy ? null : () => _backup(false),
-            ),
-            _glassRow(
-              icon: LucideIcons.archiveRestore,
-              color: const Color(0xFFFF9F0A),
-              title: '恢复配置备份',
-              onTap: _busy ? null : () => _backup(true),
-            ),
-          ], footer: '包含本地用户、追剧、历史和设置，不含视频文件。'),
         ],
-        if (_busy)
-          const Padding(
-            padding: EdgeInsets.all(20),
-            child: Center(child: CupertinoActivityIndicator()),
-          ),
-        if (_message != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(32, 8, 32, 0),
-            child: SelectableText(
-              _message!,
-              style: TextStyle(
-                fontSize: 12,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
       ],
     );
   }

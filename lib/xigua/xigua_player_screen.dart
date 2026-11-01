@@ -24,8 +24,6 @@ import 'package:duanju_app/core_bridge.dart';
 import 'package:duanju_app/xigua/cross_source_search.dart';
 import 'package:duanju_app/danmaku_controller.dart';
 import 'package:duanju_app/danmaku_overlay.dart';
-import 'package:duanju_app/download_picker.dart';
-import 'package:duanju_app/downloads_screen.dart';
 import 'package:duanju_app/follow_state.dart';
 import 'package:duanju_app/glass_panel.dart';
 import 'package:duanju_app/jar_bridge.dart';
@@ -1901,36 +1899,6 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
     }
   }
 
-  Future<void> _submitDownloadSelection(DownloadSelection selection) async {
-    if (!widget.repository.supportsDownloads ||
-        !widget.store.canDownload ||
-        widget.store.profileEpoch != _profileEpoch ||
-        widget.mediaId != null) {
-      return;
-    }
-    final added = await widget.repository.enqueueDownloads(
-      widget.detail,
-      selection.episodes,
-      quality: selection.quality,
-    );
-    if (!mounted || _closed) return;
-    AppNotice.showAction(
-      context,
-      added == 0 ? '所选集数已在下载列表中' : '已加入 $added 集，已有任务自动跳过',
-      actionLabel: '查看',
-      onAction: () {
-        Navigator.of(context).push(
-          appPageRoute<void>(
-            builder: (_) => DownloadsScreen(
-              repository: widget.repository,
-              store: widget.store,
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   Future<void> _openPanel(PlayerMenuSection section) async {
     if (_panelOpen || _closed) return;
     _interactions.cancel();
@@ -2682,9 +2650,7 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
                       ? _episodePanel(compact: true)
                       : _mobileTab == 1
                       ? _mobileSynopsis()
-                      : _mobileTab == 2
-                      ? _mobileRecommendations()
-                      : _mobileDownload(),
+                      : _mobileRecommendations(),
                 ),
               ),
             ),
@@ -2703,7 +2669,6 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
           _mobileTabButton(0, '选集'),
           _mobileTabButton(1, '简介'),
           _mobileTabButton(2, '推荐'),
-          _mobileTabButton(3, '下载'),
         ],
       ),
     ),
@@ -3169,26 +3134,6 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
       );
     }
     if (mounted && !_closed) setState(() {});
-  }
-
-  Widget _mobileDownload() {
-    final colors = Theme.of(context).colorScheme;
-    if (!widget.repository.supportsDownloads || !widget.store.canDownload) {
-      return ColoredBox(
-        color: colors.surface,
-        child: const StatusPanel(
-          title: '下载不可用',
-          message: '当前用户或当前环境未开放本地下载。',
-          icon: Icons.download_outlined,
-        ),
-      );
-    }
-    return DownloadPicker(
-      detail: widget.detail,
-      preferences: widget.store.downloadPreferences,
-      embedded: true,
-      onSubmit: _submitDownloadSelection,
-    );
   }
 
   Widget _episodePanel({bool compact = false}) => ColoredBox(

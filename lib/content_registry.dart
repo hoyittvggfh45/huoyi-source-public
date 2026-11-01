@@ -21,13 +21,27 @@ class ContentRegistry {
       assetPath: 'assets/audio_spiders/hongguo.py',
       fixedCategoryId: 'audio',
       fixedCategoryName: '听书',
+      filterKey: 'acat',
     ),
   ];
 
-  static List<ContentSource> sourcesFor(ContentSection section) => [
-    for (final source in _sources)
-      if (source.section == section) source,
-  ];
+  static final List<ContentSource> _novelImports = [];
+
+  static void setNovelImports(List<ContentSource> sources) {
+    _novelImports
+      ..clear()
+      ..addAll(sources);
+  }
+
+  static List<ContentSource> sourcesFor(ContentSection section) {
+    if (section == ContentSection.novel) {
+      return List.unmodifiable(_novelImports);
+    }
+    return [
+      for (final source in _sources)
+        if (source.section == section) source,
+    ];
+  }
 
   static List<ContentSource> get allSources => List.unmodifiable(_sources);
 

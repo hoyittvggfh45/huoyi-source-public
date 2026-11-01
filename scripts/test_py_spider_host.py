@@ -520,5 +520,88 @@ class PySpiderHostErrorLabelTest(unittest.TestCase):
         self.assertIn("upstream down", result["error"])
 
 
+CACHE_FIXTURE = '''
+from base.spider import Spider as BaseSpider
+
+
+class Spider(BaseSpider):
+    def getName(self):
+        return "CacheSpider"
+
+    def init(self, extend=""):
+        return None
+
+    def homeContent(self, filter=None):
+        return {"class": [], "list": []}
+
+    def homeVideoContent(self):
+        return {"list": []}
+
+    def categoryContent(self, tid=None, pg=1, filter=None, extend=None):
+        return {"list": [], "page": pg, "pagecount": 1}
+
+    def detailContent(self, ids=None):
+        return {"list": []}
+
+    def searchContent(self, key=None, quick=False, pg="1"):
+        return {"list": [], "page": 1}
+
+    def playerContent(self, flag=None, id=None, vipFlags=None):
+        return {"parse": 0, "url": id, "header": {}}
+'''
+
+
+class PySpiderHostCacheTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.host = load_host()
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.path_a = str(Path(cls.tmp.name) / "cache_a.py")
+        cls.path_b = str(Path(cls.tmp.name) / "cache_b.py")
+        Path(cls.path_a).write_text(CACHE_FIXTURE, encoding="utf-8")
+        Path(cls.path_b).write_text(CACHE_FIXTURE, encoding="utf-8")
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def test_get_miss_returns_default(self):
+        spider = self.host._load_spider(self.path_a)
+        self.assertIsNone(spider.getCache("never_set_key"))
+        self.assertEqual(spider.getCache("never_set_key", "dflt"), "dflt")
+
+    def test_set_get_put_del_roundtrip(self):
+        spider = self.host._load_spider(self.path_a)
+        self.assertTrue(spider.setCache("rt_host", "h1"))
+        self.assertEqual(spider.getCache("rt_host"), "h1")
+        self.assertTrue(spider.putCache("rt_host", "h2"))
+        self.assertEqual(spider.getCache("rt_host"), "h2")
+        self.assertTrue(spider.setCache(
+            "rt_obj", {"url": "https://x.test/a.m3u8", "expires": 9999999999}
+        ))
+        self.assertEqual(
+            spider.getCache("rt_obj")["url"], "https://x.test/a.m3u8"
+        )
+        self.assertTrue(spider.delCache("rt_host"))
+        self.assertIsNone(spider.getCache("rt_host"))
+        self.assertFalse(spider.delCache("rt_host"))
+
+    def test_expired_ttl_returns_default(self):
+        spider = self.host._load_spider(self.path_a)
+        spider.setCache("rt_short", "v", ttl=-1)
+        self.assertIsNone(spider.getCache("rt_short"))
+        spider.setCache("rt_long", "v", ttl=3600)
+        self.assertEqual(spider.getCache("rt_long"), "v")
+
+    def test_persists_across_reload_and_isolated_per_spider(self):
+        spider_a = self.host._load_spider(self.path_a)
+        spider_a.setCache("rt_shared", "from-a")
+        spider_b = self.host._load_spider(self.path_b)
+        self.assertIsNone(spider_b.getCache("rt_shared"))
+        self.host.dispose(self.path_a)
+        reloaded = self.host._load_spider(self.path_a)
+        self.assertEqual(reloaded.getCache("rt_shared"), "from-a")
+
+
 if __name__ == "__main__":
     unittest.main()

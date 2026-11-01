@@ -44,7 +44,6 @@ class HongguoDramaHome extends StatefulWidget {
     required this.filtersActive,
     required this.newActive,
     required this.onOpenSaved,
-    required this.onOpenDownloads,
     this.onSettingsPressed,
   });
 
@@ -70,7 +69,6 @@ class HongguoDramaHome extends StatefulWidget {
   final bool filtersActive;
   final bool newActive;
   final void Function({required bool history}) onOpenSaved;
-  final VoidCallback onOpenDownloads;
   final VoidCallback? onSettingsPressed;
 
   @override
@@ -1443,12 +1441,6 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
             title: const Text('最近观看'),
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: () => widget.onOpenSaved(history: true),
-          ),
-          ListTile(
-            leading: const Icon(Icons.download_outlined),
-            title: const Text('我的下载'),
-            trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: widget.onOpenDownloads,
           ),
           if (widget.onSettingsPressed != null)
             ListTile(

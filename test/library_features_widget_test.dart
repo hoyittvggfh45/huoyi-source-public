@@ -304,7 +304,7 @@ void main() {
   );
 
   testWidgets(
-    'multi-selection previews all selected dramas before creating any download',
+    'home no longer offers multi-selection download',
     (tester) async {
       viewport(tester, const Size(390, 844));
       final store = await create();
@@ -315,21 +315,8 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('select-catalog-dramas')));
-      await tester.pump();
-      await tester.tap(find.byKey(ValueKey(first.id)));
-      await tester.tap(find.byKey(ValueKey(second.id)));
-      await tester.pump();
-      expect(find.text('已选 2 部'), findsOneWidget);
-      await tester.tap(find.byKey(const ValueKey('download-selected-dramas')));
-      await tester.pumpAndSettle();
-      expect(find.byType(BatchDownloadScreen), findsOneWidget);
-      expect(repository.detailRequests, [first.id, second.id]);
-      expect(repository.enqueues, isEmpty);
-      await tester.tap(find.byKey(const ValueKey('submit-batch-downloads')));
-      await tester.pumpAndSettle();
-      expect(repository.enqueues.map((call) => call.$1), [first.id, second.id]);
-      expect(repository.queued, hasLength(4));
+      expect(find.byKey(const ValueKey('select-catalog-dramas')), findsNothing);
+      expect(find.byKey(const ValueKey('download-selected-dramas')), findsNothing);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     },

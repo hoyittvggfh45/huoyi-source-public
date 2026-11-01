@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 
 import 'core_bridge.dart';
 import 'import_center.dart';
+import 'jar_bridge_handoff.dart';
 import 'jar_import.dart';
 import 'local_store.dart';
 import 'tvbox_config.dart';
@@ -122,6 +123,10 @@ class _ImportCenterScreenState extends State<ImportCenterScreen> {
       await _run(() => _importJarFile(filePath));
       return;
     }
+    if (file.name.toLowerCase().endsWith('.zip')) {
+      await _run(() => _importZipFile(filePath));
+      return;
+    }
     if (file.name.toLowerCase().endsWith('.py')) {
       await _run(() async {
         final bytes = await File(filePath).readAsBytes();
@@ -173,9 +178,11 @@ class _ImportCenterScreenState extends State<ImportCenterScreen> {
   Future<void> _importJarFile(String filePath) async {
     final jarId =
         'jar-${md5.convert(utf8.encode(filePath)).toString().substring(0, 8)}';
+    final configs = await JarBridgeHandoff.siblingConfigsForJarFile(filePath);
     final result = await JarImport.scanAndRegister(
       jarId: jarId,
       jarUrl: filePath,
+      configs: configs,
     );
     if (!mounted) return;
     final classes = result.all;
@@ -198,6 +205,21 @@ class _ImportCenterScreenState extends State<ImportCenterScreen> {
                 Text(
                   '识别到 ${classes.length} 个 Spider 类，新增注册 $usable 个站点（进「导入」分组，重复导入不重复计数）。',
                 ),
+                if (result.updated.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text('已更新 ${result.updated.length} 个已注册站点的配置。'),
+                ],
+                if (result.configured.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text('已自动带上站点配置：${result.configured.join('、')}。'),
+                ],
+                if (result.missing.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    '提醒：以下站点未找到站点配置，注册后可能跑不起来：'
+                    '${result.missing.join('、')}；可在下方条目上手动补填 ext。',
+                  ),
+                ],
                 if (skipped.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   for (final line in skipped)
@@ -211,6 +233,37 @@ class _ImportCenterScreenState extends State<ImportCenterScreen> {
                 ],
               ],
             ),
+          ),
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('知道了'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _importZipFile(String filePath) async {
+    final bytes = await File(filePath).readAsBytes();
+    if (bytes.length > 32 * 1024 * 1024) {
+      if (mounted) _showMessage('文件过大，无法导入');
+      return;
+    }
+    final result = await JarBridgeHandoff.registerZip(
+      name: filePath.split(Platform.pathSeparator).last,
+      bytes: bytes,
+    );
+    if (!mounted) return;
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('zip 包导入完成'),
+        content: SizedBox(
+          width: 420,
+          child: SingleChildScrollView(
+            child: Text(result.summary),
           ),
         ),
         actions: [
@@ -321,7 +374,7 @@ class _ImportCenterScreenState extends State<ImportCenterScreen> {
         actions: [
           IconButton(
             key: const ValueKey('import-center-file'),
-            tooltip: '从本地文件导入（TVBox 配置 JSON / jar）',
+            tooltip: '从本地文件导入（TVBox 配置 JSON / jar / zip 包）',
             onPressed: _busy ? null : () => unawaited(_importFromFile()),
             icon: const Icon(Icons.folder_open_rounded),
           ),
@@ -344,7 +397,9 @@ class _ImportCenterScreenState extends State<ImportCenterScreen> {
               const Text(
                 'TVBox 远程配置：填入配置地址或选本地配置文件，站点按配置分组与内置站共存；'
                 '接口站走自定义源通道，csp 类 jar 站走本地 jar 桥，附带直播进直播区、解析进解析列表。'
-                '单独的 jar 文件可直接导入：枚举其中全部 Spider 类，一类一站进「导入」分组。',
+                '单独的 jar 文件可直接导入：枚举其中全部 Spider 类，一类一站进「导入」分组；'
+                'jar + 配置 JSON 的 zip 包也可直接导入，包里的站点配置自动带上 ext 与站名，'
+                '同目录的站点配置 JSON 也会在导 jar 时自动匹配；没有配置的站点会明确提醒。',
               ),
               const SizedBox(height: 16),
               Text(
@@ -368,7 +423,7 @@ class _ImportCenterScreenState extends State<ImportCenterScreen> {
               if (jarSites.isEmpty)
                 const StatusPanel(
                   title: '还没有 jar 直导入站点',
-                  message: '用文件夹按钮选择 .jar 文件即可枚举注册；需要参数的站点可在条目上补填 ext。',
+                  message: '用文件夹按钮选择 .jar 或 .zip 包文件即可枚举注册；zip 包与同目录的站点配置会自动带上 ext 与站名；没有配置的站点会明确提醒，之后可在条目上手动补填 ext。',
                 )
               else
                 for (final site in jarSites) _jarSiteCard(site),
@@ -423,14 +478,15 @@ class _ImportCenterScreenState extends State<ImportCenterScreen> {
         leading: const Icon(Icons.extension_outlined),
         title: Text(site.name),
         subtitle: Text(
-          '${site.className}\next：${site.ext.isEmpty ? '未填' : site.ext}',
+          '${site.className}\next：${site.ext.isEmpty ? '未填' : site.ext}'
+          '${site.missingConfig ? '\n未找到站点配置，注册后可能跑不起来' : ''}',
           style: Theme.of(context).textTheme.bodySmall,
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             IconButton(
-              tooltip: '补填 ext',
+              tooltip: '手动补填 ext',
               onPressed: _busy ? null : () => unawaited(_editJarExt(site)),
               icon: const Icon(Icons.edit_outlined),
             ),

@@ -79,13 +79,10 @@ class LocalStore extends ChangeNotifier {
         _current = _profiles.firstWhere((profile) => profile.admin).id;
       }
     } catch (_) {
-      _profiles = [
-        const LocalProfile(id: 'default', name: '管理员', admin: true),
-      ];
+      _profiles = [const LocalProfile(id: 'default', name: '管理员', admin: true)];
       _current = 'default';
     }
     _configurationError = null;
-    _locked = forceLogin && profile.protected;
     try {
       _loadLibrary();
     } catch (_) {
@@ -142,11 +139,6 @@ class LocalStore extends ChangeNotifier {
       _profiles.firstWhere((profile) => profile.id == _current);
   bool get locked => _locked || _configurationError != null;
   int get profileEpoch => _epoch;
-  bool get forceLogin {
-    if (_configurationError != null) return true;
-    final admin = _profiles.firstWhere((profile) => profile.admin);
-    return _bool('forceLogin') ?? admin.protected;
-  }
 
   bool get canDownload => !locked && (profile.admin || profile.download);
   WatchStats get watchStats {
@@ -365,7 +357,6 @@ class LocalStore extends ChangeNotifier {
       _notify();
     });
   }
-
 
   List<M3uSubscription> get m3uSubscriptions =>
       List.unmodifiable(_m3uSubscriptions);
@@ -798,30 +789,35 @@ class LocalStore extends ChangeNotifier {
     });
   }
 
-  Future<void> setForceLogin(bool value) =>
-      _setting('forceLogin', value, admin: true);
   Future<void> setHideVip(bool value) => _setting(_key('hideVip'), value);
 
-  bool get pythonCfDisguise =>
-      _configurationError == null
-          ? _bool(_key('pythonCfDisguise')) ?? true
-          : true;
+  bool get pythonCfDisguise => _configurationError == null
+      ? _bool(_key('pythonCfDisguise')) ?? true
+      : true;
 
   Future<void> setPythonCfDisguise(bool value) =>
       _setting(_key('pythonCfDisguise'), value);
 
-  bool get jarFingerprintEnabled =>
-      _configurationError == null
-          ? _bool(_key('jarFingerprintEnabled')) ?? true
-          : true;
+  bool get jarFingerprintEnabled => _configurationError == null
+      ? _bool(_key('jarFingerprintEnabled')) ?? true
+      : true;
 
   Future<void> setJarFingerprintEnabled(bool value) =>
       _setting(_key('jarFingerprintEnabled'), value);
 
-  bool get customHeadersEnabled =>
-      _configurationError == null
-          ? _bool(_key('customHeadersEnabled')) ?? false
-          : false;
+  DateTime? get siteCheckLastRun {
+    final raw = _string('site_check_last_run');
+    final millis = raw == null ? null : int.tryParse(raw);
+    if (millis == null) return null;
+    return DateTime.fromMillisecondsSinceEpoch(millis);
+  }
+
+  Future<void> setSiteCheckLastRun(DateTime value) =>
+      _setting('site_check_last_run', value.millisecondsSinceEpoch.toString());
+
+  bool get customHeadersEnabled => _configurationError == null
+      ? _bool(_key('customHeadersEnabled')) ?? false
+      : false;
 
   Future<void> setCustomHeadersEnabled(bool value) =>
       _setting(_key('customHeadersEnabled'), value);
@@ -831,11 +827,10 @@ class LocalStore extends ChangeNotifier {
     return parseCustomHeaderRules(_string(_key('customHeaderRules')) ?? '[]');
   }
 
-  Future<void> setCustomHeaderRules(List<CustomHeaderRule> rules) =>
-      _setting(
-        _key('customHeaderRules'),
-        jsonEncode(rules.map((rule) => rule.toJson()).toList()),
-      );
+  Future<void> setCustomHeaderRules(List<CustomHeaderRule> rules) => _setting(
+    _key('customHeaderRules'),
+    jsonEncode(rules.map((rule) => rule.toJson()).toList()),
+  );
   Future<void> setSource(String value) {
     if (!allowsSource(value)) return Future.error(StateError('当前用户没有此站源权限'));
     return _setting(_key('source'), value);
@@ -858,6 +853,90 @@ class LocalStore extends ChangeNotifier {
       {'light', 'dark', 'system'}.contains(value)
       ? _setting('themeMode', value)
       : Future.value();
+
+  String get themeModeStyle {
+    final value = _configurationError == null
+        ? _string('themeModeStyle')
+        : null;
+    return {'pureLight', 'pureDark'}.contains(value) ? value! : '';
+  }
+
+  Future<void> setThemeModeStyle(String value) =>
+      {'pureLight', 'pureDark', ''}.contains(value)
+      ? _setting('themeModeStyle', value)
+      : Future.value();
+
+  String get themeStyle {
+    final value = _configurationError == null ? _string('themeStyle') : null;
+    return {'neon', 'deep', 'candy', 'paper', 'glass', 'aurora'}.contains(value)
+        ? value!
+        : '';
+  }
+
+  Future<void> setThemeStyle(String value) =>
+      {'neon', 'deep', 'candy', 'paper', 'glass', 'aurora', ''}.contains(value)
+      ? _setting('themeStyle', value)
+      : Future.value();
+
+  String get themeAccent {
+    final value = _configurationError == null ? _string('themeAccent') : null;
+    return {
+          'default',
+          'green',
+          'blue',
+          'purple',
+          'red',
+          'orange',
+        }.contains(value)
+        ? value!
+        : '';
+  }
+
+  Future<void> setThemeAccent(String value) =>
+      {
+        'default',
+        'green',
+        'blue',
+        'purple',
+        'red',
+        'orange',
+        '',
+      }.contains(value)
+      ? _setting('themeAccent', value)
+      : Future.value();
+
+  String get themeBackground {
+    final value = _configurationError == null
+        ? _string('themeBackground')
+        : null;
+    return {'theme', 'solid', 'gradient', 'custom'}.contains(value)
+        ? value!
+        : 'theme';
+  }
+
+  Future<void> setThemeBackground(String value) =>
+      {'theme', 'solid', 'gradient', 'custom'}.contains(value)
+      ? _setting('themeBackground', value)
+      : Future.value();
+
+  String get themeBackgroundImage {
+    final value = _configurationError == null
+        ? _string('themeBackgroundImage')
+        : null;
+    return value ?? '';
+  }
+
+  Future<void> setThemeBackgroundImage(String value) =>
+      _setting('themeBackgroundImage', value);
+
+  Future<void> resetThemeSettings() async {
+    await setThemeModeStyle('');
+    await setThemeStyle('');
+    await setThemeAccent('');
+    await setThemeBackground('theme');
+    await setThemeBackgroundImage('');
+  }
+
   Future<void> setPlaybackPreferences(PlaybackPreferences value) {
     PlaybackPreferences.fromJson(value.toJson());
     return _setting(_key('playback'), jsonEncode(value.toJson()));
@@ -1229,12 +1308,6 @@ class LocalStore extends ChangeNotifier {
     _epoch++;
     _notify();
   });
-  void lock() {
-    if (!profile.protected) return;
-    _locked = true;
-    _epoch++;
-    _notify();
-  }
 
   Future<void> saveProfile({
     String? id,
@@ -1318,251 +1391,6 @@ class LocalStore extends ChangeNotifier {
     _profiles = profiles;
     _notify();
   });
-
-  Future<String> exportBackup() async {
-    await _writes.catchError((Object _) {});
-    _requireAdmin();
-    final content = jsonEncode({
-      'schema': 1,
-      'app': 'zhenguojian',
-      'profiles': _profiles.map((profile) => profile.toJson()).toList(),
-      'displayMode': displayMode,
-      'themeMode': themeMode,
-      'forceLogin': forceLogin,
-      'libraries': {
-        for (final profile in _profiles)
-          profile.id: {
-            ..._backupFollowSync(profile.id),
-            'history': readJsonList(_string(_key('history', profile.id))),
-            'favorites': readJsonList(_string(_key('favorites', profile.id))),
-            'followStates': jsonDecode(
-              _string(_key('followStates', profile.id)) ?? '{}',
-            ),
-            'seriesCandidates': readJsonList(
-              _string(_key('seriesCandidates', profile.id)),
-            ),
-            'mediaHistory': jsonDecode(
-              _string(_key('mediaHistory', profile.id)) ?? '{}',
-            ),
-            'source': _string(_key('source', profile.id)) ?? '',
-            'hiddenSites': _effectiveHiddenSites(profile.id).toList(),
-            'hideVip': _bool(_key('hideVip', profile.id)) ?? true,
-            'playback': jsonDecode(
-              _string(_key('playback', profile.id)) ?? '{}',
-            ),
-            'downloadPreferences': jsonDecode(
-              _string(_key('downloadPreferences', profile.id)) ?? '{}',
-            ),
-            'catalogView': jsonDecode(
-              _string(_key('catalogView', profile.id)) ?? '{}',
-            ),
-            'recentSearches': jsonDecode(
-              _string(_key('recentSearches', profile.id)) ?? '[]',
-            ),
-          },
-      },
-    });
-    if (utf8.encode(content).length > 8 * 1024 * 1024) {
-      throw StateError('备份超过 8 MiB 保存上限，请先整理记录；尚未写出备份文件');
-    }
-    validateBackup(content);
-    return content;
-  }
-
-  Map<String, dynamic> validateBackup(String content) {
-    if (utf8.encode(content).length > 8 * 1024 * 1024) {
-      throw const FormatException('备份文件过大');
-    }
-    final data = jsonDecode(content) as Map<String, dynamic>;
-    if (data['schema'] != 1 || data['app'] != 'zhenguojian') {
-      throw const FormatException('不支持的备份格式');
-    }
-    final profiles = _readProfiles(data['profiles']);
-    if (data.containsKey('themeMode') &&
-        !{'light', 'dark', 'system'}.contains(data['themeMode'])) {
-      throw const FormatException('备份主题设置无效');
-    }
-    if (data.containsKey('forceLogin') && data['forceLogin'] is! bool) {
-      throw const FormatException('备份登录设置无效');
-    }
-    final libraries = data['libraries'] as Map;
-    for (final profile in profiles) {
-      final library = libraries[profile.id] as Map;
-      final history = library['history'] as List,
-          favorites = library['favorites'] as List;
-      final media = library['mediaHistory'] as Map? ?? {};
-      if (media.length > 300 ||
-          history.length > 300 ||
-          favorites.length > 20000) {
-        throw const FormatException('备份记录过多');
-      }
-      for (final row in [...history, ...media.values]) {
-        WatchEntry.fromJson(Map<String, dynamic>.from(row as Map));
-      }
-      for (final row in favorites) {
-        Drama.fromJson(Map<String, dynamic>.from(row as Map));
-      }
-      final states = library['followStates'] as Map? ?? {};
-      final seriesCandidates = library['seriesCandidates'] as List? ?? [];
-      final favoriteIds = favorites.map((row) => (row as Map)['id']).toSet();
-      _readBackupFollowSync(library);
-      if (states.length > 20000 ||
-          states.keys.any((id) => id is! String || !favoriteIds.contains(id))) {
-        throw const FormatException('备份追剧状态无效');
-      }
-      for (final row in states.values) {
-        FollowState.fromJson(Map<String, dynamic>.from(row as Map));
-      }
-      if (seriesCandidates.length > 2000) {
-        throw const FormatException('备份系列候选过多');
-      }
-      for (final row in seriesCandidates) {
-        Drama.fromJson(Map<String, dynamic>.from(row as Map));
-      }
-      if (library['hideVip'] is! bool || library['source'] is! String) {
-        throw const FormatException('备份设置无效');
-      }
-      if (library.containsKey('hiddenSites') &&
-          library['hiddenSites'] is! List) {
-        throw const FormatException('备份站源显示设置无效');
-      }
-      PlaybackPreferences.fromJson(
-        Map<String, dynamic>.from(library['playback'] as Map? ?? {}),
-      );
-      DownloadPreferences.fromJson(
-        Map<String, dynamic>.from(library['downloadPreferences'] as Map? ?? {}),
-      );
-      CatalogView.fromJson(
-        Map<String, dynamic>.from(library['catalogView'] as Map? ?? {}),
-      );
-      final searches = library['recentSearches'] as List? ?? [];
-      if (searches.length > 20 ||
-          searches.any(
-            (value) => value is! String || value.runes.length > 80,
-          )) {
-        throw const FormatException('备份搜索记录无效');
-      }
-    }
-    return data;
-  }
-
-  Future<void> _installBackup(Map<String, dynamic> data) async {
-    final profiles = _readProfiles(data['profiles']);
-    final values = <String, Object>{
-      'profiles': jsonEncode(
-        profiles.map((profile) => profile.toJson()).toList(),
-      ),
-      'activeProfile': profiles.firstWhere((profile) => profile.admin).id,
-      'displayMode':
-          {'auto', 'television', 'standard'}.contains(data['displayMode'])
-          ? data['displayMode'] as String
-          : 'auto',
-      'themeMode': data['themeMode'] as String? ?? themeMode,
-      'forceLogin': data['forceLogin'] is bool
-          ? data['forceLogin'] as bool
-          : profiles.firstWhere((profile) => profile.admin).protected,
-    };
-    final libraries = data['libraries'] as Map;
-    for (final profile in profiles) {
-      final library = libraries[profile.id] as Map;
-      final syncRecords = _readBackupFollowSync(library);
-      values.addAll({
-        if (syncRecords != null)
-          _key('lanRecords', profile.id): jsonEncode(
-            LanDocument(replica: lanID(), records: syncRecords).toJson(),
-          ),
-        _key('history', profile.id): jsonEncode(library['history']),
-        _key('favorites', profile.id): jsonEncode(library['favorites']),
-        _key('followStates', profile.id): jsonEncode(
-          library['followStates'] ?? {},
-        ),
-        _key('seriesCandidates', profile.id): jsonEncode(
-          library['seriesCandidates'] ?? [],
-        ),
-        _key('mediaHistory', profile.id): jsonEncode(
-          library['mediaHistory'] ?? {},
-        ),
-        _key('source', profile.id): library['source'] as String,
-        _key('hiddenSites', profile.id): jsonEncode(
-          (library['hiddenSites'] as List? ?? []).whereType<String>().toList(),
-        ),
-        _key('hideVip', profile.id): library['hideVip'] as bool,
-        _key('playback', profile.id): jsonEncode(library['playback'] ?? {}),
-        _key('downloadPreferences', profile.id): jsonEncode(
-          library['downloadPreferences'] ?? {},
-        ),
-        _key('catalogView', profile.id): jsonEncode(
-          library['catalogView'] ?? {},
-        ),
-        _key('recentSearches', profile.id): jsonEncode(
-          library['recentSearches'] ?? [],
-        ),
-      });
-    }
-    await _commit(values, replace: true);
-    _profiles = profiles;
-    _current = profiles.firstWhere((profile) => profile.admin).id;
-    _configurationError = null;
-    _locked = forceLogin && profile.protected;
-    _loadLibrary();
-    _epoch++;
-    _notify();
-  }
-
-  Future<void> importBackup(String content) => _queue(() async {
-    _requireAdmin();
-    await _installBackup(validateBackup(content));
-  });
-
-  Future<void> recoverBackup(String content, {required String pin}) =>
-      _queue(() async {
-        if (_configurationError == null) throw StateError('请从设置中恢复备份');
-        final data = validateBackup(content);
-        LocalProfile? originalAdmin;
-        try {
-          final raw = preferences.getString(LocalSnapshot.storageKey);
-          final values = raw == null
-              ? null
-              : (jsonDecode(raw) as Map)['values'] as Map;
-          final records =
-              jsonDecode(
-                    (values?['profiles'] as String?) ??
-                        preferences.getString('profiles') ??
-                        '[]',
-                  )
-                  as List;
-          for (final row in records) {
-            if (row is Map && row['admin'] == true) {
-              originalAdmin = LocalProfile.fromJson(
-                Map<String, dynamic>.from(row),
-              );
-            }
-          }
-        } catch (_) {}
-        final backupAdmin = _readProfiles(
-          data['profiles'],
-        ).firstWhere((profile) => profile.admin);
-        final verifier = originalAdmin?.protected == true
-            ? originalAdmin!
-            : backupAdmin;
-        if (!verifier.protected) throw StateError('无法验证管理员身份，请使用包含管理员密码的备份恢复');
-        await _checkPin(verifier, pin);
-        _snapshot ??= LocalSnapshot.empty(preferences);
-        await _installBackup(data);
-      });
-
-  String exportRecoveryData() {
-    if (_configurationError == null) throw StateError('请从设置中导出备份');
-    return jsonEncode({
-      'app': 'zhenguojian',
-      'recovery': true,
-      'values': {
-        for (final key in preferences.getKeys())
-          if (LocalSnapshot.owns(key) || key == LocalSnapshot.storageKey)
-            key: preferences.get(key),
-      },
-    });
-  }
 
   Future<void> reload() => _queue(() async {
     final previousProfiles = _configurationError == null

@@ -241,6 +241,7 @@ class SniffWebViewPage extends StatefulWidget {
     this.headers = const {},
     this.initialCandidates = const [],
     this.autoPlay = false,
+    this.embedded = false,
   });
 
   final String pageUrl;
@@ -248,6 +249,7 @@ class SniffWebViewPage extends StatefulWidget {
   final List<String> initialCandidates;
   final ValueChanged<String> onMediaFound;
   final bool autoPlay;
+  final bool embedded;
 
   @override
   State<SniffWebViewPage> createState() => _SniffWebViewPageState();
@@ -341,7 +343,7 @@ class _SniffWebViewPageState extends State<SniffWebViewPage> {
   }
 
   void _maybeAutoPlay() {
-    if (!widget.autoPlay || _autoPlayed) return;
+    if ((!widget.autoPlay && !widget.embedded) || _autoPlayed) return;
     final preferred = _service.preferred;
     if (preferred == null) return;
     _autoPlayed = true;
@@ -353,6 +355,17 @@ class _SniffWebViewPageState extends State<SniffWebViewPage> {
     final colors = Theme.of(context).colorScheme;
     final candidates = _service.candidates;
     final preferred = _service.preferred;
+    if (widget.embedded) {
+      if (_controller == null) {
+        return Center(
+          child: Text(
+            '当前平台不支持网页内嵌播放',
+            style: TextStyle(color: colors.onSurfaceVariant),
+          ),
+        );
+      }
+      return WebViewWidget(controller: _controller!);
+    }
     return Scaffold(
       appBar: AppBar(title: const Text('网页嗅探')),
       body: Column(

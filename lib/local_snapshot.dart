@@ -20,7 +20,6 @@ class LocalSnapshot {
         'hideVip',
         'autoExport',
         'exportPosters',
-        'forceLogin',
       }.contains(key.split('.').last);
       if (value is String && !boolean) {
         values[key] = value;
@@ -64,11 +63,16 @@ class LocalSnapshot {
     'activeProfile',
     'displayMode',
     'themeMode',
+    'themeModeStyle',
+    'themeStyle',
+    'themeAccent',
+    'themeBackground',
+    'themeBackgroundImage',
     'autoExport',
     'exportPosters',
-    'forceLogin',
     // 自定义源是设备级配置，所有本地用户共用，必须在受管字段内，
     // 否则保存自定义源会被判为“无效的本地配置字段”。
+    'site_check_last_run',
     'customSources',
     'importedSites',
     'm3uSubscriptions',
@@ -114,7 +118,6 @@ class LocalSnapshot {
         'hideVip',
         'autoExport',
         'exportPosters',
-        'forceLogin',
       }.contains(entry.key.split('.').last);
       if (!owns(entry.key) ||
           (boolean ? entry.value is! bool : entry.value is! String)) {

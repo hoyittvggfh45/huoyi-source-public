@@ -25,8 +25,6 @@ import 'custom_headers.dart';
 import 'jar_bridge.dart';
 import 'danmaku_controller.dart';
 import 'danmaku_overlay.dart';
-import 'download_picker.dart';
-import 'downloads_screen.dart';
 import 'follow_state.dart';
 import 'local_store.dart';
 import 'models.dart';
@@ -291,6 +289,8 @@ class _PlayerScreenState extends State<PlayerScreen>
   ParseInterface? _selectedParse;
   String _lastPageUrl = '';
   bool _sniffFallbackTried = false;
+  bool _sniffEmbedded = false;
+  String? _sniffPreviousError;
   bool get _televisionDecoderApplies => _television && Platform.isAndroid;
   AppOrientationController? _orientationController;
   bool get _pictureInPictureVisible =>
@@ -309,9 +309,13 @@ class _PlayerScreenState extends State<PlayerScreen>
       (widget.store.player == 'tvbox' || widget.store.player == 'fongmi') &&
       (_plan?.decryptionKey.isEmpty ?? true) &&
       _backendManager?.current != PlaybackBackend.main;
+  PlayerCore get _effectiveCore =>
+      effectivePlayerCore(player: widget.store.player, stored: _core);
   bool get _useExoCore =>
-      !_television && Platform.isAndroid && _core == PlayerCore.exo;
-  bool get _useMdkCore => !_television && _core == PlayerCore.mdk;
+      !_television &&
+      Platform.isAndroid &&
+      _effectiveCore == PlayerCore.exo;
+  bool get _useMdkCore => !_television && _effectiveCore == PlayerCore.mdk;
   bool get _useNativeHandle => _useTvbox || _useExoCore;
   Duration get _enginePosition => _useNativeHandle
       ? _tvboxHandle.position
@@ -1350,6 +1354,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         index >= widget.detail.episodes.length) {
       return;
     }
+    _sniffEmbedded = false;
     final baseEpisode = widget.detail.episodes[index];
     if (!_audioMode && _isAudioEpisode(baseEpisode)) {
       _audioMode = true;
@@ -1746,15 +1751,8 @@ class _PlayerScreenState extends State<PlayerScreen>
             if (needsSniffFallback) {
               _sniffFallbackTried = true;
               _lastPageUrl = fallbackPage;
-              final parseFailed =
-                  error is AppFailure && error.message.contains('解析接口');
-              setState(() {
-                _error = parseFailed
-                    ? '解析接口没解析出地址，正在打开网页嗅探兜底…'
-                    : '正在打开网页嗅探兜底…';
-              });
               WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted && !_closed) _openSniffer(auto: true);
+                if (mounted && !_closed) _openSniffer();
               });
             }
           }
@@ -1790,12 +1788,16 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   Future<void> _openCoreDialog() async {
+    if (widget.store.player == 'guo') {
+      _notice('guo 播放器固定使用 MPV 内核');
+      return;
+    }
     final next = await showPlayerCoreDialog(
       context,
-      _core,
+      _effectiveCore,
       exoAvailable: Platform.isAndroid,
     );
-    if (next == null || next == _core || _closed) return;
+    if (next == null || next == _effectiveCore || _closed) return;
     await _switchCore(next);
   }
 
@@ -1989,24 +1991,33 @@ class _PlayerScreenState extends State<PlayerScreen>
     } catch (_) {}
   }
 
-  Future<void> _openSniffer({bool auto = false}) async {
+  void _openSniffer() {
     final pageUrl = _lastPageUrl;
-    if (pageUrl.isEmpty || !mounted || _closed) return;
-    final found = await Navigator.of(context).push<String>(
-      appPageRoute(
-        builder: (routeContext) => SniffWebViewPage(
-          pageUrl: pageUrl,
-          headers: _plan?.headers ?? const {},
-          autoPlay: auto,
-          onMediaFound: (url) => Navigator.of(routeContext).pop(url),
-        ),
-      ),
-    );
-    if (found == null || found.isEmpty || _closed || !mounted) return;
+    if (pageUrl.isEmpty || !mounted || _closed || _sniffEmbedded) return;
+    setState(() {
+      _sniffPreviousError = _error;
+      _sniffEmbedded = true;
+      _error = null;
+      _loading = false;
+    });
+  }
+
+  void _closeSniffer() {
+    if (!_sniffEmbedded) return;
+    setState(() {
+      _sniffEmbedded = false;
+      _error = _sniffPreviousError;
+      _sniffPreviousError = null;
+    });
+  }
+
+  Future<void> _onSniffedMedia(String url) async {
+    if (url.isEmpty || _closed || !mounted) return;
+    setState(() => _sniffEmbedded = false);
     await _play(
       _index,
       handoffPlan: PlaybackPlan(
-        url: found,
+        url: url,
         headers: _plan?.headers ?? const {},
       ),
     );
@@ -2162,39 +2173,6 @@ class _PlayerScreenState extends State<PlayerScreen>
     } catch (_) {
       _notice('弹幕重试失败，请稍后再试');
     }
-  }
-
-  Future<void> _submitDownloadSelection(DownloadSelection selection) async {
-    if (!widget.repository.supportsDownloads ||
-        !widget.store.canDownload ||
-        widget.store.profileEpoch != _profileEpoch ||
-        widget.mediaId != null) {
-      return;
-    }
-    final added = await widget.repository.enqueueDownloads(
-      widget.detail,
-      selection.episodes,
-      quality: selection.quality,
-    );
-    if (!mounted || _closed) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(added == 0 ? '所选集数已在下载列表中' : '已加入 $added 集，已有任务自动跳过'),
-        action: SnackBarAction(
-          label: '查看',
-          onPressed: () {
-            Navigator.of(context).push(
-              appPageRoute<void>(
-                builder: (_) => DownloadsScreen(
-                  repository: widget.repository,
-                  store: widget.store,
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-    );
   }
 
   Future<void> _openPanel(PlayerMenuSection section) async {
@@ -2449,7 +2427,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         data: televisionTheme(AppTheme.dark),
         child: AlertDialog(
           title: Text(enabled ? '开启兼容渲染模式？' : '关闭兼容渲染模式？'),
-          content: const Text('需要重启应用才能生效，正在进行的下载会中断。'),
+          content: const Text('需要重启应用才能生效。'),
           actions: [
             TextButton(
               autofocus: true,
@@ -2784,7 +2762,10 @@ class _PlayerScreenState extends State<PlayerScreen>
                         ),
                         icon: const Icon(Icons.meeting_room_rounded),
                       ),
-                      PlayerCoreBadge(core: _core, onTap: _openCoreDialog),
+                      PlayerCoreBadge(
+                        core: _effectiveCore,
+                        onTap: _openCoreDialog,
+                      ),
                       IconButton(
                         tooltip: '旋转与全屏',
                         onPressed: _rotate,
@@ -3224,7 +3205,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                 : null,
             orientationMode: _orientationMode,
             onOrientationMode: _mobile ? _setOrientationMode : null,
-            core: _core,
+            core: _effectiveCore,
             onCoreTap: _openCoreDialog,
           );
     final layeredControls = Stack(
@@ -3253,9 +3234,38 @@ class _PlayerScreenState extends State<PlayerScreen>
             key: _videoPaneKey,
             fit: StackFit.expand,
             children: [
-              if (widget.videoBuilder != null)
+              if (_sniffEmbedded)
+                SniffWebViewPage(
+                  key: ValueKey('embedded-sniffer-$_lastPageUrl'),
+                  pageUrl: _lastPageUrl,
+                  headers: _plan?.headers ?? const {},
+                  embedded: true,
+                  onMediaFound: _onSniffedMedia,
+                ),
+              if (_sniffEmbedded && !hideOverlayForPictureInPicture)
+                Positioned(
+                  top: 8,
+                  left: 8,
+                  child: Material(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(20),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(20),
+                      onTap: _closeSniffer,
+                      child: const Padding(
+                        padding: EdgeInsets.all(8),
+                        child: Icon(
+                          Icons.close_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              if (!_sniffEmbedded && widget.videoBuilder != null)
                 widget.videoBuilder!(layeredControls)
-              else if (_useNativeHandle)
+              else if (!_sniffEmbedded && _useNativeHandle)
                 TvboxVideoPane(
                   key: _tvboxPaneKey,
                   viewType: widget.store.player == 'fongmi'
@@ -3278,7 +3288,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                       ? widget.embeddedFullscreen
                       : _showFullscreen,
                 )
-              else if (_useMdkCore)
+              else if (!_sniffEmbedded && _useMdkCore)
                 MdkVideoPane(
                   plan: _mdkPlan,
                   startPosition: _mdkStartPosition,
@@ -3286,7 +3296,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                   handle: _mdkHandle,
                   onCompleted: _onMdkCompleted,
                   onError: _onMdkError,
-                  core: _core,
+                  core: _effectiveCore,
                   onCoreTap: _openCoreDialog,
                   title: title,
                   onBack: _backToList,
@@ -3297,7 +3307,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                       ? widget.embeddedFullscreen
                       : _showFullscreen,
                 )
-              else
+              else if (!_sniffEmbedded)
                 Video(
                   controller: _video!,
                   fit: BoxFit.contain,
@@ -3309,7 +3319,10 @@ class _PlayerScreenState extends State<PlayerScreen>
                 Positioned(
                   top: 8,
                   right: 8,
-                  child: PlayerCoreBadge(core: _core, onTap: _openCoreDialog),
+                  child: PlayerCoreBadge(
+                    core: _effectiveCore,
+                    onTap: _openCoreDialog,
+                  ),
                 ),
               if (_audioMode && !hideOverlayForPictureInPicture)
                 Positioned(
@@ -3415,7 +3428,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                           child: TextButton.icon(
                             onPressed: _openSniffer,
                             icon: const Icon(Icons.radar_rounded),
-                            label: const Text('网页嗅探播放页'),
+                            label: const Text('网页内嵌播放'),
                           ),
                         ),
                     ],
@@ -3535,7 +3548,6 @@ class _PlayerScreenState extends State<PlayerScreen>
             _playerRouteQualityRow(),
             _playerEpisodeSection(darkScrim: darkScrim),
             _playerSynopsisSection(darkScrim: darkScrim),
-            _playerDownloadRow(),
             _playerRelatedSection(darkScrim: darkScrim),
           ],
         ),
@@ -3845,28 +3857,6 @@ class _PlayerScreenState extends State<PlayerScreen>
     );
   }
 
-  Widget _playerDownloadRow() {
-    if (!widget.repository.supportsDownloads || !widget.store.canDownload) {
-      return const SizedBox.shrink();
-    }
-    return Padding(
-      padding: const EdgeInsets.only(top: 14),
-      child: OutlinedButton.icon(
-        key: const ValueKey('player-download-entry'),
-        onPressed: () => showModalBottomSheet<void>(
-          context: context,
-          isScrollControlled: true,
-          builder: (_) => SizedBox(
-            height: MediaQuery.of(context).size.height * 0.7,
-            child: _mobileDownload(),
-          ),
-        ),
-        icon: const Icon(Icons.download_rounded, size: 18),
-        label: const Text('下载本剧'),
-      ),
-    );
-  }
-
   /// 相关区双轨：站内 related 图片卡打底 + 同名跨站卡片网格；
   /// 两轨都为空时整区不渲染。
   Widget _playerRelatedSection({required bool darkScrim}) {
@@ -4007,9 +3997,9 @@ class _PlayerScreenState extends State<PlayerScreen>
             checked: state?.status == status,
             child: Text(status.label),
           ),
-        const PopupMenuItem(value: 'room', child: Text('房间')),
+        const CheckedPopupMenuItem(value: 'room', child: Text('房间')),
         if (state != null)
-          const PopupMenuItem(value: 'remove', child: Text('取消追剧')),
+          const CheckedPopupMenuItem(value: 'remove', child: Text('取消追剧')),
       ],
       child: Container(
         constraints: const BoxConstraints(minHeight: 36),
@@ -4036,26 +4026,6 @@ class _PlayerScreenState extends State<PlayerScreen>
           ],
         ),
       ),
-    );
-  }
-
-  Widget _mobileDownload() {
-    final colors = Theme.of(context).colorScheme;
-    if (!widget.repository.supportsDownloads || !widget.store.canDownload) {
-      return ColoredBox(
-        color: colors.surface,
-        child: const StatusPanel(
-          title: '下载不可用',
-          message: '当前用户或当前环境未开放本地下载。',
-          icon: Icons.download_outlined,
-        ),
-      );
-    }
-    return DownloadPicker(
-      detail: widget.detail,
-      preferences: widget.store.downloadPreferences,
-      embedded: true,
-      onSubmit: _submitDownloadSelection,
     );
   }
 

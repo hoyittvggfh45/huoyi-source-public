@@ -7,8 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'core_bridge.dart';
-import 'download_picker.dart';
-import 'downloads_screen.dart';
 import 'feed_diagonal_drag.dart';
 import 'local_store.dart';
 import 'models.dart';
@@ -311,11 +309,6 @@ class _FullscreenFeedScreenState extends State<FullscreenFeedScreen>
 
   Future<void> _openMoreSheet() async {
     var prefs = widget.store.playbackPreferences;
-    final detail = _items.isEmpty ? null : _details[_keyFor(_items[_index])];
-    final canDownload =
-        detail != null &&
-        widget.repository.supportsDownloads &&
-        widget.store.canDownload;
     setState(() => _sheetOpen = true);
     _hideTimer?.cancel();
     await showModalBottomSheet<void>(
@@ -484,16 +477,6 @@ class _FullscreenFeedScreenState extends State<FullscreenFeedScreen>
                       _hideTimer?.cancel();
                     },
                   ),
-                  if (canDownload)
-                    ListTile(
-                      leading: const Icon(Icons.download_outlined),
-                      title: const Text('下载到本地'),
-                      trailing: const Icon(Icons.chevron_right_rounded),
-                      onTap: () {
-                        Navigator.pop(sheetContext);
-                        unawaited(_openDownloadPicker(detail));
-                      },
-                    ),
                   const Padding(
                     padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
                     child: Text('倍速与弹幕偏好保存后供播放器使用，当前流内播放暂不实时切换。'),
@@ -690,50 +673,6 @@ class _FullscreenFeedScreenState extends State<FullscreenFeedScreen>
       if (mounted) setState(() => _sheetOpen = false);
       _scheduleHide();
     });
-  }
-
-  Future<void> _openDownloadPicker(DramaDetail detail) async {
-    await Navigator.of(context).push<void>(
-      appPageRoute<void>(
-        builder: (_) => DownloadPicker(
-          detail: detail,
-          onSubmit: (selection) => _submitFeedDownload(detail, selection),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _submitFeedDownload(
-    DramaDetail detail,
-    DownloadSelection selection,
-  ) async {
-    if (!widget.repository.supportsDownloads || !widget.store.canDownload) {
-      return;
-    }
-    final added = await widget.repository.enqueueDownloads(
-      detail,
-      selection.episodes,
-      quality: selection.quality,
-    );
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(added == 0 ? '所选集数已在下载列表中' : '已加入 $added 集，已有任务自动跳过'),
-        action: SnackBarAction(
-          label: '查看',
-          onPressed: () {
-            Navigator.of(context).push(
-              appPageRoute<void>(
-                builder: (_) => DownloadsScreen(
-                  repository: widget.repository,
-                  store: widget.store,
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-    );
   }
 
   Future<void> _toggleFollow(Drama drama) async {

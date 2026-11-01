@@ -89,7 +89,7 @@ class ImportEngine {
   final LocalStore store;
   final AppRepository repository;
 
-  static const supportedExtensions = {'py', 'js', 'json', 'jar'};
+  static const supportedExtensions = {'py', 'js', 'json', 'jar', 'zip'};
 
   Future<ImportReport> importAll(List<ImportCandidate> candidates) async {
     final records = List<ImportedSiteRecord>.of(store.importedSiteRecords);
@@ -118,7 +118,7 @@ class ImportEngine {
     try {
       final extension = candidate.extension;
       if (!supportedExtensions.contains(extension)) {
-        return fail('不支持的文件类型：.$extension（仅支持 py/js/json/jar）');
+        return fail('不支持的文件类型：.$extension（仅支持 py/js/json/jar/zip）');
       }
       if (candidate.bytes.isEmpty) return fail('文件为空');
       final hash = contentHashOf(candidate.bytes);
@@ -143,6 +143,8 @@ class ImportEngine {
           return await _importJson(candidate, hash);
         case 'jar':
           return await _importJar(candidate);
+        case 'zip':
+          return await _importZip(candidate);
         default:
           return fail('不支持的文件类型');
       }
@@ -411,6 +413,28 @@ class ImportEngine {
       );
     }
     final result = await JarBridgeHandoff.registerJar(
+      name: candidate.baseName,
+      bytes: bytes,
+    );
+    return ImportOutcome(
+      fileName: candidate.name,
+      status: ImportOutcomeStatus.success,
+      reason: result.summary,
+      siteName: candidate.baseName,
+      siteId: result.siteIds.isEmpty ? '' : result.siteIds.first,
+    );
+  }
+
+  Future<ImportOutcome> _importZip(ImportCandidate candidate) async {
+    final bytes = candidate.bytes;
+    if (bytes.length < 2 || bytes[0] != 0x50 || bytes[1] != 0x4B) {
+      return ImportOutcome(
+        fileName: candidate.name,
+        status: ImportOutcomeStatus.failed,
+        reason: '不是有效的 zip 包（缺少 zip 文件头）',
+      );
+    }
+    final result = await JarBridgeHandoff.registerZip(
       name: candidate.baseName,
       bytes: bytes,
     );

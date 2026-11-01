@@ -12,6 +12,7 @@ import 'package:crypto/crypto.dart';
 
 import 'models.dart';
 import 'jar_bridge.dart';
+import 'jar_youtube_takeover.dart';
 import 'danmaku_models.dart';
 import 'hongguo_comment.dart';
 import 'import_file_store.dart';
@@ -98,6 +99,14 @@ abstract class AppRepository {
     ResourceSettings settings,
   ) async => throw AppFailure('当前环境不支持资源设置');
   Future<Map<String, dynamic>> crackConfigSet(String content) async => {};
+  Future<Map<String, dynamic>> hongguoDeviceStatus() async =>
+      throw AppFailure('当前环境不支持设备注册档案');
+  Future<Map<String, dynamic>> hongguoDeviceRegister() async =>
+      throw AppFailure('当前环境不支持设备注册档案');
+  Future<Map<String, dynamic>> hongguoDeviceReregister() async =>
+      throw AppFailure('当前环境不支持设备注册档案');
+  Future<Map<String, dynamic>> hongguoDeviceRefresh() async =>
+      throw AppFailure('当前环境不支持设备注册档案');
   Future<dynamic> legadoRun(
     String sourceJson,
     String action,
@@ -599,6 +608,22 @@ class NativeRepository extends AppRepository {
   @override
   Future<Map<String, dynamic>> crackConfigSet(String content) =>
       _call({'action': 'crackConfigSet', 'content': content});
+
+  @override
+  Future<Map<String, dynamic>> hongguoDeviceStatus() =>
+      _call({'action': 'hongguoDeviceStatus'});
+
+  @override
+  Future<Map<String, dynamic>> hongguoDeviceRegister() =>
+      _call({'action': 'hongguoDeviceRegister'});
+
+  @override
+  Future<Map<String, dynamic>> hongguoDeviceReregister() =>
+      _call({'action': 'hongguoDeviceReregister'});
+
+  @override
+  Future<Map<String, dynamic>> hongguoDeviceRefresh() =>
+      _call({'action': 'hongguoDeviceRefresh'});
 
   @override
   Future<Map<String, dynamic>> crackConfigSummary() =>
@@ -1228,6 +1253,16 @@ class NativeRepository extends AppRepository {
     }
   }
 
+  Future<PlaybackPlan> _jarResolve(
+    JarSiteSpec spec,
+    Drama drama,
+    Episode episode,
+  ) async {
+    final takeover = await JarYoutubeTakeover.tryResolve(spec, drama, episode);
+    if (takeover != null) return takeover;
+    return JarBridge.resolve(spec, drama, episode);
+  }
+
   @override
   Future<List<CatalogCategory>> categories(
     String source, {
@@ -1567,7 +1602,7 @@ class NativeRepository extends AppRepository {
     if (JarBridge.isJarSource(drama.source)) {
       return _jarCall(
         drama.source,
-        (spec) => JarBridge.resolve(spec, drama, episode),
+        (spec) => _jarResolve(spec, drama, episode),
       );
     }
     _guardImported(drama.source);
@@ -1790,7 +1825,7 @@ class NativeRepository extends AppRepository {
     if (JarBridge.isJarSource(drama.source)) {
       return _jarCall(
         drama.source,
-        (spec) => JarBridge.resolve(spec, drama, episode),
+        (spec) => _jarResolve(spec, drama, episode),
       );
     }
     _guardImported(drama.source);

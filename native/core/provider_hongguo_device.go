@@ -45,6 +45,40 @@ func (downloader *Downloader) ensureHongguoDevice(ctx context.Context, rejected 
 	return nil
 }
 
+func truncateHongguoDeviceID(id string) string {
+	if len(id) > 10 {
+		return id[:6] + "…" + id[len(id)-4:]
+	}
+	if len(id) > 4 {
+		return "…" + id[len(id)-4:]
+	}
+	if id == "" {
+		return ""
+	}
+	return "****"
+}
+
+func (downloader *Downloader) hongguoDeviceStatus() map[string]any {
+	client := downloader.hongguoClient()
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	return map[string]any{
+		"registered": client.state.Registered,
+		"limited":    client.deviceLimited,
+		"hasDevice":  client.state.DeviceID != "",
+		"deviceId":   truncateHongguoDeviceID(client.state.DeviceID),
+		"installId":  truncateHongguoDeviceID(client.state.InstallID),
+	}
+}
+
+func (downloader *Downloader) reregisterHongguoDevice(ctx context.Context) error {
+	current := downloader.hongguoDeviceID()
+	if current == "" {
+		return downloader.ensureHongguoDevice(ctx, "")
+	}
+	return downloader.ensureHongguoDevice(ctx, current)
+}
+
 func (downloader *Downloader) hongguoDeviceLimited() bool {
 	client := downloader.hongguoClient()
 	client.mu.Lock()

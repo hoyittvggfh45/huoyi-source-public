@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'jar_bridge.dart';
+import 'jar_site_config.dart';
 import 'models.dart';
 import 'zakatv_builtin.dart';
 
@@ -18,6 +19,7 @@ class StandaloneJarSite {
     required this.className,
     required this.name,
     this.ext = '',
+    this.missingConfig = false,
   });
 
   final String siteId;
@@ -27,6 +29,7 @@ class StandaloneJarSite {
   final String className;
   final String name;
   final String ext;
+  final bool missingConfig;
 
   JarSiteSpec get spec => JarSiteSpec(
     siteId: siteId,
@@ -38,14 +41,19 @@ class StandaloneJarSite {
     ext: ext,
   );
 
-  StandaloneJarSite copyWith({String? ext}) => StandaloneJarSite(
+  StandaloneJarSite copyWith({
+    String? ext,
+    String? name,
+    bool? missingConfig,
+  }) => StandaloneJarSite(
     siteId: siteId,
     jarId: jarId,
     jarUrl: jarUrl,
     jarMd5: jarMd5,
     className: className,
-    name: name,
+    name: name ?? this.name,
     ext: ext ?? this.ext,
+    missingConfig: missingConfig ?? this.missingConfig,
   );
 
   Map<String, dynamic> toJson() => {
@@ -56,6 +64,7 @@ class StandaloneJarSite {
     'className': className,
     'name': name,
     if (ext.isNotEmpty) 'ext': ext,
+    if (missingConfig) 'missingConfig': true,
   };
 
   factory StandaloneJarSite.fromJson(Map<String, dynamic> json) =>
@@ -67,6 +76,7 @@ class StandaloneJarSite {
         className: json['className'] as String? ?? '',
         name: json['name'] as String? ?? '',
         ext: json['ext'] as String? ?? '',
+        missingConfig: json['missingConfig'] == true,
       );
 }
 
@@ -159,11 +169,19 @@ class JarImport {
     }
   }
 
-  static Future<({List<JarClassInfo> all, List<JarClassInfo> newly})>
+  static Future<
+      ({
+        List<JarClassInfo> all,
+        List<JarClassInfo> newly,
+        List<String> updated,
+        List<String> configured,
+        List<String> missing,
+      })>
       scanAndRegister({
     required String jarId,
     required String jarUrl,
     String jarMd5 = '',
+    List<JarSiteConfig> configs = const [],
   }) async {
     final jarPath = await JarBridge.ensureJarPath(
       configId: jarId,
@@ -173,23 +191,44 @@ class JarImport {
     final storedUrl = jarUrl.startsWith('http') ? jarUrl : jarPath;
     final classes = await JarBridge.enumerate(jarPath);
     final newly = <JarClassInfo>[];
-    final seenSimple = <String, String>{};
+    final updated = <String>[];
+    final configured = <String>[];
+    final missing = <String>[];
+    var changed = false;
+    final existingByClass = <String, StandaloneJarSite>{};
+    for (final site in _sites.values) {
+      if (site.jarId == jarId) existingByClass[site.className] = site;
+    }
     for (final info in classes) {
       if (!info.instantiable) continue;
-      final previous = seenSimple[info.simpleName];
-      if (previous != null && previous != info.className) {
-        seenSimple[info.simpleName] = info.className;
-      } else {
-        seenSimple[info.simpleName] = info.className;
+      final config = matchJarSiteConfig(info.className, configs);
+      final previous = existingByClass[info.className];
+      if (previous != null) {
+        if (config != null) {
+          final name = config.name.isNotEmpty ? config.name : previous.name;
+          if (previous.name != name ||
+              previous.ext != config.ext ||
+              previous.missingConfig) {
+            final site = previous.copyWith(
+              name: name,
+              ext: config.ext,
+              missingConfig: false,
+            );
+            _sites[site.siteId] = site;
+            _register(site);
+            updated.add(site.siteId);
+            configured.add(site.name);
+            changed = true;
+          }
+        }
+        continue;
       }
-      var siteId = JarSiteSpec.siteIdFor(jarId, info.simpleName);
-      final existing = _sites[siteId];
-      if (existing != null && existing.className != info.className) {
-        siteId = JarSiteSpec.siteIdFor(
-          jarId,
-          info.className.replaceAll('.', '_'),
-        );
-      } else if (previous != null && previous != info.className) {
+      var siteId = JarSiteSpec.siteIdFor(
+        jarId,
+        config != null && config.key.isNotEmpty ? config.key : info.simpleName,
+      );
+      final collision = _sites[siteId];
+      if (collision != null && collision.className != info.className) {
         siteId = JarSiteSpec.siteIdFor(
           jarId,
           info.className.replaceAll('.', '_'),
@@ -202,14 +241,30 @@ class JarImport {
         jarUrl: storedUrl,
         jarMd5: jarMd5,
         className: info.className,
-        name: info.simpleName,
+        name: config != null && config.name.isNotEmpty
+            ? config.name
+            : info.simpleName,
+        ext: config?.ext ?? '',
+        missingConfig: config == null,
       );
       _sites[siteId] = site;
       _register(site);
       newly.add(info);
+      changed = true;
+      if (config == null) {
+        missing.add(site.name);
+      } else {
+        configured.add(site.name);
+      }
     }
-    await _persist();
-    return (all: classes, newly: newly);
+    if (changed) await _persist();
+    return (
+      all: classes,
+      newly: newly,
+      updated: updated,
+      configured: configured,
+      missing: missing,
+    );
   }
 
   static List<String> siteIdsForJar(String jarId) {
@@ -238,6 +293,7 @@ class JarImport {
       className: className,
       name: name.isNotEmpty ? name : simple,
       ext: ext,
+      missingConfig: ext.isEmpty,
     );
     _sites[siteId] = site;
     _register(site);
@@ -261,8 +317,11 @@ class JarImport {
       return;
     }
     final site = _sites[siteId];
-    if (site == null || site.ext == ext) return;
-    _sites[siteId] = site.copyWith(ext: ext);
+    if (site == null || (site.ext == ext && !site.missingConfig)) return;
+    _sites[siteId] = site.copyWith(
+      ext: ext,
+      missingConfig: ext.isEmpty ? site.missingConfig : false,
+    );
     await JarBridge.updateExt(siteId, ext);
     await _persist();
   }

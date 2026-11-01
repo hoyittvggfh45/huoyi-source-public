@@ -48,7 +48,6 @@ class DramaStyleHome extends StatelessWidget {
     required this.onSearchChanged,
     required this.onSearchSubmitted,
     required this.onMenuPressed,
-    required this.onAccountPressed,
     required this.onFilterPressed,
     required this.onRankingsPressed,
     required this.onNewPressed,
@@ -73,7 +72,6 @@ class DramaStyleHome extends StatelessWidget {
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<String> onSearchSubmitted;
   final VoidCallback onMenuPressed;
-  final VoidCallback onAccountPressed;
   final VoidCallback onFilterPressed;
   final VoidCallback onRankingsPressed;
   final VoidCallback onNewPressed;
@@ -138,11 +136,6 @@ class DramaStyleHome extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    IconButton(
-                      tooltip: '账号',
-                      icon: const Icon(Icons.person_outline),
-                      onPressed: onAccountPressed,
-                    ),
                     if (onSettingsPressed != null)
                       IconButton(
                         tooltip: '设置',

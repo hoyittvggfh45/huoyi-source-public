@@ -131,6 +131,25 @@ void main() {
     expect(find.text('C站'), findsOneWidget);
   });
 
+  testWidgets('深色主题下弹窗背景跟随 surface，不固定白色', (tester) async {
+    const surface = Color(0xFF1C1C1E);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(colorScheme: const ColorScheme.dark(surface: surface)),
+        home: const Scaffold(
+          body: SitePickerDialog(
+            sectionName: '短剧',
+            currentId: 'b',
+            groups: _groups,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final dialog = tester.widget<Dialog>(find.byType(Dialog));
+    expect(dialog.backgroundColor, surface);
+  });
+
   testWidgets('编辑模式点行不切换，点完成退出编辑模式', (tester) async {
     await tester.pumpWidget(
       _host(onResult: (_) {}, editMode: true, onDelete: (_) async => true),

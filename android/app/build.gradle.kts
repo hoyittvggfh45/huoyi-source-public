@@ -54,7 +54,8 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         ndk {
-            abiFilters += listOf("arm64-v8a")
+            abiFilters.clear()
+            abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a"))
         }
         manifestPlaceholders["appLabel"] = "红蚁TV"
         manifestPlaceholders["appBanner"] = if (allSources) "@drawable/tv_banner_all_sources" else "@drawable/tv_banner"
@@ -75,13 +76,15 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             ndk {
-                abiFilters += listOf("arm64-v8a")
+                abiFilters.clear()
+                abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a"))
             }
         }
         release {
             signingConfig = signingConfigs.getByName(if (releaseKey.exists()) "release" else "debug")
             ndk {
-                abiFilters += listOf("arm64-v8a")
+                abiFilters.clear()
+                abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a"))
             }
         }
     }

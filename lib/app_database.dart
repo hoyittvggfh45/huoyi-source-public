@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
@@ -180,21 +179,4 @@ class AppDatabase {
     return dramas;
   }
 
-  Future<String?> exportBackup() async {
-    try {
-      final db = await _open();
-      final documents = await getApplicationDocumentsDirectory();
-      final source = File(path.join(documents.path, 'app.db'));
-      if (!await source.exists()) return null;
-      final external = await getExternalStorageDirectory();
-      if (external == null) return null;
-      await db.close();
-      _db = null;
-      final target = File(path.join(external.path, 'app_backup.db'));
-      await source.copy(target.path);
-      return target.path;
-    } catch (_) {
-      return null;
-    }
-  }
 }

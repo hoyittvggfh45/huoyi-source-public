@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:duanju_app/account_screen.dart';
 import 'package:duanju_app/app_drawer.dart';
 import 'package:duanju_app/app_theme.dart';
 import 'package:duanju_app/content_source_screen.dart';
@@ -18,7 +17,6 @@ import 'package:duanju_app/live_screen.dart';
 import 'package:duanju_app/live_sources.dart';
 import 'package:duanju_app/live_store.dart';
 import 'package:duanju_app/local_store.dart';
-import 'package:duanju_app/login_screen.dart';
 import 'package:duanju_app/models.dart';
 import 'package:duanju_app/player_screen.dart';
 import 'package:duanju_app/saved_library.dart';
@@ -308,7 +306,6 @@ void main() {
         filtersActive: false,
         newActive: false,
         onMenuPressed: () {},
-        onAccountPressed: () {},
         onSettingsPressed: () {},
       ),
       'preview_drama_home',
@@ -437,13 +434,7 @@ void main() {
     print('preview landed: preview_settings_style');
   });
 
-  testWidgets('preview account', (tester) async {
-    await capturePreview(tester, const AccountScreen(), 'preview_account');
-  });
 
-  testWidgets('preview login', (tester) async {
-    await capturePreview(tester, LoginScreen(), 'preview_login');
-  });
 
   testWidgets('preview downloads', (tester) async {
     final store = await previewStore({});

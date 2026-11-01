@@ -13,8 +13,6 @@ Future<void> showDramaActions(
   required Drama drama,
   required LocalStore store,
   VoidCallback? onContinue,
-  VoidCallback? onDownload,
-  VoidCallback? onSelect,
   VoidCallback? onDetail,
   bool history = false,
 }) async {
@@ -67,18 +65,6 @@ Future<void> showDramaActions(
           '标记 ${following.updateLabel}已读',
           icon: glass ? LucideIcons.mailCheck : Icons.mark_email_read_outlined,
         ),
-      if (onDownload != null && store.canDownload)
-        SheetChoice(
-          'download',
-          '下载选集',
-          icon: glass ? LucideIcons.arrowDownToLine : Icons.download_outlined,
-        ),
-      if (onSelect != null && store.canDownload)
-        SheetChoice(
-          'select',
-          '多选下载',
-          icon: glass ? LucideIcons.listChecks : Icons.checklist_rounded,
-        ),
       if (history && store.watched(drama.id) != null)
         SheetChoice(
           'removeHistory',
@@ -110,10 +96,6 @@ Future<void> showDramaActions(
       await saveUserChange(context, () => store.toggleFavorite(drama));
     case 'read':
       await saveUserChange(context, () => store.markUpdatesRead(drama.id));
-    case 'download':
-      if (store.canDownload) onDownload?.call();
-    case 'select':
-      if (store.canDownload) onSelect?.call();
     case 'removeHistory':
       await saveUserChange(context, () => store.removeHistory(drama.id));
   }

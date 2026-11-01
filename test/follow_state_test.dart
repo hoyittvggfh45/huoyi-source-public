@@ -212,45 +212,7 @@ void main() {
     },
   );
 
-  test(
-    'backup restores read baselines and accepts older backups without states',
-    () async {
-      final store = await create({'plugin_private': 'preserve'});
-      await store.saveWatch(watch());
-      await store.setFollowStatus(drama(10), FollowStatus.watched);
-      await store.refreshDrama(drama(13));
-      final backup = await store.exportBackup();
-      await store.toggleFavorite(drama(10));
-      await store.clearHistory();
-      await store.importBackup(backup);
-      expect(store.following('hongguo:follow')!.manuallyWatched, isTrue);
-      expect(store.following('hongguo:follow')!.newEpisodes, 3);
-      expect(store.history.single.position, 12);
-      expect(store.preferences.getString('plugin_private'), 'preserve');
-      final older = jsonDecode(backup) as Map<String, dynamic>;
-      ((older['libraries'] as Map)['default'] as Map).remove('followStates');
-      await store.importBackup(jsonEncode(older));
-      expect(store.following('hongguo:follow')!.manuallyWatched, isFalse);
-      expect(store.following('hongguo:follow')!.status, FollowStatus.watching);
-      expect(store.history.single.position, 12);
-    },
-  );
 
-  test('malformed state backup cannot change existing records', () async {
-    final store = await create();
-    await store.toggleFavorite(drama(10));
-    final before = await store.exportBackup();
-    final invalid = jsonDecode(before) as Map<String, dynamic>;
-    final states =
-        ((invalid['libraries'] as Map)['default'] as Map)['followStates']
-            as Map;
-    (states['hongguo:follow'] as Map)['readEpisodes'] = 100;
-    await expectLater(
-      store.importBackup(jsonEncode(invalid)),
-      throwsFormatException,
-    );
-    expect(await store.exportBackup(), before);
-  });
 
   test('follow states and removal are isolated between local users', () async {
     final store = await create();
@@ -285,7 +247,13 @@ void main() {
     addTearDown(store.dispose);
     await store.toggleFavorite(drama(10));
     await store.saveWatch(watch());
-    final before = await store.exportBackup();
+    String snapshot(LocalStore s) => jsonEncode({
+      'favorites': s.favorites.map((d) => d.id).toList(),
+      'history':
+          s.history.map((w) => '${w.drama.id}:${w.episode}:${w.position}').toList(),
+      'status': s.following('hongguo:follow')?.status.toString(),
+    });
+    final before = snapshot(store);
     platform.reject = true;
     for (final change in <Future<void> Function()>[
       () => store.setFollowStatus(drama(10), FollowStatus.watched),
@@ -293,12 +261,12 @@ void main() {
       () => store.removeHistory('hongguo:follow'),
     ]) {
       await expectLater(change(), throwsStateError);
-      expect(await store.exportBackup(), before);
+      expect(snapshot(store), before);
     }
     await store.preferences.reload();
     final restarted = LocalStore(store.preferences);
     addTearDown(restarted.dispose);
-    expect(await restarted.exportBackup(), before);
+    expect(snapshot(restarted), before);
   });
 
   test(

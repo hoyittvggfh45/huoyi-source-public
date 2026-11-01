@@ -35,6 +35,7 @@ import 'recommendations_screen.dart';
 import 'rankings_screen.dart';
 import 'detail_screen.dart';
 import 'folder_catalog_screen.dart';
+import 'global_search_page.dart';
 import 'fullscreen_feed_screen.dart';
 import 'drama_style_home.dart';
 import 'hongguo_drama_home.dart';
@@ -44,8 +45,6 @@ import 'py_bridge.dart';
 import 'ui_style.dart';
 import 'vod_detail_route.dart';
 import 'settings_screen.dart';
-import 'account_screen.dart';
-import 'downloads_screen.dart';
 import 'saved_library.dart';
 import 'home_carousel.dart';
 import 'playback_launch_screen.dart';
@@ -59,8 +58,6 @@ import 'vip_icon.dart';
 import 'search_input.dart';
 import 'source_picker_sheet.dart';
 import 'sources_screen.dart';
-import 'batch_download_screen.dart';
-import 'batch_downloads.dart';
 import 'drama_actions.dart';
 import 'library_updater.dart';
 import 'live_repository.dart';
@@ -144,6 +141,8 @@ class _HomeScreenState extends State<HomeScreen> {
   final _categorySelections = <String, String>{};
   late final CatalogBrowser _browser;
   bool _searchVisible = false;
+  // 首装判定：从未成功拉到过视频时，首次打开直接现抓，不先读空缓存。
+  bool _firstLaunch = false;
   // 勾选后并发搜索所有可见站源并归一去重，取消勾选只搜索当前站源。
   bool _crossSourceSearch = false;
   bool _categoriesLoading = false;
@@ -175,6 +174,7 @@ class _HomeScreenState extends State<HomeScreen> {
     HomeZone.midnight => '午夜区',
     HomeZone.live => '直播',
     HomeZone.audio => '听书',
+    HomeZone.novel => '小说',
     _ => appName,
   };
 
@@ -457,8 +457,9 @@ class _HomeScreenState extends State<HomeScreen> {
     if (entry.id == _allSourcesEntryId) return false;
     if (_sectionSources.length <= 1 &&
         _sectionSources.any((site) => site.id == entry.id)) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('至少保留一个站源')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('至少保留一个站源')));
       return false;
     }
     final imported = widget.store.importedSiteRecords
@@ -485,8 +486,9 @@ class _HomeScreenState extends State<HomeScreen> {
       if (confirmed != true) return false;
       if (imported.type == ImportedSiteRecord.typePy) {
         unawaited(
-          ImportFileStore.pathOf(imported.fileName)
-              .then((path) => PyBridge.dispose(path)),
+          ImportFileStore.pathOf(
+            imported.fileName,
+          ).then((path) => PyBridge.dispose(path)),
         );
       }
       await ImportFileStore.delete(imported.fileName);
@@ -898,8 +900,14 @@ class _HomeScreenState extends State<HomeScreen> {
     )..addListener(_updateChanged);
     _updater.startWatching();
     widget.repository.catalogUpdates.addListener(_metadataChanged);
+    _firstLaunch =
+        widget.store.preferences.getBool('first_catalog_loaded') != true;
     if (_sectionSources.isNotEmpty) {
-      _load(useCache: true);
+      if (_firstLaunch) {
+        _load(force: true);
+      } else {
+        _load(useCache: true);
+      }
       _loadCategories();
     } else {
       _loading = false;
@@ -1008,6 +1016,12 @@ class _HomeScreenState extends State<HomeScreen> {
     });
     void accept(CatalogPage result, {bool cached = false}) {
       if (!mounted || generation != _generation) return;
+      if (_firstLaunch && !cached && result.items.isNotEmpty) {
+        _firstLaunch = false;
+        unawaited(
+          widget.store.preferences.setBool('first_catalog_loaded', true),
+        );
+      }
       setState(() {
         _items = result.items;
         if (result.tags.isNotEmpty) _catalogTags = result.tags;
@@ -1172,28 +1186,11 @@ class _HomeScreenState extends State<HomeScreen> {
   void _openDrama(
     Drama drama, {
     bool resume = false,
-    bool download = false,
     PlaybackQueue? queue,
   }) {
-    if (!download && _openingPlayback) return;
+    if (_openingPlayback) return;
     _pauseCatalog();
     final contextQueue = queue ?? _queueAround(drama, _visible);
-    if (download) {
-      Navigator.of(context).push(
-        appPageRoute<void>(
-          settings: const RouteSettings(name: 'detail'),
-          builder: (_) => DetailScreen(
-            drama: drama,
-            repository: widget.repository,
-            store: widget.store,
-            downloadOnOpen: true,
-            onTagTap: _handleDetailTagTap,
-            queue: contextQueue,
-          ),
-        ),
-      );
-      return;
-    }
     if (vodOpenAction(isVodZone: _zone == HomeZone.vod, resume: resume) ==
         VodOpenAction.detail) {
       Navigator.of(context).push(
@@ -1224,6 +1221,24 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _openGlobalVideoResult(Drama drama) {
+    final site = widget.store.sources
+        .where((s) => s.id == drama.source)
+        .firstOrNull;
+    if (site == null) {
+      _openDrama(drama);
+      return;
+    }
+    final zone = isMidnightZoneSource(site)
+        ? HomeZone.midnight
+        : isVodZoneSource(site)
+        ? HomeZone.vod
+        : HomeZone.drama;
+    if (zone != _zone) _setZone(zone);
+    _changeSource(site);
+    _openDrama(drama);
+  }
+
   void _setZone(HomeZone zone) {
     if (zone == _zone) return;
     _applyZoneChange(zone, recordHistory: true);
@@ -1252,6 +1267,41 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _openDrawer() => _scaffoldKey.currentState?.openDrawer();
 
+  Widget _drawerAvatarButton() => IconButton(
+    key: const ValueKey('open-app-drawer'),
+    tooltip: '导航',
+    iconSize: 32,
+    padding: const EdgeInsets.all(8),
+    onPressed: _openDrawer,
+    icon: ClipOval(
+      child: Image.asset(
+        'assets/ant_logo.png',
+        width: 32,
+        height: 32,
+        fit: BoxFit.cover,
+      ),
+    ),
+  );
+
+  Widget _appBarLeading() {
+    final button = _drawerAvatarButton();
+    if (!_isCatalogZone || _selectionMode) return button;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        button,
+        const SizedBox(width: 4),
+        Flexible(
+          child: SiteSourceBox(
+            key: const ValueKey('drawer-site-box'),
+            label: '${_group.name} (${_group.sources.length})',
+            onTap: () => unawaited(_pickSourceCentered()),
+          ),
+        ),
+      ],
+    );
+  }
+
   AppDrawer _drawer() => AppDrawer(
     zone: _zone,
     midnightActivated: _midnightActivated,
@@ -1261,12 +1311,6 @@ class _HomeScreenState extends State<HomeScreen> {
     onTool: _onTool,
     onMinorProtectionChanged: _onMinorProtectionChanged,
     onVersionDoubleTap: _onVersionDoubleTap,
-    siteLabel: _isCatalogZone
-        ? '${_group.name} (${_group.sources.length})'
-        : null,
-    onSiteBoxTap: _isCatalogZone
-        ? () => unawaited(_pickSourceCentered())
-        : null,
   );
 
   void _openZoneSettings() {
@@ -1303,20 +1347,8 @@ class _HomeScreenState extends State<HomeScreen> {
           history: history,
           onOpen: _openDrama,
           onContinue: (drama) => _openDrama(drama, resume: true),
-          onDownload: (drama) => _openDrama(drama, download: true),
         ),
       ),
-    );
-  }
-
-  void _openDownloads() {
-    if (!widget.store.canDownload) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('当前版本未开启下载功能')));
-      return;
-    }
-    _pushTool(
-      DownloadsScreen(repository: widget.repository, store: widget.store),
     );
   }
 
@@ -1326,8 +1358,6 @@ class _HomeScreenState extends State<HomeScreen> {
         _openSaved(history: false);
       case 2:
         _openSaved(history: true);
-      case 3:
-        _openDownloads();
     }
   }
 
@@ -1441,8 +1471,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _pushTool(Widget screen) {
     unawaited(
-      Navigator.of(context)
-          .push<void>(appPageRoute<void>(builder: (_) => screen)),
+      Navigator.of(
+        context,
+      ).push<void>(appPageRoute<void>(builder: (_) => screen)),
     );
   }
 
@@ -1478,41 +1509,6 @@ class _HomeScreenState extends State<HomeScreen> {
     _selectedDramas.clear();
   });
 
-  void _selectDrama(Drama drama) {
-    if (!widget.store.canDownload ||
-        !widget.repository.supportsDownloads ||
-        !widget.store.allowsSource(drama.source)) {
-      return;
-    }
-    if (!_selectedDramas.containsKey(drama.id) &&
-        _selectedDramas.length >= BatchDownloads.maxDramas) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('一次最多选择 50 部短剧，请分批下载')));
-      return;
-    }
-    setState(() {
-      _selectionMode = true;
-      if (_selectedDramas.remove(drama.id) == null) {
-        _selectedDramas[drama.id] = drama;
-      }
-    });
-  }
-
-  void _downloadSelected() {
-    if (!widget.store.canDownload || _selectedDramas.isEmpty) return;
-    _pauseCatalog();
-    Navigator.push<void>(
-      context,
-      appPageRoute(
-        builder: (_) => BatchDownloadScreen(
-          repository: widget.repository,
-          store: widget.store,
-          dramas: _selectedDramas.values.toList(),
-        ),
-      ),
-    );
-  }
-
   void _dramaActions(Drama drama) => showDramaActions(
     context,
     drama: drama,
@@ -1532,12 +1528,6 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     },
     onContinue: () => _openDrama(drama, resume: true),
-    onDownload: widget.repository.supportsDownloads && widget.store.canDownload
-        ? () => _openDrama(drama, download: true)
-        : null,
-    onSelect: widget.repository.supportsDownloads && widget.store.canDownload
-        ? () => _selectDrama(drama)
-        : null,
   );
 
   Widget _catalogTile(
@@ -1546,22 +1536,16 @@ class _HomeScreenState extends State<HomeScreen> {
     VoidCallback? onFocus,
   }) {
     final following = widget.store.following(drama.id);
-    final canSelect =
-        widget.store.canDownload && widget.repository.supportsDownloads;
     return DramaTile(
       key: ValueKey(drama.id),
       drama: drama,
       repository: widget.repository,
       focusNode: focusNode,
       onFocus: onFocus,
-      onTap: () => _selectionMode
-          ? _selectDrama(drama)
-          : drama.isFolder
+      onTap: () => drama.isFolder
           ? _drillInto(drama)
           : _openDrama(drama),
-      onLongPress: canSelect && !drama.isFolder
-          ? () => _selectDrama(drama)
-          : null,
+      onLongPress: null,
       onMore: drama.isFolder ? null : () => _dramaActions(drama),
       actions: drama.isFolder
           ? null
@@ -1754,10 +1738,6 @@ class _HomeScreenState extends State<HomeScreen> {
       color: colors.onSurface,
     );
     final catalog = _isCatalogZone && !_selectionMode;
-    final canSelect =
-        !_showRecommendations &&
-        widget.store.canDownload &&
-        widget.repository.supportsDownloads;
     final customView =
         widget.store.catalogView.sort != CatalogSort.source ||
         widget.store.catalogView.release.isNotEmpty;
@@ -1806,12 +1786,8 @@ class _HomeScreenState extends State<HomeScreen> {
       centerTitle: false,
       titleSpacing: 20,
       automaticallyImplyLeading: false,
-      leading: IconButton(
-        key: const ValueKey('open-app-drawer'),
-        icon: Icon(LucideIcons.menu),
-        tooltip: '导航',
-        onPressed: _openDrawer,
-      ),
+      leadingWidth: _isCatalogZone && !_selectionMode ? 192 : null,
+      leading: _appBarLeading(),
       title: title,
       actions: [
         if (_selectionMode) ...[
@@ -1883,12 +1859,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         ? null
                         : _refreshCatalog,
                   ),
-                if (canSelect)
-                  GlassGroupItem(
-                    icon: LucideIcons.listChecks,
-                    tooltip: '多选下载',
-                    onPressed: () => setState(() => _selectionMode = true),
-                  ),
               ],
             ),
             const SizedBox(width: 8),
@@ -1954,7 +1924,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       widget.store.catalogView.release.isNotEmpty,
                   newActive: widget.store.catalogView.sort == CatalogSort.date,
                   onOpenSaved: _openSaved,
-                  onOpenDownloads: _openDownloads,
                   onSettingsPressed: _openZoneSettings,
                 ),
               ),
@@ -2021,7 +1990,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       widget.store.catalogView.release.isNotEmpty,
                   newActive: widget.store.catalogView.sort == CatalogSort.date,
                   onMenuPressed: _openDrawer,
-                  onAccountPressed: () => _pushTool(const AccountScreen()),
                   onSettingsPressed: _openZoneSettings,
                   badgeOf: (drama) {
                     if (drama.isFolder) {
@@ -2052,11 +2020,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     selectedIcon: Icon(Icons.history),
                     label: '最近观看',
                   ),
-                  NavigationDestination(
-                    icon: Icon(Icons.download_outlined),
-                    selectedIcon: Icon(Icons.download),
-                    label: '下载',
-                  ),
                 ],
               ),
             );
@@ -2072,12 +2035,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   toolbarHeight: television ? 64 : null,
                   titleSpacing: 12,
                   automaticallyImplyLeading: false,
-                  leading: IconButton(
-                    key: const ValueKey('open-app-drawer'),
-                    tooltip: '导航',
-                    icon: const Icon(Icons.menu_rounded),
-                    onPressed: _openDrawer,
-                  ),
+                  leadingWidth: _isCatalogZone && !_selectionMode ? 192 : null,
+                  leading: _appBarLeading(),
                   title: _selectionMode
                       ? const Text(
                           '选择短剧',
@@ -2164,16 +2123,6 @@ class _HomeScreenState extends State<HomeScreen> {
                             tooltip: '设置',
                             icon: const Icon(Icons.settings_outlined),
                             onPressed: _openZoneSettings,
-                          ),
-                        if (!_showRecommendations &&
-                            widget.store.canDownload &&
-                            widget.repository.supportsDownloads)
-                          IconButton(
-                            key: const ValueKey('select-catalog-dramas'),
-                            tooltip: '多选下载',
-                            onPressed: () =>
-                                setState(() => _selectionMode = true),
-                            icon: const Icon(Icons.checklist_rounded),
                           ),
                         IconButton(
                           key: const ValueKey('toggle-search'),
@@ -2313,7 +2262,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
-          bottomNavigationBar: _selectionMode ? _selectionBar() : null,
         );
         if (!television) {
           return PopScope(
@@ -2378,6 +2326,9 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     if (_zone == HomeZone.audio) {
       return const ContentZoneScreen(section: ContentSection.audio);
+    }
+    if (_zone == HomeZone.novel) {
+      return const ContentZoneScreen(section: ContentSection.novel);
     }
     if (_sectionSources.isEmpty) {
       return StatusPanel(
@@ -2446,23 +2397,47 @@ class _HomeScreenState extends State<HomeScreen> {
         if (_searchVisible && !television)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-            child: SearchInput(
-              key: ValueKey('search-${_group.id}'),
-              controller: _search,
-              autofocus: true,
-              hint: _searchHint,
-              suggestions: _searchSuggestions
-                  ? widget.repository.suggestions
-                  : null,
-              onChanged: _searchChanged,
-              onCancel: () => unawaited(widget.repository.cancelSuggestions()),
-              onSearch: _submitSearch,
-              crossSource: _crossSourceSearch,
-              onCrossSourceChanged:
-                  _crossSourceSearch || _visibleSourceIds.isNotEmpty
-                  ? _changeCrossSource
-                  : null,
-              crossSourceCount: _visibleSourceIds.length,
+            child: Row(
+              children: [
+                Expanded(
+                  child: SearchInput(
+                    key: ValueKey('search-${_group.id}'),
+                    controller: _search,
+                    autofocus: true,
+                    hint: _searchHint,
+                    suggestions: _searchSuggestions
+                        ? widget.repository.suggestions
+                        : null,
+                    onChanged: _searchChanged,
+                    onCancel: () =>
+                        unawaited(widget.repository.cancelSuggestions()),
+                    onSearch: _submitSearch,
+                    crossSource: _crossSourceSearch,
+                    onCrossSourceChanged:
+                        _crossSourceSearch || _visibleSourceIds.isNotEmpty
+                        ? _changeCrossSource
+                        : null,
+                    crossSourceCount: _visibleSourceIds.length,
+                  ),
+                ),
+                IconButton(
+                  key: const ValueKey('global-search'),
+                  tooltip: '全局搜索',
+                  icon: const Icon(Icons.travel_explore_rounded),
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      appPageRoute(
+                        builder: (_) => GlobalSearchPage(
+                          repository: widget.repository,
+                          store: widget.store,
+                          initialQuery: _search.text,
+                          onOpenDrama: _openGlobalVideoResult,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
             ),
           ),
         if (_searchVisible &&
@@ -2556,8 +2531,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     padding: const EdgeInsets.only(right: 3),
                     child: CompactFilterChip(
                       key: ValueKey('catalog-tag-${tag.id}'),
-                      avatar:
-                          const Icon(Icons.label_outline_rounded, size: 11),
+                      avatar: const Icon(Icons.label_outline_rounded, size: 11),
                       label: tag.name,
                       selected: false,
                       onSelected: () => _openTag(tag),
@@ -2813,9 +2787,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                         : Text(
                                             '已经看到这里的全部剧集',
                                             style: TextStyle(
-                                              color: Theme.of(context)
-                                                  .colorScheme
-                                                  .onSurfaceVariant,
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.onSurfaceVariant,
                                               fontSize: 12,
                                             ),
                                           ),
@@ -2829,149 +2803,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
             ),
           ),
-          if (_selectionMode && selectionInBody)
-            _selectionBar(safeBottom: false),
         ],
       ],
-    );
-  }
-
-  Widget _glassSelectionBar() {
-    final colors = Theme.of(context).colorScheme;
-    final count = _selectedDramas.length;
-    final bottom = MediaQuery.paddingOf(context).bottom;
-    return Padding(
-      padding: EdgeInsets.fromLTRB(16, 0, 16, bottom < 18 ? 12 : bottom - 6),
-      child: LiquidGlass(
-        borderRadius: const BorderRadius.all(Radius.circular(32)),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 8, 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: Semantics(
-                  liveRegion: true,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        count == 0 ? '点选要下载的短剧' : '已选 $count 部',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0,
-                        ),
-                      ),
-                      Text(
-                        count == 0
-                            ? '最多 ${BatchDownloads.maxDramas} 部'
-                            : '下一步选择分集和画质',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: colors.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              FilledButton.icon(
-                key: const ValueKey('download-selected-dramas'),
-                onPressed: count == 0 ? null : _downloadSelected,
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(0, 48),
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                ),
-                icon: const Icon(LucideIcons.arrowDownToLine, size: 18),
-                label: const Text('下一步'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _selectionBar({bool safeBottom = true}) {
-    if (safeBottom && glassDesign(context)) return _glassSelectionBar();
-    final theme = Theme.of(context);
-    final count = _selectedDramas.length;
-    return Material(
-      color: theme.colorScheme.surface,
-      child: Container(
-        width: double.infinity,
-        decoration: BoxDecoration(
-          border: Border(
-            top: BorderSide(color: theme.colorScheme.outlineVariant),
-          ),
-        ),
-        child: SafeArea(
-          top: false,
-          bottom: safeBottom,
-          minimum: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final summary = Semantics(
-                liveRegion: true,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      count == 0 ? '点选要下载的短剧' : '已选 $count 部',
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      count == 0
-                          ? '最多 ${BatchDownloads.maxDramas} 部'
-                          : '下一步选择分集和画质',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-              final next = FilledButton(
-                key: const ValueKey('download-selected-dramas'),
-                onPressed: count == 0 ? null : _downloadSelected,
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(96, 48),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
-                  ),
-                ),
-                child: const Text('下一步'),
-              );
-              if (constraints.maxWidth < 320 ||
-                  MediaQuery.textScalerOf(context).scale(14) > 21) {
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [summary, const SizedBox(height: 12), next],
-                );
-              }
-              return Row(
-                children: [
-                  Expanded(child: summary),
-                  const SizedBox(width: 16),
-                  next,
-                ],
-              );
-            },
-          ),
-        ),
-      ),
     );
   }
 

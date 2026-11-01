@@ -155,7 +155,7 @@ class _ResourceSettingsScreenState extends State<ResourceSettingsScreen> {
       setState(() => _settings = settings);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('设置已保存，将用于后续请求和下载任务')));
+      ).showSnackBar(const SnackBar(content: Text('设置已保存，将用于后续请求')));
     } catch (error) {
       if (mounted) setState(() => _error = error.toString());
     } finally {
@@ -269,17 +269,7 @@ class _ResourceSettingsScreenState extends State<ResourceSettingsScreen> {
                         : (value) => setState(() => _interval = value.round()),
                   ),
                   const SizedBox(height: 16),
-                  _count('同时下载数量', _downloads, (value) => _downloads = value),
                   const SizedBox(height: 12),
-                  SwitchListTile.adaptive(
-                    contentPadding: EdgeInsets.zero,
-                    value: _folders,
-                    title: const Text('按站源分类保存'),
-                    subtitle: const Text('新任务放入各站源的子目录，已有下载继续使用原位置。'),
-                    onChanged: _busy
-                        ? null
-                        : (value) => setState(() => _folders = value),
-                  ),
                   if (_error != null)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 12),

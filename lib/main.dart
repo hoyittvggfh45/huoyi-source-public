@@ -13,6 +13,7 @@ import 'app_update.dart';
 import 'app_layout.dart';
 import 'app_orientation.dart';
 import 'app_theme.dart';
+import 'theme_settings.dart';
 import 'external_py_import.dart';
 import 'playback_foreground.dart';
 import 'tv_theme.dart';
@@ -254,17 +255,30 @@ class DuanjuApp extends StatelessWidget {
     locale: const Locale('zh', 'CN'),
     supportedLocales: const [Locale('zh', 'CN')],
     localizationsDelegates: GlobalMaterialLocalizations.delegates,
-    theme: AppTheme.platformLight,
-    darkTheme: AppTheme.platformDark,
-    themeMode: AppTheme.mode(store?.themeMode ?? 'system'),
+    theme: applyThemePreferences(
+      AppTheme.platformLight,
+      modeStyle: store?.themeModeStyle ?? '',
+      style: store?.themeStyle ?? '',
+      accent: store?.themeAccent ?? '',
+    ),
+    darkTheme: applyThemePreferences(
+      AppTheme.platformDark,
+      modeStyle: store?.themeModeStyle ?? '',
+      style: store?.themeStyle ?? '',
+      accent: store?.themeAccent ?? '',
+    ),
+    themeMode: themeModeFor(
+      store?.themeModeStyle ?? '',
+      store?.themeMode ?? 'system',
+    ),
     builder: (context, child) {
       final mode = store?.displayMode ?? 'auto';
       final tv = mode == 'television' || mode == 'auto' && television;
       final theme = Theme.of(context);
       return AnnotatedRegion<SystemUiOverlayStyle>(
         value: AppTheme.systemBars(theme.brightness),
-        child: ColoredBox(
-          color: theme.scaffoldBackgroundColor,
+        child: ThemeBackgroundWrapper(
+          store: store,
           child: AppOrientationScope(
             television: tv,
             child: AppLayout(

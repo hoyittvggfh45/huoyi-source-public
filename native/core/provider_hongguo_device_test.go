@@ -117,6 +117,38 @@ func TestHongguoTabRejectionKeepsDevice(t *testing.T) {
 	}
 }
 
+func TestHongguoDeviceStatusTruncatesIDs(t *testing.T) {
+	d, _ := hongguoDeviceFixture(t, nil, false)
+	client := d.hongguoClient()
+	client.mu.Lock()
+	client.state.DeviceID, client.state.InstallID, client.state.Registered = "1234567890123456789", "9876543210987654321", true
+	client.deviceLimited = true
+	client.mu.Unlock()
+	status := d.hongguoDeviceStatus()
+	if status["deviceId"] != "123456…6789" || status["installId"] != "987654…4321" {
+		t.Fatal("device status leaked full ids or truncated wrong", status)
+	}
+	if status["registered"] != true || status["limited"] != true {
+		t.Fatal("device status flags wrong", status)
+	}
+}
+
+func TestHongguoDeviceReregisterReplacesCurrent(t *testing.T) {
+	d, requests := hongguoDeviceFixture(t, nil, false)
+	if err := d.reregisterHongguoDevice(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if state := d.hongguoCatalogSnapshot(); !state.Registered || state.DeviceID != "1001" {
+		t.Fatal("reregister did not register", state)
+	}
+	if err := d.ensureHongguoDevice(context.Background(), ""); err != nil {
+		t.Fatal(err)
+	}
+	if got := *requests; len(got) != 1 || got[0] != "register" {
+		t.Fatal("registered device re-registered on plain ensure", got)
+	}
+}
+
 func TestHongguoRegisterFailurePausesAndKeepsOldDevice(t *testing.T) {
 	d, requests := hongguoDeviceFixture(t, nil, true)
 	for range 2 {

@@ -1,6 +1,3 @@
-import 'dart:convert';
-
-import 'package:duanju_app/app_bottom_navigation.dart';
 import 'package:duanju_app/app_theme.dart';
 import 'package:duanju_app/home_screen.dart';
 import 'package:duanju_app/local_store.dart';
@@ -33,28 +30,13 @@ void main() {
   }
 
   test(
-    'theme survives restart and backup, with compatible old backups',
+    'theme survives restart',
     () async {
       final store = await localStore();
       expect(store.themeMode, 'system');
       await store.setThemeMode('light');
       final restored = LocalStore(store.preferences);
       expect(restored.themeMode, 'light');
-      final backup = await store.exportBackup();
-      await store.setThemeMode('system');
-      await store.importBackup(backup);
-      expect(store.themeMode, 'light');
-      final old = jsonDecode(backup) as Map<String, dynamic>;
-      old.remove('themeMode');
-      await store.setThemeMode('system');
-      await store.importBackup(jsonEncode(old));
-      expect(store.themeMode, 'system');
-      old['themeMode'] = 'invalid';
-      await expectLater(
-        store.importBackup(jsonEncode(old)),
-        throwsFormatException,
-      );
-      expect(store.themeMode, 'system');
       store.dispose();
       restored.dispose();
     },
@@ -131,7 +113,7 @@ void main() {
     expect(find.text('我的追剧'), findsOneWidget);
     expect(
       tester
-          .widget<AppBottomNavigation>(find.byType(AppBottomNavigation))
+          .widget<NavigationBar>(find.byType(NavigationBar))
           .selectedIndex,
       1,
     );
@@ -172,7 +154,7 @@ void main() {
                   context,
                 ).copyWith(textScaler: TextScaler.linear(2)),
                 child: Scaffold(
-                  bottomNavigationBar: AppBottomNavigation(
+                  bottomNavigationBar: NavigationBar(
                     selectedIndex: selected,
                     onDestinationSelected: (value) =>
                         setState(() => selected = value),
@@ -202,14 +184,18 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
+        expect(find.byType(NavigationBar), findsOneWidget);
+        final icons = [
+          Icons.explore_outlined,
+          Icons.bookmark_border,
+          Icons.history,
+          if (count == 4) Icons.download_outlined,
+        ];
         for (var i = 0; i < count; i++) {
-          final size = tester.getSize(find.byKey(ValueKey('bottom-nav-$i')));
-          expect(size.width, greaterThanOrEqualTo(48));
-          expect(size.height, greaterThanOrEqualTo(48));
+          await tester.tap(find.byIcon(icons[i]));
+          await tester.pumpAndSettle();
+          expect(selected, i);
         }
-        await tester.tap(find.byKey(const ValueKey('bottom-nav-1')));
-        await tester.pumpAndSettle();
-        expect(selected, 1);
         for (var i = 0; i < count; i++) {
           await tester.sendKeyEvent(LogicalKeyboardKey.tab);
           await tester.sendKeyEvent(LogicalKeyboardKey.enter);

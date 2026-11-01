@@ -192,7 +192,10 @@ class _PlayerPickerScreenState extends State<PlayerPickerScreen> {
                 trailing: _selected == player
                     ? const Icon(Icons.check_circle)
                     : null,
-                onTap: () => setState(() => _selected = player),
+                onTap: () async {
+                  setState(() => _selected = player);
+                  await setSelectedPlayer(widget.store, player);
+                },
               ),
             ),
           const SizedBox(height: 8),

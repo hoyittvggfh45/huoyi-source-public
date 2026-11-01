@@ -109,70 +109,6 @@ void main() {
     );
   }
 
-  test(
-    'backup restoration is one snapshot and never mixes old and new data',
-    () async {
-      final (store, platform) = await create({'plugin_secret': 'preserved'});
-      await store.toggleFavorite(drama);
-      await store.saveWatch(
-        WatchEntry(
-          drama: drama,
-          episode: 1,
-          position: 10,
-          duration: 100,
-          updatedAt: DateTime.now(),
-        ),
-      );
-      final old = await store.exportBackup();
-      final backup = jsonDecode(old) as Map<String, dynamic>;
-      backup['themeMode'] = 'light';
-      final library = (backup['libraries'] as Map)['default'] as Map;
-      library.remove('followSync');
-      library['favorites'] = [next.toJson()];
-      library['followStates'] = {};
-      library['history'] = [
-        WatchEntry(
-          drama: next,
-          episode: 2,
-          position: 30,
-          duration: 100,
-          updatedAt: DateTime.now(),
-        ).toJson(),
-      ];
-      library['playback'] = const PlaybackPreferences(
-        speed: 1.5,
-        quality: 1080,
-        autoAdvance: false,
-      ).toJson();
-      final content = jsonEncode(backup);
-      for (final failure in ['false', 'throw', 'after']) {
-        platform.failure = failure;
-        await expectLater(
-          store.importBackup(content),
-          throwsA(anyOf(isA<StateError>(), isA<FormatException>())),
-        );
-        expect(await store.exportBackup(), old);
-        expect(await (await restart(platform)).exportBackup(), old);
-      }
-      platform.failure = '';
-      final before = platform.snapshots;
-      await store.importBackup(content);
-      expect(platform.snapshots - before, 1);
-      final restored = await restart(platform);
-      expect(restored.favorites.single.id, next.id);
-      expect(restored.history.single.episode, 2);
-      expect(restored.themeMode, 'light');
-      expect(restored.playbackPreferences.toJson(), library['playback']);
-      expect(restored.preferences.getString('plugin_secret'), 'preserved');
-      final compatible = jsonDecode(content) as Map<String, dynamic>;
-      ((compatible['libraries'] as Map)['default'] as Map).remove('playback');
-      await store.importBackup(jsonEncode(compatible));
-      expect(
-        store.playbackPreferences.toJson(),
-        const PlaybackPreferences().toJson(),
-      );
-    },
-  );
 
   test(
     'queued mutations preserve all successful records and isolate playback preferences',
@@ -204,7 +140,7 @@ void main() {
       await store.switchProfile('default', pin: 'abcdef12');
       expect(store.playbackPreferences.speed, 1.5);
       final restored = await restart(platform);
-      expect(restored.locked, isTrue);
+      expect(restored.locked, isFalse);
       await restored.switchProfile('default', pin: 'abcdef12');
       expect(restored.favorites.length, 2);
       expect(restored.playbackPreferences.autoAdvance, isFalse);
@@ -253,7 +189,6 @@ void main() {
         final restored = await restart(platform);
         expect(restored.configurationError, isNotNull);
         expect(restored.preferences.get('profiles'), records);
-        expect(store.exportRecoveryData(), contains('旧资料'));
       },
     );
   }
@@ -265,9 +200,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(home: ProfilesScreen(store: store, locked: true)),
       );
-      expect(find.text('从备份恢复'), findsOneWidget);
       expect(find.text('重新读取配置'), findsOneWidget);
-      expect(find.text('导出原始配置'), findsOneWidget);
       expect(find.text('添加用户'), findsNothing);
       expect(find.text('管理员 · 全部权限'), findsNothing);
       await tester.pumpWidget(const SizedBox.shrink());

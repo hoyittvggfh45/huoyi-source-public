@@ -6,6 +6,8 @@ import 'content_detail_screen.dart';
 import 'content_models.dart';
 import 'content_zone_binding.dart';
 import 'core_bridge.dart';
+import 'novel_reader_page.dart';
+import 'novel_source_store.dart';
 import 'source_picker_sheet.dart';
 
 /// 听书 / 漫画 / 小说共用的分区页：源切换 + 分类 + 搜索 + 卡片列表，
@@ -22,7 +24,7 @@ class ContentZoneScreen extends StatefulWidget {
 
 class _ContentZoneScreenState extends State<ContentZoneScreen> {
   late final ContentZoneBinding _binding;
-  late List<ContentSource> _sources;
+  List<ContentSource> _sources = const [];
   ContentSource? _source;
   List<ContentCategory> _categories = const [];
   String _categoryId = '';
@@ -41,13 +43,30 @@ class _ContentZoneScreenState extends State<ContentZoneScreen> {
   void initState() {
     super.initState();
     _binding = widget.binding ?? ContentZoneBinding();
+    if (widget.section == ContentSection.novel) {
+      _loadNovelSources();
+    } else {
+      _bindSection();
+    }
+  }
+
+  Future<void> _loadNovelSources() async {
+    await NovelSourceStore.applyToRegistry();
+    if (!mounted) return;
     _bindSection();
+    setState(() {});
   }
 
   @override
   void didUpdateWidget(ContentZoneScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.section != widget.section) _bindSection();
+    if (oldWidget.section != widget.section) {
+      if (widget.section == ContentSection.novel) {
+        _loadNovelSources();
+      } else {
+        _bindSection();
+      }
+    }
   }
 
   void _bindSection() {
@@ -213,6 +232,14 @@ class _ContentZoneScreenState extends State<ContentZoneScreen> {
       _loadPage(reset: true);
       return;
     }
+    if (widget.section == ContentSection.novel) {
+      Navigator.of(context).push(
+        appPageRoute(
+          builder: (_) => NovelReaderPage(source: source, book: book),
+        ),
+      );
+      return;
+    }
     Navigator.of(context).push(
       appPageRoute(
         builder: (_) => ContentDetailScreen(
@@ -220,6 +247,70 @@ class _ContentZoneScreenState extends State<ContentZoneScreen> {
           book: book,
           autoPlay: source.section == ContentSection.audio,
         ),
+      ),
+    );
+  }
+
+  Future<void> _importNovel() async {
+    try {
+      final record = await NovelSourceStore.importPicked();
+      if (record == null || !mounted) return;
+      await NovelSourceStore.applyToRegistry();
+      if (!mounted) return;
+      _bindSection();
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('已导入 ${record.name}')),
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('导入失败，请选择可用的 py 文件')),
+        );
+      }
+    }
+  }
+
+  Future<void> _manageNovel() async {
+    final records = await NovelSourceStore.load();
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('管理小说源'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: records.isEmpty
+              ? const Text('暂无导入的小说源')
+              : ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: records.length,
+                  itemBuilder: (context, index) {
+                    final record = records[index];
+                    return ListTile(
+                      title: Text(record.name),
+                      trailing: IconButton(
+                        tooltip: '删除',
+                        icon: const Icon(Icons.delete_outline),
+                        onPressed: () async {
+                          await NovelSourceStore.remove(record);
+                          if (context.mounted) Navigator.of(context).pop();
+                          await NovelSourceStore.applyToRegistry();
+                          if (!mounted) return;
+                          _bindSection();
+                          setState(() {});
+                        },
+                      ),
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('关闭'),
+          ),
+        ],
       ),
     );
   }
@@ -245,6 +336,23 @@ class _ContentZoneScreenState extends State<ContentZoneScreen> {
   @override
   Widget build(BuildContext context) {
     if (_sources.isEmpty) {
+      if (widget.section == ContentSection.novel) {
+        return Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('小说暂无可用源'),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                key: const ValueKey('novel-import-py'),
+                onPressed: _importNovel,
+                icon: const Icon(Icons.file_upload_outlined),
+                label: const Text('导入小说 py'),
+              ),
+            ],
+          ),
+        );
+      }
       return Center(child: Text('${widget.section.title}暂无可用源'));
     }
     final colors = Theme.of(context).colorScheme;
@@ -296,6 +404,20 @@ class _ContentZoneScreenState extends State<ContentZoneScreen> {
                       fontSize: 12,
                     ),
                   ),
+                ),
+              ],
+              if (widget.section == ContentSection.novel) ...[
+                IconButton(
+                  key: const ValueKey('novel-import-py'),
+                  tooltip: '导入小说 py',
+                  onPressed: _importNovel,
+                  icon: const Icon(Icons.file_upload_outlined),
+                ),
+                IconButton(
+                  key: const ValueKey('novel-manage'),
+                  tooltip: '管理小说源',
+                  onPressed: _manageNovel,
+                  icon: const Icon(Icons.settings_outlined),
                 ),
               ],
             ],

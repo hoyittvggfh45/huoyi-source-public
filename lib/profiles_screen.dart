@@ -1,10 +1,5 @@
-import 'dart:convert';
-
 import 'app_page_route.dart';
 
-import 'dart:typed_data';
-
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import 'local_profiles.dart';
@@ -31,62 +26,13 @@ class _ProfilesScreenState extends State<ProfilesScreen> {
     ensureTelevisionFocus(context);
   }
 
-  Future<void> _recover({bool export = false, bool reload = false}) async {
+  Future<void> _reloadConfig() async {
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
-      if (reload) {
-        await widget.store.reload();
-      } else if (export) {
-        await FilePicker.saveFile(
-          fileName: '$appSlug-recovery.json',
-          bytes: Uint8List.fromList(
-            utf8.encode(widget.store.exportRecoveryData()),
-          ),
-          mimeType: 'application/json',
-        );
-      } else {
-        final file = await FilePicker.pickFile(
-          type: FileType.custom,
-          allowedExtensions: ['json'],
-        );
-        if (file == null || !mounted) return;
-        final size = await file.length();
-        if (size == null || size > 8 * 1024 * 1024) {
-          throw const FormatException('备份文件过大或无法读取');
-        }
-        final content = utf8.decode(await file.readAsBytes());
-        widget.store.validateBackup(content);
-        if (!mounted) return;
-        final accepted = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('从备份恢复用户与记录？'),
-            content: const Text(
-              '将使用这份备份替换损坏的用户配置、追剧、观看记录和偏好。建议先导出原始配置；已下载视频保留。',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('取消'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('继续恢复'),
-              ),
-            ],
-          ),
-        );
-        if (accepted != true || !mounted) return;
-        final pin = await showDialog<String>(
-          context: context,
-          builder: (_) => const _PasswordDialog(name: '管理员（原配置或备份中的密码）'),
-        );
-        if (pin == null || !mounted) return;
-        await widget.store.recoverBackup(content, pin: pin);
-      }
+      await widget.store.reload();
     } catch (error) {
       if (mounted) setState(() => _error = error.toString());
     } finally {
@@ -128,20 +74,6 @@ class _ProfilesScreenState extends State<ProfilesScreen> {
     if (mounted) setState(() {});
   }
 
-  Future<void> _setForceLogin(bool value) async {
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      await widget.store.setForceLogin(value);
-    } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
   String _permissionsLabel(LocalProfile profile) {
     if (profile.admin) return '管理员 · 全部权限';
     final sources = profile.sources
@@ -167,42 +99,17 @@ class _ProfilesScreenState extends State<ProfilesScreen> {
                 const SizedBox(height: 12),
                 Text(widget.store.configurationError!),
                 const SizedBox(height: 12),
-                FilledButton.icon(
-                  onPressed: _busy ? null : () => _recover(),
-                  icon: const Icon(Icons.restore_rounded),
-                  label: const Text('从备份恢复'),
-                ),
-                OutlinedButton(
-                  onPressed: _busy ? null : () => _recover(export: true),
-                  child: const Text('导出原始配置'),
-                ),
                 TextButton(
-                  onPressed: _busy ? null : () => _recover(reload: true),
+                  onPressed: _busy ? null : _reloadConfig,
                   child: const Text('重新读取配置'),
                 ),
               ] else ...[
                 Text(
-                  widget.locked
-                      ? '选择用户并输入密码'
-                      : '当前用户：${widget.store.profile.name}',
+                  '当前用户：${widget.store.profile.name}',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 8),
                 const Text('各用户的追剧和观看记录独立保存，下载文件由本机共享。'),
-                if (!widget.store.locked && widget.store.profile.admin) ...[
-                  const SizedBox(height: 12),
-                  SwitchListTile.adaptive(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('启动时需要登录'),
-                    subtitle: Text(
-                      widget.store.forceLogin
-                          ? '每次打开应用先解锁当前受保护用户'
-                          : '保留密码，仅切换用户或手动锁定时验证',
-                    ),
-                    value: widget.store.forceLogin,
-                    onChanged: _busy ? null : _setForceLogin,
-                  ),
-                ],
               ],
               if (_busy)
                 const Padding(
@@ -255,15 +162,7 @@ class _ProfilesScreenState extends State<ProfilesScreen> {
                   label: const Text('添加用户'),
                 ),
               ],
-              if (!widget.store.locked && widget.store.profile.protected)
-                TextButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).popUntil((route) => route.isFirst);
-                    widget.store.lock();
-                  },
-                  icon: const Icon(Icons.lock_outline),
-                  label: const Text('锁定当前用户'),
-                ),
+
             ],
           ),
         ),
@@ -446,13 +345,6 @@ class _ProfileEditorState extends State<ProfileEditor> {
                     });
                   },
                 ),
-              SwitchListTile.adaptive(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('允许下载'),
-                subtitle: Text(_download ? '可下载' : '仅在线观看，隐藏下载入口'),
-                value: _download,
-                onChanged: (v) => setState(() => _download = v),
-              ),
             ] else
               const Text('管理员可以访问全部站源和功能。创建其他用户前需要先设置管理员密码。'),
             if (_error != null)

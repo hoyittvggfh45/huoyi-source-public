@@ -1,4 +1,5 @@
 import 'package:duanju_app/content_models.dart';
+import 'package:duanju_app/content_py.dart';
 import 'package:duanju_app/content_registry.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -12,6 +13,27 @@ void main() {
       expect(
         ContentRegistry.sourcesFor(ContentSection.audio).map((s) => s.name),
         ['听书网', '喜马拉雅', '红果听书'],
+      );
+    });
+
+    test('小说：默认无源，导入后只进小说区', () {
+      addTearDown(() => ContentRegistry.setNovelImports([]));
+      expect(ContentRegistry.sourcesFor(ContentSection.novel), isEmpty);
+      ContentRegistry.setNovelImports([
+        PyContentSource(
+          id: 'novel_demo',
+          name: '演示小说',
+          importedFileName: 'demo.py',
+          section: ContentSection.novel,
+        ),
+      ]);
+      expect(
+        ContentRegistry.sourcesFor(ContentSection.novel).map((s) => s.id),
+        ['novel_demo'],
+      );
+      expect(
+        ContentRegistry.sourcesFor(ContentSection.audio).map((s) => s.id),
+        ['tingshuwang', 'ximalaya', 'hongguo_audio'],
       );
     });
 

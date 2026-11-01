@@ -7,6 +7,8 @@ import json
 import os
 import ssl
 import sys
+import threading
+import time
 import traceback
 import types
 
@@ -476,6 +478,9 @@ def _ensure_crypto_shim():
     sys.modules["Cryptodome.Hash"] = hash_mod
     return True
 
+_cache_file_lock = threading.Lock()
+
+
 def _ensure_base_spider_stub():
     if "base.spider" in sys.modules:
         return
@@ -488,6 +493,118 @@ def _ensure_base_spider_stub():
     spider_module = types.ModuleType("base.spider")
 
     class BaseSpider:
+        def _cache_state(self):
+            state = getattr(self, "_huoyi_cache_state", None)
+            if state is None:
+                with _cache_file_lock:
+                    state = getattr(self, "_huoyi_cache_state", None)
+                    if state is None:
+                        state = {
+                            "entries": {},
+                            "lock": threading.Lock(),
+                            "loaded_path": None,
+                        }
+                        self._huoyi_cache_state = state
+            path = getattr(self, "_huoyi_cache_path", None)
+            if path and state["loaded_path"] != path:
+                with state["lock"]:
+                    if state["loaded_path"] != path:
+                        try:
+                            with open(path, "r", encoding="utf-8") as handle:
+                                raw = json.load(handle)
+                        except Exception:
+                            raw = None
+                        if isinstance(raw, dict):
+                            now = time.time()
+                            for key, item in raw.items():
+                                if not isinstance(item, dict) or "v" not in item:
+                                    continue
+                                exp = item.get("exp")
+                                if exp is not None:
+                                    try:
+                                        if float(exp) <= now:
+                                            continue
+                                    except Exception:
+                                        continue
+                                if str(key) not in state["entries"]:
+                                    state["entries"][str(key)] = item
+                        state["loaded_path"] = path
+            return state
+
+        def _cache_save(self, state):
+            path = getattr(self, "_huoyi_cache_path", None)
+            if not path:
+                return
+            with state["lock"]:
+                snapshot = dict(state["entries"])
+            serializable = {}
+            for key, item in snapshot.items():
+                try:
+                    json.dumps(item, ensure_ascii=False)
+                except Exception:
+                    continue
+                serializable[key] = item
+            try:
+                data = json.dumps(serializable, ensure_ascii=False)
+            except Exception:
+                return
+            try:
+                parent = os.path.dirname(path)
+                if parent:
+                    os.makedirs(parent, exist_ok=True)
+                tmp = path + ".tmp"
+                with open(tmp, "w", encoding="utf-8") as handle:
+                    handle.write(data)
+                os.replace(tmp, path)
+            except Exception:
+                return
+
+        def getCache(self, key, default=None):
+            state = self._cache_state()
+            item = state["entries"].get(str(key))
+            if item is None:
+                return default
+            exp = item.get("exp")
+            if exp is not None:
+                try:
+                    expired = float(exp) <= time.time()
+                except Exception:
+                    expired = False
+                if expired:
+                    with state["lock"]:
+                        state["entries"].pop(str(key), None)
+                    return default
+            return item.get("v")
+
+        def setCache(self, key, value, ttl=None, **kw):
+            if ttl is None:
+                for name in ("expire", "expires", "expires_in"):
+                    if name in kw and kw[name] is not None:
+                        ttl = kw[name]
+                        break
+            exp = None
+            if ttl is not None:
+                try:
+                    exp = time.time() + float(ttl)
+                except Exception:
+                    exp = None
+            state = self._cache_state()
+            with state["lock"]:
+                state["entries"][str(key)] = {"v": value, "exp": exp}
+            self._cache_save(state)
+            return True
+
+        def putCache(self, key, value, ttl=None, **kw):
+            return self.setCache(key, value, ttl=ttl, **kw)
+
+        def delCache(self, key):
+            state = self._cache_state()
+            with state["lock"]:
+                existed = state["entries"].pop(str(key), None) is not None
+            if existed:
+                self._cache_save(state)
+            return existed
+
         def fetch(self, url, headers=None, cookies=None, timeout=None, **kw):
             timeout = kw.get("timeout", timeout)
             return _do_http("GET", url, headers, cookies, timeout=timeout)
@@ -761,6 +878,9 @@ def _load_spider(path):
     if spider_class is None:
         raise ImportError("蜘蛛文件缺少 class Spider：%s" % path)
     spider = spider_class()
+    spider._huoyi_cache_path = os.path.join(
+        os.path.dirname(path), "py_spider_cache", digest + ".json"
+    )
     _fill_defaults(spider)
     spider._huoyi_stubbed_imports = stubbed
     _instances[path] = (mtime, spider)

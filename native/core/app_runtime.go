@@ -576,6 +576,26 @@ func nativeDispatch(input nativeInput) (any, error) {
 		return map[string]any{"items": items}, err
 	case "sourceStatus":
 		return engine.sourceStatus(input.Source), nil
+	case "hongguoDeviceStatus":
+		return engine.downloader.hongguoDeviceStatus(), nil
+	case "hongguoDeviceRegister":
+		if err := engine.downloader.ensureHongguoDevice(ctx, ""); err != nil {
+			return nil, err
+		}
+		return engine.downloader.hongguoDeviceStatus(), nil
+	case "hongguoDeviceReregister":
+		if err := engine.downloader.reregisterHongguoDevice(ctx); err != nil {
+			return nil, err
+		}
+		return engine.downloader.hongguoDeviceStatus(), nil
+	case "hongguoDeviceRefresh":
+		changed, err := engine.downloader.refreshHongguoDevice(ctx)
+		if err != nil {
+			return nil, err
+		}
+		status := engine.downloader.hongguoDeviceStatus()
+		status["changed"] = changed
+		return status, nil
 	case "sourceJob":
 		return engine.startSourceTask(input.Source, input.Command, input.Drama)
 	case "cancelSourceJob":

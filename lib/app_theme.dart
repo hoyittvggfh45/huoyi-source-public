@@ -128,6 +128,7 @@ abstract final class AppTheme {
         systemOverlayStyle: systemBars(brightness),
       ),
       dividerTheme: DividerThemeData(color: scheme.outlineVariant),
+      drawerTheme: DrawerThemeData(backgroundColor: scheme.surface),
       navigationRailTheme: NavigationRailThemeData(
         backgroundColor: background,
         useIndicator: false,
@@ -236,6 +237,7 @@ abstract final class AppTheme {
         closeButtonIconBuilder: (_) => const GlassBackIcon(icon: LucideIcons.x),
       ),
       iconTheme: IconThemeData(color: label),
+      drawerTheme: DrawerThemeData(backgroundColor: scheme.surface),
       dividerTheme: DividerThemeData(
         color: scheme.outlineVariant,
         thickness: .5,

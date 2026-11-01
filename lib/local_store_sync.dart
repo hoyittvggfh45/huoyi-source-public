@@ -1,44 +1,6 @@
 part of 'local_store.dart';
 
 extension LocalStoreSync on LocalStore {
-  Map<String, dynamic> _backupFollowSync(String profile) {
-    final raw = _string(_key('lanRecords', profile));
-    if (raw == null) return {};
-    final document = LanDocument.fromJson(jsonDecode(raw));
-    return {
-      'followSync': document.records.values
-          .map((record) => record.toJson())
-          .toList(),
-    };
-  }
-
-  Map<String, LanRecord>? _readBackupFollowSync(Map library) {
-    final raw = library['followSync'];
-    if (raw == null) return null;
-    if (raw is! List || raw.length > LanDocument.limit) {
-      throw const FormatException('备份同步记录数量无效');
-    }
-    final records = <String, LanRecord>{};
-    for (final row in raw) {
-      final record = LanRecord.fromJson(row);
-      if (records.containsKey(record.id))
-        throw const FormatException('备份同步记录重复');
-      records[record.id] = record;
-    }
-    final favorites = (library['favorites'] as List)
-        .map((row) => (row as Map)['id'])
-        .toSet();
-    final followed = records.values
-        .where((record) => record.followed)
-        .map((record) => record.id)
-        .toSet();
-    if (favorites.length != followed.length ||
-        !followed.containsAll(favorites)) {
-      throw const FormatException('备份同步记录与追剧列表不一致');
-    }
-    return records;
-  }
-
   LanDocument get lanDocument {
     if (locked) throw StateError('请先解锁当前用户');
     final cached = _lanDocumentCache;

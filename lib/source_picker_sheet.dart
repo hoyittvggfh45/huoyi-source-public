@@ -116,6 +116,7 @@ class _SitePickerDialogState extends State<SitePickerDialog> {
     }
     return Dialog(
       key: const ValueKey('site-picker-dialog'),
+      backgroundColor: colors.surface,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 48),
       child: ConstrainedBox(
         constraints: BoxConstraints(
@@ -192,59 +193,80 @@ class _SitePickerDialogState extends State<SitePickerDialog> {
                                   ),
                                 ),
                               ),
-                            for (final entry in group.entries)
-                              InkWell(
-                                key: ValueKey('site-picker-row-${entry.id}'),
-                                onTap: _editMode
-                                    ? null
-                                    : () => Navigator.pop(context, entry.id),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 12,
-                                    horizontal: 4,
+                            GridView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              gridDelegate:
+                                  const SliverGridDelegateWithMaxCrossAxisExtent(
+                                    maxCrossAxisExtent: 170,
+                                    mainAxisSpacing: 8,
+                                    crossAxisSpacing: 8,
+                                    childAspectRatio: 2.4,
                                   ),
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          entry.name,
-                                          style: theme.textTheme.bodyLarge
-                                              ?.copyWith(
-                                                color:
-                                                    entry.id == widget.currentId
-                                                    ? colors.primary
-                                                    : null,
-                                                fontWeight:
-                                                    entry.id == widget.currentId
-                                                    ? FontWeight.w600
-                                                    : null,
-                                              ),
-                                        ),
-                                      ),
-                                      if (!_editMode &&
-                                          entry.id == widget.currentId)
-                                        Icon(
-                                          Icons.check,
-                                          size: 20,
-                                          color: colors.primary,
-                                        )
-                                      else if (_editMode &&
-                                          entry.deletable &&
-                                          widget.onDeleteSite != null)
-                                        IconButton(
-                                          key: ValueKey(
-                                            'site-picker-delete-${entry.id}',
+                              itemCount: group.entries.length,
+                              itemBuilder: (context, index) {
+                                final entry = group.entries[index];
+                                final selected = entry.id == widget.currentId;
+                                return InkWell(
+                                  key: ValueKey('site-picker-row-${entry.id}'),
+                                  borderRadius: BorderRadius.circular(10),
+                                  onTap: _editMode
+                                      ? null
+                                      : () => Navigator.pop(context, entry.id),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: selected
+                                          ? colors.primaryContainer
+                                          : colors.surfaceContainerHighest,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            entry.name,
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: theme.textTheme.bodyMedium
+                                                ?.copyWith(
+                                                  color: selected
+                                                      ? colors.primary
+                                                      : null,
+                                                  fontWeight: selected
+                                                      ? FontWeight.w600
+                                                      : null,
+                                                ),
                                           ),
-                                          icon: const Icon(
-                                            Icons.delete_outline,
-                                          ),
-                                          color: colors.error,
-                                          onPressed: () => _delete(entry),
                                         ),
-                                    ],
+                                        if (!_editMode && selected)
+                                          Icon(
+                                            Icons.check,
+                                            size: 18,
+                                            color: colors.primary,
+                                          )
+                                        else if (_editMode &&
+                                            entry.deletable &&
+                                            widget.onDeleteSite != null)
+                                          IconButton(
+                                            key: ValueKey(
+                                              'site-picker-delete-${entry.id}',
+                                            ),
+                                            icon: const Icon(
+                                              Icons.delete_outline,
+                                              size: 20,
+                                            ),
+                                            color: colors.error,
+                                            onPressed: () => _delete(entry),
+                                          ),
+                                      ],
+                                    ),
                                   ),
-                                ),
-                              ),
+                                );
+                              },
+                            ),
                           ],
                         ],
                       ),

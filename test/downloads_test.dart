@@ -229,7 +229,7 @@ void main() {
     );
   }
 
-  testWidgets('mobile player shows unified info column with download entry', (
+  testWidgets('mobile player shows unified info column without a download entry', (
     tester,
   ) async {
     size(tester, const Size(390, 844));
@@ -254,29 +254,13 @@ void main() {
     expect(find.byKey(const ValueKey('player-download')), findsNothing);
     expect(find.byKey(const ValueKey('player-favorite')), findsNothing);
     expect(find.byKey(const ValueKey('player-volume')), findsNothing);
-    // 合一页单列：选集/简介同页可见，追剧在头部，下载为入口按钮
+    // 合一页单列：选集/简介同页可见，追剧在头部，无下载入口
     expect(find.text('选集'), findsOneWidget);
     expect(find.text('简介'), findsOneWidget);
-    expect(find.text('下载本剧'), findsOneWidget);
+    expect(find.text('下载本剧'), findsNothing);
     expect(find.text('追剧'), findsNothing);
     expect(find.byKey(const ValueKey('player-follow-status')), findsOneWidget);
     expect(find.text('加入追剧'), findsOneWidget);
-    await tester.tap(find.text('下载本剧'));
-    await tester.pumpAndSettle();
-    expect(find.text('下载选集'), findsOneWidget);
-    expect(find.byKey(const ValueKey('download-episode-1')), findsOneWidget);
-    expect(find.text('清空'), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('download-quality')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('720P').last);
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('enqueue-downloads')));
-    await tester.pumpAndSettle();
-    expect(repository.selected, [1, 2]);
-    expect(repository.quality, 720);
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tick(tester);
-    expect(player.disposed, isTrue);
     expect(tester.takeException(), isNull);
   });
 

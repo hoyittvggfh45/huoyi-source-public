@@ -3,7 +3,6 @@ import 'dart:async';
 import 'app_page_route.dart';
 
 import 'dart:math' as math;
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -15,8 +14,6 @@ import 'atmosphere_background.dart';
 import 'ios_dialogs.dart';
 import 'liquid_glass.dart';
 import 'core_bridge.dart';
-import 'download_picker.dart';
-import 'downloads_screen.dart';
 import 'local_store.dart';
 import 'models.dart';
 import 'package:media_kit/media_kit.dart';
@@ -45,7 +42,6 @@ class DetailScreen extends StatefulWidget {
     required this.repository,
     required this.store,
     this.resumeOnOpen = false,
-    this.downloadOnOpen = false,
     this.onTagTap,
     this.queue,
     this.playerFactory,
@@ -55,7 +51,6 @@ class DetailScreen extends StatefulWidget {
   final AppRepository repository;
   final LocalStore store;
   final bool resumeOnOpen;
-  final bool downloadOnOpen;
 
   /// 标签点击回调：以 sourceId + tagId 打开该标签的目录列表。
   /// TODO(shell): 目录侧标签列表入口由壳子代理提供并在构造 DetailScreen 时
@@ -173,8 +168,6 @@ class _DetailScreenState extends State<DetailScreen> {
               resume: true,
             ),
           );
-        } else if (widget.downloadOnOpen && widget.store.canDownload) {
-          unawaited(_download());
         }
       }
     } catch (error) {
@@ -208,61 +201,6 @@ class _DetailScreenState extends State<DetailScreen> {
       widget.repository.catalogUpdates.publish(updated);
       await saveUserChange(context, () => widget.store.refreshDrama(updated));
     } catch (_) {}
-  }
-
-  Future<void> _download() async {
-    final detail = _detail;
-    if (detail == null ||
-        !widget.store.canDownload ||
-        _profileEpoch != widget.store.profileEpoch) {
-      return;
-    }
-    final selection = await Navigator.of(context).push<DownloadSelection>(
-      appPageRoute(
-        builder: (_) => DownloadPicker(
-          detail: detail,
-          preferences: widget.store.downloadPreferences,
-        ),
-      ),
-    );
-    if (selection == null ||
-        !mounted ||
-        !widget.store.canDownload ||
-        _profileEpoch != widget.store.profileEpoch) {
-      return;
-    }
-    try {
-      final added = await widget.repository.enqueueDownloads(
-        detail,
-        selection.episodes,
-        quality: selection.quality,
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(added == 0 ? '所选集数已在下载列表中' : '已加入 $added 集，已有任务自动跳过'),
-          action: SnackBarAction(
-            label: '查看',
-            onPressed: () {
-              Navigator.of(context).push(
-                appPageRoute<void>(
-                  builder: (_) => DownloadsScreen(
-                    repository: widget.repository,
-                    store: widget.store,
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      );
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.toString())));
-      }
-    }
   }
 
   Future<void> _play(
@@ -851,23 +789,6 @@ class _DetailScreenState extends State<DetailScreen> {
                           padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
                           child: Row(
                             children: [
-                              if (widget.repository.supportsDownloads &&
-                                  widget.store.canDownload) ...[
-                                IconButton.filledTonal(
-                                  tooltip: '下载选集',
-                                  onPressed:
-                                      allowed &&
-                                          !_loading &&
-                                          episodes.isNotEmpty
-                                      ? _download
-                                      : null,
-                                  style: IconButton.styleFrom(
-                                    minimumSize: const Size(52, 52),
-                                  ),
-                                  icon: const Icon(Icons.download_rounded),
-                                ),
-                                const SizedBox(width: 12),
-                              ],
                               Expanded(
                                 child: FilledButton.icon(
                                   key: const ValueKey('start-play'),
@@ -928,16 +849,6 @@ class _DetailScreenState extends State<DetailScreen> {
               padding: const EdgeInsets.all(7),
               child: Row(
                 children: [
-                  if (widget.repository.supportsDownloads &&
-                      widget.store.canDownload) ...[
-                    GlassIconButton(
-                      icon: LucideIcons.arrowDownToLine,
-                      tooltip: '下载选集',
-                      size: 52,
-                      onPressed: ready ? _download : null,
-                    ),
-                    const SizedBox(width: 8),
-                  ],
                   Expanded(
                     child: PressableScale(
                       enabled: ready,
@@ -1052,26 +963,23 @@ class _DetailScreenState extends State<DetailScreen> {
                   cover: urls.first,
                 ),
               ),
-              ImageFiltered(
-                imageFilter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                child: DramaCover(
-                  key: ValueKey('backdrop-${urls.first}'),
-                  drama: Drama(
-                    id: '${drama.id}#backdrop',
-                    source: drama.source,
-                    title: drama.title,
-                    cover: urls.first,
-                  ),
-                  repository: widget.repository,
-                  radius: 0,
+              DramaCover(
+                key: ValueKey('backdrop-${urls.first}'),
+                drama: Drama(
+                  id: '${drama.id}#backdrop',
+                  source: drama.source,
+                  title: drama.title,
+                  cover: urls.first,
                 ),
+                repository: widget.repository,
+                radius: 0,
               ),
               const DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [Colors.black45, Colors.black87],
+                    colors: [Colors.black12, Colors.black45],
                   ),
                 ),
               ),

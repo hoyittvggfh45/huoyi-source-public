@@ -11,6 +11,36 @@ void main() {
     expect(PlayerCore.parse('bogus'), PlayerCore.mpv);
   });
 
+  test('guo always renders with mpv regardless of stored core', () {
+    expect(
+      effectivePlayerCore(player: 'guo', stored: PlayerCore.exo),
+      PlayerCore.mpv,
+    );
+    expect(
+      effectivePlayerCore(player: 'guo', stored: PlayerCore.mdk),
+      PlayerCore.mpv,
+    );
+    expect(
+      effectivePlayerCore(player: 'guo', stored: PlayerCore.mpv),
+      PlayerCore.mpv,
+    );
+  });
+
+  test('other players keep their stored core', () {
+    expect(
+      effectivePlayerCore(player: 'fongmi', stored: PlayerCore.exo),
+      PlayerCore.exo,
+    );
+    expect(
+      effectivePlayerCore(player: 'tvbox', stored: PlayerCore.mdk),
+      PlayerCore.mdk,
+    );
+    expect(
+      effectivePlayerCore(player: 'xigua', stored: PlayerCore.exo),
+      PlayerCore.exo,
+    );
+  });
+
   test('dialog titles carry engine names', () {
     expect(PlayerCore.mpv.dialogTitle, 'MPV (media_kit)');
     expect(PlayerCore.mdk.dialogTitle, 'MDK (fvp)');
