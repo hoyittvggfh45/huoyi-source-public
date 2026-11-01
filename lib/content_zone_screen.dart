@@ -215,7 +215,11 @@ class _ContentZoneScreenState extends State<ContentZoneScreen> {
     }
     Navigator.of(context).push(
       appPageRoute(
-        builder: (_) => ContentDetailScreen(source: source, book: book),
+        builder: (_) => ContentDetailScreen(
+          source: source,
+          book: book,
+          autoPlay: source.section == ContentSection.audio,
+        ),
       ),
     );
   }

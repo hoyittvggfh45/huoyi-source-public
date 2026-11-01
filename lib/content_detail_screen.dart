@@ -11,10 +11,12 @@ class ContentDetailScreen extends StatefulWidget {
     super.key,
     required this.source,
     required this.book,
+    this.autoPlay = false,
   });
 
   final ContentSource source;
   final ContentBook book;
+  final bool autoPlay;
 
   @override
   State<ContentDetailScreen> createState() => _ContentDetailScreenState();
@@ -41,6 +43,7 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
   bool _playing = false;
+  bool _autoPlayed = false;
   bool _trackLoading = false;
   String _trackError = '';
   double _rate = 1.0;
@@ -95,6 +98,13 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
           _detail = detail;
           _loading = false;
         });
+        if (widget.autoPlay &&
+            widget.source.section == ContentSection.audio &&
+            !_autoPlayed &&
+            detail.chapters.isNotEmpty) {
+          _autoPlayed = true;
+          unawaited(_playChapter(0));
+        }
       }
     } on AppFailure catch (e) {
       if (mounted) {
@@ -202,45 +212,72 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
     final detail = _detail;
     if (detail == null || _playingIndex < 0) return const SizedBox.shrink();
     final chapter = detail.chapters[_playingIndex];
+    final book = detail.book;
     final colors = Theme.of(context).colorScheme;
     final maxMs = _duration.inMilliseconds > 0
         ? _duration.inMilliseconds.toDouble()
         : 1.0;
     final posMs = _position.inMilliseconds.toDouble().clamp(0.0, maxMs);
-    return SafeArea(
-      top: false,
-      child: Material(
-        elevation: 8,
-        color: colors.surface,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      chapter.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
+    return Material(
+      elevation: 6,
+      color: Theme.of(context).scaffoldBackgroundColor,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: book.cover.isNotEmpty
+                      ? Image.network(
+                          book.cover,
+                          width: 40,
+                          height: 40,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => Container(
+                            width: 40,
+                            height: 40,
+                            color: colors.surfaceContainerHighest,
+                          ),
+                        )
+                      : Container(
+                          width: 40,
+                          height: 40,
+                          color: colors.surfaceContainerHighest,
+                        ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        chapter.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '第 ${_playingIndex + 1} 集 / 共 ${detail.chapters.length} 集',
+                        style: TextStyle(
+                          color: colors.onSurfaceVariant,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ),
-                  Text(
-                    '第 ${_playingIndex + 1} 集 / 共 ${detail.chapters.length} 集',
-                    style: TextStyle(
-                      color: colors.onSurfaceVariant,
-                      fontSize: 12,
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: '停止',
-                    icon: const Icon(Icons.close_rounded),
-                    onPressed: _stop,
-                  ),
-                ],
-              ),
+                ),
+                IconButton(
+                  tooltip: '停止',
+                  icon: const Icon(Icons.close_rounded),
+                  onPressed: _stop,
+                ),
+              ],
+            ),
               if (_trackError.isNotEmpty)
                 Row(
                   children: [
@@ -330,7 +367,6 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
             ],
           ),
         ),
-      ),
     );
   }
 
@@ -338,9 +374,12 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final book = _detail?.book ?? widget.book;
+    final detailNote = _detail?.note ?? '';
+    final showNote = detailNote.isNotEmpty &&
+        detailNote.trim().replaceAll(RegExp(r'\s+'), ' ') !=
+            book.intro.trim().replaceAll(RegExp(r'\s+'), ' ');
     return Scaffold(
       appBar: AppBar(title: Text(book.title, maxLines: 1)),
-      bottomNavigationBar: _playingIndex >= 0 ? _playerBar() : null,
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error.isNotEmpty
@@ -430,14 +469,18 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
                     ),
                   ],
                 ),
+                if (_playingIndex >= 0) ...[
+                  const SizedBox(height: 14),
+                  _playerBar(),
+                ],
                 if (book.intro.isNotEmpty) ...[
                   const SizedBox(height: 14),
                   Text(book.intro, style: const TextStyle(height: 1.5)),
                 ],
-                if (_detail != null && _detail!.note.isNotEmpty) ...[
+                if (showNote) ...[
                   const SizedBox(height: 10),
                   Text(
-                    _detail!.note,
+                    detailNote,
                     style: TextStyle(
                       color: colors.onSurfaceVariant,
                       fontSize: 12,

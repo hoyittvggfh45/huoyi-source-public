@@ -148,6 +148,19 @@ class _ImportCenterSectionState extends State<ImportCenterSection> {
     if (mounted) await _showReport(report);
   });
 
+  Future<void> _pickSingleJar() => _runBusy('导入中…', () async {
+    final file = await FilePicker.pickFile(
+      type: FileType.custom,
+      allowedExtensions: ['jar'],
+    );
+    if (file == null || !mounted) return;
+    final bytes = await file.readAsBytes();
+    final report = await _engine.importAll([
+      ImportCandidate(name: file.name, bytes: bytes),
+    ]);
+    if (mounted) await _showReport(report);
+  });
+
   Future<void> _previewAndImport(
     List<_PendingFile> pending, {
     required String title,
@@ -346,6 +359,12 @@ class _ImportCenterSectionState extends State<ImportCenterSection> {
               onPressed: _busy ? null : () => unawaited(_pickSinglePy()),
               icon: const Icon(Icons.code_rounded, size: 20),
               label: const Text('导入单个 py'),
+            ),
+            OutlinedButton.icon(
+              key: const ValueKey('import-pick-jar'),
+              onPressed: _busy ? null : () => unawaited(_pickSingleJar()),
+              icon: const Icon(Icons.archive_rounded, size: 20),
+              label: const Text('导入单个 jar'),
             ),
           ],
         ),

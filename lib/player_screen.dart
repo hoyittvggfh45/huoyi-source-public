@@ -3973,6 +3973,17 @@ class _PlayerScreenState extends State<PlayerScreen>
       tooltip: '追剧与观看状态',
       onSelected: (value) async {
         if (_profileEpoch != widget.store.profileEpoch) return;
+        if (value == 'room') {
+          await pushDramaToWatchRoom(
+            context,
+            repository: widget.repository,
+            store: widget.store,
+            drama: drama,
+            episodes: widget.detail.episodes,
+            episodeIndex: _index,
+          );
+          return;
+        }
         if (value == 'remove') {
           await saveUserChange(
             context,
@@ -3996,6 +4007,7 @@ class _PlayerScreenState extends State<PlayerScreen>
             checked: state?.status == status,
             child: Text(status.label),
           ),
+        const PopupMenuItem(value: 'room', child: Text('房间')),
         if (state != null)
           const PopupMenuItem(value: 'remove', child: Text('取消追剧')),
       ],
