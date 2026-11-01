@@ -19,7 +19,6 @@ chaquopy {
             install("cloudscraper")
             install("websocket-client")
             install("httpx")
-            install("pyaes")
         }
     }
 }
