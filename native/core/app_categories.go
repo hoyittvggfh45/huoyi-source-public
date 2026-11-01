@@ -110,9 +110,6 @@ func (engine *nativeEngine) nativeCategories(ctx context.Context, source string,
 			all = append(all, nativeCategory{ID: genre.key, Name: genre.name})
 		}
 		all = append(all, nativeCategory{ID: "novel", Name: "小说"}, nativeCategory{ID: "audio", Name: "听书"})
-		for _, entry := range hongguoBookCategories {
-			all = append(all, nativeCategory{ID: "bcat" + entry.id, Name: entry.name})
-		}
 		return all, nil
 	case sourceHuangguoAI:
 		return append(all, nativeAICategories...), nil

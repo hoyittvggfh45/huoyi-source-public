@@ -121,29 +121,53 @@ func hongguoCollectBookmallCells(node any, cellFilter string, kind, categoryName
 	}
 }
 
-func (d *Downloader) fetchHongguoBookmallCatalog(ctx context.Context, tabType int, cellFilter string) ([]Drama, []nativeFilterGroup, error) {
+func hongguoNovelFilterGroups() []nativeFilterGroup {
+	options := []nativeFilterOption{{ID: "", Name: "全部"}}
+	for _, entry := range hongguoBookCategories {
+		options = append(options, nativeFilterOption{ID: entry.id, Name: entry.name})
+	}
+	return []nativeFilterGroup{
+		{Key: "ncat", Name: "二级分类", Options: options},
+		{Key: "nstatus", Name: "状态", Options: []nativeFilterOption{
+			{ID: "", Name: "全部"}, {ID: "0", Name: "完结"}, {ID: "1", Name: "连载中"}, {ID: "3", Name: "今日更新"},
+		}},
+		{Key: "nsort", Name: "排序", Options: []nativeFilterOption{
+			{ID: "", Name: "综合"}, {ID: "24", Name: "热门"}, {ID: "76", Name: "最新"}, {ID: "12", Name: "评分"},
+		}},
+	}
+}
+
+func (d *Downloader) fetchHongguoBookmallCatalog(ctx context.Context, tabType int, cellFilter string, scans int) ([]Drama, []nativeFilterGroup, error) {
 	kind := "audio"
 	if tabType == 2 {
 		kind = "novel"
 	}
 	categoryName := hongguoBookmallTabTitle(tabType)
-	result, err := d.hongguoAppRequest(ctx, http.MethodGet, "/reading/bookapi/bookmall/tab/v", url.Values{"tab_type": {strconv.Itoa(tabType)}}, nil)
-	if err != nil {
-		return nil, nil, err
+	if scans < 1 {
+		scans = 1
 	}
 	seen := map[string]bool{}
 	items := []Drama{}
 	var categories []nativeFilterOption
-	for _, tabNode := range anyList(nestedMap(result, "data")["tab_item"]) {
-		tabMap, ok := tabNode.(map[string]any)
-		if !ok {
-			continue
+	for scan := 0; scan < scans; scan++ {
+		result, err := d.hongguoAppRequest(ctx, http.MethodGet, "/reading/bookapi/bookmall/tab/v", url.Values{"tab_type": {strconv.Itoa(tabType)}}, nil)
+		if err != nil {
+			if len(items) > 0 {
+				break
+			}
+			return nil, nil, err
 		}
-		tabValue, _ := strconv.Atoi(mapString(tabMap, "tab_type"))
-		if tabValue != tabType {
-			continue
+		for _, tabNode := range anyList(nestedMap(result, "data")["tab_item"]) {
+			tabMap, ok := tabNode.(map[string]any)
+			if !ok {
+				continue
+			}
+			tabValue, _ := strconv.Atoi(mapString(tabMap, "tab_type"))
+			if tabValue != tabType {
+				continue
+			}
+			hongguoCollectBookmallCells(tabMap, cellFilter, kind, categoryName, seen, &items, &categories)
 		}
-		hongguoCollectBookmallCells(tabMap, cellFilter, kind, categoryName, seen, &items, &categories)
 	}
 	if len(items) == 0 {
 		return nil, nil, errors.New("红果书城未返回书目")
@@ -324,6 +348,10 @@ func (d *Downloader) fetchHongguoNovelDetail(ctx context.Context, bookID string)
 	if len(items) == 0 {
 		return Drama{}, nil, errors.New("小说未返回章节目录")
 	}
+	toneID, toneErr := hongguoAudioToneID(ctx, d, bookID)
+	if toneErr != nil {
+		toneID = 80
+	}
 	chapters := make([]Chapter, 0, len(items))
 	for index, item := range items {
 		itemID := mapString(item, "item_id")
@@ -331,13 +359,17 @@ func (d *Downloader) fetchHongguoNovelDetail(ctx context.Context, bookID string)
 		if title == "" {
 			title = fmt.Sprintf("第%d章", index+1)
 		}
-		chapters = append(chapters, Chapter{
+		chapter := Chapter{
 			ID:             providerChapterID(sourceHongguo, "novel:"+bookID, itemID),
 			Source:         sourceHongguo,
 			Title:          title,
 			VideoURL:       "novel://hgitem:" + itemID + "?t=" + url.QueryEscape(title),
 			CurrentEpisode: rawEpisode(index + 1),
-		})
+		}
+		if toneID > 0 {
+			chapter.Routes = []string{fmt.Sprintf("hongguo-audio://%s/%s/%d", bookID, itemID, toneID)}
+		}
+		chapters = append(chapters, chapter)
 	}
 	return drama, chapters, nil
 }

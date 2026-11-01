@@ -720,10 +720,15 @@ func (engine *nativeEngine) nativeCatalog(ctx context.Context, input nativeInput
 	case sourceHongguo:
 		if hongguoIsBookCategory(category) {
 			if category == "novel" {
-				items, result.Filters, err = d.fetchHongguoBookmallCatalog(ctx, 2, input.Filters["category"])
-				result.HasMore = false
+				if ncat := input.Filters["ncat"]; ncat != "" && hongguoBookCategoryName(ncat) != "" {
+					items, result.Filters, result.HasMore, err = d.fetchHongguoBookCategoryCatalog(ctx, ncat, "", input.Filters["nstatus"], input.Filters["nsort"], page)
+				} else {
+					items, _, err = d.fetchHongguoBookmallCatalog(ctx, 2, "", 3)
+					result.Filters = hongguoNovelFilterGroups()
+					result.HasMore = false
+				}
 			} else if category == "audio" {
-				items, result.Filters, err = d.fetchHongguoBookmallCatalog(ctx, 5, input.Filters["category"])
+				items, result.Filters, err = d.fetchHongguoBookmallCatalog(ctx, 5, input.Filters["category"], 4)
 				result.HasMore = false
 			} else {
 				catID := strings.TrimPrefix(category, "bcat")

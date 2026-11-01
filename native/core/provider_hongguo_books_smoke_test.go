@@ -15,7 +15,7 @@ func TestHongguoBooksLiveSmoke(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
 	defer cancel()
 	d := &Downloader{cfg: Config{dataDir: t.TempDir(), Retries: 2}, client: &http.Client{Transport: http.DefaultTransport}, limiter: newRequestLimiter(3, 0), providerHosts: map[string]string{}}
-	audio, audioFilters, err := d.fetchHongguoBookmallCatalog(ctx, 5, "")
+	audio, audioFilters, err := d.fetchHongguoBookmallCatalog(ctx, 5, "", 4)
 	if err != nil || len(audio) == 0 {
 		t.Fatalf("audio bookmall: %d items, err=%v", len(audio), err)
 	}
@@ -23,7 +23,7 @@ func TestHongguoBooksLiveSmoke(t *testing.T) {
 	if audio[0].Source != sourceHongguo {
 		t.Fatalf("audio book source = %q, want hongguo", audio[0].Source)
 	}
-	novel, _, err := d.fetchHongguoBookmallCatalog(ctx, 2, "")
+	novel, _, err := d.fetchHongguoBookmallCatalog(ctx, 2, "", 3)
 	if err != nil || len(novel) == 0 {
 		t.Fatalf("novel bookmall: %d items, err=%v", len(novel), err)
 	}
@@ -45,7 +45,17 @@ func TestHongguoBooksLiveSmoke(t *testing.T) {
 		if err != nil || len(novelChapters) == 0 {
 			t.Fatalf("novel detail %s: chapters=%d err=%v", novelBookID, len(novelChapters), err)
 		}
-		t.Logf("novel detail %q: %d chapters, first=%q url=%q", novelDrama.Title, len(novelChapters), novelChapters[0].Title, novelChapters[0].VideoURL)
+		t.Logf("novel detail %q: %d chapters, first=%q url=%q routes=%v", novelDrama.Title, len(novelChapters), novelChapters[0].Title, novelChapters[0].VideoURL, novelChapters[0].Routes)
+		if len(novelChapters[0].Routes) == 0 {
+			t.Fatalf("novel detail first chapter has no audio route")
+		}
+		audioChapter := novelChapters[0]
+		audioChapter.VideoURL = novelChapters[0].Routes[0]
+		audioMedia, err := d.resolveHongguoAudioMedia(ctx, Task{DramaID: novelDrama.ID, Chapter: audioChapter})
+		if err != nil {
+			t.Fatalf("novel tts resolve: %v", err)
+		}
+		t.Logf("novel tts resolve: url=%q headers=%v", audioMedia.URL, audioMedia.Referer)
 		novelMedia, err := d.resolveHongguoNovelMedia(ctx, Task{DramaID: novelDrama.ID, Chapter: novelChapters[0]})
 		if err != nil {
 			t.Fatalf("novel chapter resolve: %v", err)

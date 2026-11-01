@@ -83,6 +83,7 @@ class _DetailScreenState extends State<DetailScreen> {
   final _playFocus = FocusNode(debugLabel: 'tv-detail-play');
   bool _initialActionHandled = false;
   int? _embeddedIndex;
+  bool _audioLine = false;
   double _embeddedPosition = 0;
   GlobalKey? _embeddedKey;
   bool _embeddedFullscreen = false;
@@ -269,14 +270,15 @@ class _DetailScreenState extends State<DetailScreen> {
     bool resume = false,
     bool fullscreen = false,
   }) async {
-    final detail = _detail;
-    if (detail == null ||
+    final rawDetail = _detail;
+    if (rawDetail == null ||
         index < 0 ||
-        index >= detail.episodes.length ||
+        index >= rawDetail.episodes.length ||
         _profileEpoch != widget.store.profileEpoch ||
-        !widget.store.allowsSource(detail.drama.source)) {
+        !widget.store.allowsSource(rawDetail.drama.source)) {
       return;
     }
+    final detail = _displayDetail(rawDetail);
     if (detail.episodes[index].vip &&
         detail.drama.source != SourceSite.dsd.id) {
       final accepted = await confirmAction(
@@ -338,6 +340,27 @@ class _DetailScreenState extends State<DetailScreen> {
     });
   }
 
+  bool _hasAudioLine(DramaDetail detail) => detail.episodes.any(
+    (episode) => (episode.raw['routes'] as List? ?? const []).isNotEmpty,
+  );
+
+  List<Episode> _displayEpisodes(DramaDetail detail) {
+    if (!_audioLine) return detail.episodes;
+    return detail.episodes.map((episode) {
+      final routes = episode.raw['routes'] as List? ?? const [];
+      if (routes.isEmpty) return episode;
+      final raw = Map<String, dynamic>.from(episode.raw);
+      raw['videoUrl'] = routes.first.toString();
+      return Episode(raw, episode.number);
+    }).toList();
+  }
+
+  DramaDetail _displayDetail(DramaDetail detail) {
+    final displayed = _displayEpisodes(detail);
+    if (identical(displayed, detail.episodes)) return detail;
+    return detail.withEpisodes(displayed);
+  }
+
   void _closeEmbedded() {
     if (_embeddedIndex == null) return;
     setState(() {
@@ -374,7 +397,7 @@ class _DetailScreenState extends State<DetailScreen> {
   }
 
   Widget _embeddedPlayer() {
-    final detail = _detail!;
+    final detail = _displayDetail(_detail!);
     final index = _embeddedIndex!.clamp(0, detail.episodes.length - 1);
     return PlayerScreen(
       key: _embeddedKey,
@@ -596,7 +619,9 @@ class _DetailScreenState extends State<DetailScreen> {
   Widget build(BuildContext context) {
     final drama = _detail?.drama ?? widget.drama;
     final watched = widget.store.watched(drama.id);
-    final episodes = _detail?.episodes ?? <Episode>[];
+    final episodes = _detail == null
+        ? <Episode>[]
+        : _displayEpisodes(_detail!);
     final resumeIndex = resumeEpisodeIndex(episodes, watched);
     final television = AppLayout.isTelevision(context);
     final allowed =
@@ -692,6 +717,7 @@ class _DetailScreenState extends State<DetailScreen> {
                                       if (_embeddedArea(episodes) != null)
                                         _embeddedArea(episodes)!,
                                       _seriesSelector(drama),
+                                      _lineSelector(),
                                       Expanded(
                                         child: EpisodeBrowser(
                                           episodes: episodes,
@@ -733,6 +759,7 @@ class _DetailScreenState extends State<DetailScreen> {
                           )
                         else ...[
                           SliverToBoxAdapter(child: _seriesSelector(drama)),
+                          SliverToBoxAdapter(child: _lineSelector()),
                           SliverToBoxAdapter(
                             child: _episodeSummary(
                               episodes,
@@ -1235,8 +1262,47 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
+  Widget _lineSelector() {
+    final detail = _detail;
+    if (detail == null || !_hasAudioLine(detail)) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+      child: Row(
+        children: [
+          ChoiceChip(
+            label: const Text('小说'),
+            selected: !_audioLine,
+            onSelected: (_) {
+              if (_audioLine) {
+                setState(() {
+                  _audioLine = false;
+                  _embeddedIndex = null;
+                });
+              }
+            },
+          ),
+          const SizedBox(width: 8),
+          ChoiceChip(
+            label: const Text('听书'),
+            selected: _audioLine,
+            onSelected: (_) {
+              if (!_audioLine) {
+                setState(() {
+                  _audioLine = true;
+                  _embeddedIndex = null;
+                });
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   void _locateEpisode(int index) {
-    final episodes = _detail!.episodes;
+    final episodes = _displayEpisodes(_detail!);
     setState(() {
       _episodePage = index ~/ episodePageSize;
     });

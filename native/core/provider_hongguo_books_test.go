@@ -73,3 +73,13 @@ func TestHongguoBookmallCellFilter(t *testing.T) {
 		t.Fatalf("categories = %d, want 2", len(categories))
 	}
 }
+
+func TestHongguoNovelFilterGroups(t *testing.T) {
+	groups := hongguoNovelFilterGroups()
+	if len(groups) != 3 || groups[0].Key != "ncat" || groups[0].Name != "二级分类" {
+		t.Fatalf("novel filters = %+v", groups)
+	}
+	if len(groups[0].Options) != 15 {
+		t.Fatalf("ncat options = %d, want 15 (全部 + 14 大类)", len(groups[0].Options))
+	}
+}
