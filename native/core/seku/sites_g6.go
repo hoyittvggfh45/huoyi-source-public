@@ -196,6 +196,120 @@ var ytCats = []struct{ id, name string }{
 	{"live", "直播台"},
 }
 
+var ytTagMap = map[string][]string{
+	"preset:动漫": {"一口气看完", "国漫", "日本", "修仙", "穿越", "热血", "搞笑", "恋爱", "科幻", "儿童", "小猪佩奇", "CoComelon", "国漫社"},
+	"preset:短剧": {"总裁", "穿越", "重生", "古装", "现代", "甜宠", "复仇", "抖音", "快手", "大陆", "香港", "台湾"},
+	"preset:电视剧": {"古装", "现代", "谍战", "悬疑", "爱情", "家庭", "历史", "都市"},
+	"preset:电影": {"大陆", "国产", "动作", "喜剧", "爱情", "科幻", "悬疑", "战争", "动画", "剧情"},
+	"preset:战争片": {"大陆", "国产", "抗日", "抗美援朝", "二战", "现代战争", "谍战", "历史", "经典"},
+	"preset:沙雕动漫": {"穿越", "修仙", "重生", "系统", "搞笑", "玄幻", "都市", "古代"},
+	"preset:新闻": {"国内", "国际", "社会", "财经", "科技", "娱乐", "军事", "CCTV", "凤凰卫视", "TVB", "东森", "三立"},
+	"preset:纪录片": {"自然", "历史", "科学", "人文", "动物", "宇宙", "美食", "旅行"},
+	"preset:综艺": {"真人秀", "脱口秀", "选秀", "音乐", "搞笑", "访谈", "亲子"},
+	"preset:体育": {"足球", "篮球", "网球", "赛车", "健身", "拳击", "奥运", "电竞"},
+	"preset:科技": {"数码", "AI", "手机", "电脑", "科学", "发明", "评测", "教程"},
+	"preset:时尚": {"穿搭", "美妆", "潮流", "模特", "设计", "奢侈品", "街拍"},
+	"preset:科普": {"宇宙", "物理", "生物", "化学", "天文", "地理", "医学", "心理"},
+	"preset:新闻直播": {"CCTV", "CNN", "BBC", "凤凰卫视", "TVB", "东森", "三立", "Live"},
+	"preset:4K": {"4K", "HDR", "风景", "城市", "自然", "延时", "航拍", "8K"},
+	"preset:学习": {"英语", "数学", "编程", "历史", "科学", "考试", "职场"},
+	"shorts": {"搞笑", "音乐", "舞蹈", "美食", "宠物", "游戏", "运动", "旅行"},
+}
+
+var ytSeriesList = []string{"遮天", "凡人修仙传", "斗破苍穹", "斗罗大陆", "完美世界", "吞噬星空", "一人之下", "秦时明月", "画江湖之不良人", "灵笼", "伍六七", "诛仙", "剑来", "海贼王", "火影忍者", "鬼灭之刃"}
+
+func ytFilterValue(filters map[string]string, keys ...string) string {
+	for _, k := range keys {
+		if v := strings.TrimSpace(filters[k]); v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+func ytTimeAfter(code string) string {
+	now := time.Now()
+	switch code {
+	case "today":
+		return now.Format("2006-01-02")
+	case "week":
+		return now.AddDate(0, 0, -7).Format("2006-01-02")
+	case "month":
+		return time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location()).Format("2006-01-02")
+	case "year":
+		return time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location()).Format("2006-01-02")
+	}
+	return ""
+}
+
+func ytApplyFilters(mode ytMode, filters map[string]string) ytMode {
+	if len(filters) == 0 {
+		return mode
+	}
+	area := ytFilterValue(filters, "地区", "area")
+	tag := ytFilterValue(filters, "标签", "tag", "cate")
+	year := ytFilterValue(filters, "年份", "year")
+	timeCode := ytFilterValue(filters, "时间", "time")
+	series := ytFilterValue(filters, "二级分类", "sub", "series")
+	if area != "" {
+		mode.gl = area
+	}
+	switch mode.kind {
+	case "search":
+		q := mode.a
+		if series != "" {
+			q = series
+		}
+		if tag != "" {
+			q = q + " " + tag
+		}
+		if len(year) == 4 {
+			if y, err := strconv.Atoi(year); err == nil {
+				q = fmt.Sprintf("%s after:%d-01-01 before:%d-01-01", q, y, y+1)
+			}
+		} else if after := ytTimeAfter(timeCode); after != "" {
+			q = q + " after:" + after
+		}
+		mode.a = q
+	case "shorts":
+		q := tag
+		if q == "" {
+			q = "热门"
+		}
+		if len(year) == 4 {
+			if y, err := strconv.Atoi(year); err == nil {
+				q = fmt.Sprintf("%s after:%d-01-01 before:%d-01-01", q, y, y+1)
+			}
+		} else if after := ytTimeAfter(timeCode); after != "" {
+			q = q + " after:" + after
+		}
+		mode.a = q
+	}
+	return mode
+}
+
+func ytCatalogFiltered(slot, category string, page int, filters map[string]string) ([]interface{}, int, bool, error) {
+	if category == "" {
+		category = "home"
+	}
+	if page < 1 {
+		page = 1
+	}
+	mode := ytApplyFilters(ytModeOf(category), filters)
+	key := "cat:" + category
+	for k, v := range filters {
+		if v != "" {
+			key += "|" + k + "=" + v
+		}
+	}
+	items, hasNext := ytFetchPage(key, mode, page)
+	total := len(items)
+	if hasNext {
+		total = 999999
+	}
+	return ytItemsToDramas(slot, items, ytCatName(category)), total, hasNext, nil
+}
+
 var ytLiveList = []struct{ name, id string }{
 	{"三立iNEWS", "pF507BLtbqU"},
 	{"寰宇新聞台", "Y8eZYHy8BDc"},
@@ -254,12 +368,19 @@ var ytVideoKinds = []string{"videoRenderer", "gridVideoRenderer", "compactVideoR
 var ytShortsKinds = []string{"shortsLockupViewModel", "reelItemRenderer"}
 
 func ytCall(path, clientName string, extra map[string]interface{}) (map[string]interface{}, error) {
+	return ytCallGL(path, clientName, extra, "")
+}
+
+func ytCallGL(path, clientName string, extra map[string]interface{}, gl string) (map[string]interface{}, error) {
 	client := map[string]interface{}{}
 	for k, v := range ytClients[clientName] {
 		client[k] = v
 	}
 	client["hl"] = "zh-CN"
-	client["gl"] = "US"
+	if gl == "" {
+		gl = "US"
+	}
+	client["gl"] = gl
 	body := map[string]interface{}{"context": map[string]interface{}{"client": client}}
 	for k, v := range extra {
 		body[k] = v
@@ -533,7 +654,7 @@ func ytContinuation(data map[string]interface{}) string {
 
 // Continuation stream state (py _streams): per stream key, the mode
 // plus page->token map and a seen set for cross-page dedupe.
-type ytMode struct{ kind, a, b string }
+type ytMode struct{ kind, a, b, gl string }
 
 type ytStream struct {
 	mode   ytMode
@@ -604,7 +725,7 @@ func ytFetchLocked(key string, mode ytMode, pg int) ([]ytItem, bool) {
 		if token != "" {
 			extra = map[string]interface{}{"continuation": token}
 		}
-		data, err = ytCall("browse", "WEB", extra)
+		data, err = ytCallGL("browse", "WEB", extra, mode.gl)
 		if err != nil {
 			return nil, false
 		}
@@ -623,7 +744,7 @@ func ytFetchLocked(key string, mode ytMode, pg int) ([]ytItem, bool) {
 		if token != "" {
 			extra = map[string]interface{}{"continuation": token}
 		}
-		data, err = ytCall("browse", "WEB", extra)
+		data, err = ytCallGL("browse", "WEB", extra, mode.gl)
 		if err != nil {
 			return nil, false
 		}
@@ -636,7 +757,7 @@ func ytFetchLocked(key string, mode ytMode, pg int) ([]ytItem, bool) {
 		if token != "" {
 			extra = map[string]interface{}{"continuation": token}
 		}
-		data, err = ytCall("search", "WEB", extra)
+		data, err = ytCallGL("search", "WEB", extra, mode.gl)
 		if err != nil {
 			return nil, false
 		}
@@ -646,7 +767,7 @@ func ytFetchLocked(key string, mode ytMode, pg int) ([]ytItem, bool) {
 		if token != "" {
 			extra = map[string]interface{}{"continuation": token}
 		}
-		data, err = ytCall("search", "WEB", extra)
+		data, err = ytCallGL("search", "WEB", extra, mode.gl)
 		if err != nil {
 			return nil, false
 		}
@@ -2300,6 +2421,7 @@ func init() {
 		Key: "youtube", Name: "YouTube", DefaultCat: "home", HomeURL: "https://www.youtube.com/",
 		Categories: ytCategories,
 		Catalog:    ytCatalog,
+		CatalogFiltered: ytCatalogFiltered,
 		Detail:     ytDetail,
 		Resolve:    ytResolve,
 		Search:     ytSearch,

@@ -32,7 +32,10 @@ NonVideoContent? parseNonVideoUrl(String raw) {
   if (value.isEmpty) return null;
   final novel = _findPayload(value, 'novel://');
   if (novel != null) {
-    final jsonText = novel.substring('novel://'.length);
+    final jsonText = novel.substring('novel://'.length).trim();
+    if (!jsonText.startsWith('{')) {
+      return null;
+    }
     try {
       final decoded = jsonDecode(jsonText);
       if (decoded is Map) {
@@ -43,9 +46,6 @@ NonVideoContent? parseNonVideoUrl(String raw) {
         }
       }
     } catch (_) {}
-    if (jsonText.isNotEmpty) {
-      return NonVideoContent.novel(title: '', text: jsonText);
-    }
     return null;
   }
   final pics = _findPayload(value, 'pics://');
@@ -76,6 +76,20 @@ NonVideoContent? nonVideoFromEpisode(Episode episode) {
 }
 
 bool isNonVideoEpisode(Episode episode) => nonVideoFromEpisode(episode) != null;
+
+NonVideoKind? nonVideoKindOfEpisode(Episode episode) {
+  final candidates = <String>[];
+  for (final key in const ['videoUrl', 'episodeId', 'id', 'url']) {
+    final value = episode.raw[key];
+    if (value is String && value.isNotEmpty) candidates.add(value);
+  }
+  if (episode.id.isNotEmpty) candidates.add(episode.id);
+  for (final candidate in candidates) {
+    if (_findPayload(candidate, 'novel://') != null) return NonVideoKind.novel;
+    if (_findPayload(candidate, 'pics://') != null) return NonVideoKind.pics;
+  }
+  return null;
+}
 
 Map<String, String> _imageHeaders(String url) {
   if (url.startsWith('http://127.0.0.1') ||

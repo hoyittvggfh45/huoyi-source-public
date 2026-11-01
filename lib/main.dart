@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:media_kit/media_kit.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -15,8 +14,6 @@ import 'app_layout.dart';
 import 'app_orientation.dart';
 import 'app_theme.dart';
 import 'external_py_import.dart';
-import 'splash_selection.dart';
-import 'splash_sets.dart';
 import 'playback_foreground.dart';
 import 'tv_theme.dart';
 import 'zoo_builtin_seed.dart';
@@ -34,8 +31,6 @@ import 'video_enhancement_assets.dart';
 Future<void> main(List<String> arguments) async {
   WidgetsFlutterBinding.ensureInitialized();
   unawaited(PlaybackForeground.clearStaleFlag());
-  runApp(const BootSplash());
-  await Future<void>.delayed(const Duration(seconds: 4));
   if (Platform.isAndroid) {
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     SystemChrome.setSystemUIOverlayStyle(AppTheme.systemBars(Brightness.dark));
@@ -51,116 +46,6 @@ Future<void> main(List<String> arguments) async {
   }
   final device = await AppDevice.detect();
   runApp(AppBootstrap(device: device));
-}
-
-class BootSplash extends StatefulWidget {
-  const BootSplash({super.key});
-
-  @override
-  State<BootSplash> createState() => _BootSplashState();
-}
-
-class _BootSplashState extends State<BootSplash>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(seconds: 4),
-  )..forward();
-
-  String _selection = splashSelectionDefault;
-  File? _customFile;
-  bool _loaded = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadSelection();
-  }
-
-  Future<void> _loadSelection() async {
-    try {
-      final selection = await loadSplashSelection();
-      File? custom;
-      if (selection == splashSelectionCustom) {
-        final docs = await getApplicationDocumentsDirectory();
-        custom = findCustomSplashFile(docs.path);
-      }
-      if (!mounted) return;
-      setState(() {
-        _selection = custom != null ? selection : splashSelectionDefault;
-        _customFile = custom;
-        _loaded = true;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _loaded = true);
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  double _stage(Interval interval) => interval.transform(_controller.value);
-
-  Widget _defaultSplash(double opacity) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF131619),
-      body: Center(
-        child: Opacity(
-          opacity: opacity,
-          child: Image.asset(
-            'assets/splash/hongyi_tv.png',
-            width: 260,
-            height: 260,
-            fit: BoxFit.cover,
-          ),
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) => MaterialApp(
-    debugShowCheckedModeBanner: false,
-    home: AnimatedBuilder(
-      animation: _controller,
-      builder: (context, _) {
-        final iconOpacity = _stage(const Interval(0.0, 0.55));
-        if (!_loaded) return _defaultSplash(iconOpacity);
-        final set = splashSetById(_selection);
-        if (set != null) {
-          return Scaffold(body: set.build());
-        }
-        if (_selection == splashSelectionCustom && _customFile != null) {
-          final file = _customFile!;
-          return Scaffold(
-            backgroundColor: const Color(0xFF131619),
-            body: Center(
-              child: Opacity(
-                opacity: iconOpacity,
-                child: Image.file(
-                  file,
-                  width: 260,
-                  height: 260,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, _, _) => Image.asset(
-                    'assets/splash/hongyi_tv.png',
-                    width: 260,
-                    height: 260,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-              ),
-            ),
-          );
-        }
-        return _defaultSplash(iconOpacity);
-      },
-    ),
-  );
 }
 
 class AppBootstrap extends StatefulWidget {

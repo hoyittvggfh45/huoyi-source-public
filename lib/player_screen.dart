@@ -186,6 +186,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   String? _saveWarning;
   PlaybackPlan? _plan;
   NonVideoContent? _nonVideo;
+  bool _audioMode = false;
   double _speed = 1;
   double _aspectRatio = 9 / 16;
   double _resumePosition = 0;
@@ -390,7 +391,9 @@ class _PlayerScreenState extends State<PlayerScreen>
               _foreground &&
               !_panelOpen &&
               _index + 1 < widget.detail.episodes.length) {
-            _play(_index + 1, showControlsOnReady: false);
+            _audioMode
+                ? _playAudio(_index + 1)
+                : _play(_index + 1, showControlsOnReady: false);
           } else {
             _playIntent = false;
             _interactions.cancel();
@@ -848,7 +851,9 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
     _preloader.prepare(
       widget.detail.drama,
-      widget.detail.episodes[_index + 1],
+      _audioMode
+          ? _audioEpisodeFor(_index + 1) ?? widget.detail.episodes[_index + 1]
+          : widget.detail.episodes[_index + 1],
       quality: _requestedQuality,
       route: _routeIndex,
       adBlock: _adBlock,
@@ -1026,7 +1031,9 @@ class _PlayerScreenState extends State<PlayerScreen>
         _foreground &&
         !_panelOpen &&
         _index + 1 < widget.detail.episodes.length) {
-      unawaited(_play(_index + 1, showControlsOnReady: false));
+      _audioMode
+          ? _playAudio(_index + 1)
+          : unawaited(_play(_index + 1, showControlsOnReady: false));
     } else {
       _playIntent = false;
       _interactions.cancel();
@@ -1045,7 +1052,9 @@ class _PlayerScreenState extends State<PlayerScreen>
         _foreground &&
         !_panelOpen &&
         _index + 1 < widget.detail.episodes.length) {
-      unawaited(_play(_index + 1, showControlsOnReady: false));
+      _audioMode
+          ? _playAudio(_index + 1)
+          : unawaited(_play(_index + 1, showControlsOnReady: false));
     } else {
       _playIntent = false;
       _interactions.cancel();
@@ -1188,6 +1197,55 @@ class _PlayerScreenState extends State<PlayerScreen>
     return next;
   }
 
+  Episode? _audioEpisodeFor(int index) {
+    if (index < 0 || index >= widget.detail.episodes.length) return null;
+    final episode = widget.detail.episodes[index];
+    final routes = episode.raw['routes'];
+    if (routes is! List || routes.isEmpty) return null;
+    final url = routes.first.toString();
+    if (url.isEmpty) return null;
+    final raw = Map<String, Object?>.from(episode.raw);
+    raw['videoUrl'] = url;
+    return Episode(raw, episode.number);
+  }
+
+  bool _isAudioEpisode(Episode episode) {
+    final candidates = <String>[];
+    for (final key in const ['videoUrl', 'episodeId', 'id', 'url']) {
+      final value = episode.raw[key];
+      if (value is String && value.isNotEmpty) candidates.add(value);
+    }
+    if (episode.id.isNotEmpty) candidates.add(episode.id);
+    for (final candidate in candidates) {
+      if (candidate.contains('hongguo-audio://')) return true;
+      final lower = candidate.split('?').first.toLowerCase();
+      if (lower.endsWith('.mp3') ||
+          lower.endsWith('.m4a') ||
+          lower.endsWith('.aac') ||
+          lower.endsWith('.opus') ||
+          lower.endsWith('.ogg') ||
+          lower.endsWith('.wav')) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  void _playAudio(int index) {
+    if (index < 0 || index >= widget.detail.episodes.length) return;
+    if (_audioEpisodeFor(index) == null &&
+        !_isAudioEpisode(widget.detail.episodes[index])) {
+      return;
+    }
+    _audioMode = true;
+    unawaited(_play(index, showControlsOnReady: false));
+  }
+
+  void _playText(int index) {
+    _audioMode = false;
+    unawaited(_play(index, showControlsOnReady: false));
+  }
+
   Future<void> _play(
     int index, {
     double position = 0,
@@ -1204,8 +1262,21 @@ class _PlayerScreenState extends State<PlayerScreen>
         index >= widget.detail.episodes.length) {
       return;
     }
-    final earlyNonVideo = nonVideoFromEpisode(widget.detail.episodes[index]);
+    final baseEpisode = widget.detail.episodes[index];
+    if (!_audioMode && _isAudioEpisode(baseEpisode)) {
+      _audioMode = true;
+    }
+    final playEpisode = _audioMode
+        ? _audioEpisodeFor(index) ?? baseEpisode
+        : baseEpisode;
+    if (_audioMode &&
+        identical(playEpisode, baseEpisode) &&
+        !_isAudioEpisode(baseEpisode)) {
+      _audioMode = false;
+    }
+    final earlyNonVideo = nonVideoFromEpisode(playEpisode);
     if (earlyNonVideo != null) {
+      _audioMode = false;
       _preloader.clear();
       final previousIndex = _index;
       setState(() {
@@ -1241,7 +1312,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         (canPreload
             ? _preloader.take(
                 widget.detail.drama,
-                widget.detail.episodes[index],
+                playEpisode,
                 quality: _requestedQuality,
                 route: _routeIndex,
                 online: _forceOnline,
@@ -1321,7 +1392,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       } else {
         prepared = await _loader.load(
           widget.detail.drama,
-          widget.detail.episodes[index],
+          playEpisode,
           quality: _requestedQuality,
           route: routeSelection ?? _routeIndex,
           localOnly: widget.localOnly,
@@ -1388,6 +1459,17 @@ class _PlayerScreenState extends State<PlayerScreen>
         }
       }
       final plan = prepared;
+      if (!_audioMode) {
+        final lower = plan.url.split('?').first.toLowerCase();
+        if (lower.endsWith('.mp3') ||
+            lower.endsWith('.m4a') ||
+            lower.endsWith('.aac') ||
+            lower.endsWith('.opus') ||
+            lower.endsWith('.ogg') ||
+            lower.endsWith('.wav')) {
+          _audioMode = true;
+        }
+      }
       final planNonVideo = parseNonVideoUrl(plan.url);
       if (planNonVideo != null) {
         if (plan.session.isNotEmpty) {
@@ -2382,11 +2464,38 @@ class _PlayerScreenState extends State<PlayerScreen>
     final body = content.isNovel
         ? NovelReaderView(content: content, title: title)
         : PicsViewerView(content: content, title: title);
+    final audioEpisode = content.isNovel ? _audioEpisodeFor(_index) : null;
     return Container(
       color: Colors.black,
       child: Column(
         children: [
-          Expanded(child: body),
+          Expanded(
+            child: Stack(
+              children: [
+                body,
+                if (audioEpisode != null)
+                  Positioned(
+                    right: 16,
+                    bottom: 16,
+                    child: Opacity(
+                      opacity: 0.85,
+                      child: Material(
+                        color: Colors.black54,
+                        shape: const CircleBorder(),
+                        child: IconButton(
+                          tooltip: '听书',
+                          onPressed: () => _playAudio(_index),
+                          icon: const Icon(
+                            Icons.headphones,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
           Container(
             color: Colors.black,
             padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
@@ -2616,6 +2725,220 @@ class _PlayerScreenState extends State<PlayerScreen>
     return url;
   }
 
+  Widget _audioPosterOverlay() {
+    final drama = widget.detail.drama;
+    final episode = widget.detail.episodes[_index];
+    final chapterTitle = episode.title.isNotEmpty
+        ? episode.title
+        : '第 ${episode.number} 集';
+    return Container(
+      color: Colors.black,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          _videoBackdrop(),
+          Container(color: Colors.black.withValues(alpha: .35)),
+          SafeArea(
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    IconButton(
+                      tooltip: '返回',
+                      onPressed: _backToList,
+                      icon: const Icon(Icons.close, color: Colors.white),
+                    ),
+                    const Spacer(),
+                    TextButton.icon(
+                      onPressed: () => _playText(_index),
+                      icon: const Icon(Icons.menu_book, color: Colors.white),
+                      label: const Text(
+                        '看文字',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: () => _openPanel(PlayerMenuSection.episodes),
+                      icon: const Icon(Icons.list, color: Colors.white),
+                      label: const Text(
+                        '选集',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 180,
+                        height: 240,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: DramaCover(
+                            drama: drama,
+                            repository: widget.repository,
+                            radius: 16,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Text(
+                          drama.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Text(
+                          chapterTitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                StreamBuilder<Duration>(
+                  stream: _player.stream.position,
+                  initialData: _player.state.position,
+                  builder: (context, snapshot) {
+                    final position =
+                        snapshot.data ?? _player.state.position;
+                    return StreamBuilder<Duration>(
+                      stream: _player.stream.duration,
+                      initialData: _player.state.duration,
+                      builder: (context, durationSnapshot) {
+                        final duration =
+                            durationSnapshot.data ?? _player.state.duration;
+                        final total = duration.inMilliseconds.toDouble();
+                        final value = total > 0
+                            ? position.inMilliseconds
+                                .toDouble()
+                                .clamp(0.0, total)
+                            : 0.0;
+                        String fmt(Duration d) {
+                          final m = d.inMinutes;
+                          final s = d.inSeconds % 60;
+                          return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+                        }
+                        return Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                          child: Column(
+                            children: [
+                              Slider(
+                                value: value,
+                                max: total > 0 ? total : 1,
+                                onChanged: total > 0
+                                    ? (v) => unawaited(
+                                          _seekTo(
+                                            Duration(milliseconds: v.toInt()),
+                                          ),
+                                        )
+                                    : null,
+                              ),
+                              Row(
+                                children: [
+                                  Text(
+                                    fmt(position),
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  Text(
+                                    fmt(duration),
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 24),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        tooltip: '上一集',
+                        onPressed: _index > 0
+                            ? () => _playAudio(_index - 1)
+                            : null,
+                        icon: const Icon(
+                          Icons.skip_previous,
+                          color: Colors.white,
+                          size: 36,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      StreamBuilder<bool>(
+                        stream: _player.stream.playing,
+                        initialData: _player.state.playing,
+                        builder: (context, snapshot) {
+                          final playing =
+                              snapshot.data ?? _player.state.playing;
+                          return IconButton(
+                            tooltip: playing ? '暂停' : '播放',
+                            onPressed: _togglePlayback,
+                            icon: Icon(
+                              playing
+                                  ? Icons.pause_circle_filled
+                                  : Icons.play_circle_filled,
+                              color: Colors.white,
+                              size: 56,
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 16),
+                      IconButton(
+                        tooltip: '下一集',
+                        onPressed:
+                            _index + 1 < widget.detail.episodes.length
+                            ? () => _playAudio(_index + 1)
+                            : null,
+                        icon: const Icon(
+                          Icons.skip_next,
+                          color: Colors.white,
+                          size: 36,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _videoBackdrop() {
     final drama = widget.detail.drama;
     final url = _backdropUrl();
@@ -2651,7 +2974,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         ? televisionTheme(AppTheme.dark)
         : AppTheme.dark;
     final title =
-        '${widget.detail.drama.title} · 第 ${widget.detail.episodes[_index].number} 集${_plan?.local == true ? ' · 本地' : ''}${widget.detail.episodes[_index].vip ? ' · VIP 试看' : ''}${(_plan?.routeIndex ?? 0) > 0 ? ' · 线路 ${_plan!.routeIndex + 1}' : ''}';
+        '${widget.detail.drama.title} · 第 ${widget.detail.episodes[_index].number} 集${_audioMode ? ' · 听书' : ''}${_plan?.local == true ? ' · 本地' : ''}${widget.detail.episodes[_index].vip ? ' · VIP 试看' : ''}${(_plan?.routeIndex ?? 0) > 0 ? ' · 线路 ${_plan!.routeIndex + 1}' : ''}';
     final hideOverlayForPictureInPicture = _pictureInPictureVisible;
     final errorKind = _error == null ? null : classifyPlaybackError(_error!);
     final Widget controls = hideOverlayForPictureInPicture
@@ -2666,10 +2989,14 @@ class _PlayerScreenState extends State<PlayerScreen>
             onTogglePlayback: _togglePlayback,
             onSeek: _seek,
             onPrevious: _index > 0
-                ? () => _play(_index - 1, showControlsOnReady: false)
+                ? () => _audioMode
+                    ? _playAudio(_index - 1)
+                    : _play(_index - 1, showControlsOnReady: false)
                 : null,
             onNext: _index + 1 < widget.detail.episodes.length
-                ? () => _play(_index + 1, showControlsOnReady: false)
+                ? () => _audioMode
+                    ? _playAudio(_index + 1)
+                    : _play(_index + 1, showControlsOnReady: false)
                 : null,
             onEpisodes: () => _televisionEpisodes(context),
             onSettings: () => _televisionSettings(context),
@@ -2736,13 +3063,17 @@ class _PlayerScreenState extends State<PlayerScreen>
                 ? _enterPictureInPicture
                 : null,
             onPrevious: _index > 0
-                ? () => _play(_index - 1, showControlsOnReady: false)
+                ? () => _audioMode
+                    ? _playAudio(_index - 1)
+                    : _play(_index - 1, showControlsOnReady: false)
                 : widget.detail.episodes.length <= 1 &&
                       widget.queue?.neighbor(-1) != null
                 ? () => _queueSwipe(-1)
                 : null,
             onNext: _index + 1 < widget.detail.episodes.length
-                ? () => _play(_index + 1, showControlsOnReady: false)
+                ? () => _audioMode
+                    ? _playAudio(_index + 1)
+                    : _play(_index + 1, showControlsOnReady: false)
                 : widget.detail.episodes.length <= 1 &&
                       widget.queue?.neighbor(1) != null
                 ? () => _queueSwipe(1)
@@ -2828,11 +3159,47 @@ class _PlayerScreenState extends State<PlayerScreen>
                   fit: BoxFit.contain,
                   controls: (_) => layeredControls,
                 ),
+              if (_audioMode && !hideOverlayForPictureInPicture)
+                Positioned.fill(child: _audioPosterOverlay()),
               if (_useExoCore && !hideOverlayForPictureInPicture)
                 Positioned(
                   top: 8,
                   right: 8,
                   child: PlayerCoreBadge(core: _core, onTap: _openCoreDialog),
+                ),
+              if (_audioMode && !hideOverlayForPictureInPicture)
+                Positioned(
+                  top: 8,
+                  left: 8,
+                  child: Opacity(
+                    opacity: 0.85,
+                    child: Material(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(20),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: () => _playText(_index),
+                        child: const Padding(
+                          padding: EdgeInsets.fromLTRB(12, 8, 12, 8),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.menu_book,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                              SizedBox(width: 6),
+                              Text(
+                                '看文字',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               if ((_loading || _error != null) &&
                   !hideOverlayForPictureInPicture)

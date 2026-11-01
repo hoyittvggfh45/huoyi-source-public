@@ -27,6 +27,22 @@ void main() {
     ]);
   });
 
+  test('hgitem token is not final novel text', () {
+    expect(
+      parseNonVideoUrl(
+        'novel://hgitem:7598518950523063321?t=%E7%AC%AC1%E7%AB%A0',
+      ),
+      isNull,
+    );
+    final episode = _episode({
+      'id': 'hongguo:novel:1:7598518950523063321',
+      'videoUrl': 'novel://hgitem:7598518950523063321?t=%E7%AC%AC1%E7%AB%A0',
+      'title': '第1章',
+    });
+    expect(nonVideoFromEpisode(episode), isNull);
+    expect(nonVideoKindOfEpisode(episode), NonVideoKind.novel);
+  });
+
   test('plain video urls are not non-video', () {
     expect(parseNonVideoUrl('https://cdn.example/a.m3u8'), isNull);
     expect(parseNonVideoUrl('num|slug|pid|1080'), isNull);

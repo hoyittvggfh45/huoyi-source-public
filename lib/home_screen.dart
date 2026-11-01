@@ -96,6 +96,8 @@ typedef _SectionSnapshot = ({
   double scrollOffset,
   String? tagLevel2,
   String? tagLevel3,
+  List<CatalogFilterGroup> filters,
+  Map<String, String> selectedFilters,
 });
 
 class _HomeScreenState extends State<HomeScreen> {
@@ -660,6 +662,8 @@ class _HomeScreenState extends State<HomeScreen> {
       scrollOffset: _scroll.hasClients ? _scroll.offset : 0,
       tagLevel2: _tagLevel2,
       tagLevel3: _tagLevel3,
+      filters: List.of(_catalogFilters),
+      selectedFilters: Map.of(_selectedFilters),
     );
   }
 
@@ -670,6 +674,10 @@ class _HomeScreenState extends State<HomeScreen> {
         ..clear()
         ..addAll(snapshot.drillStack);
       _catalogTags = List.of(snapshot.tags);
+      _catalogFilters = List.of(snapshot.filters);
+      _selectedFilters
+        ..clear()
+        ..addAll(snapshot.selectedFilters);
       _tagLevel2 = snapshot.tagLevel2;
       _tagLevel3 = snapshot.tagLevel3;
       _showRecommendations = false;
@@ -723,6 +731,8 @@ class _HomeScreenState extends State<HomeScreen> {
       _catalogSection = section;
       _drillStack.clear();
       _catalogTags = const [];
+      _catalogFilters = const [];
+      _selectedFilters.clear();
       _tagLevel2 = null;
       _tagLevel3 = null;
       _showRecommendations = false;
@@ -999,7 +1009,7 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         _items = result.items;
         if (result.tags.isNotEmpty) _catalogTags = result.tags;
-        if (result.filters.isNotEmpty) _catalogFilters = result.filters;
+        if (!more) _catalogFilters = result.filters;
         _hasMore = result.hasMore;
         _submittedQuery = query;
         _loading = silent ? false : (cached && !result.fresh);
@@ -2482,18 +2492,20 @@ class _HomeScreenState extends State<HomeScreen> {
         if (_drillStack.isNotEmpty) _breadcrumbBar(),
         if (_catalogTags.isNotEmpty && !_showRecommendations)
           SizedBox(
-            height: 44,
+            height: 36,
             child: ListView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 12),
               children: [
                 for (final tag in _catalogTags)
                   Padding(
-                    padding: const EdgeInsets.only(right: 6),
+                    padding: const EdgeInsets.only(right: 4),
                     child: ActionChip(
                       key: ValueKey('catalog-tag-${tag.id}'),
                       avatar: const Icon(Icons.label_outline_rounded, size: 16),
                       label: Text(tag.name),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      labelPadding: const EdgeInsets.symmetric(horizontal: 6),
                       labelStyle: const TextStyle(fontSize: 12),
                       backgroundColor: Theme.of(context)
                           .colorScheme
@@ -2506,15 +2518,17 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         if (_level2Tags.isNotEmpty && !_showRecommendations)
           SizedBox(
-            height: 44,
+            height: 36,
             child: ListView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 12),
               children: [
                 Padding(
-                  padding: const EdgeInsets.only(right: 6),
+                  padding: const EdgeInsets.only(right: 4),
                   child: ChoiceChip(
                     label: const Text('全部标签'),
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    labelPadding: const EdgeInsets.symmetric(horizontal: 6),
                     labelStyle: TextStyle(
                       fontSize: 12,
                       color: Theme.of(context).colorScheme.onSurface,
@@ -2530,10 +2544,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 for (final tag in _level2Tags)
                   Padding(
-                    padding: const EdgeInsets.only(right: 6),
+                    padding: const EdgeInsets.only(right: 4),
                     child: ChoiceChip(
                       key: ValueKey('catalog-tag2-$tag'),
                       label: Text(tag),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      labelPadding: const EdgeInsets.symmetric(horizontal: 6),
                       labelStyle: TextStyle(
                         fontSize: 12,
                         color: Theme.of(context).colorScheme.onSurface,
@@ -2555,15 +2571,17 @@ class _HomeScreenState extends State<HomeScreen> {
             _level3Tags.isNotEmpty &&
             !_showRecommendations)
           SizedBox(
-            height: 44,
+            height: 36,
             child: ListView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 12),
               children: [
                 Padding(
-                  padding: const EdgeInsets.only(right: 6),
+                  padding: const EdgeInsets.only(right: 4),
                   child: ChoiceChip(
                     label: const Text('全部'),
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    labelPadding: const EdgeInsets.symmetric(horizontal: 6),
                     labelStyle: TextStyle(
                       fontSize: 12,
                       color: Theme.of(context).colorScheme.onSurface,
@@ -2579,10 +2597,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 for (final tag in _level3Tags)
                   Padding(
-                    padding: const EdgeInsets.only(right: 6),
+                    padding: const EdgeInsets.only(right: 4),
                     child: ChoiceChip(
                       key: ValueKey('catalog-tag3-$tag'),
                       label: Text(tag),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      labelPadding: const EdgeInsets.symmetric(horizontal: 6),
                       labelStyle: TextStyle(
                         fontSize: 12,
                         color: Theme.of(context).colorScheme.onSurface,

@@ -136,3 +136,20 @@ func TestYoutubeSlotRegistered(t *testing.T) {
 		t.Fatal("youtube not in slotOrder")
 	}
 }
+
+func TestYoutubeApplyFilters(t *testing.T) {
+	mode := ytApplyFilters(ytModeOf("preset:短剧"), map[string]string{"标签": "总裁", "年份": "2025", "地区": "TW"})
+	if mode.a != "短剧 总裁 after:2025-01-01 before:2026-01-01" {
+		t.Fatalf("search query = %q", mode.a)
+	}
+	if mode.gl != "TW" {
+		t.Fatalf("gl = %q", mode.gl)
+	}
+	mode = ytApplyFilters(ytModeOf("preset:动漫"), map[string]string{"二级分类": "遮天"})
+	if mode.a != "遮天" {
+		t.Fatalf("series query = %q", mode.a)
+	}
+	if impl := implForSlot("youtube"); impl == nil || impl.CatalogFiltered == nil {
+		t.Fatalf("youtube CatalogFiltered not registered")
+	}
+}

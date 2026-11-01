@@ -373,7 +373,7 @@ class _DetailScreenState extends State<DetailScreen> {
   Widget? _embeddedArea(List<Episode> episodes) {
     if (_embeddedIndex == null || _detail == null) return null;
     final index = _embeddedIndex!.clamp(0, episodes.length - 1);
-    if (nonVideoFromEpisode(episodes[index]) != null) {
+    if (nonVideoKindOfEpisode(episodes[index]) != null) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -423,12 +423,12 @@ class _DetailScreenState extends State<DetailScreen> {
     final number = index != null && index >= 0 && index < episodes.length
         ? episodes[index].number
         : null;
-    final nonVideo = index != null && index >= 0 && index < episodes.length
-        ? nonVideoFromEpisode(episodes[index])
+    final nonVideoKind = index != null && index >= 0 && index < episodes.length
+        ? nonVideoKindOfEpisode(episodes[index])
         : null;
-    final label = nonVideo == null
+    final label = nonVideoKind == null
         ? '正在播放'
-        : nonVideo.isNovel
+        : nonVideoKind == NonVideoKind.novel
         ? '正在阅读'
         : '正在浏览图片';
     return Container(
@@ -440,8 +440,7 @@ class _DetailScreenState extends State<DetailScreen> {
             child: Text(
               number == null
                   ? label
-                  : '$label · 第 $number 集'
-                      '${nonVideo != null && nonVideo.isPics ? '（${nonVideo.urls.length} 张）' : ''}',
+                  : '$label · 第 $number 集',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(color: Colors.white),

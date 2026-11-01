@@ -130,6 +130,18 @@ func Catalog(slot, category string, page int) ([]map[string]interface{}, int, bo
 	return out, total, hasMore, nil
 }
 
+func CatalogFiltered(slot, category string, page int, filters map[string]string) ([]map[string]interface{}, int, bool, error) {
+	items, total, hasMore, err := providerCatalogFiltered(slot, category, page, filters)
+	if err != nil {
+		return nil, 0, false, err
+	}
+	out := toMaps(items)
+	for _, item := range out {
+		annotateKind(item)
+	}
+	return out, total, hasMore, nil
+}
+
 // Search runs the slot's own search.
 func Search(slot, kw string) ([]map[string]interface{}, error) {
 	items, err := providerSearch(slot, kw)

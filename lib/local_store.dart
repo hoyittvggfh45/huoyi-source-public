@@ -357,6 +357,7 @@ class LocalStore extends ChangeNotifier {
     });
   }
 
+
   List<M3uSubscription> get m3uSubscriptions =>
       List.unmodifiable(_m3uSubscriptions);
 

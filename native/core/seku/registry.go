@@ -21,6 +21,7 @@ type siteImpl struct {
 
 	Categories func(slot string) []interface{}
 	Catalog    func(slot, category string, page int) ([]interface{}, int, bool, error)
+	CatalogFiltered func(slot, category string, page int, filters map[string]string) ([]interface{}, int, bool, error)
 	Detail     func(slot, rawID string) (map[string]interface{}, error)
 	Resolve    func(slot, rawID string) (map[string]interface{}, error)
 	Search     func(slot, kw string) ([]interface{}, error)

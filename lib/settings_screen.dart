@@ -21,9 +21,6 @@ import 'clearance_bridge.dart';
 import 'crack_config_section.dart';
 import 'downloads_screen.dart';
 import 'import_center_screen.dart';
-import 'splash_selection.dart';
-import 'splash_sets.dart';
-import 'splash_settings_screen.dart';
 import 'parse_settings_screen.dart';
 import 'app_theme.dart';
 import 'ios_dialogs.dart';
@@ -76,14 +73,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _busy = false;
   String? _message;
   String _appUpdateSummary = '检查整包新版本';
-  String _splashName = '默认启动图';
 
   @override
   void initState() {
     super.initState();
     ensureTelevisionFocus(context);
     _loadAppUpdateSummary();
-    _loadSplashName();
   }
 
   Future<void> _loadAppUpdateSummary() async {
@@ -96,14 +91,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ? '当前版本 $current'
             : '当前版本 $current · 最新 $latest';
       });
-    } catch (_) {}
-  }
-
-  Future<void> _loadSplashName() async {
-    try {
-      final selection = await loadSplashSelection();
-      if (!mounted) return;
-      setState(() => _splashName = splashSelectionDisplayName(selection));
     } catch (_) {}
   }
 
@@ -584,21 +571,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             subtitle: Text(AppTheme.label(widget.store.themeMode)),
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: _chooseTheme,
-          ),
-          ListTile(
-            leading: const Icon(Icons.image_outlined),
-            title: const Text('开机启动图'),
-            subtitle: Text(_splashName),
-            trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: () async {
-              await Navigator.push(
-                context,
-                appPageRoute<void>(
-                  builder: (_) => const SplashSettingsScreen(),
-                ),
-              );
-              if (mounted) await _loadSplashName();
-            },
           ),
           ListTile(
             leading: const Icon(Icons.display_settings_outlined),

@@ -4,14 +4,14 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('内容注册表清单', () {
-    test('听书：听书网；小说漫画模块已删，不再内置源', () {
+    test('听书：听书网、喜马拉雅、红果听书', () {
       expect(
         ContentRegistry.sourcesFor(ContentSection.audio).map((s) => s.id),
-        ['tingshuwang'],
+        ['tingshuwang', 'ximalaya', 'hongguo_audio'],
       );
       expect(
         ContentRegistry.sourcesFor(ContentSection.audio).map((s) => s.name),
-        ['听书网'],
+        ['听书网', '喜马拉雅', '红果听书'],
       );
     });
 
@@ -20,8 +20,8 @@ void main() {
         for (final section in ContentSection.values)
           ...ContentRegistry.sourcesFor(section),
       ];
-      expect(all, hasLength(1));
-      expect(all.map((s) => s.id).toSet(), hasLength(1));
+      expect(all, hasLength(3));
+      expect(all.map((s) => s.id).toSet(), hasLength(3));
       for (final section in ContentSection.values) {
         for (final source in ContentRegistry.sourcesFor(section)) {
           expect(source.section, section);

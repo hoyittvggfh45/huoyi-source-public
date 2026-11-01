@@ -747,6 +747,10 @@ func (engine *nativeEngine) nativeCatalog(ctx context.Context, input nativeInput
 			ctx = context.WithValue(ctx, libraryMoreKey{}, true)
 		}
 		items, err = d.fetchHongguoAppCatalogCategory(ctx, category)
+		if err == nil {
+			result.Filters = hongguoShortDramaFilterGroups()
+			items = hongguoFilterShortDramas(items, input.Filters)
+		}
 		state := d.hongguoCatalogSnapshot()
 		result.hongguo = state
 		result.HasMore = hongguoCatalogHasMore(state)
@@ -803,7 +807,10 @@ func (engine *nativeEngine) nativeCatalog(ctx context.Context, input nativeInput
 	default:
 		if isSekuSource(source) {
 			seku.Init(engine.directory)
-			items, result.HasMore, err = d.fetchSekuCatalogPage(ctx, source, page, category)
+			items, result.HasMore, err = d.fetchSekuCatalogPageFiltered(ctx, source, page, category, input.Filters)
+			if err == nil && source == "youtube" {
+				result.Filters = youtubeFilterGroups(category)
+			}
 		} else if isDuanjuProviderSource(source) {
 			items, result.HasMore, err = d.fetchDuanjuCatalogPage(ctx, source, page, category)
 		}

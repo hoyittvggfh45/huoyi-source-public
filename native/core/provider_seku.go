@@ -329,6 +329,10 @@ func sekuChaptersFromMap(source, dramaRaw string, m map[string]interface{}) []Ch
 }
 
 func (d *Downloader) fetchSekuCatalogPage(ctx context.Context, source string, page int, category string) ([]Drama, bool, error) {
+	return d.fetchSekuCatalogPageFiltered(ctx, source, page, category, nil)
+}
+
+func (d *Downloader) fetchSekuCatalogPageFiltered(ctx context.Context, source string, page int, category string, filters map[string]string) ([]Drama, bool, error) {
 	slot, ok := sekuSlotForSource(source)
 	if !ok {
 		return nil, false, errors.New("站源无效")
@@ -337,7 +341,7 @@ func (d *Downloader) fetchSekuCatalogPage(ctx context.Context, source string, pa
 	if category == "" {
 		category = seku.DefaultCategory(slot)
 	}
-	items, _, hasMore, err := seku.Catalog(slot, category, page)
+	items, _, hasMore, err := seku.CatalogFiltered(slot, category, page, filters)
 	if err != nil {
 		return nil, false, err
 	}

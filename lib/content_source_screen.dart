@@ -307,12 +307,17 @@ class _ContentSourceScreenState extends State<ContentSourceScreen> {
                   child: ListTile(
                     title: Text(record.name),
                     subtitle: Text(record.fileName),
-                    trailing: IconButton(
-                      tooltip: '删除',
-                      onPressed: _busy
-                          ? null
-                          : () => unawaited(_removePy(record)),
-                      icon: const Icon(Icons.delete_outline_rounded),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          tooltip: '删除',
+                          onPressed: _busy
+                              ? null
+                              : () => unawaited(_removePy(record)),
+                          icon: const Icon(Icons.delete_outline_rounded),
+                        ),
+                      ],
                     ),
                   ),
                 ),

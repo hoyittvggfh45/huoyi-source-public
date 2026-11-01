@@ -388,6 +388,23 @@ func providerCatalog(slot, category string, page int) ([]interface{}, int, bool,
 	return impl.Catalog(slot, category, page)
 }
 
+func providerCatalogFiltered(slot, category string, page int, filters map[string]string) ([]interface{}, int, bool, error) {
+	impl := implForSlot(slot)
+	if impl == nil {
+		return []interface{}{}, 0, false, fmt.Errorf("unknown provider")
+	}
+	if category == markerCatID {
+		category = impl.DefaultCat
+	}
+	if impl.CatalogFiltered != nil {
+		return impl.CatalogFiltered(slot, category, page, filters)
+	}
+	if impl.Catalog == nil {
+		return []interface{}{}, 0, false, fmt.Errorf("unknown provider")
+	}
+	return impl.Catalog(slot, category, page)
+}
+
 func providerDetail(slot, rawID string) (map[string]interface{}, error) {
 	impl := implForSlot(slot)
 	if impl == nil || impl.Detail == nil {
