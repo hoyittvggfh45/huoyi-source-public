@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:duanju_app/core_bridge.dart';
+import 'package:duanju_app/hongguo_drama_home.dart';
 import 'package:duanju_app/local_profiles.dart';
 import 'package:duanju_app/local_store.dart';
 import 'package:duanju_app/main.dart';
@@ -196,7 +197,7 @@ void main() {
     expect(find.text('下载'), findsNothing);
     expect(find.text('黄豆'), findsNothing);
     expect(find.text('黄果 AI'), findsNothing);
-    expect(find.text('红果'), findsOneWidget);
+    expect(find.byType(HongguoDramaHome), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
     store.dispose();
   });

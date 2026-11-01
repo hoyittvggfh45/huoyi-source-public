@@ -1042,8 +1042,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
             trailing: Switch.adaptive(
               value: store.pythonCfDisguise,
               onChanged: (value) async {
-                await store.setPythonCfDisguise(value);
-                await PyBridge.setCfDisguise(value);
+                try {
+                  await store.setPythonCfDisguise(value);
+                  await PyBridge.setCfDisguise(value);
+                } catch (error) {
+                  if (mounted) {
+                    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                      SnackBar(content: Text('切换失败：$error')),
+                    );
+                  }
+                }
                 if (mounted) setState(() {});
               },
             ),
@@ -1057,8 +1065,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
             trailing: Switch.adaptive(
               value: store.jarFingerprintEnabled,
               onChanged: (value) async {
-                await store.setJarFingerprintEnabled(value);
-                await JarBridge.setJarFingerprint(value);
+                try {
+                  await store.setJarFingerprintEnabled(value);
+                  await JarBridge.setJarFingerprint(value);
+                } catch (error) {
+                  if (mounted) {
+                    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                      SnackBar(content: Text('切换失败：$error')),
+                    );
+                  }
+                }
                 if (mounted) setState(() {});
               },
             ),
@@ -1076,7 +1092,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
             trailing: Switch.adaptive(
               value: store.customHeadersEnabled,
               onChanged: (value) async {
-                await store.setCustomHeadersEnabled(value);
+                try {
+                  await store.setCustomHeadersEnabled(value);
+                } catch (error) {
+                  if (mounted) {
+                    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                      SnackBar(content: Text('切换失败：$error')),
+                    );
+                  }
+                }
                 if (mounted) setState(() {});
               },
             ),

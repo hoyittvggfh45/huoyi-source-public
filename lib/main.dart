@@ -142,6 +142,7 @@ class _AppBootstrapState extends State<AppBootstrap>
           unawaited(
             JarBridge.setJarFingerprint(store!.jarFingerprintEnabled),
           );
+          unawaited(store!.syncLibraryFromDb());
           repository.access = store;
           LanController.current?.dispose();
           final link = LanController(

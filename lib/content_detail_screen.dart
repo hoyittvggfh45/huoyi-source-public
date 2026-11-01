@@ -1,13 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:media_kit/media_kit.dart';
 
-import 'app_page_route.dart';
-
-import 'content_audio_player.dart';
 import 'content_models.dart';
 import 'core_bridge.dart';
 
-/// 三区共用详情页：封面/简介/说明 + 章节（集数）列表，
-/// 点章节按分区进音频播放器 / 漫画阅读器 / 小说阅读器。
 class ContentDetailScreen extends StatefulWidget {
   const ContentDetailScreen({
     super.key,
@@ -22,15 +20,64 @@ class ContentDetailScreen extends StatefulWidget {
   State<ContentDetailScreen> createState() => _ContentDetailScreenState();
 }
 
+String _formatAudioTime(Duration value) {
+  final total = value.inSeconds;
+  if (total < 0) return '00:00';
+  final hours = total ~/ 3600;
+  final minutes = (total % 3600) ~/ 60;
+  final seconds = total % 60;
+  final mm = minutes.toString().padLeft(2, '0');
+  final ss = seconds.toString().padLeft(2, '0');
+  if (hours > 0) return '$hours:$mm:$ss';
+  return '$mm:$ss';
+}
+
 class _ContentDetailScreenState extends State<ContentDetailScreen> {
   ContentBookDetail? _detail;
   String _error = '';
   bool _loading = true;
+  late final Player _player = Player();
+  int _playingIndex = -1;
+  Duration _position = Duration.zero;
+  Duration _duration = Duration.zero;
+  bool _playing = false;
+  bool _trackLoading = false;
+  String _trackError = '';
+  double _rate = 1.0;
+  final List<StreamSubscription<dynamic>> _subs = [];
 
   @override
   void initState() {
     super.initState();
+    _subs.addAll([
+      _player.stream.position.listen((value) {
+        if (mounted) setState(() => _position = value);
+      }),
+      _player.stream.duration.listen((value) {
+        if (mounted) setState(() => _duration = value);
+      }),
+      _player.stream.playing.listen((value) {
+        if (mounted) setState(() => _playing = value);
+      }),
+      _player.stream.completed.listen((completed) {
+        if (completed == true) _next(auto: true);
+      }),
+      _player.stream.error.listen((_) {
+        if (mounted && _trackError.isEmpty) {
+          setState(() => _trackError = '音频播放出错');
+        }
+      }),
+    ]);
     _load();
+  }
+
+  @override
+  void dispose() {
+    for (final sub in _subs) {
+      sub.cancel();
+    }
+    _player.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -66,16 +113,225 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
     }
   }
 
-  void _openChapter(int index) {
+  Future<void> _playChapter(int index) async {
+    final detail = _detail;
+    if (detail == null || index < 0 || index >= detail.chapters.length) return;
+    setState(() {
+      _playingIndex = index;
+      _trackLoading = true;
+      _trackError = '';
+      _position = Duration.zero;
+      _duration = Duration.zero;
+    });
+    try {
+      final track = await widget.source.audioTrack(
+        detail.book.id,
+        detail.chapters[index],
+      );
+      if (!mounted) return;
+      await _player.open(Media(track.url));
+      await _player.setRate(_rate);
+      await _player.play();
+      if (mounted) setState(() => _trackLoading = false);
+    } on AppFailure catch (e) {
+      if (mounted) {
+        setState(() {
+          _trackLoading = false;
+          _trackError = e.message;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _trackLoading = false;
+          _trackError = '音频加载失败';
+        });
+      }
+    }
+  }
+
+  void _next({bool auto = false}) {
     final detail = _detail;
     if (detail == null) return;
-    final page = ContentAudioPlayerScreen(
-      source: widget.source,
-      book: detail.book,
-      chapters: detail.chapters,
-      initialIndex: index,
+    if (_playingIndex + 1 >= detail.chapters.length) return;
+    _playChapter(_playingIndex + 1);
+  }
+
+  void _prev() {
+    if (_playingIndex - 1 < 0) return;
+    _playChapter(_playingIndex - 1);
+  }
+
+  Future<void> _toggle() async {
+    if (_trackLoading || _playingIndex < 0) return;
+    if (_playing) {
+      await _player.pause();
+    } else {
+      await _player.play();
+    }
+  }
+
+  Future<void> _setRate(double rate) async {
+    setState(() => _rate = rate);
+    await _player.setRate(rate);
+  }
+
+  Future<void> _stop() async {
+    await _player.stop();
+    if (mounted) {
+      setState(() {
+        _playingIndex = -1;
+        _position = Duration.zero;
+        _duration = Duration.zero;
+        _playing = false;
+        _trackLoading = false;
+        _trackError = '';
+      });
+    }
+  }
+
+  void _onChapterTap(int index) {
+    if (index == _playingIndex) {
+      _toggle();
+    } else {
+      _playChapter(index);
+    }
+  }
+
+  Widget _playerBar() {
+    final detail = _detail;
+    if (detail == null || _playingIndex < 0) return const SizedBox.shrink();
+    final chapter = detail.chapters[_playingIndex];
+    final colors = Theme.of(context).colorScheme;
+    final maxMs = _duration.inMilliseconds > 0
+        ? _duration.inMilliseconds.toDouble()
+        : 1.0;
+    final posMs = _position.inMilliseconds.toDouble().clamp(0.0, maxMs);
+    return SafeArea(
+      top: false,
+      child: Material(
+        elevation: 8,
+        color: colors.surface,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      chapter.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                  ),
+                  Text(
+                    '第 ${_playingIndex + 1} 集 / 共 ${detail.chapters.length} 集',
+                    style: TextStyle(
+                      color: colors.onSurfaceVariant,
+                      fontSize: 12,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: '停止',
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: _stop,
+                  ),
+                ],
+              ),
+              if (_trackError.isNotEmpty)
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _trackError,
+                        style: TextStyle(color: colors.error),
+                      ),
+                    ),
+                    FilledButton(
+                      onPressed: () => _playChapter(_playingIndex),
+                      child: const Text('重试'),
+                    ),
+                  ],
+                ),
+              Row(
+                children: [
+                  Text(_formatAudioTime(_position)),
+                  Expanded(
+                    child: Slider(
+                      value: posMs,
+                      max: maxMs,
+                      onChanged: (value) {
+                        _player.seek(Duration(milliseconds: value.toInt()));
+                      },
+                    ),
+                  ),
+                  Text(_formatAudioTime(_duration)),
+                ],
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(
+                    tooltip: '上一集',
+                    icon: const Icon(Icons.skip_previous_rounded),
+                    onPressed: _playingIndex > 0 ? _prev : null,
+                  ),
+                  const SizedBox(width: 12),
+                  _trackLoading
+                      ? const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        )
+                      : IconButton(
+                          tooltip: _playing ? '暂停' : '播放',
+                          iconSize: 40,
+                          icon: Icon(
+                            _playing
+                                ? Icons.pause_circle_filled_rounded
+                                : Icons.play_circle_filled_rounded,
+                          ),
+                          onPressed: _toggle,
+                        ),
+                  const SizedBox(width: 12),
+                  IconButton(
+                    tooltip: '下一集',
+                    icon: const Icon(Icons.skip_next_rounded),
+                    onPressed:
+                        _playingIndex + 1 < detail.chapters.length
+                            ? () => _next()
+                            : null,
+                  ),
+                  const SizedBox(width: 12),
+                  PopupMenuButton<double>(
+                    tooltip: '倍速',
+                    initialValue: _rate,
+                    onSelected: _setRate,
+                    itemBuilder: (_) => [
+                      for (final rate in [0.75, 1.0, 1.25, 1.5, 2.0])
+                        PopupMenuItem(value: rate, child: Text('${rate}x')),
+                    ],
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 12,
+                      ),
+                      child: Text('${_rate}x'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
-    Navigator.of(context).push(appPageRoute(builder: (_) => page));
   }
 
   @override
@@ -84,6 +340,7 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
     final book = _detail?.book ?? widget.book;
     return Scaffold(
       appBar: AppBar(title: Text(book.title, maxLines: 1)),
+      bottomNavigationBar: _playingIndex >= 0 ? _playerBar() : null,
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error.isNotEmpty
@@ -202,6 +459,7 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
                 for (var i = 0; i < (_detail?.chapters.length ?? 0); i++)
                   ListTile(
                     contentPadding: EdgeInsets.zero,
+                    selected: i == _playingIndex,
                     leading: CircleAvatar(child: Text('${i + 1}')),
                     title: Text(
                       _detail!.chapters[i].title,
@@ -212,11 +470,13 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
                         ? Text(_detail!.chapters[i].meta)
                         : null,
                     trailing: Icon(
-                      widget.source.section == ContentSection.audio
+                      i == _playingIndex && _playing
+                          ? Icons.volume_up_rounded
+                          : widget.source.section == ContentSection.audio
                           ? Icons.play_circle_outline_rounded
                           : Icons.chevron_right_rounded,
                     ),
-                    onTap: () => _openChapter(i),
+                    onTap: () => _onChapterTap(i),
                   ),
               ],
             ),

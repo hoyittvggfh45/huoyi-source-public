@@ -26,6 +26,7 @@ import 'watchroom/room_screen.dart';
 import 'app_update.dart';
 import 'core_bridge.dart';
 import 'catalog_filters.dart';
+import 'compact_chip.dart';
 import 'tv_filter_bar.dart';
 import 'catalog_browser.dart';
 import 'catalog_sort.dart';
@@ -36,6 +37,7 @@ import 'detail_screen.dart';
 import 'folder_catalog_screen.dart';
 import 'fullscreen_feed_screen.dart';
 import 'drama_style_home.dart';
+import 'hongguo_drama_home.dart';
 import 'import_file_store.dart';
 import 'imported_site_record.dart';
 import 'py_bridge.dart';
@@ -1920,6 +1922,44 @@ class _HomeScreenState extends State<HomeScreen> {
             !desktop &&
             !_selectionMode &&
             _zone == HomeZone.drama) {
+          if (isHongguoDramaGroup(_group.id)) {
+            return Scaffold(
+              key: _scaffoldKey,
+              drawer: _drawer(),
+              extendBody: glass,
+              body: SafeArea(
+                bottom: !glass,
+                child: HongguoDramaHome(
+                  dramas: List.of(_visible),
+                  repository: widget.repository,
+                  store: widget.store,
+                  onOpenDrama: _openDrama,
+                  onOpenFeed: _openFullscreenFeed,
+                  onPickSource: () => unawaited(_pickSource()),
+                  sourceLabel: '${_group.name} (${_group.sources.length})',
+                  feedEnabled: _visible.isNotEmpty,
+                  categories: _displayCategories,
+                  selectedCategory: _displayCategory,
+                  onCategorySelected: _changeCategory,
+                  searchController: _search,
+                  searchHint: _searchHint,
+                  onSearchChanged: _searchChanged,
+                  onSearchSubmitted: _submitSearch,
+                  onMenuPressed: _openDrawer,
+                  onFilterPressed: () => unawaited(_chooseCatalogView()),
+                  onRankingsPressed: _openRankings,
+                  onNewPressed: _toggleNewSort,
+                  filtersActive:
+                      widget.store.catalogView.sort != CatalogSort.source ||
+                      widget.store.catalogView.release.isNotEmpty,
+                  newActive: widget.store.catalogView.sort == CatalogSort.date,
+                  onOpenSaved: _openSaved,
+                  onOpenDownloads: _openDownloads,
+                  onSettingsPressed: _openZoneSettings,
+                ),
+              ),
+            );
+          }
           if (_dramaStyle == DramaUiStyle.fullscreen) {
             if (_visible.isEmpty) {
               return Scaffold(
@@ -2504,9 +2544,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   onSelected: _changeFilter,
                 ),
         if (_drillStack.isNotEmpty) _breadcrumbBar(),
-        if (_catalogTags.isNotEmpty && !_showRecommendations)
+        if (_catalogTags.isNotEmpty && !_showRecommendations) ...[
           SizedBox(
-            height: 16,
+            height: compactChipHeight(context),
             child: ListView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -2514,126 +2554,84 @@ class _HomeScreenState extends State<HomeScreen> {
                 for (final tag in _catalogTags)
                   Padding(
                     padding: const EdgeInsets.only(right: 3),
-                    child: ActionChip(
+                    child: CompactFilterChip(
                       key: ValueKey('catalog-tag-${tag.id}'),
-                      avatar: const Icon(Icons.label_outline_rounded, size: 11),
-                      label: Text(tag.name),
-                      padding: const EdgeInsets.symmetric(horizontal: 3),
-                      labelPadding: const EdgeInsets.symmetric(horizontal: 4),
-                      labelStyle: const TextStyle(fontSize: 8),
-                      backgroundColor: Theme.of(context)
-                          .colorScheme
-                          .surfaceContainerHighest,
-                      onPressed: () => _openTag(tag),
+                      avatar:
+                          const Icon(Icons.label_outline_rounded, size: 11),
+                      label: tag.name,
+                      selected: false,
+                      onSelected: () => _openTag(tag),
                     ),
                   ),
               ],
             ),
           ),
-        if (_level2Tags.isNotEmpty && !_showRecommendations)
+          const SizedBox(height: 4),
+        ],
+        if (_level2Tags.isNotEmpty && !_showRecommendations) ...[
           SizedBox(
-            height: 16,
+            height: compactChipHeight(context),
             child: ListView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 8),
               children: [
                 Padding(
                   padding: const EdgeInsets.only(right: 3),
-                  child: ChoiceChip(
-                    label: const Text('全部标签'),
-                    padding: const EdgeInsets.symmetric(horizontal: 3),
-                    labelPadding: const EdgeInsets.symmetric(horizontal: 4),
-                    labelStyle: TextStyle(
-                      fontSize: 8,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
+                  child: CompactFilterChip(
+                    label: '全部标签',
                     selected: _tagLevel2 == null,
-                    showCheckmark: false,
-                    selectedColor: const Color(0xFFC8E6C9),
-                    backgroundColor: Theme.of(context)
-                        .colorScheme
-                        .surfaceContainerHighest,
-                    onSelected: (_) => _selectTagLevel2(null),
+                    onSelected: () => _selectTagLevel2(null),
                   ),
                 ),
                 for (final tag in _level2Tags)
                   Padding(
                     padding: const EdgeInsets.only(right: 3),
-                    child: ChoiceChip(
+                    child: CompactFilterChip(
                       key: ValueKey('catalog-tag2-$tag'),
-                      label: Text(tag),
-                      padding: const EdgeInsets.symmetric(horizontal: 3),
-                      labelPadding: const EdgeInsets.symmetric(horizontal: 4),
-                      labelStyle: TextStyle(
-                        fontSize: 8,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
+                      label: tag,
                       selected: _tagLevel2 == tag,
-                      showCheckmark: false,
-                      selectedColor: const Color(0xFFC8E6C9),
-                      backgroundColor: Theme.of(context)
-                          .colorScheme
-                          .surfaceContainerHighest,
-                      onSelected: (_) =>
+                      onSelected: () =>
                           _selectTagLevel2(_tagLevel2 == tag ? null : tag),
                     ),
                   ),
               ],
             ),
           ),
+          const SizedBox(height: 4),
+        ],
         if (_tagLevel2 != null &&
             _level3Tags.isNotEmpty &&
-            !_showRecommendations)
+            !_showRecommendations) ...[
           SizedBox(
-            height: 16,
+            height: compactChipHeight(context),
             child: ListView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 8),
               children: [
                 Padding(
                   padding: const EdgeInsets.only(right: 3),
-                  child: ChoiceChip(
-                    label: const Text('全部'),
-                    padding: const EdgeInsets.symmetric(horizontal: 3),
-                    labelPadding: const EdgeInsets.symmetric(horizontal: 4),
-                    labelStyle: TextStyle(
-                      fontSize: 8,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
+                  child: CompactFilterChip(
+                    label: '全部',
                     selected: _tagLevel3 == null,
-                    showCheckmark: false,
-                    selectedColor: const Color(0xFFC8E6C9),
-                    backgroundColor: Theme.of(context)
-                        .colorScheme
-                        .surfaceContainerHighest,
-                    onSelected: (_) => _selectTagLevel3(null),
+                    onSelected: () => _selectTagLevel3(null),
                   ),
                 ),
                 for (final tag in _level3Tags)
                   Padding(
                     padding: const EdgeInsets.only(right: 3),
-                    child: ChoiceChip(
+                    child: CompactFilterChip(
                       key: ValueKey('catalog-tag3-$tag'),
-                      label: Text(tag),
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      labelPadding: const EdgeInsets.symmetric(horizontal: 6),
-                      labelStyle: TextStyle(
-                        fontSize: 8,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
+                      label: tag,
                       selected: _tagLevel3 == tag,
-                      showCheckmark: false,
-                      selectedColor: const Color(0xFFC8E6C9),
-                      backgroundColor: Theme.of(context)
-                          .colorScheme
-                          .surfaceContainerHighest,
-                      onSelected: (_) =>
+                      onSelected: () =>
                           _selectTagLevel3(_tagLevel3 == tag ? null : tag),
                     ),
                   ),
               ],
             ),
           ),
+          const SizedBox(height: 4),
+        ],
         if (_showRecommendations)
           Expanded(
             child: GestureDetector(

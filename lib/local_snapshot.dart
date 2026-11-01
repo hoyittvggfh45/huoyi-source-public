@@ -8,6 +8,29 @@ class LocalSnapshot {
   }
   LocalSnapshot.empty(this.preferences);
 
+  LocalSnapshot.migrated(this.preferences) {
+    _values = _migrateLegacy(preferences);
+  }
+
+  static Map<String, Object> _migrateLegacy(SharedPreferences preferences) {
+    final values = <String, Object>{};
+    for (final key in preferences.getKeys().where(owns)) {
+      final value = preferences.get(key);
+      final boolean = {
+        'hideVip',
+        'autoExport',
+        'exportPosters',
+        'forceLogin',
+      }.contains(key.split('.').last);
+      if (value is String && !boolean) {
+        values[key] = value;
+      } else if (value is bool && boolean) {
+        values[key] = value;
+      }
+    }
+    return values;
+  }
+
   static const storageKey = 'localSnapshot.v1';
   static const libraryKeys = {
     'history',
@@ -17,6 +40,11 @@ class LocalSnapshot {
     'mediaHistory',
     'source',
     'hideVip',
+    'pythonCfDisguise',
+    'jarFingerprintEnabled',
+    'customHeadersEnabled',
+    'customHeaderRules',
+    'expandedSourceGroups',
     // 源显示列表的隐藏集合（每用户），必须列入受管字段，
     // 否则开关站源显示会被 commit 判为「无效的本地配置字段」。
     'hiddenSites',
@@ -65,19 +93,7 @@ class LocalSnapshot {
   void reloadValues() {
     final raw = preferences.getString(storageKey);
     if (raw == null) {
-      // 旧版本逐键写入的记录：只接收类型正确的条目，历史脏数据直接忽略，
-      // 避免一条非法记录让整个本地配置无法加载。
-      final migrated = <String, Object>{};
-      for (final key in preferences.getKeys().where(owns)) {
-        final value = preferences.get(key);
-        if (value is String) {
-          migrated[key] = value;
-        } else if (value is bool) {
-          migrated[key] = value;
-        }
-      }
-      _values = migrated;
-      _validate(_values);
+      _values = _migrateLegacy(preferences);
       return;
     }
     final decoded = jsonDecode(raw) as Map;

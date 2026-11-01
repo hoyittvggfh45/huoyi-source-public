@@ -212,6 +212,14 @@ class JarImport {
     return (all: classes, newly: newly);
   }
 
+  static List<String> siteIdsForJar(String jarId) {
+    final prefix = 'jar:$jarId:';
+    return [
+      for (final entry in _sites.entries)
+        if (entry.key.startsWith(prefix)) entry.key,
+    ];
+  }
+
   static Future<void> registerClass({
     required String jarId,
     required String jarUrl,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:duanju_app/catalog_filters.dart';
+import 'package:duanju_app/compact_chip.dart';
 import 'package:duanju_app/models.dart';
 
 void main() {
@@ -9,6 +10,25 @@ void main() {
   ThemeData theme() => ThemeData(
     colorScheme: const ColorScheme.light(surfaceContainerHighest: container),
   );
+
+  Color chipColor(WidgetTester tester, String label) {
+    final chip = find.widgetWithText(CompactFilterChip, label);
+    final box = find.descendant(
+      of: chip,
+      matching: find.byType(Container),
+    );
+    final decoration =
+        tester.widget<Container>(box).decoration as BoxDecoration?;
+    return decoration?.color ?? Colors.transparent;
+  }
+
+  TextStyle labelStyle(WidgetTester tester, String label) {
+    final text = find.descendant(
+      of: find.widgetWithText(CompactFilterChip, label),
+      matching: find.byType(Text),
+    );
+    return tester.widget<Text>(text).style!;
+  }
 
   testWidgets('catalog chips use theme container color, not white', (
     tester,
@@ -29,21 +49,22 @@ void main() {
         ),
       ),
     );
-    final all = tester.widget<ChoiceChip>(
-      find.widgetWithText(ChoiceChip, '全部'),
+    final all = tester.widget<CompactFilterChip>(
+      find.widgetWithText(CompactFilterChip, '全部'),
     );
-    final daily = tester.widget<ChoiceChip>(
-      find.widgetWithText(ChoiceChip, '日常'),
+    final daily = tester.widget<CompactFilterChip>(
+      find.widgetWithText(CompactFilterChip, '日常'),
     );
     expect(all.selected, isTrue);
-    expect(all.selectedColor, selected);
-    expect(all.selectedColor, isNot(Colors.white));
-    expect(all.labelStyle?.color, theme().colorScheme.onSurface);
-    expect(all.labelStyle?.color, isNot(Colors.white));
-    expect(daily.backgroundColor, container);
-    expect(daily.backgroundColor, isNot(Colors.white));
-    expect(daily.backgroundColor, isNot(daily.selectedColor));
-    expect(daily.labelStyle?.fontSize, 12);
+    expect(chipColor(tester, '全部'), selected);
+    expect(chipColor(tester, '全部'), isNot(Colors.white));
+    expect(labelStyle(tester, '全部').color, theme().colorScheme.onSurface);
+    expect(labelStyle(tester, '全部').color, isNot(Colors.white));
+    expect(daily.selected, isFalse);
+    expect(chipColor(tester, '日常'), container);
+    expect(chipColor(tester, '日常'), isNot(Colors.white));
+    expect(chipColor(tester, '日常'), isNot(selected));
+    expect(labelStyle(tester, '日常').fontSize, 8);
   });
 
   testWidgets('category chips use theme container color, not white', (
@@ -65,13 +86,14 @@ void main() {
         ),
       ),
     );
-    final other = tester.widget<ChoiceChip>(
-      find.widgetWithText(ChoiceChip, '真人剧'),
+    final other = tester.widget<CompactFilterChip>(
+      find.widgetWithText(CompactFilterChip, '真人剧'),
     );
-    expect(other.backgroundColor, container);
-    expect(other.backgroundColor, isNot(Colors.white));
-    expect(other.selectedColor, selected);
-    expect(other.selectedColor, isNot(other.backgroundColor));
-    expect(other.labelStyle?.fontSize, 12);
+    expect(other.selected, isFalse);
+    expect(chipColor(tester, '真人剧'), container);
+    expect(chipColor(tester, '真人剧'), isNot(Colors.white));
+    expect(chipColor(tester, '全部'), selected);
+    expect(chipColor(tester, '全部'), isNot(chipColor(tester, '真人剧')));
+    expect(labelStyle(tester, '真人剧').fontSize, 8);
   });
 }

@@ -30,7 +30,7 @@ class JarBridgeHandoff {
     return '已导入 TVBox 配置「${report.name}」：${report.summary}';
   }
 
-  static Future<String> registerJar({
+  static Future<({String summary, List<String> siteIds})> registerJar({
     required String name,
     required List<int> bytes,
   }) async {
@@ -40,8 +40,9 @@ class JarBridgeHandoff {
     if (!await jarDir.exists()) await jarDir.create(recursive: true);
     final file = File(path.join(jarDir.path, '$digest.jar'));
     if (!await file.exists()) await file.writeAsBytes(bytes, flush: true);
+    final jarId = 'imp${digest.substring(0, 10)}';
     final result = await JarImport.scanAndRegister(
-      jarId: 'imp${digest.substring(0, 10)}',
+      jarId: jarId,
       jarUrl: file.path,
       jarMd5: digest,
     );
@@ -50,6 +51,9 @@ class JarBridgeHandoff {
     if (classes.where((info) => info.instantiable).isEmpty) {
       throw AppFailure('jar 内未发现可实例化的 Spider 类（共枚举 ${classes.length} 个类）');
     }
-    return 'jar 新增注册 $registered 个站点（枚举 ${classes.length} 个类）';
+    return (
+      summary: 'jar 新增注册 $registered 个站点（枚举 ${classes.length} 个类）',
+      siteIds: JarImport.siteIdsForJar(jarId),
+    );
   }
 }

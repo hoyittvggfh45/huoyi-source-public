@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'app_database.dart';
 import 'content_registry.dart';
 import 'custom_headers.dart';
 import 'jar_import.dart';
@@ -58,21 +59,18 @@ class LocalStore extends ChangeNotifier {
   void _initialize() {
     try {
       _snapshot = LocalSnapshot(preferences);
-      // 先恢复自定义源：用户档案里可能勾选了自定义源，读取档案时
-      // SourceSite.customIds 必须已经就绪，否则档案会被判为无效。
+    } catch (_) {
+      _snapshot = LocalSnapshot.migrated(preferences);
+    }
+    try {
       _loadCustomSources();
       TvBoxConfigStore.restore(preferences);
       JarImport.restore(preferences);
       _loadImportedSites();
       _loadM3uSubscriptions();
+    } catch (_) {}
+    try {
       final raw = _snapshot!.getString('profiles');
-      if (raw == null &&
-          (_snapshot!.getString('activeProfile') != null ||
-              _snapshot!.values.keys.any(
-                (key) => key.startsWith('profile.'),
-              ))) {
-        throw const FormatException('已有用户配置缺失');
-      }
       _profiles = raw == null
           ? [const LocalProfile(id: 'default', name: '管理员', admin: true)]
           : _readProfiles(jsonDecode(raw));
@@ -80,11 +78,21 @@ class LocalStore extends ChangeNotifier {
       if (!_profiles.any((profile) => profile.id == _current)) {
         _current = _profiles.firstWhere((profile) => profile.admin).id;
       }
-      _configurationError = null;
-      _locked = forceLogin && profile.protected;
+    } catch (_) {
+      _profiles = [
+        const LocalProfile(id: 'default', name: '管理员', admin: true),
+      ];
+      _current = 'default';
+    }
+    _configurationError = null;
+    _locked = forceLogin && profile.protected;
+    try {
       _loadLibrary();
     } catch (_) {
-      _block('本地用户配置损坏，已锁定访问。原始记录已保留，请重新读取或从备份恢复。');
+      _history.clear();
+      _favorites.clear();
+      _followStates.clear();
+      _seriesCandidates.clear();
     }
   }
 
@@ -456,6 +464,110 @@ class LocalStore extends ChangeNotifier {
     }
   }
 
+  (String, String)? _libraryKeyProfile(String key) {
+    if (key == 'history') return ('default', 'history');
+    if (key == 'favorites') return ('default', 'favorites');
+    final parts = key.split('.');
+    if (parts.length == 3 &&
+        parts[0] == 'profile' &&
+        (parts[2] == 'history' || parts[2] == 'favorites')) {
+      return (parts[1], parts[2]);
+    }
+    return null;
+  }
+
+  Future<void> _syncLibraryKeysToDb(
+    Map<String, Object> changes,
+    Iterable<String> remove,
+  ) async {
+    final db = AppDatabase.instance;
+    final historyByProfile = <String, List<WatchEntry>>{};
+    final favoritesByProfile = <String, List<Drama>>{};
+    for (final key in changes.keys) {
+      final parsed = _libraryKeyProfile(key);
+      if (parsed == null) continue;
+      final raw = changes[key];
+      if (raw is! String) continue;
+      if (parsed.$2 == 'history') {
+        final entries = <WatchEntry>[];
+        for (final row in readJsonList(raw)) {
+          try {
+            entries.add(WatchEntry.fromJson(row));
+          } catch (_) {}
+        }
+        historyByProfile[parsed.$1] = entries;
+      } else {
+        final dramas = <Drama>[];
+        for (final row in readJsonList(raw)) {
+          try {
+            dramas.add(Drama.fromJson(row));
+          } catch (_) {}
+        }
+        favoritesByProfile[parsed.$1] = dramas;
+      }
+    }
+    for (final key in remove) {
+      if (changes.containsKey(key)) continue;
+      final parsed = _libraryKeyProfile(key);
+      if (parsed == null) continue;
+      if (parsed.$2 == 'history') {
+        historyByProfile[parsed.$1] = const [];
+      } else {
+        favoritesByProfile[parsed.$1] = const [];
+      }
+    }
+    for (final entry in historyByProfile.entries) {
+      await db.replaceHistory(entry.key, entry.value);
+    }
+    for (final entry in favoritesByProfile.entries) {
+      await db.replaceFavorites(entry.key, entry.value);
+    }
+  }
+
+  Future<void> _syncLibraryFromDbLocked() async {
+    if (_configurationError != null) return;
+    try {
+      final db = AppDatabase.instance;
+      if (await db.isSynced(_current)) {
+        final history = await db.loadHistory(_current);
+        final favorites = await db.loadFavorites(_current);
+        _history.clear();
+        for (final entry in history) {
+          _history[entry.drama.id] = entry;
+        }
+        _favorites.clear();
+        for (final drama in favorites) {
+          _favorites[drama.id] = drama;
+        }
+        Map<String, dynamic> states = {};
+        try {
+          states = Map<String, dynamic>.from(
+            jsonDecode(_string(_key('followStates')) ?? '{}') as Map,
+          );
+        } catch (_) {}
+        _followStates.clear();
+        for (final drama in _favorites.values) {
+          try {
+            _followStates[drama.id] = FollowState.fromJson(
+              Map<String, dynamic>.from(states[drama.id] as Map),
+            );
+          } catch (_) {
+            _followStates[drama.id] = FollowState.initial(
+              drama,
+              _history[drama.id],
+            );
+          }
+        }
+        _notify();
+      } else {
+        await db.replaceHistory(_current, _history.values);
+        await db.replaceFavorites(_current, _favorites.values);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> syncLibraryFromDb() => _queue(_syncLibraryFromDbLocked);
+
   List<WatchEntry> get history =>
       _history.values
           .where((entry) => allowsSource(entry.drama.source))
@@ -666,6 +778,9 @@ class LocalStore extends ChangeNotifier {
         _lanRevision++;
         if (syncUrgent) _lanUrgentRevision++;
       }
+      try {
+        await _syncLibraryKeysToDb(changes, remove);
+      } catch (_) {}
     } on SnapshotRecoveryRequired catch (error) {
       _block(error.toString());
       _notify();
@@ -1110,6 +1225,7 @@ class LocalStore extends ChangeNotifier {
     _current = id;
     _locked = false;
     _loadLibrary();
+    await _syncLibraryFromDbLocked();
     _epoch++;
     _notify();
   });

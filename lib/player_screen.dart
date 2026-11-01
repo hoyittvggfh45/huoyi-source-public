@@ -1800,15 +1800,24 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   Future<void> _switchCore(PlayerCore next) async {
+    if (_closed) return;
+    final previous = _core;
     final position = _currentPosition;
     final playing = _playIntent && _enginePlaying;
-    await PlayerCoreStorage.write(widget.store.preferences, next);
-    if (_closed) return;
-    setState(() {
-      _core = next;
-      _loading = true;
-    });
-    await _play(_index, position: position, playWhenReady: playing);
+    try {
+      await PlayerCoreStorage.write(widget.store.preferences, next);
+      if (_closed) return;
+      setState(() {
+        _core = next;
+        _loading = true;
+      });
+      await _play(_index, position: position, playWhenReady: playing);
+    } catch (_) {
+      if (mounted && !_closed) {
+        setState(() => _core = previous);
+        _notice('切换播放器失败，已恢复原播放器');
+      }
+    }
   }
 
   Future<void> _selectRoute(int route) async {
@@ -1817,14 +1826,22 @@ class _PlayerScreenState extends State<PlayerScreen>
     final previous = _routeIndex;
     final position = _currentPosition;
     final playing = _playIntent && _enginePlaying;
-    await _saveProgress(flush: true);
-    setState(() => _routeIndex = route);
-    await _play(
-      _index,
-      position: position,
-      routeSelection: route,
-      playWhenReady: playing,
-    );
+    try {
+      await _saveProgress(flush: true);
+      setState(() => _routeIndex = route);
+      await _play(
+        _index,
+        position: position,
+        routeSelection: route,
+        playWhenReady: playing,
+      );
+    } catch (_) {
+      if (mounted && !_closed && _routeIndex == route) {
+        setState(() => _routeIndex = previous);
+      }
+      if (mounted && !_closed) _notice('切换线路失败，已恢复原线路');
+      return;
+    }
     if (_closed || !mounted || _plan?.routeIndex == route) return;
     if (_routeIndex == route) setState(() => _routeIndex = previous);
   }
@@ -2064,8 +2081,17 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   Future<void> _setPreferences(PlaybackPreferences preferences) async {
     if (_closed || widget.store.profileEpoch != _profileEpoch) {
-      throw StateError('当前用户已变更');
+      if (mounted && !_closed) _notice('当前用户已变更，请重试');
+      return;
     }
+    try {
+      await _setPreferencesInner(preferences);
+    } catch (_) {
+      if (mounted && !_closed) _notice('设置保存失败，请重试');
+    }
+  }
+
+  Future<void> _setPreferencesInner(PlaybackPreferences preferences) async {
     _interactions.cancel();
     final adBlockChanged = preferences.adBlock != _adBlock;
     final nextPreferences = preferences.copyWith(
@@ -2219,10 +2245,14 @@ class _PlayerScreenState extends State<PlayerScreen>
         ),
       );
       if (!mounted || _closed || index == null) return;
-      if (section == PlayerMenuSection.route) {
-        await _selectRoute(index);
-      } else if (index != _index) {
-        await _play(index, showControlsOnReady: false);
+      try {
+        if (section == PlayerMenuSection.route) {
+          await _selectRoute(index);
+        } else if (index != _index) {
+          await _play(index, showControlsOnReady: false);
+        }
+      } catch (_) {
+        if (mounted && !_closed) _notice('切换失败，请重试');
       }
     } finally {
       if (mounted && !_closed) {

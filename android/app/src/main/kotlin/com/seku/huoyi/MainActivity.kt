@@ -36,6 +36,7 @@ class MainActivity : FlutterActivity() {
     private var quickJSChannel: MethodChannel? = null
     private var pyImportChannel: MethodChannel? = null
     private val pendingPyFiles = mutableListOf<Map<String, Any?>>()
+    private val pendingJarFiles = mutableListOf<Map<String, Any?>>()
     private var televisionMode = false
 
     // 播放页左半屏竖向拖动临时调亮度：只改本窗口 screenBrightness（-1f 表示跟随系统），
@@ -204,24 +205,29 @@ class MainActivity : FlutterActivity() {
         } ?: return
         val name = displayNameFor(uri) ?: uri.lastPathSegment?.substringAfterLast('/') ?: ""
         val mime = incoming.type ?: runCatching { contentResolver.getType(uri) }.getOrNull()
-        val looksPy = name.lowercase().endsWith(".py") ||
-            mime == "text/x-python" || mime == "application/x-python"
-        if (!looksPy) return
+        val lowerName = name.lowercase()
+        val looksPy = lowerName.endsWith(".py") ||
+            (!lowerName.endsWith(".jar") &&
+                (mime == "text/x-python" || mime == "application/x-python"))
+        val looksJar = !looksPy && (lowerName.endsWith(".jar") ||
+            mime == "application/java-archive" || mime == "application/x-java-archive")
+        if (!looksPy && !looksJar) return
         val staged = runCatching {
-            val dir = java.io.File(cacheDir, "pyimport").apply { if (!exists()) mkdirs() }
-            val target = java.io.File(dir, "${System.currentTimeMillis()}_${(0..9999).random()}.py")
+            val dir = java.io.File(cacheDir, if (looksJar) "jarimport" else "pyimport").apply { if (!exists()) mkdirs() }
+            val suffix = if (looksJar) "jar" else "py"
+            val target = java.io.File(dir, "${System.currentTimeMillis()}_${(0..9999).random()}.$suffix")
             contentResolver.openInputStream(uri)?.use { input ->
                 target.outputStream().use { output -> input.copyTo(output) }
             } ?: return
             target
         }.getOrNull() ?: return
-        pendingPyFiles.add(
-            mapOf(
-                "path" to staged.absolutePath,
-                "name" to if (name.isNotEmpty()) name else "import.py",
-                "size" to staged.length()
-            )
+        val entry = mapOf(
+            "path" to staged.absolutePath,
+            "name" to if (name.isNotEmpty()) name else if (looksJar) "import.jar" else "import.py",
+            "size" to staged.length(),
+            "kind" to if (looksJar) "jar" else "py"
         )
+        if (looksJar) pendingJarFiles.add(entry) else pendingPyFiles.add(entry)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -334,8 +340,9 @@ class MainActivity : FlutterActivity() {
             .also { channel ->
                 channel.setMethodCallHandler { call, result ->
                     if (call.method == "takePending") {
-                        val pending = pendingPyFiles.toList()
+                        val pending = pendingPyFiles.toList() + pendingJarFiles.toList()
                         pendingPyFiles.clear()
+                        pendingJarFiles.clear()
                         result.success(pending)
                     } else {
                         result.notImplemented()

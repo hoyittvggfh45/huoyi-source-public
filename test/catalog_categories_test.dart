@@ -131,36 +131,6 @@ void main() {
     return store;
   }
 
-  for (final width in [390.0, 320.0]) {
-    testWidgets('compact home keeps search collapsed at $width', (
-      tester,
-    ) async {
-      await mount(
-        tester,
-        CategoryRepository(),
-        width: width,
-        scale: width == 320 ? 2 : 1,
-      );
-      expect(find.byType(TextField), findsNothing);
-      final coverTop = tester.getTopLeft(find.byType(DramaCover).first).dy;
-      expect(coverTop, lessThan(150));
-      final switcher = find.byKey(const ValueKey('source-switch'));
-      final rankings = find.byKey(const ValueKey('open-rankings'));
-      expect(
-        tester.getCenter(switcher).dy,
-        closeTo(tester.getCenter(rankings).dy, 2),
-      );
-      await tester.tap(find.byKey(const ValueKey('toggle-search')));
-      await tester.pumpAndSettle();
-      expect(find.byType(TextField), findsOneWidget);
-      await tester.tap(find.byKey(const ValueKey('toggle-search')));
-      await tester.pumpAndSettle();
-      expect(find.byType(TextField), findsNothing);
-      expect(tester.getTopLeft(find.byType(DramaCover).first).dy, coverTop);
-      expect(tester.takeException(), isNull);
-    });
-  }
-
   testWidgets(
     'one Huangguo source merges catalogs and categories and rejects stale replies',
     (tester) async {
@@ -270,9 +240,11 @@ void main() {
     (tester) async {
       final repository = CategoryRepository();
       await mount(tester, repository);
-      await tester.tap(find.byKey(const ValueKey('open-rankings')));
+      await tester.tap(find.text('剧场'));
       await tester.pumpAndSettle();
-      expect(repository.rankRequests, ['hongguo-hot|1|false']);
+      await tester.tap(find.text('排行榜'));
+      await tester.pumpAndSettle();
+      expect(repository.rankRequests, ['hongguo-hot|1|true']);
       expect(find.text('总热播榜'), findsOneWidget);
       await tester.tap(find.text('加载更多'));
       await tester.pumpAndSettle();
@@ -282,7 +254,7 @@ void main() {
       );
       await tester.tap(find.text('真人剧榜'));
       await tester.pumpAndSettle();
-      expect(repository.rankRequests.last, 'hongguo-real|1|false');
+      expect(repository.rankRequests.last, 'hongguo-real|1|true');
       expect(
         find.byKey(const ValueKey('rank-21-hongguo:rank:hongguo-hot:2')),
         findsNothing,

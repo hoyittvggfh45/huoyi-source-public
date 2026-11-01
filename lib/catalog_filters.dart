@@ -1,8 +1,7 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 
 import 'app_layout.dart';
+import 'compact_chip.dart';
 import 'models.dart';
 import 'remote_widgets.dart';
 
@@ -66,11 +65,8 @@ class _CatalogFiltersState extends State<CatalogFilters> {
   @override
   Widget build(BuildContext context) {
     final television = AppLayout.isTelevision(context);
-    final scheme = Theme.of(context).colorScheme;
     return SizedBox(
-      height: television
-          ? 64
-          : max(17, MediaQuery.textScalerOf(context).scale(8) + 9),
+      height: television ? 64 : compactChipHeight(context),
       child: Row(
         children: [
           Expanded(
@@ -108,24 +104,11 @@ class _CatalogFiltersState extends State<CatalogFilters> {
                           Padding(
                             key: _anchors.putIfAbsent(entry.id, GlobalKey.new),
                             padding: const EdgeInsets.only(right: 3),
-                            child: ChoiceChip(
+                            child: CompactFilterChip(
                               key: ValueKey('category-${entry.id}'),
-                              label: Text(entry.name),
+                              label: entry.name,
                               selected: entry.id == widget.category,
-                              showCheckmark: false,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 3,
-                              ),
-                              labelPadding: const EdgeInsets.symmetric(
-                                horizontal: 4,
-                              ),
-                              selectedColor: const Color(0xFFC8E6C9),
-                              backgroundColor: scheme.surfaceContainerHighest,
-                              labelStyle: TextStyle(
-                                fontSize: 8,
-                                color: scheme.onSurface,
-                              ),
-                              onSelected: (_) => widget.onCategory(entry.id),
+                              onSelected: () => widget.onCategory(entry.id),
                             ),
                           ),
                       ],
@@ -166,9 +149,10 @@ class CatalogFilterRows extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        for (final group in groups)
+        for (var i = 0; i < groups.length; i++) ...[
+          if (i > 0) const SizedBox(height: 4),
           SizedBox(
-            height: 16,
+            height: compactChipHeight(context),
             child: Row(
               children: [
                 Padding(
@@ -176,7 +160,7 @@ class CatalogFilterRows extends StatelessWidget {
                   child: SizedBox(
                     width: 19,
                     child: Text(
-                      group.name,
+                      groups[i].name,
                       style: TextStyle(
                         fontSize: 8,
                         fontWeight: FontWeight.w600,
@@ -190,15 +174,17 @@ class CatalogFilterRows extends StatelessWidget {
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.only(right: 8),
                     children: [
-                      _chip(context, group, '', '全部'),
-                      for (final option in group.options)
-                        _chip(context, group, option.id, option.name),
+                      _chip(context, groups[i], '', '全部'),
+                      for (final option in groups[i].options)
+                        _chip(context, groups[i], option.id, option.name),
                     ],
                   ),
                 ),
               ],
             ),
           ),
+        ],
+        const SizedBox(height: 6),
       ],
     );
   }
@@ -209,22 +195,14 @@ class CatalogFilterRows extends StatelessWidget {
     String id,
     String label,
   ) {
-    final scheme = Theme.of(context).colorScheme;
     final isSelected = (selected[group.key] ?? '') == id;
     return Padding(
       padding: const EdgeInsets.only(right: 3),
-      child: ChoiceChip(
+      child: CompactFilterChip(
         key: ValueKey('filter-${group.key}-$id'),
-        label: Text(label),
+        label: label,
         selected: isSelected,
-        showCheckmark: false,
-        padding: const EdgeInsets.symmetric(horizontal: 3),
-        labelPadding: const EdgeInsets.symmetric(horizontal: 4),
-        selectedColor: const Color(0xFFC8E6C9),
-        backgroundColor: scheme.surfaceContainerHighest,
-        labelStyle: TextStyle(fontSize: 8, color: scheme.onSurface),
-        side: BorderSide.none,
-        onSelected: (_) => onSelected(group.key, id),
+        onSelected: () => onSelected(group.key, id),
       ),
     );
   }

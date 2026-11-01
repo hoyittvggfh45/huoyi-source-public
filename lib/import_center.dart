@@ -41,12 +41,14 @@ class ImportOutcome {
     required this.status,
     required this.reason,
     this.siteName = '',
+    this.siteId = '',
   });
 
   final String fileName;
   final ImportOutcomeStatus status;
   final String reason;
   final String siteName;
+  final String siteId;
 
   bool get ok => status == ImportOutcomeStatus.success;
 }
@@ -129,6 +131,7 @@ class ImportEngine {
           status: ImportOutcomeStatus.duplicate,
           reason: '内容与已导入的「${sameHash.name}」完全相同，跳过',
           siteName: sameHash.name,
+          siteId: sameHash.id,
         );
       }
       switch (extension) {
@@ -240,6 +243,7 @@ class ImportEngine {
           ? '已注册为 Python 蜘蛛站（经 CPython 桥执行）$nameNote'
           : '已注册为 Python 蜘蛛站（经 CPython 桥执行）；$filledNote$nameNote',
       siteName: displayName,
+      siteId: id,
     );
   }
 
@@ -406,15 +410,16 @@ class ImportEngine {
         reason: '不是有效的 jar 文件（缺少 zip 文件头）',
       );
     }
-    final summary = await JarBridgeHandoff.registerJar(
+    final result = await JarBridgeHandoff.registerJar(
       name: candidate.baseName,
       bytes: bytes,
     );
     return ImportOutcome(
       fileName: candidate.name,
       status: ImportOutcomeStatus.success,
-      reason: summary,
+      reason: result.summary,
       siteName: candidate.baseName,
+      siteId: result.siteIds.isEmpty ? '' : result.siteIds.first,
     );
   }
 }
