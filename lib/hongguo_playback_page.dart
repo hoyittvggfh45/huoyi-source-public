@@ -4,8 +4,12 @@ import 'package:flutter/material.dart';
 
 import 'app_page_route.dart';
 import 'core_bridge.dart';
+import 'hongguo_comment.dart';
+import 'hongguo_danmaku.dart';
+import 'hongguo_preload.dart';
 import 'local_store.dart';
 import 'models.dart';
+import 'playback_foreground.dart';
 import 'playback_preferences.dart';
 import 'tvbox_player_bridge.dart';
 import 'watchroom/player.dart';
@@ -38,6 +42,17 @@ String _formatSpeed(double value) =>
 
 class _HongguoPlaybackPageState extends State<HongguoPlaybackPage> {
   final RoomPlayerHandle _player = RoomPlayerHandle();
+  late final HongguoPreloadWindow _preloadWindow = HongguoPreloadWindow(
+    widget.repository,
+    detailOf: (drama) async {
+      if (drama.id == widget.drama.id) return _detail;
+      try {
+        return await widget.repository.detail(drama);
+      } catch (_) {
+        return null;
+      }
+    },
+  );
   DramaDetail? _detail;
   late int _episode;
   bool _detailLoading = false;
@@ -48,6 +63,9 @@ class _HongguoPlaybackPageState extends State<HongguoPlaybackPage> {
   bool _usedStartPosition = false;
   bool _synopsisExpanded = false;
   bool _fullscreen = false;
+  bool _playbackServiceHeld = false;
+  String? _commentDramaId;
+  HongguoCommentPage? _commentPage;
 
   @override
   void initState() {
@@ -61,7 +79,34 @@ class _HongguoPlaybackPageState extends State<HongguoPlaybackPage> {
   void dispose() {
     _playToken++;
     _player.dispose();
+    _preloadWindow.dispose();
+    if (_playbackServiceHeld) {
+      _playbackServiceHeld = false;
+      unawaited(PlaybackForeground.release());
+    }
     super.dispose();
+  }
+
+  Future<void> _loadCommentCounts(PlaybackPlan plan) async {
+    try {
+      final page = await widget.repository.comments(plan);
+      if (!mounted || _commentDramaId != widget.drama.id) return;
+      setState(() => _commentPage = page);
+    } catch (_) {}
+  }
+
+  Future<void> _openComments() async {
+    final plan = _player.plan;
+    if (plan == null) {
+      _note('本集暂不支持评论');
+      return;
+    }
+    await showHongguoComments(
+      context,
+      plan,
+      widget.repository,
+      initialPage: _commentPage,
+    );
   }
 
   Future<void> _playCurrent() async {
@@ -108,12 +153,35 @@ class _HongguoPlaybackPageState extends State<HongguoPlaybackPage> {
         _usedStartPosition = true;
       }
       if (!mounted || token != _playToken) return;
+      final preloaded = _preloadWindow.take(
+        widget.drama,
+        detail.episodes[episodeIndex],
+      );
       await _player.open(
         detail: detail,
         episodeIndex: episodeIndex,
         startPosition: start,
         repository: widget.repository,
         store: widget.store,
+        preloadedPlan: preloaded,
+      );
+      if (!mounted || token != _playToken) return;
+      final plan = _player.plan;
+      if (plan != null) {
+        if (!_playbackServiceHeld) {
+          _playbackServiceHeld = true;
+          unawaited(PlaybackForeground.acquire(widget.drama.title));
+        }
+        if (_commentDramaId != widget.drama.id) {
+          _commentDramaId = widget.drama.id;
+          unawaited(_loadCommentCounts(plan));
+        }
+      }
+      _preloadWindow.recenter(
+        drama: widget.drama,
+        episodes: detail.episodes,
+        episodeIndex: episodeIndex,
+        upcoming: detail.related,
       );
       if (mounted) setState(() {});
     } finally {
@@ -154,6 +222,14 @@ class _HongguoPlaybackPageState extends State<HongguoPlaybackPage> {
 
   Future<void> _toggleFavorite() async {
     await widget.store.toggleFavorite(widget.drama);
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _toggleDanmaku() async {
+    final prefs = widget.store.playbackPreferences;
+    await widget.store.setPlaybackPreferences(
+      prefs.copyWith(danmaku: !prefs.danmaku),
+    );
     if (mounted) setState(() {});
   }
 
@@ -301,6 +377,18 @@ class _HongguoPlaybackPageState extends State<HongguoPlaybackPage> {
               },
             ),
             ListTile(
+              leading: const Icon(Icons.comment_rounded),
+              title: Text(
+                widget.store.playbackPreferences.danmaku
+                    ? '关闭弹幕'
+                    : '开启弹幕',
+              ),
+              onTap: () {
+                Navigator.of(context).pop();
+                unawaited(_toggleDanmaku());
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.close_rounded),
               title: const Text('关闭'),
               onTap: () => Navigator.of(context).pop(),
@@ -426,18 +514,30 @@ class _HongguoPlaybackPageState extends State<HongguoPlaybackPage> {
           if (_player.loading ||
               _player.error != null ||
               (keyMatches && _player.hasVideo)) {
-            return RoomPlayerView(
-              handle: _player,
-              viewType: widget.store.player == 'fongmi'
-                  ? TvboxPlayerController.fongmiViewType
-                  : TvboxPlayerController.viewType,
-              onCompleted: _onCompleted,
-              onError: (_) {},
-              onRetry: () => unawaited(_playCurrent()),
-              onFullscreen: _fullscreen
-                  ? () => setState(() => _fullscreen = false)
-                  : null,
-              isFullscreen: _fullscreen,
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                RoomPlayerView(
+                  handle: _player,
+                  viewType: widget.store.player == 'fongmi'
+                      ? TvboxPlayerController.fongmiViewType
+                      : TvboxPlayerController.viewType,
+                  onCompleted: _onCompleted,
+                  onError: (_) {},
+                  onRetry: () => unawaited(_playCurrent()),
+                  onFullscreen: _fullscreen
+                      ? () => setState(() => _fullscreen = false)
+                      : null,
+                  isFullscreen: _fullscreen,
+                ),
+                HongguoDanmakuLayer(
+                  handle: _player,
+                  repository: widget.repository,
+                  store: widget.store,
+                  available: keyMatches && _player.hasVideo,
+                  aspectRatio: hongguoVideoAspect(_player),
+                ),
+              ],
             );
           }
           return Stack(
@@ -666,13 +766,20 @@ class _HongguoPlaybackPageState extends State<HongguoPlaybackPage> {
                           ? Icons.star_rounded
                           : Icons.star_outline_rounded,
                       label: '收藏',
+                      count: _commentPage != null &&
+                              _commentPage!.collectorsCount > 0
+                          ? '${_commentPage!.collectorsCount}'
+                          : null,
                       onTap: () => unawaited(_toggleFavorite()),
                     ),
                     const SizedBox(height: 20),
                     _action(
                       icon: Icons.chat_bubble_outline_rounded,
                       label: '评论',
-                      onTap: () => _note('该剧暂无评论数据'),
+                      count: _commentPage != null && _commentPage!.total > 0
+                          ? '${_commentPage!.total}'
+                          : null,
+                      onTap: () => unawaited(_openComments()),
                     ),
                     const SizedBox(height: 20),
                     _action(
@@ -693,6 +800,7 @@ class _HongguoPlaybackPageState extends State<HongguoPlaybackPage> {
   Widget _action({
     required IconData icon,
     required String label,
+    String? count,
     required VoidCallback onTap,
   }) {
     return GestureDetector(
@@ -706,6 +814,14 @@ class _HongguoPlaybackPageState extends State<HongguoPlaybackPage> {
             label,
             style: const TextStyle(color: Colors.white, fontSize: 11),
           ),
+          if (count != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                count,
+                style: const TextStyle(color: Colors.white70, fontSize: 11),
+              ),
+            ),
         ],
       ),
     );

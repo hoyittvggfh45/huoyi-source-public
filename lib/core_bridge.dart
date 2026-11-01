@@ -13,6 +13,7 @@ import 'package:crypto/crypto.dart';
 import 'models.dart';
 import 'jar_bridge.dart';
 import 'danmaku_models.dart';
+import 'hongguo_comment.dart';
 import 'import_file_store.dart';
 import 'py_bridge.dart';
 import 'py_lazy_fetch.dart';
@@ -119,6 +120,11 @@ abstract class AppRepository {
     required int startMs,
     required int durationMs,
   }) async => throw AppFailure('当前环境不支持弹幕');
+  Future<HongguoCommentPage> comments(
+    PlaybackPlan plan, {
+    String cursor = '',
+  }) async => throw AppFailure('当前环境不支持评论');
+  Future<void> cancelComments() async {}
   Future<void> cancelCatalog() async {}
   Future<void> cancelSuggestions() async {}
   Future<void> cancelRecommendations() async {}
@@ -636,6 +642,27 @@ class NativeRepository extends AppRepository {
   Future<void> cancelDanmaku() => _cancelReads('danmaku');
 
   @override
+  Future<HongguoCommentPage> comments(
+    PlaybackPlan plan, {
+    String cursor = '',
+  }) async {
+    _authorize('hongguo');
+    if (plan.local || plan.session.isEmpty) {
+      throw AppFailure('本集暂不支持评论');
+    }
+    return HongguoCommentPage.fromJson(
+      await _read('comments', {
+        'action': 'comments',
+        'playbackSession': plan.session,
+        'cursor': cursor,
+      }),
+    );
+  }
+
+  @override
+  Future<void> cancelComments() => _cancelReads('comments');
+
+  @override
   Future<void> cancelPreload() => _cancelReads('preload');
 
   @override
@@ -1060,7 +1087,8 @@ class NativeRepository extends AppRepository {
       if (action == 'recommendations' ||
           action == 'cachedRecommendations' ||
           action == 'suggestions' ||
-          action == 'danmaku') {
+          action == 'danmaku' ||
+          action == 'comments') {
         _authorize('hongguo');
       }
       if ({
@@ -1110,7 +1138,7 @@ class NativeRepository extends AppRepository {
         Duration(
           seconds: action == 'moveDownloads'
               ? 620
-              : action == 'danmaku'
+              : action == 'danmaku' || action == 'comments'
               ? 15
               : action == 'preload'
               ? 20
@@ -1147,6 +1175,7 @@ class NativeRepository extends AppRepository {
             'recommendations',
             'metadata',
             'danmaku',
+            'comments',
             'preload',
             'prepareHandoff',
           }.contains(input['action'])) {

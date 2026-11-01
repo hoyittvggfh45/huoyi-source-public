@@ -90,6 +90,7 @@ class RoomPlayerHandle extends ChangeNotifier {
     required double startPosition,
     required AppRepository repository,
     required LocalStore store,
+    PlaybackPlan? preloadedPlan,
   }) async {
     await _closeCurrent();
     if (episodeIndex < 0 || episodeIndex >= detail.episodes.length) {
@@ -101,12 +102,15 @@ class RoomPlayerHandle extends ChangeNotifier {
     error = null;
     notifyListeners();
     try {
-      final loader = PlaybackLoader(repository);
-      _loader = loader;
-      final plan = await loader.load(
-        detail.drama,
-        detail.episodes[episodeIndex],
-      );
+      PlaybackPlan? plan = preloadedPlan;
+      if (plan == null || plan.url.isEmpty) {
+        final loader = PlaybackLoader(repository);
+        _loader = loader;
+        plan = await loader.load(
+          detail.drama,
+          detail.episodes[episodeIndex],
+        );
+      }
       if (plan == null || plan.url.isEmpty) {
         throw AppFailure('站源未返回播放地址，请重试');
       }

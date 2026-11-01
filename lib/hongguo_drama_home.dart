@@ -4,10 +4,15 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import 'app_page_route.dart';
+import 'compact_chip.dart';
 import 'core_bridge.dart';
+import 'hongguo_comment.dart';
+import 'hongguo_danmaku.dart';
 import 'hongguo_playback_page.dart';
+import 'hongguo_preload.dart';
 import 'local_store.dart';
 import 'models.dart';
+import 'playback_foreground.dart';
 import 'tvbox_player_bridge.dart';
 import 'watchroom/player.dart';
 import 'widgets.dart';
@@ -74,21 +79,45 @@ class HongguoDramaHome extends StatefulWidget {
 
 typedef _Channel = ({String key, String label, String? categoryId});
 
+typedef _FeedResume = ({String key, int episode, double position});
+
 class _HongguoDramaHomeState extends State<HongguoDramaHome> {
+  static _FeedResume? _resume;
+
   int _tab = 0;
   String _channel = 'recommend';
   bool _didRandomStart = false;
   bool _synopsisExpanded = false;
   late final PageController _pages;
   final RoomPlayerHandle _player = RoomPlayerHandle();
+  late final HongguoPreloadWindow _preloadWindow = HongguoPreloadWindow(
+    widget.repository,
+    detailOf: (drama) async {
+      final cached = _details[_keyFor(drama)];
+      if (cached != null) return cached;
+      try {
+        final detail = await widget.repository.detail(drama);
+        if (mounted) _details[_keyFor(drama)] = detail;
+        return detail;
+      } catch (_) {
+        return null;
+      }
+    },
+  );
   final Map<String, DramaDetail> _details = {};
+  final Map<String, HongguoCommentPage> _commentPages = {};
   int _index = 0;
   int _episode = 0;
+  double _startPosition = 0;
   bool _detailLoading = false;
   String? _detailError;
   int _playToken = 0;
   bool _opening = false;
   bool _pendingPlay = false;
+  bool _playbackServiceHeld = false;
+  String? _theaterTagLevel2;
+  String? _theaterTagLevel3;
+  List<CatalogCategory> _drillPath = [];
   String _videoKeys = '';
 
   @override
@@ -96,7 +125,17 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
     super.initState();
     final videos = _videos;
     _videoKeys = videos.map(_keyFor).join('|');
-    if (videos.length > 1) {
+    final resume = _resume;
+    final resumeIndex = resume == null
+        ? -1
+        : videos.indexWhere((drama) => _keyFor(drama) == resume.key);
+    if (resumeIndex >= 0 && resume != null) {
+      _didRandomStart = true;
+      _index = resumeIndex;
+      _episode = resume.episode;
+      _startPosition = resume.position;
+      _pages = PageController(initialPage: _index);
+    } else if (videos.length > 1) {
       _didRandomStart = true;
       _index = Random().nextInt(videos.length);
       _pages = PageController(initialPage: _index);
@@ -112,9 +151,92 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
     }
   }
 
+  String get _siteName {
+    final label = widget.sourceLabel;
+    final match = RegExp(r'^(.*) \(\d+\)$').firstMatch(label);
+    return match?.group(1) ?? label;
+  }
+
+  List<Drama> get _theaterVideos {
+    var videos = _theaterBaseVideos;
+    if (_theaterTagLevel2 != null) {
+      videos = videos
+          .where((drama) => drama.tags.contains(_theaterTagLevel2))
+          .toList();
+    }
+    if (_theaterTagLevel3 != null) {
+      videos = videos
+          .where((drama) => drama.tags.contains(_theaterTagLevel3))
+          .toList();
+    }
+    return videos;
+  }
+
+  List<Drama> get _theaterBaseVideos =>
+      widget.dramas.where((drama) => drama.kind == 'video').toList();
+
+  List<String> get _theaterLevel2Tags {
+    final seen = <String>{};
+    final out = <String>[];
+    for (final drama in _theaterBaseVideos) {
+      for (final tag in drama.tags) {
+        if (seen.add(tag)) out.add(tag);
+      }
+    }
+    return out;
+  }
+
+  List<String> get _theaterLevel3Tags {
+    final level2 = _theaterTagLevel2;
+    if (level2 == null) return const [];
+    final seen = <String>{};
+    final out = <String>[];
+    for (final drama in _theaterBaseVideos) {
+      if (!drama.tags.contains(level2)) continue;
+      for (final tag in drama.tags) {
+        if (tag != level2 && seen.add(tag)) out.add(tag);
+      }
+    }
+    return out;
+  }
+
+  void _onTheaterCategoryTap(CatalogCategory category) {
+    if (category.isFolder) {
+      setState(() {
+        _drillPath = [..._drillPath, category];
+        _theaterTagLevel2 = null;
+        _theaterTagLevel3 = null;
+      });
+      widget.onCategorySelected(category.drillId);
+      return;
+    }
+    setState(() {
+      _drillPath = [];
+      _theaterTagLevel2 = null;
+      _theaterTagLevel3 = null;
+    });
+    widget.onCategorySelected(category.id);
+  }
+
+  void _onTheaterBack() {
+    if (_drillPath.isEmpty) return;
+    final path = [..._drillPath]..removeLast();
+    setState(() {
+      _drillPath = path;
+      _theaterTagLevel2 = null;
+      _theaterTagLevel3 = null;
+    });
+    widget.onCategorySelected(path.isEmpty ? '' : path.last.drillId);
+  }
+
   @override
   void didUpdateWidget(HongguoDramaHome oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.selectedCategory != oldWidget.selectedCategory) {
+      _theaterTagLevel2 = null;
+      _theaterTagLevel3 = null;
+      _drillPath = [];
+    }
     if (_channel != 'follow') {
       _channel = _channelForCategory(widget.selectedCategory) ?? '';
     }
@@ -141,9 +263,51 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
   @override
   void dispose() {
     _playToken++;
+    if (_player.hasVideo && _videos.isNotEmpty) {
+      final current = _videos[_index.clamp(0, _videos.length - 1)];
+      _resume = (
+        key: _keyFor(current),
+        episode: _episode,
+        position: _player.position,
+      );
+    }
     _pages.dispose();
     _player.dispose();
+    _preloadWindow.dispose();
+    if (_playbackServiceHeld) {
+      _playbackServiceHeld = false;
+      unawaited(PlaybackForeground.release());
+    }
     super.dispose();
+  }
+
+  Future<void> _loadCommentCounts(Drama drama, PlaybackPlan plan) async {
+    final key = _keyFor(drama);
+    if (_commentPages.containsKey(key)) return;
+    try {
+      final page = await widget.repository.comments(plan);
+      if (!mounted || _videos.isEmpty) return;
+      final current = _videos[_index.clamp(0, _videos.length - 1)];
+      if (_keyFor(current) != key) return;
+      if (_commentPages.length >= 10) {
+        _commentPages.remove(_commentPages.keys.first);
+      }
+      setState(() => _commentPages[key] = page);
+    } catch (_) {}
+  }
+
+  Future<void> _openComments(Drama drama) async {
+    final plan = _player.plan;
+    if (plan == null) {
+      _note('本集暂不支持评论');
+      return;
+    }
+    await showHongguoComments(
+      context,
+      plan,
+      widget.repository,
+      initialPage: _commentPages[_keyFor(drama)],
+    );
   }
 
   String _keyFor(Drama drama) => '${drama.source}|${drama.id}';
@@ -189,24 +353,26 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
   }
 
   List<_Channel> get _channels {
-    final list = <_Channel>[_recommendChannel()];
-    final seen = <String>{'recommend'};
+    final byKey = <String, _Channel>{'recommend': _recommendChannel()};
     for (final category in widget.categories) {
-      if ((category.name == '真人剧' || category.id == 'short_play') &&
-          seen.add('real')) {
-        list.add(
-          (key: 'real', label: '真人剧', categoryId: category.id),
+      if (category.name == '真人剧' || category.id == 'short_play') {
+        byKey.putIfAbsent(
+          'real',
+          () => (key: 'real', label: '真人剧', categoryId: category.id),
         );
       }
-      if ((category.name == '漫剧' || category.id == 'comic_series') &&
-          seen.add('comic')) {
-        list.add(
-          (key: 'comic', label: '漫剧', categoryId: category.id),
+      if (category.name == '漫剧' || category.id == 'comic_series') {
+        byKey.putIfAbsent(
+          'comic',
+          () => (key: 'comic', label: '漫剧', categoryId: category.id),
         );
       }
     }
-    list.add((key: 'follow', label: '关注', categoryId: null));
-    return list;
+    byKey['follow'] = (key: 'follow', label: '关注', categoryId: null);
+    return [
+      for (final key in ['follow', 'comic', 'real', 'recommend'])
+        if (byKey.containsKey(key)) byKey[key]!,
+    ];
   }
 
   String? _channelForCategory(String categoryId) {
@@ -297,12 +463,38 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
         setState(() => _episode = episodeIndex);
       }
       if (!mounted || token != _playToken) return;
+      final start = _startPosition;
+      _startPosition = 0;
+      final preloaded = _preloadWindow.take(
+        drama,
+        detail.episodes[episodeIndex],
+      );
       await _player.open(
         detail: detail,
         episodeIndex: episodeIndex,
-        startPosition: 0,
+        startPosition: start,
         repository: widget.repository,
         store: widget.store,
+        preloadedPlan: preloaded,
+      );
+      if (!mounted || token != _playToken) return;
+      final plan = _player.plan;
+      if (plan != null) {
+        if (!_playbackServiceHeld) {
+          _playbackServiceHeld = true;
+          unawaited(PlaybackForeground.acquire(drama.title));
+        }
+        unawaited(_loadCommentCounts(drama, plan));
+      }
+      final nextVideos = <Drama>[];
+      for (var i = index + 1; i < videos.length && nextVideos.length < 3; i++) {
+        nextVideos.add(videos[i]);
+      }
+      _preloadWindow.recenter(
+        drama: drama,
+        episodes: detail.episodes,
+        episodeIndex: episodeIndex,
+        upcoming: nextVideos,
       );
       if (mounted) setState(() {});
     } finally {
@@ -350,7 +542,11 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
     }
   }
 
-  Future<void> _openPlayback(Drama drama) async {
+  Future<void> _openPlayback(
+    Drama drama, {
+    int? episodeIndex,
+    double? startPosition,
+  }) async {
     final wasPlaying = _player.hasVideo && _player.playing;
     if (_player.hasVideo) await _player.pause();
     if (!mounted) return;
@@ -362,8 +558,8 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
           repository: widget.repository,
           store: widget.store,
           detail: _details[_keyFor(drama)],
-          initialEpisode: _episode,
-          startPosition: _player.position,
+          initialEpisode: episodeIndex ?? _episode,
+          startPosition: startPosition ?? _player.position,
         ),
       ),
     );
@@ -373,6 +569,14 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
 
   Future<void> _toggleFavorite(Drama drama) async {
     await widget.store.toggleFavorite(drama);
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _toggleDanmaku() async {
+    final prefs = widget.store.playbackPreferences;
+    await widget.store.setPlaybackPreferences(
+      prefs.copyWith(danmaku: !prefs.danmaku),
+    );
     if (mounted) setState(() {});
   }
 
@@ -494,50 +698,62 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
 
   Widget _feedTopBar() {
     final channels = _channels;
+    final tabWidgets = <Widget>[];
+    for (var i = 0; i < channels.length; i++) {
+      if (i > 0) tabWidgets.add(const SizedBox(width: 20));
+      final channel = channels[i];
+      tabWidgets.add(
+        GestureDetector(
+          onTap: () => _onChannelTap(channel),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                channel.label,
+                style: TextStyle(
+                  color:
+                      _channel == channel.key ? Colors.white : Colors.white70,
+                  fontSize: 16,
+                  fontWeight: _channel == channel.key
+                      ? FontWeight.bold
+                      : FontWeight.normal,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Container(
+                width: 20,
+                height: 3,
+                decoration: BoxDecoration(
+                  color: _channel == channel.key
+                      ? Colors.white
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        child: Row(
+        child: Stack(
+          alignment: Alignment.center,
           children: [
-            for (final channel in channels) ...[
-              GestureDetector(
-                onTap: () => _onChannelTap(channel),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      channel.label,
-                      style: TextStyle(
-                        color: _channel == channel.key
-                            ? Colors.white
-                            : Colors.white70,
-                        fontSize: 16,
-                        fontWeight: _channel == channel.key
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
-                      width: 20,
-                      height: 3,
-                      decoration: BoxDecoration(
-                        color: _channel == channel.key
-                            ? Colors.white
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ],
-                ),
+            Center(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: tabWidgets,
               ),
-              const SizedBox(width: 20),
-            ],
-            const Spacer(),
-            IconButton(
-              onPressed: () => _selectTab(1),
-              icon: const Icon(Icons.search, color: Colors.white),
-              tooltip: '搜索',
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: IconButton(
+                onPressed: () => _selectTab(1),
+                icon: const Icon(Icons.search, color: Colors.white),
+                tooltip: '搜索',
+              ),
             ),
           ],
         ),
@@ -581,19 +797,29 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
                             ? Icons.star_rounded
                             : Icons.star_outline_rounded,
                         label: '收藏',
+                        count: _commentPageFor(drama)?.collectorsCount,
                         onTap: () => unawaited(_toggleFavorite(drama)),
                       ),
                       const SizedBox(height: 20),
                       _feedAction(
                         icon: Icons.chat_bubble_outline_rounded,
                         label: '评论',
-                        onTap: () => _note('该剧暂无评论数据'),
+                        count: _commentPageFor(drama)?.total,
+                        onTap: () => unawaited(_openComments(drama)),
                       ),
                       const SizedBox(height: 20),
                       _feedAction(
                         icon: Icons.favorite_outline_rounded,
                         label: '点赞',
                         onTap: () => _note('该剧暂无点赞数据'),
+                      ),
+                      const SizedBox(height: 20),
+                      _feedAction(
+                        icon: Icons.comment_rounded,
+                        label: widget.store.playbackPreferences.danmaku
+                            ? '弹幕开'
+                            : '弹幕关',
+                        onTap: () => unawaited(_toggleDanmaku()),
                       ),
                     ],
                   ),
@@ -623,14 +849,26 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
         if (_player.loading ||
             _player.error != null ||
             (keyMatches && _player.hasVideo)) {
-          return RoomPlayerView(
-            handle: _player,
-            viewType: widget.store.player == 'fongmi'
-                ? TvboxPlayerController.fongmiViewType
-                : TvboxPlayerController.viewType,
-            onCompleted: _onCompleted,
-            onError: (_) {},
-            onRetry: () => unawaited(_playCurrent()),
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              RoomPlayerView(
+                handle: _player,
+                viewType: widget.store.player == 'fongmi'
+                    ? TvboxPlayerController.fongmiViewType
+                    : TvboxPlayerController.viewType,
+                onCompleted: _onCompleted,
+                onError: (_) {},
+                onRetry: () => unawaited(_playCurrent()),
+              ),
+              HongguoDanmakuLayer(
+                handle: _player,
+                repository: widget.repository,
+                store: widget.store,
+                available: keyMatches && _player.hasVideo,
+                aspectRatio: hongguoVideoAspect(_player),
+              ),
+            ],
           );
         }
         return Stack(
@@ -655,9 +893,15 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
     );
   }
 
+  HongguoCommentPage? _commentPageFor(Drama drama) {
+    final page = _commentPages[_keyFor(drama)];
+    return page;
+  }
+
   Widget _feedAction({
     required IconData icon,
     required String label,
+    int? count,
     required VoidCallback onTap,
   }) {
     return GestureDetector(
@@ -671,6 +915,14 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
             label,
             style: const TextStyle(color: Colors.white, fontSize: 11),
           ),
+          if (count != null && count > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                '$count',
+                style: const TextStyle(color: Colors.white70, fontSize: 11),
+              ),
+            ),
         ],
       ),
     );
@@ -780,7 +1032,9 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
           Padding(
             padding: const EdgeInsets.only(top: 4),
             child: Text(
-              drama.heat.isNotEmpty ? drama.heat : drama.views,
+              drama.heat.isNotEmpty
+                  ? '热度 ${drama.heat}'
+                  : '播放 ${drama.views}',
               style: Theme.of(context)
                   .textTheme
                   .bodyMedium
@@ -788,26 +1042,86 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
             ),
           ),
         const SizedBox(height: 12),
-        FilledButton.icon(
-          onPressed: () => unawaited(_openPlayback(drama)),
-          icon: const Icon(Icons.play_arrow),
-          label: Text(
-            episodeCount > 0
-                ? '观看完整$kindLabel · 全$episodeCount集'
-                : '观看完整$kindLabel',
-          ),
-          style: FilledButton.styleFrom(
-            backgroundColor: const Color(0xFFFE2C55),
-            foregroundColor: Colors.white,
+        GestureDetector(
+          onTap: () => unawaited(_openPlayback(drama)),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF262626),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.play_arrow, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    episodeCount > 0
+                        ? '观看完整$kindLabel · 全$episodeCount集'
+                        : '观看完整$kindLabel',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+                const Icon(Icons.chevron_right, color: Colors.white),
+              ],
+            ),
           ),
         ),
+        if (detail != null && detail.related.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          const Text(
+            '系列剧',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 6),
+          SizedBox(
+            height: 32,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: detail.related.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                final item = detail.related[index];
+                return GestureDetector(
+                  onTap: () => unawaited(
+                    _openPlayback(
+                      item,
+                      episodeIndex: 0,
+                      startPosition: 0,
+                    ),
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.24),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text(
+                      item.title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ],
     );
   }
 
   Widget _theater(BuildContext context) {
-    final videos =
-        widget.dramas.where((drama) => drama.kind == 'video').toList();
+    final videos = _theaterVideos;
     return SafeArea(
       child: CustomScrollView(
         slivers: [
@@ -829,10 +1143,56 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
             ),
           ),
           SliverToBoxAdapter(
-            child: Padding(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 children: [
+                  _theaterAction(
+                    context,
+                    label: '区域',
+                    icon: Icons.menu,
+                    active: false,
+                    onPressed: widget.onMenuPressed,
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: widget.onPickSource,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .secondaryContainer,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _siteName,
+                            style: TextStyle(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSecondaryContainer,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.expand_more_rounded,
+                            size: 16,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSecondaryContainer,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   _theaterAction(
                     context,
                     label: '筛选',
@@ -860,6 +1220,29 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
               ),
             ),
           ),
+          if (_drillPath.isNotEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: Row(
+                  children: [
+                    ActionChip(
+                      label: const Text('← 上一级'),
+                      onPressed: _onTheaterBack,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _drillPath.last.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           SliverToBoxAdapter(
             child: SizedBox(
               height: 48,
@@ -871,10 +1254,22 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
                       (category) => Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 4),
                         child: ChoiceChip(
-                          label: Text(category.name),
-                          selected: widget.selectedCategory == category.id,
+                          label: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(category.name),
+                              if (category.isFolder) ...[
+                                const SizedBox(width: 4),
+                                const Icon(Icons.folder_open, size: 14),
+                              ],
+                            ],
+                          ),
+                          selected: widget.selectedCategory ==
+                              (category.isFolder
+                                  ? category.drillId
+                                  : category.id),
                           onSelected: (_) =>
-                              widget.onCategorySelected(category.id),
+                              _onTheaterCategoryTap(category),
                         ),
                       ),
                     )
@@ -882,6 +1277,77 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
               ),
             ),
           ),
+          if (_theaterLevel2Tags.isNotEmpty)
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: compactChipHeight(context),
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(right: 3),
+                      child: CompactFilterChip(
+                        label: '全部标签',
+                        selected: _theaterTagLevel2 == null,
+                        onSelected: () => setState(() {
+                          _theaterTagLevel2 = null;
+                          _theaterTagLevel3 = null;
+                        }),
+                      ),
+                    ),
+                    for (final tag in _theaterLevel2Tags)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 3),
+                        child: CompactFilterChip(
+                          key: ValueKey('theater-tag2-$tag'),
+                          label: tag,
+                          selected: _theaterTagLevel2 == tag,
+                          onSelected: () => setState(() {
+                            _theaterTagLevel2 =
+                                _theaterTagLevel2 == tag ? null : tag;
+                            _theaterTagLevel3 = null;
+                          }),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          if (_theaterTagLevel2 != null && _theaterLevel3Tags.isNotEmpty)
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: compactChipHeight(context),
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(right: 3),
+                      child: CompactFilterChip(
+                        label: '全部',
+                        selected: _theaterTagLevel3 == null,
+                        onSelected: () =>
+                            setState(() => _theaterTagLevel3 = null),
+                      ),
+                    ),
+                    for (final tag in _theaterLevel3Tags)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 3),
+                        child: CompactFilterChip(
+                          key: ValueKey('theater-tag3-$tag'),
+                          label: tag,
+                          selected: _theaterTagLevel3 == tag,
+                          onSelected: () => setState(() {
+                            _theaterTagLevel3 =
+                                _theaterTagLevel3 == tag ? null : tag;
+                          }),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
           SliverPadding(
             padding: const EdgeInsets.all(12),
             sliver: SliverGrid(
@@ -916,7 +1382,9 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
                         ),
                         if (drama.heat.isNotEmpty || drama.views.isNotEmpty)
                           Text(
-                            drama.heat.isNotEmpty ? drama.heat : drama.views,
+                            drama.heat.isNotEmpty
+                                ? '热度 ${drama.heat}'
+                                : '播放 ${drama.views}',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: Theme.of(context).textTheme.bodySmall,
