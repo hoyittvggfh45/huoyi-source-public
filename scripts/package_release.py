@@ -25,7 +25,22 @@ output.mkdir(parents=True, exist_ok=True)
 artifacts = []
 
 if options.platform == 'android':
-    for abi in options.abi or ['arm64-v8a', 'armeabi-v7a', 'x86_64']:
+    fat = root / 'build' / 'app' / 'outputs' / 'flutter-apk' / 'app-release.apk'
+    abis = options.abi or ['arm64-v8a', 'armeabi-v7a', 'x86_64']
+    per_abi_dir = root / 'build' / 'app' / 'outputs' / 'flutter-apk'
+    fat_only = fat.is_file() and not any((per_abi_dir / f'app-{abi}-release.apk').is_file() for abi in abis)
+    if fat_only:
+        with zipfile.ZipFile(fat) as archive:
+            names = set(archive.namelist())
+            required = [f'lib/{abi}/{library}' for abi in abis for library in
+                        ['libduanju_core.so', 'libflutter.so', 'libapp.so', 'libmpv.so', 'libffmpegkit.so']]
+            missing = set(required) - names
+            if missing:
+                raise SystemExit('APK 缺少原生库：' + ', '.join(sorted(missing)))
+        target = output / f'{variant.slug}-{version}-v7a-v8a.apk'
+        shutil.copy2(fat, target)
+        artifacts.append(target)
+    for abi in ([] if fat_only else abis):
         source = root / 'build' / 'app' / 'outputs' / 'flutter-apk' / f'app-{abi}-release.apk'
         if not source.is_file():
             single = root / 'build' / 'app' / 'outputs' / 'flutter-apk' / 'app-release.apk'
