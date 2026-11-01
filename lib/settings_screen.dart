@@ -44,7 +44,6 @@ import 'app_layout.dart';
 import 'detail_screen.dart';
 import 'models.dart';
 import 'playback_launch_screen.dart';
-import 'miniapp/plugin_center_screen.dart';
 import 'player_picker.dart';
 import 'saved_library.dart';
 
@@ -655,12 +654,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onTap: _showAbout,
           ),
           ListTile(
-            leading: const Icon(Icons.extension_outlined),
-            title: const Text('插件中心'),
-            trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: () => _openPluginCenter(),
-          ),
-          ListTile(
             leading: const Icon(Icons.bookmark_outline),
             title: const Text('追剧'),
             trailing: const Icon(Icons.chevron_right_rounded),
@@ -764,12 +757,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _push(Widget page) =>
       Navigator.push(context, appPageRoute<void>(builder: (_) => page));
-
-  Future<void> _openPluginCenter() async {
-    await _push(
-      PluginCenterScreen(store: widget.store, repository: widget.repository),
-    );
-  }
 
   Future<void> _chooseGlassTheme() async {
     final selected = await showChoiceSheet<String>(
@@ -1107,12 +1094,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             color: const Color(0xFF8E8E93),
             title: '关于$appName',
             onTap: _showAbout,
-          ),
-          _glassRow(
-            icon: LucideIcons.puzzle,
-            color: const Color(0xFFBF5AF2),
-            title: '插件中心',
-            onTap: () => _openPluginCenter(),
           ),
         ]),
         _glassSection('内容', [

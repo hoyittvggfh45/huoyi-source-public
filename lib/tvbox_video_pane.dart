@@ -77,6 +77,7 @@ class _TvboxVideoPaneState extends State<TvboxVideoPane> {
 
   TvboxPlayerController? _controller;
   String? _openedSession;
+  String? _openedUrl;
   bool _openedAutoplay = true;
   final List<StreamSubscription<dynamic>> _subscriptions = [];
   bool _dragging = false;
@@ -87,8 +88,12 @@ class _TvboxVideoPaneState extends State<TvboxVideoPane> {
   void didUpdateWidget(TvboxVideoPane oldWidget) {
     super.didUpdateWidget(oldWidget);
     final plan = widget.plan;
-    if (plan != null && plan.session != _openedSession && _controller != null) {
+    if (plan != null &&
+        (plan.session != _openedSession ||
+            plan.url != oldWidget.plan?.url) &&
+        _controller != null) {
       _openedSession = plan.session;
+      _openedUrl = plan.url;
       _openedAutoplay = widget.autoplay;
       unawaited(_open(plan, widget.startPosition));
     }
@@ -146,11 +151,13 @@ class _TvboxVideoPaneState extends State<TvboxVideoPane> {
     ]);
     final plan = widget.plan;
     if (plan != null) {
-      final recreated = _openedSession == plan.session;
+      final recreated =
+          _openedSession == plan.session && _openedUrl == plan.url;
       final startPosition = recreated
           ? widget.handle.positionSeconds
           : widget.startPosition;
       _openedSession = plan.session;
+      _openedUrl = plan.url;
       _openedAutoplay = recreated ? widget.handle.playing : widget.autoplay;
       unawaited(_open(plan, startPosition));
     }

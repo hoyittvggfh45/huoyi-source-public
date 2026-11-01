@@ -190,6 +190,15 @@ type nativePlan struct {
 	Session         string            `json:"session,omitempty"`
 	RouteIndex      int               `json:"routeIndex"`
 	RouteCount      int               `json:"routeCount"`
+	Parse           bool              `json:"parse,omitempty"`
+}
+
+func nativeParseFallbackPlan(pageURL, referer string) nativePlan {
+	headers := map[string]string{}
+	if referer != "" {
+		headers["Referer"] = referer
+	}
+	return nativePlan{URL: pageURL, OriginalURL: pageURL, Headers: headers, Parse: true, RouteCount: 1}
 }
 
 type nativeEngine struct {
@@ -709,6 +718,19 @@ func (engine *nativeEngine) nativeCatalog(ctx context.Context, input nativeInput
 	case sourceHGTV:
 		items, result.HasMore, result.Filters, err = d.fetchHGTVCatalogPage(ctx, category, page, input.Filters)
 	case sourceHongguo:
+		if hongguoIsBookCategory(category) {
+			if category == "novel" {
+				items, result.Filters, err = d.fetchHongguoBookmallCatalog(ctx, 2, input.Filters["category"])
+				result.HasMore = false
+			} else if category == "audio" {
+				items, result.Filters, err = d.fetchHongguoBookmallCatalog(ctx, 5, input.Filters["category"])
+				result.HasMore = false
+			} else {
+				catID := strings.TrimPrefix(category, "bcat")
+				items, result.Filters, result.HasMore, err = d.fetchHongguoBookCategoryCatalog(ctx, catID, input.Filters["sub"], input.Filters["status"], input.Filters["sort"], page)
+			}
+			break
+		}
 		engine.mu.Lock()
 		known := make(map[string]bool, len(engine.catalogs[cacheKey]))
 		for _, drama := range engine.catalogs[cacheKey] {
@@ -826,6 +848,19 @@ func (engine *nativeEngine) nativeDetail(ctx context.Context, drama nativeDrama)
 	var chapters []Chapter
 	var err error
 	switch source {
+	case sourceHongguo:
+		if strings.HasPrefix(sourceID, "audio:") {
+			raw, chapters, err = engine.downloader.fetchHongguoAudioDetailHongguo(ctx, strings.TrimPrefix(sourceID, "audio:"))
+			break
+		}
+		if strings.HasPrefix(sourceID, "novel:") {
+			raw, chapters, err = engine.downloader.fetchHongguoNovelDetail(ctx, strings.TrimPrefix(sourceID, "novel:"))
+			break
+		}
+		title, chapters, err = engine.downloader.GetHuangguoChapters(ctx, source, sourceID)
+		if err == nil {
+			raw = Drama{Title: title, Name: title}
+		}
 	case sourceHGTV:
 		raw, chapters, err = engine.downloader.fetchHGTVDetail(ctx, sourceID)
 	case sourceHuangguoAI:
@@ -906,6 +941,13 @@ func (engine *nativeEngine) nativeResolve(ctx context.Context, input nativeInput
 	if err != nil {
 		return nativePlan{}, err
 	}
+	if strings.HasPrefix(media.URL, "novel://") {
+		headers := map[string]string{}
+		if media.Referer != "" {
+			headers["Referer"] = media.Referer
+		}
+		return nativePlan{URL: media.URL, OriginalURL: input.Chapter.VideoURL, Headers: headers, RouteCount: 1}, nil
+	}
 	choice := nativePlaybackChoices(media, input.Quality)
 	if series, video, valid := hongguoPlaybackIDs(task); valid {
 		choice.danmakuSeries, choice.danmakuVideo = series, video
@@ -916,9 +958,12 @@ func (engine *nativeEngine) nativeResolve(ctx context.Context, input nativeInput
 	if choice.index >= 0 && choice.index < len(choice.media) && choice.media[choice.index].NeedsParse {
 		pageURL := choice.media[choice.index].URL
 		referer := choice.media[choice.index].Referer
+		if len(input.ParseAPIs) == 0 {
+			return nativeParseFallbackPlan(pageURL, referer), nil
+		}
 		real, parsedHeaders, err := resolveViaParseAPIs(ctx, pageURL, referer, input.ParseAPIs)
 		if err != nil {
-			return nativePlan{}, err
+			return nativeParseFallbackPlan(pageURL, referer), nil
 		}
 		if h := parsedHeaders["Referer"]; h != "" {
 			referer = h

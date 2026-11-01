@@ -36,8 +36,11 @@ func TestProviderSupportsFilters(t *testing.T) {
 	if !providerSupportsFilters(sourceHGTV) {
 		t.Fatal("HGTV should support filters")
 	}
+	if !providerSupportsFilters(sourceHongguo) {
+		t.Fatal("Hongguo should support filters for book categories")
+	}
 	for _, id := range []string{
-		sourceHongguo, sourceHuangdou, sourceHuangguoAI, sourceHuangju,
+		sourceHuangdou, sourceHuangguoAI, sourceHuangju,
 		sourceYeguo, sourceDSD, sourceGuipian, sourceHanxiaoquan,
 		sourceIkanbot, sourceA123, sourceHuangguoVideo, sourceCloudFront,
 	} {

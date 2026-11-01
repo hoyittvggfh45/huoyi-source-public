@@ -28,6 +28,7 @@ import 'downloads_screen.dart';
 import 'follow_state.dart';
 import 'local_store.dart';
 import 'models.dart';
+import 'nonvideo_content.dart';
 import 'playback_loader.dart';
 import 'playback_parse.dart';
 import 'playback_foreground.dart';
@@ -184,6 +185,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   String? _error;
   String? _saveWarning;
   PlaybackPlan? _plan;
+  NonVideoContent? _nonVideo;
   double _speed = 1;
   double _aspectRatio = 9 / 16;
   double _resumePosition = 0;
@@ -195,6 +197,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   PlaybackOrientationMode _orientationMode = PlaybackOrientationMode.auto;
   ParseInterface? _selectedParse;
   String _lastPageUrl = '';
+  bool _sniffFallbackTried = false;
   bool get _televisionDecoderApplies => _television && Platform.isAndroid;
   AppOrientationController? _orientationController;
   bool get _pictureInPictureVisible =>
@@ -1201,6 +1204,23 @@ class _PlayerScreenState extends State<PlayerScreen>
         index >= widget.detail.episodes.length) {
       return;
     }
+    final earlyNonVideo = nonVideoFromEpisode(widget.detail.episodes[index]);
+    if (earlyNonVideo != null) {
+      _preloader.clear();
+      final previousIndex = _index;
+      setState(() {
+        _index = index;
+        _loading = false;
+        _error = null;
+        _nonVideo = earlyNonVideo;
+        _plan = null;
+      });
+      if (widget.embedded && previousIndex != index) {
+        widget.onEmbeddedIndexChanged?.call(index);
+      }
+      unawaited(_player.stop().catchError((Object _) {}));
+      return;
+    }
     _interactions.cancel();
     if (widget.handoff != null &&
         handoffPlan == null &&
@@ -1256,6 +1276,8 @@ class _PlayerScreenState extends State<PlayerScreen>
       _error = null;
       _localFailure = false;
       _loadingMessage = loadingMessage;
+      _nonVideo = null;
+      _sniffFallbackTried = false;
     });
     if (widget.embedded && previousIndex != index) {
       widget.onEmbeddedIndexChanged?.call(index);
@@ -1321,12 +1343,16 @@ class _PlayerScreenState extends State<PlayerScreen>
           if (parsed != null && parsed != prepared.url) {
             prepared = prepared.withUrl(parsed);
           } else {
-            throw AppFailure('需要解析但未配置解析接口');
+            throw AppFailure(
+              '需要解析但未配置解析接口（取流地址=${prepared.url}，请在解析设置中添加解析接口）',
+            );
           }
         } else {
           final apis = await ParseInterfaceStore.loadEnabled();
           if (apis.isEmpty) {
-            throw AppFailure('需要解析但未配置解析接口');
+            throw AppFailure(
+              '需要解析但未配置解析接口（取流地址=${prepared.url}，请在解析设置中添加解析接口）',
+            );
           }
           if (prepared.session.isNotEmpty) {
             await widget.repository.release(prepared.session);
@@ -1342,9 +1368,39 @@ class _PlayerScreenState extends State<PlayerScreen>
         );
         if (parsed != null && parsed != prepared.url) {
           prepared = prepared.withUrl(parsed);
+        } else {
+          final apis = await ParseInterfaceStore.loadEnabled();
+          final pageUrl = prepared.url;
+          if (apis.isNotEmpty) {
+            if (prepared.session.isNotEmpty) {
+              await widget.repository.release(prepared.session);
+            }
+            try {
+              prepared = await widget.repository.resolveParse(prepared, apis);
+            } catch (_) {
+              throw AppFailure('解析接口全部失败（取流地址=$pageUrl）');
+            }
+          } else {
+            throw AppFailure(
+              '播放地址是网页、需要解析但未配置解析接口（取流地址=$pageUrl，请在解析设置中添加解析接口）',
+            );
+          }
         }
       }
       final plan = prepared;
+      final planNonVideo = parseNonVideoUrl(plan.url);
+      if (planNonVideo != null) {
+        if (plan.session.isNotEmpty) {
+          await widget.repository.release(plan.session);
+        }
+        setState(() {
+          _loading = false;
+          _error = null;
+          _nonVideo = planNonVideo;
+          _plan = null;
+        });
+        return;
+      }
       await _serialize(() async {
         if (_closed || ticket != _generation) {
           await widget.repository.release(plan.session);
@@ -1489,14 +1545,39 @@ class _PlayerScreenState extends State<PlayerScreen>
             await widget.repository.release(prepared.session);
           }
           if (mounted && !_closed && ticket == _generation) {
+            final fallbackPage = _lastPageUrl.isNotEmpty
+                ? _lastPageUrl
+                : (prepared != null && looksLikeWebPage(prepared.url)
+                    ? prepared.url
+                    : '');
+            final needsSniffFallback =
+                !_sniffFallbackTried &&
+                warmed == null &&
+                fallbackPage.isNotEmpty;
             setState(() {
               _loading = false;
               _localFailure =
                   (error is AppFailure && error.code == 'local_media') ||
                   (widget.localOnly && !_forceOnline);
-              _error = error is AppFailure ? error.message : '无法播放这一集，请重试或换一集。';
+              _error = error is AppFailure
+                  ? error.message
+                  : '无法播放这一集，请重试或换一集。（$error）';
               widget.handoff?.fail(_error!);
             });
+            if (needsSniffFallback) {
+              _sniffFallbackTried = true;
+              _lastPageUrl = fallbackPage;
+              final parseFailed =
+                  error is AppFailure && error.message.contains('解析接口');
+              setState(() {
+                _error = parseFailed
+                    ? '解析接口没解析出地址，正在打开网页嗅探兜底…'
+                    : '正在打开网页嗅探兜底…';
+              });
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted && !_closed) _openSniffer(auto: true);
+              });
+            }
           }
         }
       } else if (prepared != null && !installed) {
@@ -1712,7 +1793,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     } catch (_) {}
   }
 
-  Future<void> _openSniffer() async {
+  Future<void> _openSniffer({bool auto = false}) async {
     final pageUrl = _lastPageUrl;
     if (pageUrl.isEmpty || !mounted || _closed) return;
     final found = await Navigator.of(context).push<String>(
@@ -1720,6 +1801,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         builder: (routeContext) => SniffWebViewPage(
           pageUrl: pageUrl,
           headers: _plan?.headers ?? const {},
+          autoPlay: auto,
           onMediaFound: (url) => Navigator.of(routeContext).pop(url),
         ),
       ),
@@ -2292,6 +2374,63 @@ class _PlayerScreenState extends State<PlayerScreen>
     super.dispose();
   }
 
+  Widget _nonVideoPane() {
+    final content = _nonVideo!;
+    final title = widget.detail.drama.title;
+    final episode = widget.detail.episodes[_index];
+    final label = content.isNovel ? '正在阅读' : '正在浏览图片';
+    final body = content.isNovel
+        ? NovelReaderView(content: content, title: title)
+        : PicsViewerView(content: content, title: title);
+    return Container(
+      color: Colors.black,
+      child: Column(
+        children: [
+          Expanded(child: body),
+          Container(
+            color: Colors.black,
+            padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+            child: Row(
+              children: [
+                IconButton(
+                  tooltip: '上一集',
+                  onPressed: _index > 0
+                      ? () => _play(_index - 1, showControlsOnReady: false)
+                      : null,
+                  icon: const Icon(Icons.skip_previous, color: Colors.white),
+                ),
+                Expanded(
+                  child: Text(
+                    '$label · 第 ${episode.number} 集'
+                    '${content.isPics ? '（${content.urls.length} 张）' : ''}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+                IconButton(
+                  tooltip: '下一集',
+                  onPressed:
+                      _index + 1 < widget.detail.episodes.length
+                      ? () => _play(_index + 1, showControlsOnReady: false)
+                      : null,
+                  icon: const Icon(Icons.skip_next, color: Colors.white),
+                ),
+                if (!widget.embedded)
+                  IconButton(
+                    tooltip: '返回',
+                    onPressed: _backToList,
+                    icon: const Icon(Icons.close, color: Colors.white),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final inherited = Theme.of(context);
@@ -2299,7 +2438,10 @@ class _PlayerScreenState extends State<PlayerScreen>
     if (widget.embedded) {
       return Theme(
         data: theme,
-        child: Focus(focusNode: _playerFocus, child: _videoPane(context)),
+        child: Focus(
+          focusNode: _playerFocus,
+          child: _nonVideo != null ? _nonVideoPane() : _videoPane(context),
+        ),
       );
     }
     return Theme(
@@ -2322,6 +2464,18 @@ class _PlayerScreenState extends State<PlayerScreen>
   Widget _buildPlayer(BuildContext context) {
     final theme = Theme.of(context);
     final title = widget.detail.drama.title;
+    if (_nonVideo != null) {
+      return PopScope(
+        canPop: true,
+        child: Scaffold(
+          backgroundColor: Colors.black,
+          appBar: AppBar(
+            title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+          ),
+          body: SafeArea(child: _nonVideoPane()),
+        ),
+      );
+    }
     final fullscreen = _showFullscreen;
     final pictureInPicture = _pictureInPictureVisible;
     return PopScope(

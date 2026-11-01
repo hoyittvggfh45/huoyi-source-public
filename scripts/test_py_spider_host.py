@@ -497,5 +497,28 @@ class PySpiderHostStrictTest(unittest.TestCase):
         self.assertIn("takes 3 positional arguments", result["error"])
 
 
+class PySpiderHostErrorLabelTest(unittest.TestCase):
+    def test_resolve_failure_names_action_and_method(self):
+        host = load_host()
+        with tempfile.TemporaryDirectory() as tmp:
+            path = str(Path(tmp) / "boom.py")
+            Path(path).write_text(
+                "class Spider:\n"
+                "    def getName(self):\n"
+                "        return 'Boom'\n"
+                "    def init(self, extend=''):\n"
+                "        return None\n"
+                "    def playerContent(self, flag=None, id=None, vipFlags=None):\n"
+                "        raise RuntimeError('upstream down')\n",
+                encoding="utf-8",
+            )
+            result = json.loads(
+                host.handle(path, json.dumps({"action": "resolve", "flag": "f", "playId": "1"}))
+            )
+        self.assertFalse(result["ok"])
+        self.assertIn("resolve/playerContent", result["error"])
+        self.assertIn("upstream down", result["error"])
+
+
 if __name__ == "__main__":
     unittest.main()

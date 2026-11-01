@@ -43,6 +43,7 @@ class PyBridge(context: Context) {
                         runAsync(result) { dispose(path) }
                     }
                 }
+                "disposeAll" -> runAsync(result) { disposeAll() }
                 else -> result.notImplemented()
             }
         }
@@ -84,6 +85,9 @@ class PyBridge(context: Context) {
 
     private fun dispose(path: String): String =
         host().callAttr("dispose", path).toString()
+
+    private fun disposeAll(): String =
+        host().callAttr("dispose_all").toString()
 
     private fun jsonString(value: String): String {
         val escaped = value

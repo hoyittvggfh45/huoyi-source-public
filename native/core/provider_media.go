@@ -19,6 +19,7 @@ type providerMedia struct {
 	Playlist    string
 	HLSKey      []byte
 	CENCKey     []byte
+	Audio       bool
 	Quality     int
 	NeedsParse  bool
 	Variants    []providerMedia
@@ -164,6 +165,12 @@ func (d *Downloader) resolveProviderMedia(ctx context.Context, task Task) (provi
 	}
 	if chapter.Source == sourceHGTV {
 		return d.resolveHGTVMedia(ctx, task)
+	}
+	if strings.HasPrefix(chapter.VideoURL, "hongguo-audio://") {
+		return d.resolveHongguoAudioMedia(ctx, task)
+	}
+	if strings.HasPrefix(chapter.VideoURL, "novel://hgitem:") {
+		return d.resolveHongguoNovelMedia(ctx, task)
 	}
 	if strings.HasPrefix(chapter.VideoURL, "hongguo-cenc://") {
 		return d.resolveHongguoMedia(ctx, task)

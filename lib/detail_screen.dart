@@ -28,6 +28,7 @@ import 'remote_widgets.dart';
 import 'widgets.dart';
 import 'sources_screen.dart';
 import 'episode_browser.dart';
+import 'nonvideo_content.dart';
 import 'follow_state.dart';
 import 'watchroom/controller.dart';
 import 'watchroom/models.dart';
@@ -346,6 +347,27 @@ class _DetailScreenState extends State<DetailScreen> {
     });
   }
 
+  Widget? _embeddedArea(List<Episode> episodes) {
+    if (_embeddedIndex == null || _detail == null) return null;
+    final index = _embeddedIndex!.clamp(0, episodes.length - 1);
+    if (nonVideoFromEpisode(episodes[index]) != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(height: 560, child: _embeddedPlayer()),
+          _embeddedBar(episodes),
+        ],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AspectRatio(aspectRatio: 16 / 9, child: _embeddedPlayer()),
+        _embeddedBar(episodes),
+      ],
+    );
+  }
+
   void _toggleEmbeddedFullscreen() {
     if (_embeddedIndex == null) return;
     setState(() => _embeddedFullscreen = !_embeddedFullscreen);
@@ -378,6 +400,14 @@ class _DetailScreenState extends State<DetailScreen> {
     final number = index != null && index >= 0 && index < episodes.length
         ? episodes[index].number
         : null;
+    final nonVideo = index != null && index >= 0 && index < episodes.length
+        ? nonVideoFromEpisode(episodes[index])
+        : null;
+    final label = nonVideo == null
+        ? '正在播放'
+        : nonVideo.isNovel
+        ? '正在阅读'
+        : '正在浏览图片';
     return Container(
       color: Colors.black,
       padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
@@ -385,7 +415,10 @@ class _DetailScreenState extends State<DetailScreen> {
         children: [
           Expanded(
             child: Text(
-              number == null ? '正在播放' : '正在播放 · 第 $number 集',
+              number == null
+                  ? label
+                  : '$label · 第 $number 集'
+                      '${nonVideo != null && nonVideo.isPics ? '（${nonVideo.urls.length} 张）' : ''}',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(color: Colors.white),
@@ -581,7 +614,9 @@ class _DetailScreenState extends State<DetailScreen> {
     return PopScope(
       canPop: _embeddedIndex == null,
       onPopInvokedWithResult: (didPop, _) {
-        if (didPop || _embeddedIndex == null) return;
+        if (didPop || _embeddedIndex == null) {
+          return;
+        }
         if (_embeddedFullscreen) {
           _toggleEmbeddedFullscreen();
         } else {
@@ -654,14 +689,8 @@ class _DetailScreenState extends State<DetailScreen> {
                                 ? _episodeStatus()
                                 : Column(
                                     children: [
-                                      if (_embeddedIndex != null &&
-                                          _detail != null) ...[
-                                        AspectRatio(
-                                          aspectRatio: 16 / 9,
-                                          child: _embeddedPlayer(),
-                                        ),
-                                        _embeddedBar(episodes),
-                                      ],
+                                      if (_embeddedArea(episodes) != null)
+                                        _embeddedArea(episodes)!,
                                       _seriesSelector(drama),
                                       Expanded(
                                         child: EpisodeBrowser(
@@ -687,19 +716,8 @@ class _DetailScreenState extends State<DetailScreen> {
                     return CustomScrollView(
                       controller: _detailScroll,
                       slivers: [
-                        if (_embeddedIndex != null && _detail != null)
-                          SliverToBoxAdapter(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                AspectRatio(
-                                  aspectRatio: 16 / 9,
-                                  child: _embeddedPlayer(),
-                                ),
-                                _embeddedBar(episodes),
-                              ],
-                            ),
-                          )
+                        if (_embeddedArea(episodes) != null)
+                          SliverToBoxAdapter(child: _embeddedArea(episodes)!)
                         else
                           SliverToBoxAdapter(child: _hero(drama)),
                         SliverToBoxAdapter(

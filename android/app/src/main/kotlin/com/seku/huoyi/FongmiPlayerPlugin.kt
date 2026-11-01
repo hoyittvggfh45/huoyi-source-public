@@ -213,6 +213,8 @@ internal class FongmiPlayerView(
         player?.removeListener(listener)
         player?.release()
         val httpFactory = DefaultHttpDataSource.Factory()
+            .setConnectTimeoutMs(30000)
+            .setReadTimeoutMs(30000)
         if (headers.isNotEmpty()) httpFactory.setDefaultRequestProperties(headers)
         val current = ExoPlayer.Builder(appContext)
             .setRenderersFactory(renderersFactory(decoderMode))

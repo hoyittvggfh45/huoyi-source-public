@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -54,7 +55,11 @@ class PyBridge {
   static Future<PyRuntimeStatus> status({bool force = false}) async {
     if (!force && _statusCache != null) return _statusCache!;
     final status = await _probe();
-    _statusCache = status;
+    if (status.available) {
+      _statusCache = status;
+    } else {
+      _statusCache = null;
+    }
     return status;
   }
 
@@ -120,6 +125,7 @@ class PyBridge {
     Map<String, dynamic> request,
   ) async {
     await ensureReady();
+    final action = request['action']?.toString() ?? '';
     try {
       final raw = await _channel
           .invokeMethod<String>('call', {
@@ -129,17 +135,32 @@ class PyBridge {
           .timeout(const Duration(seconds: 70));
       final decoded = Map<String, dynamic>.from(jsonDecode(raw ?? '{}') as Map);
       if (decoded['ok'] != true) {
-        throw AppFailure('py 蜘蛛执行失败：${decoded['error'] ?? '未知错误'}');
+        throw AppFailure(
+          'py 蜘蛛执行失败（步骤=$path/$action）：${decoded['error'] ?? '未知错误'}',
+        );
       }
       return decoded['data'];
+    } on TimeoutException {
+      unawaited(dispose(path));
+      throw AppFailure(
+        'py 蜘蛛执行超时（70 秒，步骤=$path/$action）：蜘蛛可能在等上游响应，请重试或换集',
+      );
     } on PlatformException catch (error) {
-      throw AppFailure('py 蜘蛛执行失败：${error.message ?? error.code}');
+      throw AppFailure(
+        'py 蜘蛛执行失败（步骤=$path/$action）：${error.message ?? error.code}',
+      );
     }
   }
 
   static Future<void> dispose(String path) async {
     try {
       await _channel.invokeMethod<String>('dispose', {'path': path});
+    } catch (_) {}
+  }
+
+  static Future<void> disposeAll() async {
+    try {
+      await _channel.invokeMethod<String>('disposeAll');
     } catch (_) {}
   }
 }

@@ -155,6 +155,7 @@ const ytKeyAnd = "AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w"
 const ytUAWeb = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 const ytUAVis = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15"
 const ytUAVR = "com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip"
+const ytUAAnd = "com.google.android.youtube/20.10.38 (Linux; U; Android 13; SM-S928B Build/TP1A.220624.014) gzip"
 
 const ytShortsSP = "EgIYAQ%3D%3D"
 
@@ -162,24 +163,78 @@ var ytClients = map[string]map[string]interface{}{
 	"WEB":        {"clientName": "WEB", "clientVersion": "2.20241127.01.00", "userAgent": ytUAWeb},
 	"VISIONOS":   {"clientName": "VISIONOS", "clientVersion": "1.02", "deviceMake": "Apple", "deviceModel": "Apple Vision Pro", "userAgent": ytUAVis, "osName": "visionOS", "osVersion": "2.0"},
 	"ANDROID_VR": {"clientName": "ANDROID_VR", "clientVersion": "1.65.10", "deviceMake": "Oculus", "deviceModel": "Quest 3", "androidSdkVersion": 32, "userAgent": ytUAVR, "osName": "Android", "osVersion": "12L"},
+	"ANDROID":    {"clientName": "ANDROID", "clientVersion": "20.10.38", "deviceMake": "Samsung", "deviceModel": "SM-S928B", "androidSdkVersion": 33, "userAgent": ytUAAnd, "osName": "Android", "osVersion": "13"},
 }
-var ytClientNum = map[string]string{"WEB": "1", "VISIONOS": "101", "ANDROID_VR": "28"}
-var ytClientKey = map[string]string{"WEB": ytKeyWeb, "VISIONOS": ytKeyWeb, "ANDROID_VR": ytKeyAnd}
+var ytClientNum = map[string]string{"WEB": "1", "VISIONOS": "101", "ANDROID_VR": "28", "ANDROID": "3"}
+var ytClientKey = map[string]string{"WEB": ytKeyWeb, "VISIONOS": ytKeyWeb, "ANDROID_VR": ytKeyAnd, "ANDROID": ytKeyAnd}
 
-// Categories = py homeContent CLASSES (site guide 1:1; login-only
-// sections are not in the py source either).
+// Categories = youtube_v2 CLASSES, 21 entries in v2 order.
+// The old 11-entry list (FEstorefront影视, 游戏, 播客) is deleted:
+// those sections are gone from the current guide, and 短剧,
+// 纪录片, 新闻直播, 4K and 直播台 are added.
 var ytCats = []struct{ id, name string }{
+	{"preset:动漫", "动漫"},
+	{"preset:短剧", "短剧"},
+	{"preset:电视剧", "电视剧"},
+	{"preset:电影", "电影"},
+	{"preset:战争片", "战争片"},
+	{"preset:沙雕动漫", "沙雕动漫"},
+	{"preset:新闻", "新闻"},
 	{"home", "首页"},
 	{"shorts", "Shorts"},
 	{"channel:UC-9-kyTW8ZkZNDHQJ6FgpwQ", "音乐"},
-	{"browse:FEstorefront", "影视"},
 	{"channel:UC4R8DWoMoI7CAwX8_LjQHig", "直播"},
-	{"channel:UCOpNcN46UbXVtpKMrmU4Abg", "游戏"},
-	{"browse:FEpodcasts_destination|qgcCCAE%3D", "播客"},
-	{"preset:新闻", "新闻"},
-	{"preset:体育", "体育"},
-	{"preset:时尚", "时尚"},
 	{"preset:学习", "学习"},
+	{"preset:纪录片", "纪录片"},
+	{"preset:综艺", "综艺"},
+	{"preset:体育", "体育"},
+	{"preset:科技", "科技"},
+	{"preset:时尚", "时尚"},
+	{"preset:科普", "科普"},
+	{"preset:新闻直播", "新闻直播"},
+	{"preset:4K", "4K"},
+	{"live", "直播台"},
+}
+
+var ytLiveList = []struct{ name, id string }{
+	{"三立iNEWS", "pF507BLtbqU"},
+	{"寰宇新聞台", "Y8eZYHy8BDc"},
+	{"東森財經新聞", "1I2iq41Akmo"},
+	{"momo購物一台", "xbNWkUyxQGM"},
+	{"運通財經台", "Bawiw2XtjZ0"},
+	{"信大電視台", "UJeImkJpaLM"},
+	{"DW News", "LuKwFajn37U"},
+	{"中視新聞", "TCnaIE_SAtM"},
+	{"Malaimurasu Tv 24X7", "QWU7yVtUiX8"},
+	{"Asianet News", "x1bfKawndzs"},
+	{"華視戲劇頻道", "qH2dIrK1ILw"},
+	{"中天亞洲台", "0Kdwr_zYLMY"},
+	{"Al Jazeera Arabic", "N8xxOD0nT1Y"},
+	{"JapaNews24", "prIN240QQyA"},
+	{"民視新聞", "ylYJSBUgaMA"},
+	{"東森購物台CH60", "47AwcDrtf3M"},
+	{"東森購物台CH46", "utfhE3fvTOg"},
+	{"LIVE NOW", "vNVp6bxkL1c"},
+	{"Haberturk TV", "s4KIyYkwiM0"},
+	{"鳳凰衛視資訊台", "Ry--eMIjYLQ"},
+	{"新唐人LIVE", "Bhp_V7H5QoY"},
+	{"ABC News", "Ykd1rMAf6XI"},
+	{"台視新聞台", "Os3t0rgvkD8"},
+	{"華視綜藝頻道", "0ePhPlTJbGo"},
+	{"Astro AWANI", "G9ndx4uuX0Q"},
+	{"中天電視", "vr3XyVCR4T0"},
+	{"Tokyo Walk", "r684Q3JIoyg"},
+	{"大愛一臺HD", "pM-1ytfQhos"},
+	{"TVBS NEWS 24小時直播", "m_dhMSvUCIc"},
+	{"三立新聞台", "yeYC0mbSIOo"},
+	{"GB News", "am5YmBbWhkU"},
+	{"中視經典綜藝", "ADDSmXoPDY8"},
+	{"Sky News", "umLWFz4izTM"},
+	{"India Today", "EATzYAm8pmA"},
+	{"Euronews English", "pykpO5kQJ98"},
+	{"FRANCE 24 English", "HvZt-nh9sGg"},
+	{"NBC News", "8XMyQlUX8Ks"},
+	{"News18 India", "tFMDyJyfwp0"},
 }
 
 func ytCatName(id string) string {
@@ -491,6 +546,8 @@ var ytStreams = map[string]*ytStream{}
 
 func ytModeOf(tid string) ytMode {
 	switch {
+	case tid == "live":
+		return ytMode{kind: "live"}
 	case tid == "home":
 		return ytMode{kind: "home"}
 	case tid == "shorts":
@@ -531,6 +588,17 @@ func ytFetchLocked(key string, mode ytMode, pg int) ([]ytItem, bool) {
 	var err error
 	var items []ytItem
 	switch mode.kind {
+	case "live":
+		if pg != 1 {
+			return nil, false
+		}
+		for _, lv := range ytLiveList {
+			if !st.seen[lv.id] {
+				st.seen[lv.id] = true
+				items = append(items, ytItem{id: lv.id, title: lv.name, pic: "https://i.ytimg.com/vi/" + lv.id + "/hqdefault.jpg", remarks: "直播"})
+			}
+		}
+		return items, false
 	case "home":
 		extra := map[string]interface{}{"browseId": "FEwhat_to_watch"}
 		if token != "" {
@@ -698,9 +766,200 @@ func ytDetail(slot, rawID string) (map[string]interface{}, error) {
 	return makeDrama(slot, vid, title, pic, remarks, "YouTube", desc), nil
 }
 
+func ytXMLEscape(s string) string {
+	r := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", "\"", "&quot;")
+	return r.Replace(s)
+}
+
+type ytMPDFormat struct {
+	itag     string
+	mime     string
+	codecs   string
+	url      string
+	bitrate  float64
+	width    float64
+	height   float64
+	fps      float64
+	sampleHz float64
+	channels float64
+	initR    string
+	indexR   string
+}
+
+func ytRangeStr(v interface{}) string {
+	m := g6Map(v)
+	if m == nil {
+		return ""
+	}
+	s, _ := m["start"].(float64)
+	e, _ := m["end"].(float64)
+	return fmt.Sprintf("%d-%d", int64(s), int64(e))
+}
+
+func ytBuildMPD(adaptive []interface{}, durationSec string) (string, bool) {
+	groups := map[string][]ytMPDFormat{}
+	order := []string{}
+	maxDur := 0.0
+	hasVideo, hasAudio := false, false
+	for _, f := range adaptive {
+		fm := g6Map(f)
+		if fm == nil {
+			continue
+		}
+		u, _ := fm["url"].(string)
+		if u == "" {
+			continue
+		}
+		mt, _ := fm["mimeType"].(string)
+		mime := mt
+		codecs := ""
+		if i := strings.Index(mt, ";"); i >= 0 {
+			mime = strings.TrimSpace(mt[:i])
+			rest := mt[i+1:]
+			if j := strings.Index(rest, "\""); j >= 0 {
+				if k := strings.LastIndex(rest, "\""); k > j {
+					codecs = rest[j+1 : k]
+				}
+			}
+		}
+		if mime != "video/mp4" && mime != "video/webm" && mime != "audio/mp4" && mime != "audio/webm" {
+			continue
+		}
+		initR := ytRangeStr(fm["initRange"])
+		indexR := ytRangeStr(fm["indexRange"])
+		if initR == "" || indexR == "" {
+			continue
+		}
+		itag := ""
+		if v, ok := fm["itag"].(float64); ok {
+			itag = strconv.FormatInt(int64(v), 10)
+		}
+		bitrate, _ := fm["bitrate"].(float64)
+		if bitrate == 0 {
+			bitrate, _ = fm["averageBitrate"].(float64)
+		}
+		if d, _ := fm["approxDurationMs"].(string); d != "" {
+			if ms, err := strconv.ParseFloat(d, 64); err == nil && ms/1000 > maxDur {
+				maxDur = ms / 1000
+			}
+		}
+		rec := ytMPDFormat{itag: itag, mime: mime, codecs: codecs, url: u, bitrate: bitrate, initR: initR, indexR: indexR}
+		rec.width, _ = fm["width"].(float64)
+		rec.height, _ = fm["height"].(float64)
+		rec.fps, _ = fm["fps"].(float64)
+		rec.sampleHz, _ = fm["audioSampleRate"].(float64)
+		if rec.sampleHz == 0 {
+			if s, ok := fm["audioSampleRate"].(string); ok {
+				if v, err := strconv.ParseFloat(s, 64); err == nil {
+					rec.sampleHz = v
+				}
+			}
+		}
+		rec.channels, _ = fm["audioChannels"].(float64)
+		if _, ok := groups[mime]; !ok {
+			order = append(order, mime)
+		}
+		groups[mime] = append(groups[mime], rec)
+		if strings.HasPrefix(mime, "video/") {
+			hasVideo = true
+		} else {
+			hasAudio = true
+		}
+	}
+	if !hasVideo || !hasAudio {
+		return "", false
+	}
+	dur := durationSec
+	if dur == "" && maxDur > 0 {
+		dur = strconv.FormatFloat(maxDur, 'f', 3, 64)
+	}
+	if dur == "" {
+		dur = "0"
+	}
+	sort.Slice(order, func(i, j int) bool {
+		rank := func(m string) int {
+			switch m {
+			case "video/mp4":
+				return 0
+			case "video/webm":
+				return 1
+			case "audio/mp4":
+				return 2
+			default:
+				return 3
+			}
+		}
+		return rank(order[i]) < rank(order[j])
+	})
+	var b strings.Builder
+	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?>`)
+	b.WriteString(`<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" type="static" minBufferTime="PT1.5S" profiles="urn:mpeg:dash:profile:isoff-live:2011" mediaPresentationDuration="PT` + ytXMLEscape(dur) + `S">`)
+	b.WriteString(`<Period>`)
+	for _, mime := range order {
+		reps := groups[mime]
+		sort.SliceStable(reps, func(i, j int) bool {
+			if reps[i].height != reps[j].height {
+				return reps[i].height > reps[j].height
+			}
+			return reps[i].bitrate > reps[j].bitrate
+		})
+		isVideo := strings.HasPrefix(mime, "video/")
+		b.WriteString(`<AdaptationSet mimeType="` + ytXMLEscape(mime) + `"`)
+		if isVideo {
+			b.WriteString(` contentType="video"`)
+		} else {
+			b.WriteString(` contentType="audio"`)
+		}
+		b.WriteString(`>`)
+		for _, r := range reps {
+			b.WriteString(`<Representation id="` + ytXMLEscape(r.itag) + `" bandwidth="` + strconv.FormatInt(int64(r.bitrate), 10) + `" codecs="` + ytXMLEscape(r.codecs) + `"`)
+			if isVideo {
+				if r.width > 0 {
+					b.WriteString(` width="` + strconv.FormatInt(int64(r.width), 10) + `"`)
+				}
+				if r.height > 0 {
+					b.WriteString(` height="` + strconv.FormatInt(int64(r.height), 10) + `"`)
+				}
+				if r.fps > 0 {
+					b.WriteString(` frameRate="` + strconv.FormatFloat(r.fps, 'f', -1, 64) + `"`)
+				}
+			} else {
+				if r.sampleHz > 0 {
+					b.WriteString(` audioSamplingRate="` + strconv.FormatInt(int64(r.sampleHz), 10) + `"`)
+				}
+			}
+			b.WriteString(`><BaseURL>` + ytXMLEscape(r.url) + `</BaseURL>`)
+			b.WriteString(`<SegmentBase indexRange="` + r.indexR + `"><Initialization range="` + r.initR + `"/></SegmentBase>`)
+			b.WriteString(`</Representation>`)
+		}
+		b.WriteString(`</AdaptationSet>`)
+	}
+	b.WriteString(`</Period></MPD>`)
+	return b.String(), true
+}
+
 func ytResolve(slot, rawID string) (map[string]interface{}, error) {
 	vid := rawID
-	// Line 1 (py flag != 360p直链）: VISIONOS HLS manifest.
+	// Line 1 (HD): ANDROID adaptive -> DASH MPD. The MPD text is
+	// carried as "playlist"; resolveSekuMedia turns it into a
+	// 127.0.0.1 loopback .mpd address via nativeOpen, so the
+	// player never sees the raw googlevideo URLs as a single file.
+	if r, err := ytPlayer(vid, "ANDROID"); err == nil {
+		if status, _ := g6Map(r["playabilityStatus"])["status"].(string); status == "" || status == "OK" {
+			sd := g6Map(r["streamingData"])
+			dur := ""
+			if vd := g6Map(r["videoDetails"]); vd != nil {
+				dur, _ = vd["lengthSeconds"].(string)
+			}
+			if mpd, ok := ytBuildMPD(g6List(sd["adaptiveFormats"]), dur); ok {
+				res := playResult("https://www.youtube.com/watch?v="+vid+"/manifest.mpd", slot, vid, ytUAAnd, "", "mpd", "dash")
+				res["playlist"] = mpd
+				g6NoReferer(res)
+				return res, nil
+			}
+		}
+	}
+	// Line 2 (py flag != 360p直链）: VISIONOS HLS manifest.
 	if r, err := ytPlayer(vid, "VISIONOS"); err == nil {
 		if hls := g6Str(g6Map(r["streamingData"])["hlsManifestUrl"]); hls != "" {
 			res := playResult(hls, slot, vid, ytUAVis, "", "m3u8", "hls")
@@ -708,7 +967,7 @@ func ytResolve(slot, rawID string) (map[string]interface{}, error) {
 			return res, nil
 		}
 	}
-	// Line 2: ANDROID_VR direct formats (itag 22 > 18 > others),
+	// Line 3: ANDROID_VR direct formats (itag 22 > 18 > others),
 	// then its HLS manifest.
 	if r, err := ytPlayer(vid, "ANDROID_VR"); err == nil {
 		sd := g6Map(r["streamingData"])
@@ -2035,8 +2294,17 @@ func xsSearch(slot, kw string) ([]interface{}, error) {
 
 func init() {
 	// v2: the xingguo slot no longer carries YouTube (user order —
-	// replaced by 99jj 久久热, registered in sites_v2.go). The yt*
-	// provider functions stay in this file, unregistered.
+	// replaced by 99jj 久久热, registered in sites_v2.go). YouTube
+	// now has its own slot "youtube" (not xingguo, not faguo).
+	registerSite("youtube", &siteImpl{
+		Key: "youtube", Name: "YouTube", DefaultCat: "home", HomeURL: "https://www.youtube.com/",
+		Categories: ytCategories,
+		Catalog:    ytCatalog,
+		Detail:     ytDetail,
+		Resolve:    ytResolve,
+		Search:     ytSearch,
+		Headers:    ytHeaders,
+	}, "youtube")
 	registerSite("wangguo", &siteImpl{
 		Key: "javxu", Name: "🔞JavXu", DefaultCat: "home", HomeURL: jxHost + "/zh/",
 		Categories: jxCategories,

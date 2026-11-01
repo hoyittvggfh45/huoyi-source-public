@@ -24,6 +24,7 @@ target 'Runner' do
   use_frameworks!
   pod 'DuanjuCore', :path => 'DuanjuCore'
   pod 'PythonBridge', :path => 'PythonBridge'
+  pod 'QuickJSBridge', :path => 'QuickJSBridge'
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
   target 'RunnerTests' do
     inherit! :search_paths

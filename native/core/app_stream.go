@@ -147,14 +147,21 @@ func (stream *nativeStreamServer) nativeOpen(media providerMedia, adBlock bool) 
 	stream.sessions[token] = session
 	stream.mu.Unlock()
 	entry := nativeStreamAsset{address: media.URL, contentType: "video/mp4"}
+	if media.Audio {
+		entry.contentType = "audio/mp4"
+	}
 	if parsed, err := url.Parse(media.URL); err == nil && strings.HasSuffix(strings.ToLower(parsed.Path), ".m3u8") {
 		entry.contentType = "application/vnd.apple.mpegurl"
 	}
 	if media.Playlist != "" {
 		entry.data = []byte(media.Playlist)
-		entry.contentType = "application/vnd.apple.mpegurl"
+		if strings.Contains(media.Playlist, "<MPD") {
+			entry.contentType = "application/dash+xml"
+		} else {
+			entry.contentType = "application/vnd.apple.mpegurl"
+		}
 	}
-	if len(media.CENCKey) == 16 && entry.contentType == "video/mp4" {
+	if len(media.CENCKey) == 16 && (entry.contentType == "video/mp4" || entry.contentType == "audio/mp4") {
 		fetcher := func(ctx context.Context, start, end int64) ([]byte, int64, error) {
 			return stream.nativeFetchRange(ctx, session, media.URL, start, end)
 		}
@@ -179,16 +186,18 @@ func (stream *nativeStreamServer) nativeAsset(token string, session *nativeStrea
 	extension := ".ts"
 	if parsed, err := url.Parse(asset.address); err == nil {
 		switch candidate := strings.ToLower(path.Ext(parsed.Path)); candidate {
-		case ".m3u8", ".ts", ".m4s", ".mp4", ".aac", ".m4a", ".mp3", ".vtt", ".webvtt", ".key":
+		case ".m3u8", ".ts", ".m4s", ".mp4", ".aac", ".m4a", ".mp3", ".vtt", ".webvtt", ".key", ".mpd":
 			extension = candidate
 		}
 	}
 	switch asset.contentType {
 	case "application/vnd.apple.mpegurl":
 		extension = ".m3u8"
+	case "application/dash+xml":
+		extension = ".mpd"
 	case "application/octet-stream":
 		extension = ".key"
-	case "video/mp4":
+	case "video/mp4", "audio/mp4":
 		extension = ".mp4"
 	}
 	id := hex.EncodeToString(digest[:12]) + extension

@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:duanju_app/imported_site_record.dart';
+import 'package:duanju_app/models.dart';
 import 'package:duanju_app/py_contract.dart';
 
 void main() {
@@ -31,6 +32,20 @@ void main() {
     });
     expect(plan.headers, isEmpty);
     expect(plan.url, 'https://play.test/1.m3u8');
+  });
+
+  test('plan withHeaders keeps url and replaces headers', () {
+    const plan = PlaybackPlan(
+      url: 'https://play.test/1.m3u8',
+      headers: {'User-Agent': 'OldUA'},
+    );
+    final merged = plan.withHeaders({
+      'User-Agent': 'OldUA',
+      'Referer': 'https://site.test/',
+    });
+    expect(merged.url, 'https://play.test/1.m3u8');
+    expect(merged.headers['User-Agent'], 'OldUA');
+    expect(merged.headers['Referer'], 'https://site.test/');
   });
 
   test('plan playUrl fallback', () {

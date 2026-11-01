@@ -6,7 +6,6 @@ import 'app_update_screen.dart';
 import 'core_bridge.dart';
 import 'downloads_screen.dart';
 import 'local_store.dart';
-import 'miniapp/plugin_center_screen.dart';
 import 'models.dart';
 import 'saved_library.dart';
 import 'account_screen.dart';
@@ -76,19 +75,6 @@ class MyPageScreen extends StatelessWidget {
                 ),
               ),
             ),
-          ListTile(
-            leading: const Icon(Icons.apps_rounded),
-            title: const Text('小程序'),
-            trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: () async {
-              await Navigator.of(context).push(
-                appPageRoute<void>(
-                  builder: (_) =>
-                      PluginCenterScreen(store: store, repository: repository),
-                ),
-              );
-            },
-          ),
           ListTile(
             leading: const Icon(Icons.person_outline),
             title: const Text('账号'),

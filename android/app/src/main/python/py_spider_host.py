@@ -520,11 +520,28 @@ def _dispatch(spider, request):
     raise ValueError("不支持的动作：%s" % action)
 
 
+_ACTION_METHODS = {
+    "ping": "getName",
+    "categories": "homeContent",
+    "home": "homeContent",
+    "dependence": "getDependence",
+    "format": "isVideoFormat",
+    "check": "manualVideoCheck",
+    "action": "action",
+    "detail": "detailContent",
+    "search": "searchContent",
+    "resolve": "playerContent",
+    "proxy": "localProxy",
+}
+
+
 def handle(path, request_json):
+    action = ""
     try:
         request = json.loads(request_json) if request_json else {}
         if not isinstance(request, dict):
             raise ValueError("请求格式不正确")
+        action = str(request.get("action") or "")
         spider = _load_spider(path)
         extend = request.get("extend") or ""
         if isinstance(extend, str):
@@ -547,7 +564,12 @@ def handle(path, request_json):
         return json.dumps({"ok": True, "data": _jsonable(data)}, ensure_ascii=False)
     except Exception as error:  # noqa: BLE001
         detail = "".join(traceback.format_exception_only(type(error), error)).strip()
-        return json.dumps({"ok": False, "error": detail}, ensure_ascii=False)
+        method = _ACTION_METHODS.get(action, action)
+        label = ("%s/%s" % (action, method)) if method else "py"
+        return json.dumps(
+            {"ok": False, "error": "%s: %s" % (label, detail)},
+            ensure_ascii=False,
+        )
 
 
 def dispose(path):
@@ -557,4 +579,11 @@ def dispose(path):
             cached[1].destroy()
         except Exception:
             pass
+    return json.dumps({"ok": True}, ensure_ascii=False)
+
+
+def dispose_all():
+    paths = list(_instances.keys())
+    for path in paths:
+        dispose(path)
     return json.dumps({"ok": True}, ensure_ascii=False)

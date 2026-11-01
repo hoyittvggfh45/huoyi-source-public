@@ -505,9 +505,15 @@ class NativeRepository extends AppRepository {
     });
     var plan = PyContract.planFromResult(result);
     if (plan.url.isEmpty) {
-      throw AppFailure('py 蜘蛛未返回可播放地址');
+      throw AppFailure(
+        'py 蜘蛛取流未返回可播放地址（步骤=playerContent，线路=$flag，集标识=$playId）',
+      );
     }
-    plan = await _applyPyFormat(source, plan);
+    final hasParseFlag =
+        result.containsKey('parse') || result.containsKey('jx');
+    if (!hasParseFlag) {
+      plan = await _applyPyFormat(source, plan);
+    }
     plan = await _applyPyProxy(source, plan);
     return plan;
   }
@@ -1423,11 +1429,33 @@ class NativeRepository extends AppRepository {
     );
   }
 
-  String _hongguoNumericId(String raw) {
-    var value = raw;
-    final colon = value.lastIndexOf(':');
-    if (colon >= 0) value = value.substring(colon + 1);
-    return value.replaceAll(RegExp(r'[^0-9]'), '');
+  String _cleanHongguoVideoId(String raw) {
+    var value = raw.trim();
+    if (value.isEmpty ||
+        value.contains('://') ||
+        value.contains('/') ||
+        value.contains('?') ||
+        value.contains('&')) {
+      return '';
+    }
+    if (value.startsWith('hg-episode-v1:')) {
+      value = value.substring('hg-episode-v1:'.length);
+    }
+    if (value.startsWith('vm:')) {
+      value = value.substring(3);
+    } else if (value.startsWith('raw:')) {
+      value = value.substring(4);
+    }
+    final colon = value.indexOf(':');
+    if (colon >= 0) {
+      final head = value.substring(0, colon);
+      if (!RegExp(r'^(2160|1440|1080|720|576|540|480|360)$').hasMatch(head)) {
+        return '';
+      }
+      value = value.substring(colon + 1);
+    }
+    if (value.isEmpty || !RegExp(r'^[0-9]+$').hasMatch(value)) return '';
+    return value;
   }
 
   Future<PlaybackPlan?> _tryGoHongguoPlan(
@@ -1444,13 +1472,17 @@ class NativeRepository extends AppRepository {
         !drama.source.toLowerCase().contains('hongguo')) {
       return null;
     }
-    final seriesId = _hongguoNumericId(
-      drama.sourceId.isNotEmpty ? drama.sourceId : drama.id,
-    );
-    final videoId = _hongguoNumericId(
+    final videoId = _cleanHongguoVideoId(
       episode.raw['id'] as String? ?? episode.id,
     );
-    if (seriesId.isEmpty || videoId.isEmpty) return null;
+    if (videoId.isEmpty) return null;
+    var seriesId =
+        drama.sourceId.isNotEmpty ? drama.sourceId : drama.id;
+    final seriesColon = seriesId.lastIndexOf(':');
+    if (seriesColon >= 0) seriesId = seriesId.substring(seriesColon + 1);
+    if (seriesId.isEmpty || !RegExp(r'^[0-9]+$').hasMatch(seriesId)) {
+      return null;
+    }
     try {
       final parseApis = await ParseInterfaceStore.loadEnabled();
       final nativeDrama = Drama(
@@ -1538,7 +1570,7 @@ class NativeRepository extends AppRepository {
     PlaybackPlan plan,
     List<ParseInterface> apis,
   ) async {
-    return PlaybackPlan.fromJson(
+    final resolved = PlaybackPlan.fromJson(
       await _call({
         'action': 'resolveParse',
         'url': plan.url,
@@ -1548,6 +1580,7 @@ class NativeRepository extends AppRepository {
         'sequence': ++_playbackSequence,
       }),
     );
+    return resolved.withHeaders({...plan.headers, ...resolved.headers});
   }
 
   @override

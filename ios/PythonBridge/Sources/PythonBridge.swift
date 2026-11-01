@@ -37,6 +37,8 @@ public final class PythonBridge: NSObject, FlutterPlugin {
         return
       }
       runAsync(result) { try PythonRuntime.shared.callHost("dispose", arguments: [path]) }
+    case "disposeAll":
+      runAsync(result) { try PythonRuntime.shared.callHost("dispose_all", arguments: []) }
     default:
       result(FlutterMethodNotImplemented)
     }

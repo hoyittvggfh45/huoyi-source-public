@@ -2,6 +2,7 @@ import Flutter
 import UIKit
 import DuanjuCore
 import PythonBridge
+import QuickJSBridge
 import CFNetwork
 
 @main
@@ -18,6 +19,9 @@ import CFNetwork
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "PythonBridge") {
       PythonBridge.register(with: registrar)
+    }
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "QuickJSBridge") {
+      QuickJSBridge.register(with: registrar)
     }
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "AppUpdate") {
       let channel = FlutterMethodChannel(name: "duanju/appupdate", binaryMessenger: registrar.messenger())

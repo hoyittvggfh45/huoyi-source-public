@@ -85,6 +85,8 @@ var sekuSlotPublicIDs = map[string]string{
 	"yh_gdian":       "v_gdian",
 	"yh_ins":         "v_ins",
 	"yh_huangguo":    "v_huangguo",
+	"mjv011":         "v_mjv011",
+	"youtube":        "youtube",
 }
 
 var sekuPublicSlotIDs = func() map[string]string {

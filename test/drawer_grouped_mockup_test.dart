@@ -74,10 +74,6 @@ class MockupGroupedDrawer extends StatelessWidget {
               _mockupItem(icon: Icons.headphones_rounded, label: '听书'),
             ],
           ),
-          _mockupGroup(
-            title: '小程序',
-            children: [_mockupItem(icon: Icons.apps_rounded, label: '蚂蚁')],
-          ),
           const Divider(),
           _mockupItem(icon: Icons.list_rounded, label: '站源管理'),
           _mockupItem(icon: Icons.source_rounded, label: '内容源管理'),

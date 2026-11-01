@@ -31,6 +31,12 @@ func TestExtractParsedURL(t *testing.T) {
 		{"redirect media", "", "application/vnd.apple.mpegurl", "https://cdn.test/h.m3u8", "https://cdn.test/h.m3u8", nil, true},
 		{"json no url", `{"code":500,"msg":"fail"}`, "application/json", "https://jx.test/", "", nil, false},
 		{"html body", "<html>challenge</html>", "text/html", "https://jx.test/", "", nil, false},
+		{"deep nested", `{"result":{"play":{"streams":[{"file":"https://cdn.test/deep.m3u8"}]}}}`, "application/json", "https://jx.test/", "https://cdn.test/deep.m3u8", nil, true},
+		{"video_url key", `{"video_url":"https://cdn.test/v.mp4"}`, "application/json", "https://jx.test/", "https://cdn.test/v.mp4", nil, true},
+		{"jsonp", `cb({"url":"https://cdn.test/j.m3u8"})`, "application/javascript", "https://jx.test/", "https://cdn.test/j.m3u8", nil, true},
+		{"base64 url", `{"data":"aHR0cHM6Ly9jZG4udGVzdC9iLm0zdTg="}`, "application/json", "https://jx.test/", "https://cdn.test/b.m3u8", nil, true},
+		{"html video src", `<video src="https://cdn.test/h.mp4"></video>`, "text/html", "https://jx.test/", "https://cdn.test/h.mp4", nil, true},
+		{"text embedded", `ok https://cdn.test/t.m3u8 done`, "text/plain", "https://jx.test/", "https://cdn.test/t.m3u8", nil, true},
 		{"empty", "", "application/json", "https://jx.test/", "", nil, false},
 	}
 	for _, tc := range cases {

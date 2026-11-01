@@ -39,6 +39,33 @@ void main() {
     expect(SnifferService().preferred, isNull);
   });
 
+  test('extract finds audio urls and preferred ranks audio below video', () {
+    final found = MediaSniffer.extractFromText(
+      'https://cdn.example.test/a.m4a https://cdn.example.test/b.mp3',
+    );
+    expect(found, contains('https://cdn.example.test/a.m4a'));
+    expect(found, contains('https://cdn.example.test/b.mp3'));
+    final service = SnifferService();
+    service.add('https://cdn.example.test/a.m4a');
+    service.add('https://cdn.example.test/b.mp4');
+    expect(service.preferred, 'https://cdn.example.test/b.mp4');
+  });
+
+  test('auxiliary captures subtitle urls separately from media', () {
+    expect(
+      MediaSniffer.extractAuxFromText(
+        'https://cdn.example.test/sub.vtt https://cdn.example.test/a.mp4',
+      ),
+      ['https://cdn.example.test/sub.vtt'],
+    );
+    final service = SnifferService();
+    expect(service.addAux('https://cdn.example.test/sub.vtt'), isTrue);
+    expect(service.addAux('https://cdn.example.test/sub.vtt'), isFalse);
+    expect(service.addAux('https://cdn.example.test/a.mp4'), isFalse);
+    expect(service.auxiliary, ['https://cdn.example.test/sub.vtt']);
+    expect(service.preferred, isNull);
+  });
+
   test('sniffed result parses list and json string forms', () {
     expect(
       SnifferService.parseSniffedResult([

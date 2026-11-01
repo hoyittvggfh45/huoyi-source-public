@@ -119,7 +119,9 @@ class _MdkVideoPaneState extends State<MdkVideoPane> {
   void didUpdateWidget(MdkVideoPane oldWidget) {
     super.didUpdateWidget(oldWidget);
     final plan = widget.plan;
-    if (plan != null && plan.session != _openedSession) {
+    if (plan != null &&
+        (plan.session != _openedSession ||
+            plan.url != oldWidget.plan?.url)) {
       _openedAutoplay = widget.autoplay;
       unawaited(_open(plan, widget.startPosition));
     }

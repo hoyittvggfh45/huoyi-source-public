@@ -41,6 +41,8 @@ import 'package:duanju_app/playback_foreground.dart';
 import 'package:duanju_app/playback_preloader.dart';
 import 'package:duanju_app/playback_recovery.dart';
 import 'package:duanju_app/playback_preferences.dart';
+import 'package:duanju_app/nonvideo_content.dart';
+import 'package:duanju_app/playback_sniffer.dart';
 import 'package:duanju_app/xigua/player_controls.dart';
 import 'package:duanju_app/network_speed.dart';
 import 'package:duanju_app/xigua/player_interactions.dart';
@@ -169,6 +171,9 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
   String? _error;
   String? _saveWarning;
   PlaybackPlan? _plan;
+  NonVideoContent? _nonVideo;
+  String _lastPageUrl = '';
+  bool _sniffFallbackTried = false;
   late PlayerCore _core;
   final _tvboxHandle = TvboxPlaybackHandle();
   PlaybackPlan? _tvboxPlan;
@@ -1384,6 +1389,19 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
         index >= widget.detail.episodes.length) {
       return;
     }
+    final earlyNonVideo = nonVideoFromEpisode(widget.detail.episodes[index]);
+    if (earlyNonVideo != null) {
+      _preloader.clear();
+      setState(() {
+        _index = index;
+        _loading = false;
+        _error = null;
+        _nonVideo = earlyNonVideo;
+        _plan = null;
+      });
+      unawaited(_player.stop().catchError((Object _) {}));
+      return;
+    }
     _watchSession.setPlaying(false);
     _interactions.cancel();
     if (widget.handoff != null &&
@@ -1423,6 +1441,8 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
       _loading = true;
       _error = null;
       _localFailure = false;
+      _nonVideo = null;
+      _sniffFallbackTried = false;
       _loadingMessage = switch (recoveryAction) {
         PlaybackRecoveryAction.alternative => '正在切换备用线路',
         PlaybackRecoveryAction.refresh => '正在重新获取播放地址',
@@ -1472,6 +1492,7 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
         return;
       }
       if (!prepared.local && prepared.needsParse) {
+        _lastPageUrl = prepared.url;
         if (JarBridge.isJarSource(widget.detail.drama.source)) {
           final selected = await ParseInterfaceStore.loadSelected();
           final parsed = applySelectedParse(
@@ -1495,6 +1516,7 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
           prepared = await widget.repository.resolveParse(prepared, apis);
         }
       } else if (!prepared.local && looksLikeWebPage(prepared.url)) {
+        _lastPageUrl = prepared.url;
         final selected = await ParseInterfaceStore.loadSelected();
         final parsed = applySelectedParse(
           url: prepared.url,
@@ -1503,9 +1525,39 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
         );
         if (parsed != null && parsed != prepared.url) {
           prepared = prepared.withUrl(parsed);
+        } else {
+          final apis = await ParseInterfaceStore.loadEnabled();
+          final pageUrl = prepared.url;
+          if (apis.isNotEmpty) {
+            if (prepared.session.isNotEmpty) {
+              await widget.repository.release(prepared.session);
+            }
+            try {
+              prepared = await widget.repository.resolveParse(prepared, apis);
+            } catch (_) {
+              throw AppFailure('解析接口全部失败（取流地址=$pageUrl）');
+            }
+          } else {
+            throw AppFailure(
+              '播放地址是网页、需要解析但未配置解析接口（取流地址=$pageUrl，请在解析设置中添加解析接口）',
+            );
+          }
         }
       }
       final plan = prepared;
+      final planNonVideo = parseNonVideoUrl(plan.url);
+      if (planNonVideo != null) {
+        if (plan.session.isNotEmpty) {
+          await widget.repository.release(plan.session);
+        }
+        setState(() {
+          _loading = false;
+          _error = null;
+          _nonVideo = planNonVideo;
+          _plan = null;
+        });
+        return;
+      }
       await _serialize(() async {
         if (_closed || ticket != _generation) {
           await widget.repository.release(plan.session);
@@ -1602,6 +1654,15 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
             await widget.repository.release(prepared.session);
           }
           if (mounted && !_closed && ticket == _generation) {
+            final fallbackPage = _lastPageUrl.isNotEmpty
+                ? _lastPageUrl
+                : (prepared != null && looksLikeWebPage(prepared.url)
+                    ? prepared.url
+                    : '');
+            final needsSniffFallback =
+                !_sniffFallbackTried &&
+                warmed == null &&
+                fallbackPage.isNotEmpty;
             setState(() {
               _loading = false;
               _localFailure =
@@ -1610,6 +1671,20 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
               _error = error is AppFailure ? error.message : '无法播放这一集，请重试或换一集。';
               widget.handoff?.fail(_error!);
             });
+            if (needsSniffFallback) {
+              _sniffFallbackTried = true;
+              _lastPageUrl = fallbackPage;
+              final parseFailed =
+                  error is AppFailure && error.message.contains('解析接口');
+              setState(() {
+                _error = parseFailed
+                    ? '解析接口没解析出地址，正在打开网页嗅探兜底…'
+                    : '正在打开网页嗅探兜底…';
+              });
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted && !_closed) _openSniffer(auto: true);
+              });
+            }
           }
         }
       } else if (prepared != null && !installed) {
@@ -1639,6 +1714,74 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
       _index,
       position: position,
       playWhenReady: quality == null || _error != null || _enginePlaying,
+    );
+  }
+
+  Future<void> _openSniffer({bool auto = false}) async {
+    final pageUrl = _lastPageUrl;
+    if (pageUrl.isEmpty || !mounted || _closed) return;
+    final found = await Navigator.of(context).push<String>(
+      appPageRoute(
+        builder: (routeContext) => SniffWebViewPage(
+          pageUrl: pageUrl,
+          headers: _plan?.headers ?? const {},
+          autoPlay: auto,
+          onMediaFound: (url) => Navigator.of(routeContext).pop(url),
+        ),
+      ),
+    );
+    if (found == null || found.isEmpty || _closed || !mounted) return;
+    await _play(
+      _index,
+      handoffPlan: PlaybackPlan(url: found, headers: _plan?.headers ?? const {}),
+    );
+  }
+
+  Widget _nonVideoPane() {
+    final content = _nonVideo!;
+    final title = widget.detail.drama.title;
+    final episode = widget.detail.episodes[_index];
+    final label = content.isNovel ? '正在阅读' : '正在浏览图片';
+    final body = content.isNovel
+        ? NovelReaderView(content: content, title: title)
+        : PicsViewerView(content: content, title: title);
+    return Container(
+      color: Colors.black,
+      child: Column(
+        children: [
+          Expanded(child: body),
+          Container(
+            color: Colors.black,
+            padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+            child: Row(
+              children: [
+                IconButton(
+                  tooltip: '上一集',
+                  onPressed: _index > 0 ? () => _play(_index - 1) : null,
+                  icon: const Icon(Icons.skip_previous, color: Colors.white),
+                ),
+                Expanded(
+                  child: Text(
+                    '$label · 第 ${episode.number} 集'
+                    '${content.isPics ? '（${content.urls.length} 张）' : ''}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+                IconButton(
+                  tooltip: '下一集',
+                  onPressed: _index + 1 < widget.detail.episodes.length
+                      ? () => _play(_index + 1)
+                      : null,
+                  icon: const Icon(Icons.skip_next, color: Colors.white),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -2253,6 +2396,7 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
   }
 
   Widget _videoPane(BuildContext context) {
+    if (_nonVideo != null) return _nonVideoPane();
     final videoTheme = _television
         ? televisionTheme(AppTheme.dark)
         : AppTheme.dark;
@@ -2434,6 +2578,12 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
                                 icon: const Icon(Icons.travel_explore_rounded),
                                 label: const Text('其他站源'),
                               ),
+                              if (_lastPageUrl.isNotEmpty)
+                                TextButton.icon(
+                                  onPressed: _openSniffer,
+                                  icon: const Icon(Icons.radar_rounded),
+                                  label: const Text('网页嗅探播放页'),
+                                ),
                               if (_localFailure && widget.allowOnlineFallback)
                                 TextButton.icon(
                                   onPressed: _switchOnline,

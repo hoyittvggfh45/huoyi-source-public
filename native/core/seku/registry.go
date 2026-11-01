@@ -42,7 +42,7 @@ var slotOrder = []string{
 	"huangdou", "huangju", "yeguo", "dsd", "huangguo-video",
 	"huangguoai", "cloudfront", "yaguo", "maoguo", "fanguo",
 	"guanguo", "heguo", "xingguo", "huaguo", "niuguo",
-	"wangguo", "faguo", "wuguo",
+	"wangguo", "faguo", "wuguo", "youtube",
 	"javmenu", "xszav", "av123",
 	"av520", "pigav", "aoxx69", "javdb",
 "z2_17rip", "z2_321av", "z2_av6k", "z2_7mm", "z2_xanimu",
@@ -64,6 +64,7 @@ var slotOrder = []string{
 	"yh_pron91", "yh_short91", "yh_melon51", "yh_utube",
 	"yh_av91", "yh_md", "yh_haijiao", "yh_sex8",
 	"yh_gdian", "yh_ins", "yh_huangguo",
+	"mjv011",
 }
 
 // keyToSlot resolves internal keys and display aliases to slot ids.

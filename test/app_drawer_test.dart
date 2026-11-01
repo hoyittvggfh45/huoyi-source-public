@@ -11,7 +11,6 @@ void main() {
     String? siteLabel,
     required List<HomeZone> zones,
     required List<AppDrawerTool> tools,
-    required VoidCallback onMiniApp,
     required VoidCallback onWatchRoom,
     required VoidCallback onSiteBoxTap,
   }) async {
@@ -27,7 +26,6 @@ void main() {
             midnightActivated: midnightActivated,
             currentVersion: '1.0.1',
             onZoneSelected: zones.add,
-            onMiniApp: onMiniApp,
             onWatchRoom: onWatchRoom,
             onTool: tools.add,
             onMinorProtectionChanged: (_) {},
@@ -43,14 +41,12 @@ void main() {
 
   testWidgets('drawer zone tiles map to their zones', (tester) async {
     final zones = <HomeZone>[];
-    var miniApp = 0;
     var room = 0;
     await pumpDrawer(
       tester,
       midnightActivated: true,
       zones: zones,
       tools: [],
-      onMiniApp: () => miniApp++,
       onWatchRoom: () => room++,
       onSiteBoxTap: () {},
     );
@@ -62,8 +58,6 @@ void main() {
     expect(zones, [HomeZone.vod, HomeZone.midnight, HomeZone.live]);
     await tester.tap(find.text('听书'));
     expect(zones.last, HomeZone.audio);
-    await tester.tap(find.text('蚂蚁'));
-    expect(miniApp, 1);
     await tester.tap(find.text('一起看房间'));
     expect(room, 1);
   });
@@ -74,7 +68,6 @@ void main() {
       tester,
       zones: [],
       tools: tools,
-      onMiniApp: () {},
       onWatchRoom: () {},
       onSiteBoxTap: () {},
     );
@@ -107,14 +100,11 @@ void main() {
       midnightActivated: true,
       zones: [],
       tools: [],
-      onMiniApp: () {},
       onWatchRoom: () {},
       onSiteBoxTap: () {},
     );
     expect(find.text('影视区'), findsOneWidget);
     expect(find.text('阅读'), findsOneWidget);
-    expect(find.text('小程序模块'), findsOneWidget);
-    expect(find.text('选择一项配置或进入模块'), findsOneWidget);
     expect(find.text('应用工具'), findsOneWidget);
     expect(find.text('通用配置与管理'), findsOneWidget);
     for (final label in [
@@ -124,7 +114,6 @@ void main() {
       '直播',
       '一起看房间',
       '听书',
-      '蚂蚁',
       '站源管理',
       '软件更新',
     ]) {
@@ -139,7 +128,6 @@ void main() {
       siteLabel: '测试站 (2)',
       zones: [],
       tools: [],
-      onMiniApp: () {},
       onWatchRoom: () {},
       onSiteBoxTap: () => tapped++,
     );
@@ -153,7 +141,6 @@ void main() {
       tester,
       zones: [],
       tools: [],
-      onMiniApp: () {},
       onWatchRoom: () {},
       onSiteBoxTap: () {},
     );
@@ -166,7 +153,6 @@ void main() {
       midnightActivated: false,
       zones: [],
       tools: [],
-      onMiniApp: () {},
       onWatchRoom: () {},
       onSiteBoxTap: () {},
     );

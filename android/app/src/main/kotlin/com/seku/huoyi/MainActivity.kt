@@ -32,6 +32,8 @@ class MainActivity : FlutterActivity() {
     private var deviceChannel: MethodChannel? = null
     private var pyBridge: PyBridge? = null
     private var pyChannel: MethodChannel? = null
+    private var quickJSBridge: QuickJSBridge? = null
+    private var quickJSChannel: MethodChannel? = null
     private var pyImportChannel: MethodChannel? = null
     private val pendingPyFiles = mutableListOf<Map<String, Any?>>()
     private var televisionMode = false
@@ -239,6 +241,9 @@ class MainActivity : FlutterActivity() {
         val bridge = PyBridge(this)
         pyBridge = bridge
         pyChannel = bridge.register(flutterEngine.dartExecutor.binaryMessenger)
+        val quickJS = QuickJSBridge()
+        quickJSBridge = quickJS
+        quickJSChannel = quickJS.register(flutterEngine.dartExecutor.binaryMessenger)
         deviceChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "duanju/device")
             .also { channel ->
                 channel.setMethodCallHandler { call, result ->
@@ -418,6 +423,10 @@ class MainActivity : FlutterActivity() {
         pyChannel = null
         pyBridge?.shutdown()
         pyBridge = null
+        quickJSChannel?.setMethodCallHandler(null)
+        quickJSChannel = null
+        quickJSBridge?.shutdown()
+        quickJSBridge = null
         super.cleanUpFlutterEngine(flutterEngine)
     }
 }

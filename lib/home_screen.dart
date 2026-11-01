@@ -13,7 +13,6 @@ import 'app_drawer.dart';
 import 'midnight_zone.dart';
 import 'content_zone_screen.dart';
 import 'content_models.dart';
-import 'miniapp/plugin_center_screen.dart';
 import 'player_picker.dart';
 import 'app_update_screen.dart';
 import 'content_source_screen.dart';
@@ -1246,7 +1245,6 @@ class _HomeScreenState extends State<HomeScreen> {
     midnightActivated: _midnightActivated,
     currentVersion: _currentVersion,
     onZoneSelected: _onZoneSelected,
-    onMiniApp: _onMiniApp,
     onWatchRoom: _onWatchRoom,
     onTool: _onTool,
     onMinorProtectionChanged: _onMinorProtectionChanged,
@@ -1357,20 +1355,6 @@ class _HomeScreenState extends State<HomeScreen> {
   void _onZoneSelected(HomeZone zone) {
     Navigator.of(context).pop();
     _setZone(zone);
-  }
-
-  void _onMiniApp() {
-    Navigator.of(context).pop();
-    unawaited(
-      Navigator.of(context).push<void>(
-        appPageRoute<void>(
-          builder: (_) => PluginCenterScreen(
-            store: widget.store,
-            repository: widget.repository,
-          ),
-        ),
-      ),
-    );
   }
 
   void _onWatchRoom() {

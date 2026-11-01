@@ -25,7 +25,6 @@ class AppDrawer extends StatelessWidget {
     required this.midnightActivated,
     required this.currentVersion,
     required this.onZoneSelected,
-    required this.onMiniApp,
     required this.onWatchRoom,
     required this.onTool,
     required this.onMinorProtectionChanged,
@@ -38,7 +37,6 @@ class AppDrawer extends StatelessWidget {
   final bool midnightActivated;
   final String currentVersion;
   final ValueChanged<HomeZone> onZoneSelected;
-  final VoidCallback onMiniApp;
   final VoidCallback onWatchRoom;
   final ValueChanged<AppDrawerTool> onTool;
   final ValueChanged<bool> onMinorProtectionChanged;
@@ -191,13 +189,6 @@ class AppDrawer extends StatelessWidget {
             label: '听书',
             selected: zone == HomeZone.audio,
             onTap: () => onZoneSelected(HomeZone.audio),
-          ),
-          _sectionTitle('小程序模块', subtitle: '选择一项配置或进入模块'),
-          _moduleTile(
-            icon: Icons.apps_rounded,
-            label: '蚂蚁',
-            selected: false,
-            onTap: onMiniApp,
           ),
           const Divider(),
           _sectionTitle('应用工具', subtitle: '通用配置与管理'),

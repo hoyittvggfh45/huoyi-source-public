@@ -150,7 +150,7 @@ class SourceSite {
   static const hongguo = SourceSite(
     'hongguo',
     '红果',
-    '短剧 · 漫剧 · AI 剧',
+    '短剧 · 漫剧 · AI 剧 · 小说 · 听书',
     section: sectionDrama,
   );
   static const dsd = SourceSite('dsd', '帝果', '分类视频 · 在线搜索');
@@ -684,6 +684,13 @@ class SourceSite {
       section: sectionVideo,
       slotId: 'yh_huangguo',
     ),
+    SourceSite(
+      'v_mjv011',
+      '🔞mjv011',
+      'mjv011.com · 小说/图片/视频 · 槽位 mjv011',
+      section: sectionVideo,
+      slotId: 'mjv011',
+    ),
   ];
   static const knownValues = [
     hongguo,
@@ -699,6 +706,7 @@ class SourceSite {
     SourceSite('huangguo-video', '黄果视频', '视频剧集'),
     SourceSite('huangguoai', '黄果 AI', 'AI 短剧'),
     SourceSite('cloudfront', '黄果旧版', '旧 API 剧库'),
+    SourceSite('youtube', 'YouTube', 'YouTube · 高清 DASH · 短剧区', section: sectionDrama),
     ...duanjuValues,
     ...videoValues,
   ];
@@ -716,6 +724,7 @@ class SourceSite {
     SourceSite('huangguo-video', '黄果视频', '视频剧集'),
     SourceSite('huangguoai', '黄果 AI', 'AI 短剧'),
     SourceSite('cloudfront', '黄果旧版', '旧 API 剧库'),
+    SourceSite('youtube', 'YouTube', 'YouTube · 高清 DASH · 短剧区', section: sectionDrama),
     ...duanjuValues,
     ...videoValues,
   ];
@@ -1379,6 +1388,23 @@ class PlaybackPlan {
     url: value,
     originalUrl: originalUrl,
     headers: headers,
+    decryptionKey: decryptionKey,
+    quality: quality,
+    qualities: qualities,
+    session: session,
+    danmakuId: danmakuId,
+    prefetchedBytes: prefetchedBytes,
+    expiresAt: expiresAt,
+    routeIndex: routeIndex,
+    routeCount: routeCount,
+    local: local,
+    needsParse: needsParse,
+  );
+
+  PlaybackPlan withHeaders(Map<String, String> value) => PlaybackPlan(
+    url: url,
+    originalUrl: originalUrl,
+    headers: value,
     decryptionKey: decryptionKey,
     quality: quality,
     qualities: qualities,
