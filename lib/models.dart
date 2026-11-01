@@ -799,7 +799,8 @@ class SourceSite {
 bool isVodZoneSource(SourceSite site) =>
     site.isVideoSection &&
     (site.origin == SourceSite.originConfig ||
-        (site.origin == SourceSite.originImport && site.importType == 'py'));
+        (site.origin == SourceSite.originImport &&
+            (site.importType == 'py' || site.importType == 'jar')));
 
 bool isMidnightZoneSource(SourceSite site) =>
     site.isVideoSection && site.origin == SourceSite.originBuiltin;

@@ -34,17 +34,17 @@ class TvFilterBar extends StatelessWidget {
       children: [
         for (var i = 0; i < groups.length; i++)
           SizedBox(
-            height: 52,
+            height: 35,
             child: Row(
               children: [
                 Padding(
                   padding: const EdgeInsets.only(left: 12, right: 8),
                   child: SizedBox(
-                    width: 44,
+                    width: 29,
                     child: Text(
                       groups[i].name,
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 8,
                         fontWeight: FontWeight.w600,
                         color: scheme.onSurfaceVariant,
                       ),

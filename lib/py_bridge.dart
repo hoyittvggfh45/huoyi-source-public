@@ -152,6 +152,12 @@ class PyBridge {
     }
   }
 
+  static Future<void> setCfDisguise(bool enabled) async {
+    try {
+      await callRaw('', {'action': 'setCfDisguise', 'enabled': enabled});
+    } catch (_) {}
+  }
+
   static Future<void> dispose(String path) async {
     try {
       await _channel.invokeMethod<String>('dispose', {'path': path});

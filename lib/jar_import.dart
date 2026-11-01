@@ -1,9 +1,13 @@
 import 'dart:convert';
+import 'dart:io';
 
+import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'jar_bridge.dart';
 import 'models.dart';
+import 'zakatv_builtin.dart';
 
 class StandaloneJarSite {
   const StandaloneJarSite({
@@ -69,8 +73,17 @@ class StandaloneJarSite {
 class JarImport {
   static const _prefsKey = 'standalone_jar_sites';
   static final Map<String, StandaloneJarSite> _sites = {};
+  static final Map<String, StandaloneJarSite> _builtinSites = {};
+  static bool _builtinRegistered = false;
 
-  static List<StandaloneJarSite> get sites => List.unmodifiable(_sites.values);
+  static List<StandaloneJarSite> get sites =>
+      List.unmodifiable(_sites.values);
+
+  static List<StandaloneJarSite> get builtinSites =>
+      List.unmodifiable(_builtinSites.values);
+
+  static bool isBuiltinSite(String siteId) =>
+      _builtinSites.containsKey(siteId);
 
   static StandaloneJarSite? siteFor(String siteId) => _sites[siteId];
 
@@ -98,10 +111,56 @@ class JarImport {
       'jar 导入 · ${site.className}',
       section: SourceSite.sectionVideo,
       origin: SourceSite.originImport,
+      importType: 'jar',
     );
   }
 
-  static Future<List<JarClassInfo>> scanAndRegister({
+  static void _registerBuiltin(StandaloneJarSite site) {
+    JarBridge.register(site.spec);
+    SourceSite.importedSites[site.siteId] = SourceSite(
+      site.siteId,
+      site.name,
+      'ZakaTV jar 内置 · ${site.className}',
+      section: SourceSite.sectionVideo,
+      origin: SourceSite.originImport,
+      importType: 'jar',
+    );
+  }
+
+  static Future<bool> registerBuiltinZakatv() async {
+    if (_builtinRegistered || !JarBridge.supported) return _builtinRegistered;
+    try {
+      final bytes = await rootBundle.load(zakatvJarAsset);
+      final tempDir = await getTemporaryDirectory();
+      final tempFile = File('${tempDir.path}/zakatv.jar');
+      await tempFile.writeAsBytes(bytes.buffer.asUint8List());
+      final jarPath = await JarBridge.ensureJarPath(
+        configId: zakatvJarId,
+        url: tempFile.path,
+        md5: zakatvJarMd5,
+      );
+      for (final builtin in zakatvBuiltinSites) {
+        final site = StandaloneJarSite(
+          siteId: JarSiteSpec.siteIdFor(zakatvJarId, builtin.key),
+          jarId: zakatvJarId,
+          jarUrl: jarPath,
+          jarMd5: zakatvJarMd5,
+          className: builtin.className,
+          name: builtin.name,
+          ext: builtin.ext,
+        );
+        _builtinSites[site.siteId] = site;
+        _registerBuiltin(site);
+      }
+      _builtinRegistered = true;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<({List<JarClassInfo> all, List<JarClassInfo> newly})>
+      scanAndRegister({
     required String jarId,
     required String jarUrl,
     String jarMd5 = '',
@@ -113,9 +172,29 @@ class JarImport {
     );
     final storedUrl = jarUrl.startsWith('http') ? jarUrl : jarPath;
     final classes = await JarBridge.enumerate(jarPath);
+    final newly = <JarClassInfo>[];
+    final seenSimple = <String, String>{};
     for (final info in classes) {
       if (!info.instantiable) continue;
-      final siteId = JarSiteSpec.siteIdFor(jarId, info.simpleName);
+      final previous = seenSimple[info.simpleName];
+      if (previous != null && previous != info.className) {
+        seenSimple[info.simpleName] = info.className;
+      } else {
+        seenSimple[info.simpleName] = info.className;
+      }
+      var siteId = JarSiteSpec.siteIdFor(jarId, info.simpleName);
+      final existing = _sites[siteId];
+      if (existing != null && existing.className != info.className) {
+        siteId = JarSiteSpec.siteIdFor(
+          jarId,
+          info.className.replaceAll('.', '_'),
+        );
+      } else if (previous != null && previous != info.className) {
+        siteId = JarSiteSpec.siteIdFor(
+          jarId,
+          info.className.replaceAll('.', '_'),
+        );
+      }
       if (_sites.containsKey(siteId)) continue;
       final site = StandaloneJarSite(
         siteId: siteId,
@@ -127,9 +206,10 @@ class JarImport {
       );
       _sites[siteId] = site;
       _register(site);
+      newly.add(info);
     }
     await _persist();
-    return classes;
+    return (all: classes, newly: newly);
   }
 
   static Future<void> registerClass({
@@ -157,6 +237,7 @@ class JarImport {
   }
 
   static Future<void> remove(String siteId) async {
+    if (_builtinSites.containsKey(siteId)) return;
     if (_sites.remove(siteId) == null) return;
     JarBridge.unregister(siteId);
     SourceSite.importedSites.remove(siteId);
@@ -164,6 +245,13 @@ class JarImport {
   }
 
   static Future<void> updateExt(String siteId, String ext) async {
+    final builtin = _builtinSites[siteId];
+    if (builtin != null) {
+      if (builtin.ext == ext) return;
+      _builtinSites[siteId] = builtin.copyWith(ext: ext);
+      await JarBridge.updateExt(siteId, ext);
+      return;
+    }
     final site = _sites[siteId];
     if (site == null || site.ext == ext) return;
     _sites[siteId] = site.copyWith(ext: ext);

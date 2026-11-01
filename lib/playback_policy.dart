@@ -12,7 +12,7 @@ bool shouldAcquirePlaybackService({
   required bool playing,
   required bool useTvbox,
 }) {
-  return playing && !useTvbox;
+  return playing;
 }
 
 bool shouldStopIdleService({

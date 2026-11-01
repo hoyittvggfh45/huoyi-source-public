@@ -63,11 +63,6 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
         _playbackServiceHeld = true;
         unawaited(PlaybackForeground.acquire(_playback.channel?.name ?? '直播'));
       }
-    } else if (state == AppLifecycleState.resumed) {
-      if (_playbackServiceHeld) {
-        _playbackServiceHeld = false;
-        unawaited(PlaybackForeground.release());
-      }
     }
   }
 

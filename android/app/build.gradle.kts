@@ -12,6 +12,16 @@ chaquopy {
         version = "3.11"
         pip {
             install("requests")
+            install("pycryptodome")
+            install("beautifulsoup4")
+            install("lxml")
+            install("pyquery")
+            install("cloudscraper")
+            install("websocket-client")
+            install("httpx")
+            install("curl_cffi")
+            install("cryptography")
+            install("pyaes")
         }
     }
 }
@@ -106,6 +116,7 @@ kotlin {
 dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.google.code.gson:gson:2.11.0")
+    implementation("org.jsoup:jsoup:1.18.1")
     implementation("androidx.core:core:1.13.1")
     implementation("androidx.media3:media3-exoplayer:1.4.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.4.1")

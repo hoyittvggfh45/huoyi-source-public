@@ -40,15 +40,16 @@ class JarBridgeHandoff {
     if (!await jarDir.exists()) await jarDir.create(recursive: true);
     final file = File(path.join(jarDir.path, '$digest.jar'));
     if (!await file.exists()) await file.writeAsBytes(bytes, flush: true);
-    final classes = await JarImport.scanAndRegister(
+    final result = await JarImport.scanAndRegister(
       jarId: 'imp${digest.substring(0, 10)}',
       jarUrl: file.path,
       jarMd5: digest,
     );
-    final registered = classes.where((info) => info.instantiable).length;
-    if (registered == 0) {
+    final classes = result.all;
+    final registered = result.newly.length;
+    if (classes.where((info) => info.instantiable).isEmpty) {
       throw AppFailure('jar 内未发现可实例化的 Spider 类（共枚举 ${classes.length} 个类）');
     }
-    return 'jar 已注册 $registered 个站点（枚举 ${classes.length} 个类）';
+    return 'jar 新增注册 $registered 个站点（枚举 ${classes.length} 个类）';
   }
 }

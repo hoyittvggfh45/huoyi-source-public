@@ -15,6 +15,7 @@ Future<void> showDramaActions(
   VoidCallback? onContinue,
   VoidCallback? onDownload,
   VoidCallback? onSelect,
+  VoidCallback? onDetail,
   bool history = false,
 }) async {
   final epoch = store.profileEpoch;
@@ -30,6 +31,12 @@ Future<void> showDramaActions(
           'continue',
           '继续观看',
           icon: glass ? LucideIcons.play : Icons.play_arrow_rounded,
+        ),
+      if (onDetail != null)
+        SheetChoice(
+          'detail',
+          '查看详情',
+          icon: glass ? LucideIcons.info : Icons.info_outline,
         ),
       SheetChoice(
         'favorite',
@@ -95,6 +102,8 @@ Future<void> showDramaActions(
     return;
   }
   switch (choice) {
+    case 'detail':
+      onDetail?.call();
     case 'continue':
       onContinue?.call();
     case 'favorite':

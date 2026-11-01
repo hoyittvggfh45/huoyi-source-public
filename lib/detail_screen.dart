@@ -744,7 +744,13 @@ class _DetailScreenState extends State<DetailScreen> {
                         if (_embeddedArea(episodes) != null)
                           SliverToBoxAdapter(child: _embeddedArea(episodes)!)
                         else
-                          SliverToBoxAdapter(child: _hero(drama)),
+                          SliverToBoxAdapter(
+                            child: _hero(
+                              drama,
+                              ready: allowed && !_loading && episodes.isNotEmpty,
+                              resumeIndex: resumeIndex,
+                            ),
+                          ),
                         SliverToBoxAdapter(
                           child: Padding(
                             padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
@@ -969,7 +975,41 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
-  Widget _hero(Drama drama) {
+  Widget _hero(
+    Drama drama, {
+    required bool ready,
+    required int resumeIndex,
+  }) {
+    Widget playButton() {
+      return Center(
+        child: Container(
+          width: 72,
+          height: 72,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.black.withValues(alpha: 0.3),
+            border: Border.all(color: Colors.white70, width: 1.5),
+          ),
+          child: const Icon(
+            Icons.play_arrow_rounded,
+            color: Colors.white,
+            size: 44,
+          ),
+        ),
+      );
+    }
+
+    Widget posterTap() {
+      return Positioned.fill(
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: ready ? () => _play(resumeIndex, resume: true) : null,
+          ),
+        ),
+      );
+    }
+
     final detail = _detail;
     final backdrop = detail?.backdrop ?? '';
     final urls = <String>[
@@ -980,10 +1020,17 @@ class _DetailScreenState extends State<DetailScreen> {
     if (urls.isEmpty) {
       return AspectRatio(
         aspectRatio: 16 / 9,
-        child: DramaCover(
-          drama: drama,
-          repository: widget.repository,
-          radius: 0,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            DramaCover(
+              drama: drama,
+              repository: widget.repository,
+              radius: 0,
+            ),
+            posterTap(),
+            playButton(),
+          ],
         ),
       );
     }
@@ -1075,6 +1122,8 @@ class _DetailScreenState extends State<DetailScreen> {
                   ],
                 ),
               ),
+              posterTap(),
+              playButton(),
             ],
           ),
         ),
@@ -1527,78 +1576,18 @@ class _DetailScreenState extends State<DetailScreen> {
   }
 
   Widget _followingControls(Drama drama) {
-    final state = widget.store.following(drama.id);
+    final ready = !_loading && (_detail?.episodes.isNotEmpty ?? false);
     return Wrap(
       spacing: 8,
       runSpacing: 4,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        PopupMenuButton<String>(
-          key: const ValueKey('follow-status'),
-          tooltip: '追剧与观看状态',
-          onSelected: (value) async {
-            if (_profileEpoch != widget.store.profileEpoch) return;
-            if (value == 'remove') {
-              await saveUserChange(
-                context,
-                () => widget.store.toggleFavorite(drama),
-              );
-            } else {
-              final status = FollowStatus.values.firstWhere(
-                (status) => status.name == value,
-              );
-              await saveUserChange(
-                context,
-                () => widget.store.setFollowStatus(drama, status),
-              );
-            }
-          },
-          itemBuilder: (_) => [
-            for (final status in FollowStatus.values)
-              CheckedPopupMenuItem(
-                value: status.name,
-                checked: state?.status == status,
-                child: Text(status.label),
-              ),
-            if (state != null)
-              const PopupMenuItem(value: 'remove', child: Text('取消追剧')),
-          ],
-          child: Container(
-            constraints: const BoxConstraints(minHeight: 48),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: state == null
-                  ? Theme.of(context).colorScheme.surfaceContainerHighest
-                  : Theme.of(context).colorScheme.secondaryContainer,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  state?.status == FollowStatus.watched
-                      ? Icons.check_circle_outline
-                      : state == null
-                      ? Icons.bookmark_add_outlined
-                      : Icons.bookmark_rounded,
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Text(state?.label ?? '加入追剧'),
-                const SizedBox(width: 4),
-                const Icon(Icons.expand_more_rounded, size: 18),
-              ],
-            ),
-          ),
+        FilledButton.icon(
+          key: const ValueKey('join-watch-room'),
+          onPressed: ready ? () => unawaited(_pushToWatchRoom()) : null,
+          icon: const Icon(Icons.meeting_room_rounded, size: 20),
+          label: const Text('加入房间一起看'),
         ),
-        if (state != null && state.hasUpdates)
-          ActionChip(
-            label: Text('${state.updateLabel} · 标为已读'),
-            onPressed: () => saveUserChange(
-              context,
-              () => widget.store.markUpdatesRead(drama.id),
-            ),
-          ),
       ],
     );
   }

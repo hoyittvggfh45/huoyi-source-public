@@ -19,6 +19,8 @@ import 'app_update.dart';
 import 'app_update_screen.dart';
 import 'clearance_bridge.dart';
 import 'crack_config_section.dart';
+import 'custom_headers_screen.dart';
+import 'jar_bridge.dart';
 import 'downloads_screen.dart';
 import 'import_center_screen.dart';
 import 'parse_settings_screen.dart';
@@ -26,6 +28,7 @@ import 'app_theme.dart';
 import 'ios_dialogs.dart';
 import 'liquid_glass.dart';
 import 'local_store.dart';
+import 'py_bridge.dart';
 import 'profiles_screen.dart';
 import 'remote_widgets.dart';
 import 'sources_screen.dart';
@@ -1029,6 +1032,54 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: '站点验证',
             detail: '浏览器过盾回填',
             onTap: () => openClearanceFlow(context, widget.repository),
+          ),
+          _glassRow(
+            key: const ValueKey('python-cf-disguise-entry'),
+            icon: LucideIcons.fingerprint,
+            color: const Color(0xFF30D158),
+            title: 'Python 指纹过盾',
+            detail: store.pythonCfDisguise ? '已开启 · 按蜘蛛 UA 匹配浏览器' : '已关闭 · 只用普通请求',
+            trailing: Switch.adaptive(
+              value: store.pythonCfDisguise,
+              onChanged: (value) async {
+                await store.setPythonCfDisguise(value);
+                await PyBridge.setCfDisguise(value);
+                if (mounted) setState(() {});
+              },
+            ),
+          ),
+          _glassRow(
+            key: const ValueKey('jar-fingerprint-entry'),
+            icon: LucideIcons.fingerprint,
+            color: const Color(0xFF30D158),
+            title: 'Jar 指纹过盾',
+            detail: store.jarFingerprintEnabled ? '已开启 · 按蜘蛛 UA 匹配浏览器' : '已关闭 · 只用普通请求',
+            trailing: Switch.adaptive(
+              value: store.jarFingerprintEnabled,
+              onChanged: (value) async {
+                await store.setJarFingerprintEnabled(value);
+                await JarBridge.setJarFingerprint(value);
+                if (mounted) setState(() {});
+              },
+            ),
+          ),
+          _glassRow(
+            key: const ValueKey('custom-headers-entry'),
+            icon: LucideIcons.slidersHorizontal,
+            color: const Color(0xFF0A84FF),
+            title: '自定义请求头',
+            detail: store.customHeadersEnabled
+                ? '已开启 · ${store.customHeaderRules.length} 条规则'
+                : '已关闭',
+            onTap: () =>
+                _push(CustomHeadersScreen(store: store)),
+            trailing: Switch.adaptive(
+              value: store.customHeadersEnabled,
+              onChanged: (value) async {
+                await store.setCustomHeadersEnabled(value);
+                if (mounted) setState(() {});
+              },
+            ),
           ),
           _glassRow(
             key: const ValueKey('proxy-kernel-entry'),

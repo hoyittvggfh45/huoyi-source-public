@@ -1059,6 +1059,29 @@ func ytBuildMPD(adaptive []interface{}, durationSec string) (string, bool) {
 	return b.String(), true
 }
 
+func ytDirectFormat(formats []interface{}) string {
+	best := ""
+	bestRank := 99
+	for _, f := range formats {
+		fm := g6Map(f)
+		u, _ := fm["url"].(string)
+		if u == "" {
+			continue
+		}
+		itag, _ := fm["itag"].(float64)
+		rank := 2
+		if itag == 22 {
+			rank = 0
+		} else if itag == 18 {
+			rank = 1
+		}
+		if rank < bestRank {
+			best, bestRank = u, rank
+		}
+	}
+	return best
+}
+
 func ytResolve(slot, rawID string) (map[string]interface{}, error) {
 	vid := rawID
 	// Line 1 (HD): ANDROID adaptive -> DASH MPD. The MPD text is
@@ -1075,6 +1098,9 @@ func ytResolve(slot, rawID string) (map[string]interface{}, error) {
 			if mpd, ok := ytBuildMPD(g6List(sd["adaptiveFormats"]), dur); ok {
 				res := playResult("https://www.youtube.com/watch?v="+vid+"/manifest.mpd", slot, vid, ytUAAnd, "", "mpd", "dash")
 				res["playlist"] = mpd
+				if direct := ytDirectFormat(g6List(sd["formats"])); direct != "" {
+					res["routes"] = append(res["routes"].([]interface{}), map[string]interface{}{"name": "直链", "route": "直链", "url": direct, "referer": ""})
+				}
 				g6NoReferer(res)
 				return res, nil
 			}

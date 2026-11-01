@@ -113,6 +113,76 @@ class NovelReaderView extends StatefulWidget {
 
 class _NovelReaderViewState extends State<NovelReaderView> {
   double _fontSize = 17;
+  late final PageController _controller = PageController();
+  int _page = 0;
+  List<String> _pages = const [];
+  double _pageWidth = 0;
+  double _pageHeight = 0;
+  double _pageFont = 0;
+  String _pageText = '';
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant NovelReaderView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.content.text != widget.content.text) {
+      _pages = const [];
+      _page = 0;
+      _controller.jumpToPage(0);
+    }
+  }
+
+  List<String> _paginate(double width, double height) {
+    final text = widget.content.text;
+    final style = TextStyle(fontSize: _fontSize, height: 1.7);
+    final lines = <String>[];
+    for (final para in text.split('\n')) {
+      final trimmed = para.trim();
+      if (trimmed.isEmpty) {
+        lines.add('');
+        continue;
+      }
+      final painter = TextPainter(
+        text: TextSpan(text: trimmed, style: style),
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: width);
+      final metrics = painter.computeLineMetrics();
+      var start = 0;
+      for (var i = 0; i < metrics.length; i++) {
+        final boundary = painter.getLineBoundary(
+          TextPosition(offset: start),
+        );
+        lines.add(trimmed.substring(boundary.start, boundary.end));
+        start = boundary.end;
+        if (start >= trimmed.length) break;
+      }
+    }
+    final lineHeight = _fontSize * 1.7;
+    final perPage = (height / lineHeight).floor().clamp(1, 1000);
+    final pages = <String>[];
+    for (var i = 0; i < lines.length; i += perPage) {
+      final end = (i + perPage).clamp(0, lines.length);
+      pages.add(lines.sublist(i, end).join('\n'));
+    }
+    return pages.isEmpty ? const [''] : pages;
+  }
+
+  void _go(int next) {
+    if (_pages.isEmpty) return;
+    final target = next.clamp(0, _pages.length - 1);
+    if (target == _page) return;
+    _controller.animateToPage(
+      target,
+      duration: const Duration(milliseconds: 380),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final title = widget.content.title.isNotEmpty
@@ -161,16 +231,143 @@ class _NovelReaderViewState extends State<NovelReaderView> {
           ),
           const Divider(height: 1),
           Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(18, 14, 18, 24),
-              child: SelectableText(
-                widget.content.text,
-                style: TextStyle(
-                  fontSize: _fontSize,
-                  height: 1.7,
-                  color: Colors.black87,
-                ),
-              ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final width = constraints.maxWidth - 36;
+                final height = constraints.maxHeight - 48;
+                if (_pages.isEmpty ||
+                    _pageWidth != width ||
+                    _pageHeight != height ||
+                    _pageFont != _fontSize ||
+                    _pageText != widget.content.text) {
+                  _pages = _paginate(width, height);
+                  _pageWidth = width;
+                  _pageHeight = height;
+                  _pageFont = _fontSize;
+                  _pageText = widget.content.text;
+                  if (_page >= _pages.length) _page = _pages.length - 1;
+                }
+                return Stack(
+                  children: [
+                    PageView.builder(
+                      controller: _controller,
+                      itemCount: _pages.length,
+                      onPageChanged: (value) => setState(() => _page = value),
+                      itemBuilder: (context, index) {
+                        return AnimatedBuilder(
+                          animation: _controller,
+                          builder: (context, child) {
+                            var delta = 0.0;
+                            if (_controller.position.hasContentDimensions) {
+                              delta = (_controller.page ?? _page.toDouble()) - index;
+                            }
+                            final turn = delta.clamp(-1.0, 1.0);
+                            return Transform(
+                              transform: Matrix4.identity()
+                                ..setEntry(3, 2, 0.001)
+                                ..rotateY(-0.35 * turn),
+                              alignment: turn > 0
+                                  ? Alignment.centerLeft
+                                  : Alignment.centerRight,
+                              child: Container(
+                                color: const Color(0xFFF7F1E3),
+                                child: Stack(
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                        18,
+                                        14,
+                                        18,
+                                        24,
+                                      ),
+                                      child: SelectableText(
+                                        _pages[index],
+                                        style: TextStyle(
+                                          fontSize: _fontSize,
+                                          height: 1.7,
+                                          color: Colors.black87,
+                                        ),
+                                      ),
+                                    ),
+                                    if (turn.abs() > 0.01)
+                                      Positioned.fill(
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            gradient: LinearGradient(
+                                              begin: turn > 0
+                                                  ? Alignment.centerLeft
+                                                  : Alignment.centerRight,
+                                              end: turn > 0
+                                                  ? Alignment.centerRight
+                                                  : Alignment.centerLeft,
+                                              colors: [
+                                                Colors.black.withValues(
+                                                  alpha: 0.22 * turn.abs(),
+                                                ),
+                                                Colors.transparent,
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                    Positioned(
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      width: 48,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.translucent,
+                        onTap: () => _go(_page - 1),
+                      ),
+                    ),
+                    Positioned(
+                      right: 0,
+                      top: 0,
+                      bottom: 0,
+                      width: 48,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.translucent,
+                        onTap: () => _go(_page + 1),
+                      ),
+                    ),
+                    Positioned(
+                      left: 18,
+                      right: 18,
+                      bottom: 6,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: LinearProgressIndicator(
+                              value: _pages.isEmpty
+                                  ? 0
+                                  : (_page + 1) / _pages.length,
+                              backgroundColor: Colors.black12,
+                              color: Colors.brown,
+                              minHeight: 2,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${_page + 1} / ${_pages.length}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.black54,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ],

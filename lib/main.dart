@@ -19,6 +19,8 @@ import 'tv_theme.dart';
 import 'zoo_builtin_seed.dart';
 import 'home_screen.dart';
 import 'hongguo_account.dart';
+import 'jar_bridge.dart';
+import 'jar_import.dart';
 import 'local_store.dart';
 import 'profiles_screen.dart';
 import 'package_smoke.dart';
@@ -133,9 +135,13 @@ class _AppBootstrapState extends State<AppBootstrap>
       await repository.initialize();
       unawaited(AppUpdateChecker.maybeCheckSilently());
       unawaited(ProxyKernelService.maybeAutostart());
+      await JarImport.registerBuiltinZakatv();
       if (mounted) {
         setState(() {
           store = LocalStore(preferences);
+          unawaited(
+            JarBridge.setJarFingerprint(store!.jarFingerprintEnabled),
+          );
           repository.access = store;
           LanController.current?.dispose();
           final link = LanController(

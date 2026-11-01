@@ -28,7 +28,7 @@ class PlaybackForeground {
       await FlutterForegroundTask.requestNotificationPermission();
       final result = await FlutterForegroundTask.startService(
         serviceId: 2406,
-        serviceTypes: const [ForegroundServiceTypes.dataSync],
+        serviceTypes: const [ForegroundServiceTypes.mediaPlayback],
         notificationTitle: appName,
         notificationText: text,
         callback: downloadServiceEntry,

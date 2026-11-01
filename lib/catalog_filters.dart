@@ -70,7 +70,7 @@ class _CatalogFiltersState extends State<CatalogFilters> {
     return SizedBox(
       height: television
           ? 64
-          : max(38, MediaQuery.textScalerOf(context).scale(12) + 20),
+          : max(17, MediaQuery.textScalerOf(context).scale(8) + 9),
       child: Row(
         children: [
           Expanded(
@@ -78,7 +78,7 @@ class _CatalogFiltersState extends State<CatalogFilters> {
                 ? RemoteRow(
                     key: widget.remoteKey,
                     itemKeys: [for (final entry in widget.categories) entry.id],
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
                     initialIndex: _selectedIndex,
                     autofocus: widget.remoteAutofocus,
                     onExitUp: widget.onExitUp,
@@ -101,28 +101,28 @@ class _CatalogFiltersState extends State<CatalogFilters> {
                 : SingleChildScrollView(
                     key: const ValueKey('catalog-categories'),
                     scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
                     child: Row(
                       children: [
                         for (final entry in widget.categories)
                           Padding(
                             key: _anchors.putIfAbsent(entry.id, GlobalKey.new),
-                            padding: const EdgeInsets.only(right: 4),
+                            padding: const EdgeInsets.only(right: 3),
                             child: ChoiceChip(
                               key: ValueKey('category-${entry.id}'),
                               label: Text(entry.name),
                               selected: entry.id == widget.category,
                               showCheckmark: false,
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 4,
+                                horizontal: 3,
                               ),
                               labelPadding: const EdgeInsets.symmetric(
-                                horizontal: 6,
+                                horizontal: 4,
                               ),
                               selectedColor: const Color(0xFFC8E6C9),
                               backgroundColor: scheme.surfaceContainerHighest,
                               labelStyle: TextStyle(
-                                fontSize: 12,
+                                fontSize: 8,
                                 color: scheme.onSurface,
                               ),
                               onSelected: (_) => widget.onCategory(entry.id),
@@ -168,17 +168,17 @@ class CatalogFilterRows extends StatelessWidget {
       children: [
         for (final group in groups)
           SizedBox(
-            height: 36,
+            height: 16,
             child: Row(
               children: [
                 Padding(
-                  padding: const EdgeInsets.only(left: 12, right: 4),
+                  padding: const EdgeInsets.only(left: 8, right: 3),
                   child: SizedBox(
-                    width: 44,
+                    width: 19,
                     child: Text(
                       group.name,
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 8,
                         fontWeight: FontWeight.w600,
                         color: scheme.onSurfaceVariant,
                       ),
@@ -188,7 +188,7 @@ class CatalogFilterRows extends StatelessWidget {
                 Expanded(
                   child: ListView(
                     scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.only(right: 12),
+                    padding: const EdgeInsets.only(right: 8),
                     children: [
                       _chip(context, group, '', '全部'),
                       for (final option in group.options)
@@ -212,17 +212,17 @@ class CatalogFilterRows extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final isSelected = (selected[group.key] ?? '') == id;
     return Padding(
-      padding: const EdgeInsets.only(right: 4),
+      padding: const EdgeInsets.only(right: 3),
       child: ChoiceChip(
         key: ValueKey('filter-${group.key}-$id'),
         label: Text(label),
         selected: isSelected,
         showCheckmark: false,
-        padding: const EdgeInsets.symmetric(horizontal: 4),
-        labelPadding: const EdgeInsets.symmetric(horizontal: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 3),
+        labelPadding: const EdgeInsets.symmetric(horizontal: 4),
         selectedColor: const Color(0xFFC8E6C9),
         backgroundColor: scheme.surfaceContainerHighest,
-        labelStyle: TextStyle(fontSize: 12, color: scheme.onSurface),
+        labelStyle: TextStyle(fontSize: 8, color: scheme.onSurface),
         side: BorderSide.none,
         onSelected: (_) => onSelected(group.key, id),
       ),

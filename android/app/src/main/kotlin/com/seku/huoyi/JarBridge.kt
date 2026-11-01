@@ -63,6 +63,11 @@ object JarBridge {
                         mapOf("released" to true)
                     }
                 }
+                "setJarFingerprint" -> {
+                    val enabled = call.argument<Boolean>("enabled") ?: true
+                    com.github.catvod.net.OkHttp.setFingerprintEnabled(enabled)
+                    result.success(mapOf("jarFingerprint" to enabled))
+                }
                 "enumerate" -> {
                     val jarPath = call.argument<String>("jarPath").orEmpty()
                     if (jarPath.isEmpty()) {
@@ -154,6 +159,16 @@ object JarBridge {
         return mapOf("path" to target.absolutePath, "md5" to actual)
     }
 
+    private fun isLibraryClass(name: String): Boolean {
+        val prefixes = listOf(
+            "android.", "androidx.", "kotlin.", "kotlinx.", "java.", "javax.",
+            "sun.", "dalvik.", "com.google.", "okhttp3.", "okio.", "retrofit2.",
+            "com.squareup.", "org.json.", "com.fasterxml.", "org.apache.",
+            "io.reactivex.", "com.bumptech.", "org.slf4j.", "org.jetbrains.",
+        )
+        return prefixes.any { name.startsWith(it) }
+    }
+
     @Suppress("DEPRECATION")
     private fun enumerateClasses(context: Context, jarPath: String): Map<String, Any?> {
         val file = File(jarPath)
@@ -161,25 +176,70 @@ object JarBridge {
         JarFilePrep.sealForLoad(file)
         val optimized = File(context.codeCacheDir, "jarbridge_enum")
         if (!optimized.exists()) optimized.mkdirs()
-        val dexFile = DexFile.loadDex(
-            jarPath,
-            File(optimized, file.name + ".odex").absolutePath,
-            0
-        )
-        val names = mutableListOf<String>()
-        try {
-            val entries = dexFile.entries()
-            while (entries.hasMoreElements()) {
-                val name = entries.nextElement()
-                if (name.startsWith("com.github.catvod.spider.") && !name.contains('$')) {
-                    names.add(name)
+        val names = mutableSetOf<String>()
+        val dexEntries = try {
+            java.util.jar.JarFile(file).use { jar ->
+                jar.entries().asSequence()
+                    .map { it.name }
+                    .filter { it.endsWith(".dex") }
+                    .toList()
+            }
+        } catch (error: Throwable) {
+            emptyList<String>()
+        }
+        if (dexEntries.isNotEmpty()) {
+            for ((index, dexName) in dexEntries.withIndex()) {
+                val extracted = File(optimized, "${file.name}.$index.dex")
+                try {
+                    java.util.jar.JarFile(file).use { jar ->
+                        jar.getInputStream(jar.getJarEntry(dexName)).use { input ->
+                            extracted.outputStream().use { output -> input.copyTo(output) }
+                        }
+                    }
+                    val dexFile = DexFile.loadDex(
+                        extracted.absolutePath,
+                        File(optimized, "${file.name}.$index.odex").absolutePath,
+                        0
+                    )
+                    try {
+                        val entries = dexFile.entries()
+                        while (entries.hasMoreElements()) {
+                            val name = entries.nextElement()
+                            if (!name.contains('$') && !isLibraryClass(name)) {
+                                names.add(name)
+                            }
+                        }
+                    } finally {
+                        dexFile.close()
+                    }
+                } catch (error: Throwable) {
+                    // 单个 dex 读失败不影响其它 dex 的枚举。
                 }
             }
-        } finally {
-            dexFile.close()
+        }
+        if (names.isEmpty()) {
+            val dexFile = DexFile.loadDex(
+                jarPath,
+                File(optimized, file.name + ".odex").absolutePath,
+                0
+            )
+            try {
+                val entries = dexFile.entries()
+                while (entries.hasMoreElements()) {
+                    val name = entries.nextElement()
+                    if (!name.contains('$') && !isLibraryClass(name)) {
+                        names.add(name)
+                    }
+                }
+            } finally {
+                dexFile.close()
+            }
         }
         val loader = DexClassLoader(jarPath, optimized.absolutePath, null, context.classLoader)
-        val classes = names.sorted().map { name ->
+        val classes = names.sortedWith(
+            compareBy<String> { !it.startsWith("com.github.catvod.spider.") }
+                .thenBy { it },
+        ).map { name ->
             var instantiable = false
             var reason = ""
             try {

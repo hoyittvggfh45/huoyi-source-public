@@ -301,10 +301,6 @@ class _FullscreenFeedScreenState extends State<FullscreenFeedScreen>
       }
     } else if (state == AppLifecycleState.resumed) {
       _backgrounded = false;
-      if (_playbackServiceHeld) {
-        _playbackServiceHeld = false;
-        unawaited(PlaybackForeground.release());
-      }
     }
   }
 

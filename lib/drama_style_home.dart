@@ -91,7 +91,7 @@ class DramaStyleHome extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     return ChoiceChip(
       label: Text(label),
-      labelStyle: TextStyle(fontSize: 12, color: colors.onSurface),
+      labelStyle: TextStyle(fontSize: 8, color: colors.onSurface),
       selected: selected,
       selectedColor: const Color(0xFFC8E6C9),
       backgroundColor: colors.surfaceContainerHighest,
@@ -203,7 +203,7 @@ class DramaStyleHome extends StatelessWidget {
             if (categories.isNotEmpty)
               SliverToBoxAdapter(
                 child: SizedBox(
-                  height: 44,
+                  height: 29,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
                     padding: EdgeInsets.symmetric(horizontal: padding),
@@ -215,7 +215,7 @@ class DramaStyleHome extends StatelessWidget {
                       return ChoiceChip(
                         label: Text(category.name),
                         labelStyle: TextStyle(
-                          fontSize: 12,
+                          fontSize: 8,
                           color: colors.onSurface,
                         ),
                         selected: selected,

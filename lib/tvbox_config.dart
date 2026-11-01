@@ -525,6 +525,37 @@ class TvBoxImporter {
       report.lives++;
     }
 
+    if (configSpider.url.isNotEmpty && report.jarSites == 0) {
+      try {
+        final jarPath = await JarBridge.ensureJarPath(
+          configId: configId,
+          url: configSpider.url,
+          md5: configSpider.md5,
+        );
+        final classes = await JarBridge.enumerate(jarPath);
+        for (final info in classes) {
+          if (!info.instantiable) continue;
+          sites.add(
+            TvBoxSiteRecord(
+              siteId: JarSiteSpec.siteIdFor(configId, info.simpleName),
+              key: info.simpleName,
+              name: info.simpleName,
+              kind: 'jar',
+              className: info.className,
+              jarUrl: configSpider.url,
+              jarMd5: configSpider.md5,
+            ),
+          );
+          report.jarSites++;
+        }
+        if (report.jarSites > 0) {
+          report.notes.add('配置未列出 jar 站点，已按 jar 内 Spider 类自动注册');
+        }
+      } catch (error) {
+        report.notes.add('jar 自动枚举失败：$error');
+      }
+    }
+
     final parseIds = await _importParses(raw, configId, name, report);
 
     final record = TvBoxConfigRecord(

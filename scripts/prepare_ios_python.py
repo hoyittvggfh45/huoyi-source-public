@@ -78,6 +78,12 @@ VENDOR_PACKAGES = (
     ("soupsieve", "3.0.4", "soupsieve"),
     ("chardet", "7.7.0", "chardet"),
     ("typing_extensions", "4.15.0", "typing_extensions"),
+    ("websocket-client", "1.9.2", "websocket"),
+    ("httpx", "0.28.1", "httpx"),
+    ("httpcore", "1.0.9", "httpcore"),
+    ("h11", "0.16.0", "h11"),
+    ("sniffio", "1.3.1", "sniffio"),
+    ("anyio", "4.15.1", "anyio"),
 )
 VENDOR_BUNDLE_DIR = ROOT / "ios" / "PythonBridge" / "Resources" / "PythonVendor.bundle"
 VENDOR_REQUIRED_FILES = (
@@ -91,6 +97,12 @@ VENDOR_REQUIRED_FILES = (
     "soupsieve/__init__.py",
     "chardet/__init__.py",
     "typing_extensions.py",
+    "websocket/__init__.py",
+    "httpx/__init__.py",
+    "httpcore/__init__.py",
+    "h11/__init__.py",
+    "sniffio/__init__.py",
+    "anyio/__init__.py",
 )
 
 

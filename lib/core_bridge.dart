@@ -331,7 +331,11 @@ class NativeRepository extends AppRepository {
     _authorize(source);
     final path = await _pySpiderPath(source);
     final ext = SourceSite.importedSites[source]?.importExt ?? '';
-    final payload = ext.isEmpty ? request : {...request, 'extend': ext};
+    final payload = {
+      ...request,
+      if (ext.isNotEmpty) 'extend': ext,
+      'cfDisguise': access?.pythonCfDisguise ?? true,
+    };
     return PyBridge.call(path, payload);
   }
 
@@ -342,7 +346,11 @@ class NativeRepository extends AppRepository {
     _authorize(source);
     final path = await _pySpiderPath(source);
     final ext = SourceSite.importedSites[source]?.importExt ?? '';
-    final payload = ext.isEmpty ? request : {...request, 'extend': ext};
+    final payload = {
+      ...request,
+      if (ext.isNotEmpty) 'extend': ext,
+      'cfDisguise': access?.pythonCfDisguise ?? true,
+    };
     return PyBridge.callRaw(path, payload);
   }
 

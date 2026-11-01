@@ -132,6 +132,350 @@ def _jsonable(value):
     return str(value)
 
 
+class _FetchResult(str):
+    def __new__(cls, body, status=200, headers=None, url=""):
+        obj = super().__new__(cls, body)
+        obj.text = body
+        obj.content = body.encode("utf-8", "ignore")
+        obj.status_code = status
+        obj.headers = dict(headers or {})
+        obj.url = url
+        return obj
+
+    def json(self):
+        return json.loads(str(self))
+
+
+def _norm_timeout(timeout):
+    if timeout is None:
+        return 30.0
+    try:
+        value = float(timeout)
+    except Exception:
+        return 30.0
+    if value > 1000:
+        value = value / 1000.0
+    return min(max(value, 1.0), 60.0)
+
+
+_cf_disguise_enabled = True
+
+
+def _pick_impersonate(hdrs):
+    ua = ""
+    for key, value in (hdrs or {}).items():
+        if str(key).lower() == "user-agent":
+            ua = str(value)
+            break
+    if "Firefox" in ua:
+        return "firefox"
+    if "Edg/" in ua or "Edge/" in ua:
+        return "edge"
+    if "Chrome" in ua or "Chromium" in ua:
+        return "chrome"
+    if "Safari" in ua:
+        return "safari"
+    return "chrome"
+
+
+def _is_cf_challenge(result):
+    if result is None:
+        return False
+    body = str(result)
+    headers = {str(k).lower(): str(v) for k, v in result.headers.items()}
+    if "cf-ray" in headers or headers.get("server", "").lower() == "cloudflare":
+        if result.status_code in (403, 429, 503):
+            return True
+        if any(
+            marker in body
+            for marker in (
+                "Just a moment",
+                "Attention Required",
+                "Checking your browser",
+                "Enable JavaScript and cookies",
+            )
+        ):
+            return True
+    return result.status_code in (403, 503) and (
+        "challenge" in body.lower() or "cloudflare" in body.lower()
+    )
+
+
+def _do_http_urllib(method, url, hdrs, data, timeout):
+    import urllib.error
+    import urllib.request
+
+    req = urllib.request.Request(url, data=data, headers=hdrs, method=method.upper())
+    try:
+        with urllib.request.urlopen(req, timeout=_norm_timeout(timeout)) as resp:
+            body = resp.read().decode("utf-8", "ignore")
+            return _FetchResult(body, resp.status, dict(resp.headers), resp.url)
+    except urllib.error.HTTPError as err:
+        body = err.read().decode("utf-8", "ignore")
+        return _FetchResult(body, err.code, dict(err.headers), url)
+
+
+def _do_http_curl(method, url, hdrs, data, timeout):
+    if not _cf_disguise_enabled:
+        return None
+    try:
+        from curl_cffi.requests import Session
+    except Exception:
+        return None
+    try:
+        session = Session(impersonate=_pick_impersonate(hdrs))
+        try:
+            resp = session.request(
+                method.upper(),
+                url,
+                headers=hdrs,
+                data=data,
+                timeout=_norm_timeout(timeout),
+            )
+            body = resp.text
+            headers = dict(resp.headers) if resp.headers is not None else {}
+            return _FetchResult(body, resp.status_code, headers, resp.url)
+        finally:
+            try:
+                session.close()
+            except Exception:
+                pass
+    except Exception:
+        return None
+
+
+def _do_http(method, url, headers=None, cookies=None, data=None, payload=None, timeout=None):
+    hdrs = dict(headers or {})
+    if payload is not None:
+        data = json.dumps(payload).encode("utf-8")
+        hdrs.setdefault("Content-Type", "application/json")
+    if isinstance(data, str):
+        data = data.encode("utf-8")
+    if cookies:
+        if isinstance(cookies, dict):
+            cookie = "; ".join("%s=%s" % (k, v) for k, v in cookies.items())
+        else:
+            cookie = str(cookies)
+        hdrs.setdefault("Cookie", cookie)
+    try:
+        result = _do_http_urllib(method, url, hdrs, data, timeout)
+    except Exception as first_error:
+        disguised = _do_http_curl(method, url, hdrs, data, timeout)
+        if disguised is not None:
+            return disguised
+        raise first_error
+    if _is_cf_challenge(result):
+        disguised = _do_http_curl(method, url, hdrs, data, timeout)
+        if disguised is not None:
+            return disguised
+    return result
+
+
+# Pure-python AES (ECB/CBC/CTR) + ARC4 + pad/unpad, used only when Crypto is missing.
+# S-boxes are generated from GF(2^8) arithmetic, no tables copied in.
+def _gf_mul(a, b):
+    r = 0
+    while b:
+        if b & 1: r ^= a
+        a = ((a << 1) ^ 0x1b) & 0xff if a & 0x80 else (a << 1)
+        b >>= 1
+    return r
+def _gf_inv(a):
+    if a == 0: return 0
+    r = 1
+    for _ in range(254): r = _gf_mul(r, a) if False else r
+    # use exponentiation: a^254
+    result = 1
+    base = a
+    exp = 254
+    while exp:
+        if exp & 1: result = _gf_mul(result, base)
+        base = _gf_mul(base, base)
+        exp >>= 1
+    return result
+def _make_sbox():
+    sbox = []
+    for i in range(256):
+        inv = _gf_inv(i)
+        s = inv
+        for shift in (1, 2, 3, 4):
+            s ^= ((inv << shift) | (inv >> (8 - shift))) & 0xff
+        s ^= 0x63
+        sbox.append(s & 0xff)
+    inv_sbox = [0] * 256
+    for i, v in enumerate(sbox): inv_sbox[v] = i
+    return sbox, inv_sbox
+SBOX, INV_SBOX = _make_sbox()
+RCON = [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36]
+def _expand_key(key):
+    Nk = len(key) // 4
+    Nr = Nk + 6
+    w = [list(key[4*i:4*i+4]) for i in range(Nk)]
+    for i in range(Nk, 4 * (Nr + 1)):
+        temp = list(w[i-1])
+        if i % Nk == 0:
+            temp = [SBOX[temp[1]] ^ RCON[i//Nk - 1], SBOX[temp[2]], SBOX[temp[3]], SBOX[temp[0]]]
+        elif Nk > 6 and i % Nk == 4:
+            temp = [SBOX[b] for b in temp]
+        w.append([w[i-Nk][j] ^ temp[j] for j in range(4)])
+    return w, Nr
+def _add_rk(state, w, rnd):
+    for c in range(4):
+        for r in range(4):
+            state[r][c] ^= w[rnd*4 + c][r]
+def _sub(state, box):
+    for r in range(4):
+        for c in range(4): state[r][c] = box[state[r][c]]
+def _shift(state, inv=False):
+    for r in range(1, 4):
+        row = [state[r][c] for c in range(4)]
+        shift = r if not inv else 4 - r
+        for c in range(4): state[r][c] = row[(c + shift) % 4]
+def _mix(state, inv=False):
+    for c in range(4):
+        col = [state[r][c] for r in range(4)]
+        if not inv:
+            state[0][c] = _gf_mul(col[0],2) ^ _gf_mul(col[1],3) ^ col[2] ^ col[3]
+            state[1][c] = col[0] ^ _gf_mul(col[1],2) ^ _gf_mul(col[2],3) ^ col[3]
+            state[2][c] = col[0] ^ col[1] ^ _gf_mul(col[2],2) ^ _gf_mul(col[3],3)
+            state[3][c] = _gf_mul(col[0],3) ^ col[1] ^ col[2] ^ _gf_mul(col[3],2)
+        else:
+            state[0][c] = _gf_mul(col[0],14) ^ _gf_mul(col[1],11) ^ _gf_mul(col[2],13) ^ _gf_mul(col[3],9)
+            state[1][c] = _gf_mul(col[0],9) ^ _gf_mul(col[1],14) ^ _gf_mul(col[2],11) ^ _gf_mul(col[3],13)
+            state[2][c] = _gf_mul(col[0],13) ^ _gf_mul(col[1],9) ^ _gf_mul(col[2],14) ^ _gf_mul(col[3],11)
+            state[3][c] = _gf_mul(col[0],11) ^ _gf_mul(col[1],13) ^ _gf_mul(col[2],9) ^ _gf_mul(col[3],14)
+def _block_to_state(block):
+    return [[block[r + 4*c] for c in range(4)] for r in range(4)]
+def _state_to_block(state):
+    return bytes(state[r][c] for c in range(4) for r in range(4))
+def _encrypt_block(block, w, Nr):
+    state = _block_to_state(block)
+    _add_rk(state, w, 0)
+    for rnd in range(1, Nr):
+        _sub(state, SBOX); _shift(state); _mix(state); _add_rk(state, w, rnd)
+    _sub(state, SBOX); _shift(state); _add_rk(state, w, Nr)
+    return _state_to_block(state)
+def _decrypt_block(block, w, Nr):
+    state = _block_to_state(block)
+    _add_rk(state, w, Nr)
+    for rnd in range(Nr-1, 0, -1):
+        _shift(state, True); _sub(state, INV_SBOX); _add_rk(state, w, rnd); _mix(state, True)
+    _shift(state, True); _sub(state, INV_SBOX); _add_rk(state, w, 0)
+    return _state_to_block(state)
+
+class _AESCipher:
+    block_size = 16
+    MODE_ECB = 1
+    MODE_CBC = 2
+    MODE_CFB = 3
+    MODE_OFB = 5
+    MODE_CTR = 6
+    MODE_GCM = 11
+    def __init__(self, key, mode, iv=None, nonce=None):
+        self._w, self._nr = _expand_key(key)
+        self._mode = mode
+        self._iv = iv or bytes(16)
+        self._counter = int.from_bytes((nonce or bytes(8)) + bytes(8), "big") if mode == 6 else 0
+        self._prev = self._iv
+    @staticmethod
+    def new(key, mode, iv=None, nonce=None, **kw):
+        if "initial_value" in kw:
+            nonce = kw["initial_value"]
+        return _AESCipher(key, mode, iv=iv, nonce=nonce)
+    def encrypt(self, data):
+        if self._mode == 1:
+            return b"".join(_encrypt_block(data[i:i+16], self._w, self._nr) for i in range(0, len(data), 16))
+        if self._mode == 2:
+            out = b""; prev = self._prev
+            for i in range(0, len(data), 16):
+                blk = bytes(a ^ b for a, b in zip(data[i:i+16], prev))
+                enc = _encrypt_block(blk, self._w, self._nr); out += enc; prev = enc
+            self._prev = prev
+            return out
+        if self._mode == 6:
+            out = b""
+            for i in range(0, len(data), 16):
+                ks = _encrypt_block(self._counter.to_bytes(16, "big"), self._w, self._nr)
+                chunk = data[i:i+16]
+                out += bytes(a ^ b for a, b in zip(chunk, ks))
+                self._counter += 1
+            return out
+        raise ValueError("AES mode not supported by pure-python shim")
+    def decrypt(self, data):
+        if self._mode == 1:
+            return b"".join(_decrypt_block(data[i:i+16], self._w, self._nr) for i in range(0, len(data), 16))
+        if self._mode == 2:
+            out = b""; prev = self._prev
+            for i in range(0, len(data), 16):
+                blk = data[i:i+16]
+                dec = _decrypt_block(blk, self._w, self._nr)
+                out += bytes(a ^ b for a, b in zip(dec, prev)); prev = blk
+            self._prev = prev
+            return out
+        if self._mode == 6:
+            return self.encrypt(data)
+        raise ValueError("AES mode not supported by pure-python shim")
+
+class _ARC4Cipher:
+    def __init__(self, key):
+        self._s = list(range(256)); j = 0
+        for i in range(256):
+            j = (j + self._s[i] + key[i % len(key)]) % 256
+            self._s[i], self._s[j] = self._s[j], self._s[i]
+        self._i = 0; self._j = 0
+    @staticmethod
+    def new(key, **kw):
+        return _ARC4Cipher(key)
+    def _stream(self, data):
+        out = bytearray()
+        for b in data:
+            self._i = (self._i + 1) % 256
+            self._j = (self._j + self._s[self._i]) % 256
+            self._s[self._i], self._s[self._j] = self._s[self._j], self._s[self._i]
+            out.append(b ^ self._s[(self._s[self._i] + self._s[self._j]) % 256])
+        return bytes(out)
+    def encrypt(self, data): return self._stream(data)
+    def decrypt(self, data): return self._stream(data)
+
+def _pad(data, block_size):
+    n = block_size - len(data) % block_size
+    return data + bytes([n]) * n
+
+def _unpad(data, block_size=None):
+    if not data: raise ValueError("empty data")
+    n = data[-1]
+    if n < 1 or n > len(data): raise ValueError("bad padding")
+    return data[:-n]
+
+def _ensure_crypto_shim():
+    try:
+        import Crypto  # noqa: F401
+        return False
+    except Exception:
+        pass
+    import hashlib as _hashlib
+    crypto = types.ModuleType("Crypto")
+    cipher_mod = types.ModuleType("Crypto.Cipher")
+    cipher_mod.AES = _AESCipher
+    cipher_mod.ARC4 = _ARC4Cipher
+    cipher_mod.MODE_ECB = 1; cipher_mod.MODE_CBC = 2; cipher_mod.MODE_CTR = 6
+    util_mod = types.ModuleType("Crypto.Util")
+    pad_mod = types.ModuleType("Crypto.Util.Padding")
+    pad_mod.pad = _pad; pad_mod.unpad = _unpad
+    hash_mod = types.ModuleType("Crypto.Hash")
+    hash_mod.MD5 = _hashlib.md5; hash_mod.SHA256 = _hashlib.sha256; hash_mod.SHA1 = _hashlib.sha1
+    sys.modules["Crypto"] = crypto
+    sys.modules["Crypto.Cipher"] = cipher_mod
+    sys.modules["Crypto.Util"] = util_mod
+    sys.modules["Crypto.Util.Padding"] = pad_mod
+    sys.modules["Crypto.Hash"] = hash_mod
+    sys.modules["Cryptodome"] = crypto
+    sys.modules["Cryptodome.Cipher"] = cipher_mod
+    sys.modules["Cryptodome.Util"] = util_mod
+    sys.modules["Cryptodome.Util.Padding"] = pad_mod
+    sys.modules["Cryptodome.Hash"] = hash_mod
+    return True
+
 def _ensure_base_spider_stub():
     if "base.spider" in sys.modules:
         return
@@ -144,12 +488,54 @@ def _ensure_base_spider_stub():
     spider_module = types.ModuleType("base.spider")
 
     class BaseSpider:
-        pass
+        def fetch(self, url, headers=None, cookies=None, timeout=None, **kw):
+            timeout = kw.get("timeout", timeout)
+            return _do_http("GET", url, headers, cookies, timeout=timeout)
 
-    spider_module.BaseSpider = BaseSpider
+        def get(self, url, headers=None, cookies=None, timeout=None, **kw):
+            return self.fetch(url, headers, cookies, timeout, **kw)
+
+        def post(self, url, headers=None, cookies=None, data=None, payload=None, timeout=None, **kw):
+            if "json" in kw:
+                payload = kw.pop("json")
+            return _do_http("POST", url, headers, cookies, data, payload, timeout=timeout)
+
+        def request(self, method, url, headers=None, cookies=None, data=None, timeout=None, **kw):
+            return _do_http(method, url, headers, cookies, data, timeout=timeout)
+
+    for alias in (
+        "BaseSpider",
+        "Spider",
+        "SpiderBase",
+        "_BaseSpider",
+        "_Base",
+        "_Spider",
+        "_B",
+        "Base",
+        "Spidaer",
+        "BaseSpile",
+    ):
+        setattr(spider_module, alias, BaseSpider)
+
+    def _base_getattr(name):
+        if name.startswith("__") and name.endswith("__"):
+            raise AttributeError(name)
+        return BaseSpider
+
+    spider_module.__getattr__ = _base_getattr
     base_module.spider = spider_module
-    sys.modules["base"] = base_module
+    if "base" not in sys.modules:
+        sys.modules["base"] = base_module
     sys.modules["base.spider"] = spider_module
+    if "spider" not in sys.modules:
+        try:
+            import spider  # noqa: F401
+        except Exception:
+            plain_module = types.ModuleType("spider")
+            plain_module.Spider = BaseSpider
+            plain_module.BaseSpider = BaseSpider
+            plain_module.__getattr__ = _base_getattr
+            sys.modules["spider"] = plain_module
 
 
 def _default_is_video_format(url=None):
@@ -269,35 +655,21 @@ class _RequestsResponse:
 
 
 def _make_requests_module():
-    import urllib.error
-    import urllib.request
-
     def _request(method, url, **kwargs):
         headers = dict(kwargs.get("headers") or {})
         body = kwargs.get("data")
         payload = kwargs.get("json")
-        if payload is not None:
-            body = json.dumps(payload).encode("utf-8")
-            headers.setdefault("Content-Type", "application/json")
-        if isinstance(body, str):
-            body = body.encode("utf-8")
-        request = urllib.request.Request(
-            url, data=body, headers=headers, method=method.upper()
+        result = _do_http(
+            method,
+            url,
+            headers=headers,
+            data=body,
+            payload=payload,
+            timeout=kwargs.get("timeout"),
         )
-        try:
-            with urllib.request.urlopen(
-                request, timeout=kwargs.get("timeout")
-            ) as response:
-                return _RequestsResponse(
-                    response.status,
-                    dict(response.headers),
-                    response.read(),
-                    response.url,
-                )
-        except urllib.error.HTTPError as error:
-            return _RequestsResponse(
-                error.code, dict(error.headers), error.read(), url
-            )
+        return _RequestsResponse(
+            result.status_code, result.headers, result.content, result.url
+        )
 
     class _Session:
         def __init__(self):
@@ -359,6 +731,7 @@ def _load_spider(path):
     if cached is not None and cached[0] == mtime:
         return cached[1]
     _ensure_base_spider_stub()
+    _ensure_crypto_shim()
     stubbed = []
     if _ensure_requests_stub():
         stubbed.append("requests")
@@ -435,6 +808,7 @@ def _dispatch(spider, request):
             "stubbedImports": list(getattr(spider, "_huoyi_stubbed_imports", [])),
             "filled": list(getattr(spider, "_huoyi_filled", [])),
             "sslUnverified": _ssl_unverified,
+            "cfDisguise": _cf_disguise_enabled,
         }
     if action == "categories":
         return _call_home(spider, request)
@@ -536,12 +910,22 @@ _ACTION_METHODS = {
 
 
 def handle(path, request_json):
+    global _cf_disguise_enabled
     action = ""
     try:
         request = json.loads(request_json) if request_json else {}
         if not isinstance(request, dict):
             raise ValueError("请求格式不正确")
         action = str(request.get("action") or "")
+        if action == "setCfDisguise":
+            if isinstance(request.get("enabled"), bool):
+                _cf_disguise_enabled = request["enabled"]
+            return json.dumps(
+                {"ok": True, "data": {"cfDisguise": _cf_disguise_enabled}},
+                ensure_ascii=False,
+            )
+        if isinstance(request.get("cfDisguise"), bool):
+            _cf_disguise_enabled = request["cfDisguise"]
         spider = _load_spider(path)
         extend = request.get("extend") or ""
         if isinstance(extend, str):

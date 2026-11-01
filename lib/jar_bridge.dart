@@ -136,6 +136,16 @@ class JarBridge {
     }
   }
 
+  static Future<void> setJarFingerprint(bool enabled) async {
+    if (!supported) return;
+    try {
+      await _channel.invokeMethod<void>(
+        'setJarFingerprint',
+        {'enabled': enabled},
+      );
+    } catch (_) {}
+  }
+
   static bool isJarSource(String source) => _specs.containsKey(source);
 
   static JarSiteSpec? specFor(String source) => _specs[source];

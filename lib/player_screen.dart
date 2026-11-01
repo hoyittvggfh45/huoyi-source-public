@@ -12,6 +12,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:window_manager/window_manager.dart';
 
+import 'audio_continue.dart';
 import 'app_layout.dart';
 import 'app_orientation.dart';
 import 'app_theme.dart';
@@ -20,6 +21,7 @@ import 'player_back.dart';
 import 'atmosphere_background.dart';
 import 'tv_theme.dart';
 import 'core_bridge.dart';
+import 'custom_headers.dart';
 import 'jar_bridge.dart';
 import 'danmaku_controller.dart';
 import 'danmaku_overlay.dart';
@@ -187,6 +189,96 @@ class _PlayerScreenState extends State<PlayerScreen>
   PlaybackPlan? _plan;
   NonVideoContent? _nonVideo;
   bool _audioMode = false;
+  OverlayEntry? _audioMiniBar;
+
+  void _removeAudioMiniBar() {
+    _audioMiniBar?.remove();
+    _audioMiniBar = null;
+    AudioContinue.hide();
+  }
+
+  void _showAudioMiniBar() {
+    if (_audioMiniBar != null) return;
+    final title = widget.detail.drama.title;
+    final episode = widget.detail.episodes[_index].title.isNotEmpty
+        ? widget.detail.episodes[_index].title
+        : '第 ${widget.detail.episodes[_index].number} 集';
+    AudioContinue.show(title: title, episode: episode);
+    final entry = OverlayEntry(
+      builder: (overlayContext) {
+        return Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: Material(
+            color: const Color(0xFF1B1B1B),
+            elevation: 8,
+            child: SafeArea(
+              top: false,
+              child: SizedBox(
+                height: 56,
+                child: Row(
+                  children: [
+                    IconButton(
+                      tooltip: '返回播放页',
+                      onPressed: () {
+                        _removeAudioMiniBar();
+                        Navigator.of(overlayContext).maybePop();
+                      },
+                      icon: const Icon(
+                        Icons.headphones,
+                        color: Colors.white,
+                      ),
+                    ),
+                    Expanded(
+                      child: ValueListenableBuilder<String>(
+                        valueListenable: AudioContinue.title,
+                        builder: (context, value, _) {
+                          return Text(
+                            value,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: Colors.white),
+                          );
+                        },
+                      ),
+                    ),
+                    ValueListenableBuilder<bool>(
+                      valueListenable: AudioContinue.playing,
+                      builder: (context, playing, _) {
+                        return IconButton(
+                          tooltip: playing ? '暂停' : '继续',
+                          onPressed: () {
+                            _togglePlayback();
+                            AudioContinue.playing.value = _playIntent;
+                          },
+                          icon: Icon(
+                            playing ? Icons.pause : Icons.play_arrow,
+                            color: Colors.white,
+                          ),
+                        );
+                      },
+                    ),
+                    IconButton(
+                      tooltip: '停止',
+                      onPressed: () {
+                        if (_playIntent) _togglePlayback();
+                        _removeAudioMiniBar();
+                        unawaited(_saveProgress(flush: true));
+                      },
+                      icon: const Icon(Icons.stop, color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+    _audioMiniBar = entry;
+    Overlay.of(context, rootOverlay: true).insert(entry);
+  }
   double _speed = 1;
   double _aspectRatio = 9 / 16;
   double _resumePosition = 0;
@@ -612,22 +704,18 @@ class _PlayerScreenState extends State<PlayerScreen>
     _syncPreload();
     _health.reset();
     if (!visible) _interactions.cancel();
+    if (!_playbackServiceHeld &&
+        shouldAcquirePlaybackService(
+          playing: _enginePlaying,
+          useTvbox: _useNativeHandle,
+        )) {
+      _playbackServiceHeld = true;
+      unawaited(PlaybackForeground.acquire(widget.detail.drama.title));
+    }
     if (!visible &&
         (_lifecycleState == AppLifecycleState.paused ||
             _lifecycleState == AppLifecycleState.hidden)) {
       unawaited(_saveProgress(flush: true));
-      if (!_playbackServiceHeld &&
-          shouldAcquirePlaybackService(
-            playing: _enginePlaying,
-            useTvbox: _useNativeHandle,
-          )) {
-        _playbackServiceHeld = true;
-        unawaited(PlaybackForeground.acquire(widget.detail.drama.title));
-      }
-    }
-    if (visible && _playbackServiceHeld) {
-      _playbackServiceHeld = false;
-      unawaited(PlaybackForeground.release());
     }
     if (visible && _pendingError) {
       _queueRecovery();
@@ -1458,7 +1546,15 @@ class _PlayerScreenState extends State<PlayerScreen>
           }
         }
       }
-      final plan = prepared;
+      var plan = prepared;
+      plan = plan.withHeaders(
+        applyCustomHeaders(
+          plan.url,
+          plan.headers,
+          enabled: widget.store.customHeadersEnabled,
+          rules: widget.store.customHeaderRules,
+        ),
+      );
       if (!_audioMode) {
         final lower = plan.url.split('?').first.toLowerCase();
         if (lower.endsWith('.mp3') ||
@@ -1615,6 +1711,7 @@ class _PlayerScreenState extends State<PlayerScreen>
           _syncDanmaku();
           _acknowledgeHandoff();
           _menuRevision.value++;
+          _applyLifecycleVisibility();
         }
       });
     } catch (error) {
@@ -2344,6 +2441,16 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   void _backToList() {
     if (_closed) return;
+    if (_audioMode && _playIntent && !widget.embedded) {
+      _showAudioMiniBar();
+      Navigator.of(context).push(
+        appPageRoute<void>(
+          builder: (_) =>
+              HomeScreen(repository: widget.repository, store: widget.store),
+        ),
+      );
+      return;
+    }
     if (widget.embedded) {
       _handleEmbeddedBack();
       return;
@@ -2400,6 +2507,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   @override
   void dispose() {
     _closed = true;
+    _removeAudioMiniBar();
     if (_playbackServiceHeld) {
       _playbackServiceHeld = false;
       unawaited(PlaybackForeground.release());
@@ -2542,6 +2650,12 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   @override
   Widget build(BuildContext context) {
+    if (_audioMiniBar != null &&
+        ModalRoute.of(context)?.isCurrent == true) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _removeAudioMiniBar(),
+      );
+    }
     final inherited = Theme.of(context);
     final theme = _television ? televisionTheme(inherited) : inherited;
     if (widget.embedded) {

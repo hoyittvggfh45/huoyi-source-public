@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'content_registry.dart';
+import 'custom_headers.dart';
 import 'jar_import.dart';
 import 'imported_site_record.dart';
 import 'live_models.dart';
@@ -685,6 +686,41 @@ class LocalStore extends ChangeNotifier {
   Future<void> setForceLogin(bool value) =>
       _setting('forceLogin', value, admin: true);
   Future<void> setHideVip(bool value) => _setting(_key('hideVip'), value);
+
+  bool get pythonCfDisguise =>
+      _configurationError == null
+          ? _bool(_key('pythonCfDisguise')) ?? true
+          : true;
+
+  Future<void> setPythonCfDisguise(bool value) =>
+      _setting(_key('pythonCfDisguise'), value);
+
+  bool get jarFingerprintEnabled =>
+      _configurationError == null
+          ? _bool(_key('jarFingerprintEnabled')) ?? true
+          : true;
+
+  Future<void> setJarFingerprintEnabled(bool value) =>
+      _setting(_key('jarFingerprintEnabled'), value);
+
+  bool get customHeadersEnabled =>
+      _configurationError == null
+          ? _bool(_key('customHeadersEnabled')) ?? false
+          : false;
+
+  Future<void> setCustomHeadersEnabled(bool value) =>
+      _setting(_key('customHeadersEnabled'), value);
+
+  List<CustomHeaderRule> get customHeaderRules {
+    if (_configurationError != null) return const [];
+    return parseCustomHeaderRules(_string(_key('customHeaderRules')) ?? '[]');
+  }
+
+  Future<void> setCustomHeaderRules(List<CustomHeaderRule> rules) =>
+      _setting(
+        _key('customHeaderRules'),
+        jsonEncode(rules.map((rule) => rule.toJson()).toList()),
+      );
   Future<void> setSource(String value) {
     if (!allowsSource(value)) return Future.error(StateError('当前用户没有此站源权限'));
     return _setting(_key('source'), value);

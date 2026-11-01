@@ -1515,6 +1515,20 @@ class _HomeScreenState extends State<HomeScreen> {
     context,
     drama: drama,
     store: widget.store,
+    onDetail: () {
+      Navigator.of(context).push(
+        appPageRoute<void>(
+          settings: const RouteSettings(name: 'detail'),
+          builder: (_) => DetailScreen(
+            drama: drama,
+            repository: widget.repository,
+            store: widget.store,
+            onTagTap: _handleDetailTagTap,
+            queue: _queueAround(drama, _visible),
+          ),
+        ),
+      );
+    },
     onContinue: () => _openDrama(drama, resume: true),
     onDownload: widget.repository.supportsDownloads && widget.store.canDownload
         ? () => _openDrama(drama, download: true)
@@ -2492,21 +2506,21 @@ class _HomeScreenState extends State<HomeScreen> {
         if (_drillStack.isNotEmpty) _breadcrumbBar(),
         if (_catalogTags.isNotEmpty && !_showRecommendations)
           SizedBox(
-            height: 36,
+            height: 16,
             child: ListView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
               children: [
                 for (final tag in _catalogTags)
                   Padding(
-                    padding: const EdgeInsets.only(right: 4),
+                    padding: const EdgeInsets.only(right: 3),
                     child: ActionChip(
                       key: ValueKey('catalog-tag-${tag.id}'),
-                      avatar: const Icon(Icons.label_outline_rounded, size: 16),
+                      avatar: const Icon(Icons.label_outline_rounded, size: 11),
                       label: Text(tag.name),
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      labelPadding: const EdgeInsets.symmetric(horizontal: 6),
-                      labelStyle: const TextStyle(fontSize: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+                      labelStyle: const TextStyle(fontSize: 8),
                       backgroundColor: Theme.of(context)
                           .colorScheme
                           .surfaceContainerHighest,
@@ -2518,19 +2532,19 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         if (_level2Tags.isNotEmpty && !_showRecommendations)
           SizedBox(
-            height: 36,
+            height: 16,
             child: ListView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
               children: [
                 Padding(
-                  padding: const EdgeInsets.only(right: 4),
+                  padding: const EdgeInsets.only(right: 3),
                   child: ChoiceChip(
                     label: const Text('全部标签'),
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    labelPadding: const EdgeInsets.symmetric(horizontal: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 3),
+                    labelPadding: const EdgeInsets.symmetric(horizontal: 4),
                     labelStyle: TextStyle(
-                      fontSize: 12,
+                      fontSize: 8,
                       color: Theme.of(context).colorScheme.onSurface,
                     ),
                     selected: _tagLevel2 == null,
@@ -2544,14 +2558,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 for (final tag in _level2Tags)
                   Padding(
-                    padding: const EdgeInsets.only(right: 4),
+                    padding: const EdgeInsets.only(right: 3),
                     child: ChoiceChip(
                       key: ValueKey('catalog-tag2-$tag'),
                       label: Text(tag),
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      labelPadding: const EdgeInsets.symmetric(horizontal: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      labelPadding: const EdgeInsets.symmetric(horizontal: 4),
                       labelStyle: TextStyle(
-                        fontSize: 12,
+                        fontSize: 8,
                         color: Theme.of(context).colorScheme.onSurface,
                       ),
                       selected: _tagLevel2 == tag,
@@ -2571,19 +2585,19 @@ class _HomeScreenState extends State<HomeScreen> {
             _level3Tags.isNotEmpty &&
             !_showRecommendations)
           SizedBox(
-            height: 36,
+            height: 16,
             child: ListView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
               children: [
                 Padding(
-                  padding: const EdgeInsets.only(right: 4),
+                  padding: const EdgeInsets.only(right: 3),
                   child: ChoiceChip(
                     label: const Text('全部'),
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    labelPadding: const EdgeInsets.symmetric(horizontal: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 3),
+                    labelPadding: const EdgeInsets.symmetric(horizontal: 4),
                     labelStyle: TextStyle(
-                      fontSize: 12,
+                      fontSize: 8,
                       color: Theme.of(context).colorScheme.onSurface,
                     ),
                     selected: _tagLevel3 == null,
@@ -2597,14 +2611,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 for (final tag in _level3Tags)
                   Padding(
-                    padding: const EdgeInsets.only(right: 4),
+                    padding: const EdgeInsets.only(right: 3),
                     child: ChoiceChip(
                       key: ValueKey('catalog-tag3-$tag'),
                       label: Text(tag),
                       padding: const EdgeInsets.symmetric(horizontal: 4),
                       labelPadding: const EdgeInsets.symmetric(horizontal: 6),
                       labelStyle: TextStyle(
-                        fontSize: 12,
+                        fontSize: 8,
                         color: Theme.of(context).colorScheme.onSurface,
                       ),
                       selected: _tagLevel3 == tag,

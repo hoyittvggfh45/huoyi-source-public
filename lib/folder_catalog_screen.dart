@@ -194,7 +194,7 @@ class _FolderCatalogScreenState extends State<FolderCatalogScreen> {
       children: [
         if (_tags.isNotEmpty)
           SizedBox(
-            height: 52,
+            height: 35,
             child: ListView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -204,6 +204,7 @@ class _FolderCatalogScreenState extends State<FolderCatalogScreen> {
                     padding: const EdgeInsets.only(right: 6),
                     child: ActionChip(
                       label: Text(tag.name),
+                      labelStyle: const TextStyle(fontSize: 8),
                       onPressed: () => unawaited(
                         FolderCatalogScreen.openTag(
                           context,

@@ -173,12 +173,13 @@ class _ImportCenterScreenState extends State<ImportCenterScreen> {
   Future<void> _importJarFile(String filePath) async {
     final jarId =
         'jar-${md5.convert(utf8.encode(filePath)).toString().substring(0, 8)}';
-    final classes = await JarImport.scanAndRegister(
+    final result = await JarImport.scanAndRegister(
       jarId: jarId,
       jarUrl: filePath,
     );
     if (!mounted) return;
-    final usable = classes.where((info) => info.instantiable).length;
+    final classes = result.all;
+    final usable = result.newly.length;
     final skipped = classes
         .where((info) => !info.instantiable)
         .map((info) => '${info.simpleName}：${info.reason}')
@@ -195,7 +196,7 @@ class _ImportCenterScreenState extends State<ImportCenterScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '识别到 ${classes.length} 个 Spider 类，已注册 $usable 个站点（进「导入」分组）。',
+                  '识别到 ${classes.length} 个 Spider 类，新增注册 $usable 个站点（进「导入」分组，重复导入不重复计数）。',
                 ),
                 if (skipped.isNotEmpty) ...[
                   const SizedBox(height: 8),
