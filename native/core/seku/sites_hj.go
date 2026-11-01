@@ -30,24 +30,21 @@ package seku
 //     bytes of a sibling ".jpg" file (jar HjProxy.deriveKey); the
 //     derived key + playlist IV decrypt segments to valid TS
 //     (0x47 sync verified with openssl on segments 0 and 139).
-//     Because mpv can only use the DERIVED key, resolve writes the
-//     full playlist (segments absolutized, key URI pointed at a
-//     local key file) into the core store dir and returns a file://
-//     URL — the same on-disk hand-off the cover action already uses.
+//     Because mpv can only use the DERIVED key, resolve returns the
+//     FULL playlist URL plus the derived key as hlsKey; the app
+//     stream server serves that key in place of the served key
+//     URI, so the player never sees a file:// URL.
 //   - Covers: attachment images are served as TEXT in a custom
 //     base64 alphabet wrapping a data: URL (jar HjProxy.image);
 //     hjCoverFetch decodes them back to real image bytes.
 //   - Search: /topic/search_topic_by_tag then /topic/search.
 
 import (
-	"crypto/sha1"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"html"
-	"os"
-	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -596,15 +593,12 @@ func hjDeriveKey(playlistURL, playlistText string) ([]byte, error) {
 	return kb, nil
 }
 
-// hjExpandPreview turns a truncated preview playlist into a full
-// local playlist file + key file and returns the file:// URL.
-func hjExpandPreview(previewURL string) (string, error) {
+func hjFullPlaylist(previewURL string) (string, []byte, error) {
 	text, code, err := hjFetchText(previewURL)
 	if err != nil || code != 200 || !strings.Contains(text, "#EXTM3U") {
-		return "", fmt.Errorf("haijiao: preview fetch HTTP %d err %v", code, err)
+		return "", nil, fmt.Errorf("haijiao: preview fetch HTTP %d err %v", code, err)
 	}
 	dir := previewURL[:strings.LastIndex(previewURL, "/")+1]
-	// First segment name gives the store prefix for the full playlist.
 	var firstSeg string
 	for _, line := range strings.Split(text, "\n") {
 		line = strings.TrimSpace(line)
@@ -622,63 +616,25 @@ func hjExpandPreview(previewURL string) (string, error) {
 		}
 	}
 	if fullText == "" {
-		// The preview itself is the whole video (short clips).
 		fullText, fullURL = text, previewURL
 	}
 	key, err := hjDeriveKey(fullURL, fullText)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
-	sum := sha1.Sum([]byte(previewURL))
-	name := hex.EncodeToString(sum[:])[:16]
-	outDir := filepath.Join(storeBaseDir(), "hjpl")
-	if err := os.MkdirAll(outDir, 0o755); err != nil {
-		return "", err
-	}
-	keyName := name + ".key"
-	if err := os.WriteFile(filepath.Join(outDir, keyName), key, 0o644); err != nil {
-		return "", err
-	}
-	// Rebuild the playlist: key URI points at the local derived-key
-	// file (keeping the original IV), relative segment names are
-	// absolutized against the playlist directory.
-	keyLine := "#EXT-X-KEY:METHOD=AES-128,URI=\"" + keyName + "\""
-	if km := hjKeyLineRe.FindStringSubmatch(fullText); km != nil {
-		if ivm := regexp.MustCompile(`IV=0x[0-9a-fA-F]+`).FindString(km[1]); ivm != "" {
-			keyLine += "," + ivm
-		}
-	}
-	var b strings.Builder
-	for _, line := range strings.Split(fullText, "\n") {
-		line = strings.TrimSpace(line)
-		switch {
-		case line == "":
-		case strings.HasPrefix(line, "#EXT-X-KEY:"):
-			b.WriteString(keyLine + "\n")
-		case strings.HasPrefix(line, "#"):
-			b.WriteString(line + "\n")
-		case strings.HasPrefix(line, "http"):
-			b.WriteString(line + "\n")
-		default:
-			b.WriteString(dir + line + "\n")
-		}
-	}
-	pl := b.String()
-	plPath := filepath.Join(outDir, name+".m3u8")
-	if err := os.WriteFile(plPath, []byte(pl), 0o644); err != nil {
-		return "", err
-	}
-	return "file://" + plPath, nil
+	return fullURL, key, nil
 }
 
 func hjResolve(slot, rawID string) (map[string]interface{}, error) {
 	ref := rawID
 	if strings.HasPrefix(ref, "hjpl|") {
-		u, err := hjExpandPreview(strings.TrimPrefix(ref, "hjpl|"))
+		u, key, err := hjFullPlaylist(strings.TrimPrefix(ref, "hjpl|"))
 		if err != nil {
 			return nil, err
 		}
-		return playResult(u, "haijiao", ref, hjMobileUA, hjSite()+"/", "application/x-mpegURL", "hls"), nil
+		res := playResult(u, "haijiao", ref, hjMobileUA, hjSite()+"/", "application/x-mpegURL", "hls")
+		res["hlsKey"] = hex.EncodeToString(key)
+		return res, nil
 	}
 	if strings.HasPrefix(ref, "http") {
 		format := ""

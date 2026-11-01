@@ -55,51 +55,128 @@ class _ThemeSettingsScreenState extends State<ThemeSettingsScreen> {
     final store = widget.store;
     final colors = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('主题设置')),
+      appBar: AppBar(title: const Text('主题风格')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         children: [
+          Text(
+            '主题模式管亮暗与表面，界面风格管形状与材质，主题色管点缀色；三者自由组合，点选即时生效。',
+            style: TextStyle(color: colors.onSurfaceVariant, fontSize: 13),
+          ),
           _sectionTitle('主题模式'),
-          for (final option in themeModeStyleOptions)
-            _optionRow(
-              title: option.name,
-              subtitle: option.id == 'pureLight' ? '纯白画布，高对比' : '纯黑画布，省电',
-              selected: store.themeModeStyle == option.id,
-              onTap: () async {
-                await store.setThemeModeStyle(option.id);
-                if (mounted) setState(() {});
-              },
-            ),
-          _sectionTitle('界面风格'),
-          for (final option in themeStyleOptions)
-            _optionRow(
-              title: option.name,
-              subtitle: _styleSubtitle(option.id),
-              selected: store.themeStyle == option.id,
-              onTap: () async {
-                await store.setThemeStyle(option.id);
-                if (mounted) setState(() {});
-              },
-            ),
-          _sectionTitle('主题色'),
-          for (final option in themeAccentOptions)
-            _optionRow(
-              title: option.name,
-              leading: Container(
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  color: option.color,
-                  shape: BoxShape.circle,
+          Row(
+            children: [
+              for (final option in themeModeStyleOptions)
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      left: option.id == 'pureLight' ? 0 : 6,
+                      right: option.id == 'pureLight' ? 6 : 0,
+                    ),
+                    child: _selectCard(
+                      title: option.id == 'pureLight' ? '极白模式' : '极黑模式',
+                      subtitle: option.id == 'pureLight'
+                          ? '纯白画布，最高对比'
+                          : '纯黑画布，OLED 省电',
+                      selected: store.themeModeStyle == option.id,
+                      onTap: () async {
+                        await store.setThemeModeStyle(option.id);
+                        if (mounted) setState(() {});
+                      },
+                    ),
+                  ),
                 ),
-              ),
-              selected: store.themeAccent == option.id ||
-                  (store.themeAccent.isEmpty && option.id == 'default'),
-              onTap: () async {
-                await store.setThemeAccent(option.id);
-                if (mounted) setState(() {});
-              },
+            ],
+          ),
+          _sectionTitle('界面风格'),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              childAspectRatio: 1.55,
             ),
+            itemCount: themeStyleOptions.length,
+            itemBuilder: (context, index) {
+              final option = themeStyleOptions[index];
+              return _selectCard(
+                title: option.name,
+                subtitle: _styleSubtitle(option.id),
+                preview: _stylePreview(option.id),
+                selected: store.themeStyle == option.id,
+                onTap: () async {
+                  await store.setThemeStyle(option.id);
+                  if (mounted) setState(() {});
+                },
+              );
+            },
+          ),
+          _sectionTitle('主题色'),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 6,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 8,
+              childAspectRatio: 0.78,
+            ),
+            itemCount: themeAccentOptions.length,
+            itemBuilder: (context, index) {
+              final option = themeAccentOptions[index];
+              final selected = store.themeAccent == option.id;
+              return InkWell(
+                borderRadius: BorderRadius.circular(24),
+                onTap: () async {
+                  await store.setThemeAccent(option.id);
+                  if (mounted) setState(() {});
+                },
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: option.color,
+                        shape: BoxShape.circle,
+                        border: selected
+                            ? Border.all(
+                                color: colors.primary,
+                                width: 2,
+                              )
+                            : null,
+                      ),
+                      child: selected
+                          ? const Icon(
+                              Icons.check_rounded,
+                              color: Colors.white,
+                              size: 20,
+                            )
+                          : null,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      option.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: selected
+                            ? colors.primary
+                            : colors.onSurfaceVariant,
+                        fontWeight: selected
+                            ? FontWeight.w700
+                            : null,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
           _sectionTitle('背景'),
           for (final option in themeBackgroundOptions)
             _optionRow(
@@ -152,21 +229,128 @@ class _ThemeSettingsScreenState extends State<ThemeSettingsScreen> {
   }
 
   Widget _sectionTitle(String title) => Padding(
-    padding: const EdgeInsets.only(top: 16, bottom: 4),
-    child: Text(
-      title,
-      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+    padding: const EdgeInsets.only(top: 20, bottom: 8),
+    child: Row(
+      children: [
+        Container(width: 3, height: 16, color: Colors.blue),
+        const SizedBox(width: 6),
+        Text(
+          title,
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+        ),
+      ],
     ),
   );
+
+  Widget _selectCard({
+    required String title,
+    required String subtitle,
+    List<Color>? preview,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: Stack(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+            decoration: BoxDecoration(
+              color: selected
+                  ? colors.primaryContainer.withValues(alpha: 0.35)
+                  : colors.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(14),
+              border: selected
+                  ? Border.all(color: colors.primary, width: 1.5)
+                  : null,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: selected ? colors.primary : null,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+                if (preview != null) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      for (var i = 0; i < preview.length; i++)
+                        Expanded(
+                          child: Padding(
+                            padding: EdgeInsets.only(
+                              left: i == 0 ? 0 : 3,
+                              right: i == preview.length - 1 ? 0 : 3,
+                            ),
+                            child: Container(
+                              height: 10,
+                              decoration: BoxDecoration(
+                                color: preview[i],
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (selected)
+            Positioned(
+              top: 6,
+              right: 6,
+              child: Icon(
+                Icons.check_circle_rounded,
+                color: colors.primary,
+                size: 20,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  List<Color> _stylePreview(String id) {
+    if (id == 'neon') {
+      return const [
+        Color(0xFFB8D4F0),
+        Color(0xFFFF2E88),
+        Color(0xFF00E5FF),
+      ];
+    }
+    return const [
+      Color(0xFFB8D4F0),
+      Color(0xFF7C5CFF),
+      Color(0xFF2EE5A6),
+    ];
+  }
 
   Widget _optionRow({
     required String title,
     String? subtitle,
-    Widget? leading,
     required bool selected,
     required VoidCallback onTap,
   }) => ListTile(
-    leading: leading,
     title: Text(title),
     subtitle: subtitle == null ? null : Text(subtitle),
     trailing: selected
@@ -176,12 +360,12 @@ class _ThemeSettingsScreenState extends State<ThemeSettingsScreen> {
   );
 
   String _styleSubtitle(String id) => switch (id) {
-    'neon' => '黑底、霓虹描边',
-    'deep' => '蓝黑分层、大圆角',
-    'candy' => '大圆角、高饱和、全圆按钮',
-    'paper' => '纸底、衬线标题、重分隔线',
-    'glass' => '半透卡面、白描边',
-    'aurora' => '紫青氛围光、大圆角、冷调',
+    'neon' => '黑底·品红/青霓虹·发光描边',
+    'deep' => '蓝黑分层·大圆角·左右滑页',
+    'candy' => '大圆角·高饱和·全圆按钮',
+    'paper' => '纸底·衬线标题·重分隔线',
+    'glass' => '半透卡面·白描边·顶部柔光',
+    'aurora' => '紫青氛围光·大圆角·冷调',
     _ => '',
   };
 

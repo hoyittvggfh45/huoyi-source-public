@@ -12,6 +12,7 @@ import 'package:crypto/crypto.dart';
 
 import 'models.dart';
 import 'jar_bridge.dart';
+import 'jar_haijiao_takeover.dart';
 import 'jar_youtube_takeover.dart';
 import 'danmaku_models.dart';
 import 'hongguo_comment.dart';
@@ -1268,6 +1269,11 @@ class NativeRepository extends AppRepository {
     String source, {
     bool force = false,
   }) async {
+    final haijiaoGo = JarHaijiaoTakeover.goSourceForJarSite(source);
+    if (haijiaoGo != null) {
+      _authorize(source);
+      return categories(haijiaoGo, force: force);
+    }
     if (JarBridge.isJarSource(source)) {
       return _jarCall(
         source,
@@ -1299,6 +1305,18 @@ class NativeRepository extends AppRepository {
     bool force = false,
     Map<String, String> filters = const {},
   }) async {
+    final haijiaoGo = JarHaijiaoTakeover.goSourceForJarSite(source);
+    if (haijiaoGo != null) {
+      _authorize(source);
+      return catalog(
+        haijiaoGo,
+        page: page,
+        query: query,
+        category: category,
+        force: force,
+        filters: filters,
+      );
+    }
     if (JarBridge.isJarSource(source)) {
       return _jarCall(
         source,
@@ -1355,6 +1373,10 @@ class NativeRepository extends AppRepository {
           if (store.siteVisible(source)) source,
       ];
     }
+    sources = [
+      for (final source in sources)
+        JarHaijiaoTakeover.goSourceForJarSite(source) ?? source,
+    ].toSet().toList();
     final jarSources = sources.where(JarBridge.isJarSource).toList();
     final pyTargets = sources.where(isPySource).toList();
     final rest = sources
@@ -1405,6 +1427,10 @@ class NativeRepository extends AppRepository {
 
   @override
   Future<CatalogPage> cached(String source, {String category = ''}) async {
+    final haijiaoGo = JarHaijiaoTakeover.goSourceForJarSite(source);
+    if (haijiaoGo != null) {
+      return cached(haijiaoGo, category: category);
+    }
     if (JarBridge.isJarSource(source) ||
         isPySource(source) ||
         isJsSource(source)) {
@@ -1454,6 +1480,17 @@ class NativeRepository extends AppRepository {
 
   @override
   Future<String> cover(Drama drama, {bool force = false}) async {
+    final haijiaoGo = JarHaijiaoTakeover.goSourceForJarSite(drama.source);
+    if (haijiaoGo != null) {
+      try {
+        return await cover(
+          JarHaijiaoTakeover.remapDrama(drama, haijiaoGo),
+          force: force,
+        );
+      } catch (_) {
+        return _jarCall(drama.source, (_) => JarBridge.coverFile(drama));
+      }
+    }
     if (JarBridge.isJarSource(drama.source)) {
       return _jarCall(drama.source, (_) => JarBridge.coverFile(drama));
     }
@@ -1480,6 +1517,14 @@ class NativeRepository extends AppRepository {
 
   @override
   Future<DramaDetail> detail(Drama drama) async {
+    final haijiaoGo = JarHaijiaoTakeover.goSourceForJarSite(drama.source);
+    if (haijiaoGo != null) {
+      try {
+        return await detail(JarHaijiaoTakeover.remapDrama(drama, haijiaoGo));
+      } catch (_) {
+        return _jarCall(drama.source, (spec) => JarBridge.detail(spec, drama));
+      }
+    }
     if (JarBridge.isJarSource(drama.source)) {
       return _jarCall(drama.source, (spec) => JarBridge.detail(spec, drama));
     }
@@ -1599,6 +1644,23 @@ class NativeRepository extends AppRepository {
     int route = 0,
     bool adBlock = true,
   }) async {
+    final haijiaoGo = JarHaijiaoTakeover.goSourceForJarSite(drama.source);
+    if (haijiaoGo != null) {
+      try {
+        return await resolve(
+          JarHaijiaoTakeover.remapDrama(drama, haijiaoGo),
+          episode,
+          quality: quality,
+          route: route,
+          adBlock: adBlock,
+        );
+      } catch (_) {
+        return _jarCall(
+          drama.source,
+          (spec) => _jarResolve(spec, drama, episode),
+        );
+      }
+    }
     if (JarBridge.isJarSource(drama.source)) {
       return _jarCall(
         drama.source,
@@ -1822,6 +1884,23 @@ class NativeRepository extends AppRepository {
     int route = 0,
     bool adBlock = true,
   }) async {
+    final haijiaoGo = JarHaijiaoTakeover.goSourceForJarSite(drama.source);
+    if (haijiaoGo != null) {
+      try {
+        return await resolveOnline(
+          JarHaijiaoTakeover.remapDrama(drama, haijiaoGo),
+          episode,
+          quality: quality,
+          route: route,
+          adBlock: adBlock,
+        );
+      } catch (_) {
+        return _jarCall(
+          drama.source,
+          (spec) => _jarResolve(spec, drama, episode),
+        );
+      }
+    }
     if (JarBridge.isJarSource(drama.source)) {
       return _jarCall(
         drama.source,

@@ -420,7 +420,9 @@ class ImportEngine {
       fileName: candidate.name,
       status: ImportOutcomeStatus.success,
       reason: result.summary,
-      siteName: candidate.baseName,
+      siteName: result.siteNames.isEmpty
+          ? candidate.baseName
+          : result.siteNames.first,
       siteId: result.siteIds.isEmpty ? '' : result.siteIds.first,
     );
   }
@@ -442,7 +444,9 @@ class ImportEngine {
       fileName: candidate.name,
       status: ImportOutcomeStatus.success,
       reason: result.summary,
-      siteName: candidate.baseName,
+      siteName: result.siteNames.isEmpty
+          ? candidate.baseName
+          : result.siteNames.first,
       siteId: result.siteIds.isEmpty ? '' : result.siteIds.first,
     );
   }

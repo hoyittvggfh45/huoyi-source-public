@@ -84,7 +84,9 @@ class JarBridgeHandoff {
     }
   }
 
-  static Future<({String summary, List<String> siteIds})> registerJar({
+  static Future<
+      ({String summary, List<String> siteIds, List<String> siteNames})>
+      registerJar({
     required String name,
     required List<int> bytes,
     List<JarSiteConfig> configs = const [],
@@ -101,6 +103,7 @@ class JarBridgeHandoff {
       jarUrl: file.path,
       jarMd5: digest,
       configs: configs,
+      displayName: name,
     );
     final classes = result.all;
     final registered = result.newly.length;
@@ -122,11 +125,17 @@ class JarBridgeHandoff {
         configured: result.configured,
         missing: result.missing,
       ),
-      siteIds: JarImport.siteIdsForJar(jarId),
+      siteIds: result.newSiteIds,
+      siteNames: [
+        for (final id in result.newSiteIds)
+          JarImport.siteFor(id)?.name ?? '',
+      ],
     );
   }
 
-  static Future<({String summary, List<String> siteIds})> registerZip({
+  static Future<
+      ({String summary, List<String> siteIds, List<String> siteNames})>
+      registerZip({
     required String name,
     required List<int> bytes,
   }) async {
@@ -161,6 +170,7 @@ class JarBridgeHandoff {
       jarUrl: file.path,
       jarMd5: digest,
       configs: package.configs,
+      displayName: name,
     );
     final classes = result.all;
     if (classes.where((info) => info.instantiable).isEmpty) {
@@ -183,7 +193,11 @@ class JarBridgeHandoff {
         extraJsonNames: savedExtras,
         skippedJarNames: package.skippedJarNames,
       ),
-      siteIds: JarImport.siteIdsForJar(jarId),
+      siteIds: result.newSiteIds,
+      siteNames: [
+        for (final id in result.newSiteIds)
+          JarImport.siteFor(id)?.name ?? '',
+      ],
     );
   }
 

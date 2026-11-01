@@ -42,6 +42,52 @@ class JarYoutubeTakeover {
     return resolved;
   }
 
+  static String? videoIdFromWatchUrl(String url) {
+    final uri = Uri.tryParse(url.trim());
+    if (uri == null) return null;
+    final host = uri.host.toLowerCase();
+    final isYoutube =
+        host == 'youtu.be' ||
+        host == 'youtube.com' ||
+        host.endsWith('.youtube.com');
+    if (!isYoutube) return null;
+    final queryId = uri.queryParameters['v'];
+    if (queryId != null && queryId.isNotEmpty) return queryId;
+    final segments = uri.pathSegments
+        .where((part) => part.isNotEmpty)
+        .toList();
+    if (segments.isEmpty) return null;
+    if (host == 'youtu.be') return segments.first;
+    if (segments.first == 'embed' ||
+        segments.first == 'shorts' ||
+        segments.first == 'live' ||
+        segments.first == 'v') {
+      return segments.length > 1 ? segments[1] : null;
+    }
+    return null;
+  }
+
+  static Future<PlaybackPlan?> tryResolveWatchUrl(String url) async {
+    try {
+      final videoId = videoIdFromWatchUrl(url);
+      if (videoId == null) return null;
+      final status = await PyBridge.status();
+      if (!status.available) return null;
+      final spiderPath = await _materializeSpider();
+      final result = await PyBridge.call(spiderPath, {
+        'action': 'resolve',
+        'flag': '',
+        'playId': videoId,
+        'extend': '{"gl":"US","hl":"zh-CN"}',
+      });
+      final plan = PyContract.planFromResult(result);
+      if (!isUsablePlan(plan)) return null;
+      return plan;
+    } catch (_) {
+      return null;
+    }
+  }
+
   static Future<PlaybackPlan?> tryResolve(
     JarSiteSpec spec,
     Drama drama,

@@ -93,37 +93,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } catch (_) {}
   }
 
-  Future<void> _chooseTheme() async {
-    final selected = await showDialog<String>(
-      context: context,
-      builder: (context) => SimpleDialog(
-        title: const Text('外观主题'),
-        children: [
-          RadioGroup<String>(
-            groupValue: widget.store.themeMode,
-            onChanged: (value) => Navigator.pop(context, value),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (final mode in ['light', 'dark', 'system'])
-                  RadioListTile<String>(
-                    value: mode,
-                    title: Text(AppTheme.label(mode)),
-                    subtitle: mode == 'system'
-                        ? const Text('随设备的深色模式自动切换')
-                        : null,
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-    if (selected != null && mounted) {
-      await saveUserChange(context, () => widget.store.setThemeMode(selected));
-    }
-  }
-
   String _displayModeLabel(String mode) => switch (mode) {
     'television' => '电视 / 遥控器',
     'standard' => '手机 / 电脑',
@@ -505,14 +474,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             ),
-          ),
-          ListTile(
-            key: const ValueKey('theme-setting'),
-            leading: const Icon(Icons.palette_outlined),
-            title: const Text('外观主题'),
-            subtitle: Text(AppTheme.label(widget.store.themeMode)),
-            trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: _chooseTheme,
           ),
           ListTile(
             leading: const Icon(Icons.display_settings_outlined),

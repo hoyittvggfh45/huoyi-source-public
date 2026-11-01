@@ -23,6 +23,7 @@ import 'tv_theme.dart';
 import 'core_bridge.dart';
 import 'custom_headers.dart';
 import 'jar_bridge.dart';
+import 'jar_youtube_takeover.dart';
 import 'danmaku_controller.dart';
 import 'danmaku_overlay.dart';
 import 'follow_state.dart';
@@ -1496,6 +1497,12 @@ class _PlayerScreenState extends State<PlayerScreen>
       if (prepared == null) {
         return;
       }
+      if (!prepared.local &&
+          (prepared.needsParse || looksLikeWebPage(prepared.url))) {
+        _lastPageUrl = prepared.url;
+        final direct = await _tryYoutubeDirect(prepared);
+        if (direct != null) prepared = direct;
+      }
       if (!prepared.local && prepared.needsParse) {
         _lastPageUrl = prepared.url;
         if (JarBridge.isJarSource(widget.detail.drama.source)) {
@@ -1989,6 +1996,15 @@ class _PlayerScreenState extends State<PlayerScreen>
       final selected = await ParseInterfaceStore.loadSelected();
       if (!_closed && mounted) _selectedParse = selected;
     } catch (_) {}
+  }
+
+  Future<PlaybackPlan?> _tryYoutubeDirect(PlaybackPlan current) async {
+    final direct = await JarYoutubeTakeover.tryResolveWatchUrl(current.url);
+    if (direct == null) return null;
+    if (current.session.isNotEmpty) {
+      await widget.repository.release(current.session);
+    }
+    return direct;
   }
 
   void _openSniffer() {

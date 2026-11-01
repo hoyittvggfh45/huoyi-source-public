@@ -190,10 +190,25 @@ func yhMelon51Clean(s string) string {
 	return strings.TrimSpace(s)
 }
 
+func yhMelon51IsPromoTitle(title string) bool {
+	if len([]rune(title)) > 12 {
+		return false
+	}
+	for _, kw := range []string{"棋牌", "开元", "彩票", "捕鱼", "百家乐", "老虎机", "首存", "送彩金", "注册送", "返水", "盘口", "真人视讯", "电子游艺"} {
+		if strings.Contains(title, kw) {
+			return true
+		}
+	}
+	return false
+}
+
 func yhMelon51Card(slot string, rec map[string]interface{}) (map[string]interface{}, bool) {
 	cid := g5StrVal(rec["cid"])
 	title := yhMelon51Clean(g5StrVal(rec["title"]))
 	if cid == "" || title == "" {
+		return nil, false
+	}
+	if yhMelon51IsPromoTitle(title) {
 		return nil, false
 	}
 	cover := ""

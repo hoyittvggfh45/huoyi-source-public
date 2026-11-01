@@ -66,7 +66,9 @@ class SitePickerDialog extends StatefulWidget {
 
 class _SitePickerDialogState extends State<SitePickerDialog> {
   final _searchController = TextEditingController();
+  final _currentKey = GlobalKey();
   String _query = '';
+  bool _scrolledToCurrent = false;
   late bool _editMode;
   late List<_EditableGroup> _groups;
 
@@ -78,6 +80,19 @@ class _SitePickerDialogState extends State<SitePickerDialog> {
       for (final group in widget.groups)
         _EditableGroup(group.title, List.of(group.entries)),
     ];
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToCurrent());
+  }
+
+  void _scrollToCurrent() {
+    if (_scrolledToCurrent) return;
+    final context = _currentKey.currentContext;
+    if (context == null || !mounted) return;
+    _scrolledToCurrent = true;
+    Scrollable.ensureVisible(
+      context,
+      alignment: 0.2,
+      duration: const Duration(milliseconds: 250),
+    );
   }
 
   @override
@@ -198,10 +213,10 @@ class _SitePickerDialogState extends State<SitePickerDialog> {
                               physics: const NeverScrollableScrollPhysics(),
                               gridDelegate:
                                   const SliverGridDelegateWithMaxCrossAxisExtent(
-                                    maxCrossAxisExtent: 170,
+                                    maxCrossAxisExtent: 128,
                                     mainAxisSpacing: 8,
                                     crossAxisSpacing: 8,
-                                    childAspectRatio: 2.4,
+                                    childAspectRatio: 2.7,
                                   ),
                               itemCount: group.entries.length,
                               itemBuilder: (context, index) {
@@ -214,8 +229,9 @@ class _SitePickerDialogState extends State<SitePickerDialog> {
                                       ? null
                                       : () => Navigator.pop(context, entry.id),
                                   child: Container(
+                                    key: selected ? _currentKey : null,
                                     padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
+                                      horizontal: 8,
                                     ),
                                     decoration: BoxDecoration(
                                       color: selected

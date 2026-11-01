@@ -486,7 +486,10 @@ object JarBridge {
             val type = try {
                 loader.loadClass(className)
             } catch (error: ClassNotFoundException) {
-                throw IllegalStateException("jar 中未找到站点类 $className，该配置的 api 与 spider 不匹配或 jar 不完整")
+                loaders.remove(configId)
+                val file = File(jarPath)
+                val state = if (file.exists()) "存在，${file.length()} 字节" else "不存在"
+                throw IllegalStateException("jar 中未找到站点类 $className，该配置的 api 与 spider 不匹配或 jar 不完整（jar 文件：$state）")
             } catch (error: LinkageError) {
                 throw IllegalStateException("jar 类 $className 加载失败（可能依赖未提供的壳组件）：${error.message}")
             }

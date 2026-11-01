@@ -7,7 +7,11 @@ class ZakatvBuiltinSite {
 }
 
 const String zakatvJarAsset = 'assets/jars/zakatv.jar';
-const String zakatvJarMd5 = '3f18ed0ebdbaff05921139f89db032de';
+const String zakatvJarMd5 = '1789cd6c81dacdc91a447ca2b4bc8524';
+const String youtubeJarAsset = 'assets/jars/youtube.jar';
+const String youtubeJarMd5 = 'd294ce251d3b2aa8528efff12cc4bf19';
+const String youtubeConfigAsset = 'assets/youtube3.json';
+const String youtubeSpiderClass = 'com.github.catvod.spider.YouTube';
 const String zakatvJarId = 'zakatv';
 const List<ZakatvBuiltinSite> zakatvBuiltinSites = [
   ZakatvBuiltinSite('ZakaMjv011', '🔞mjv011', 'com.github.catvod.spider.ZakaMjv011Amns', ''),
@@ -157,5 +161,5 @@ const List<ZakatvBuiltinSite> zakatvBuiltinSites = [
   ZakatvBuiltinSite('Zaka52av', '🔞52AV┃華語論壇', 'com.github.catvod.spider.Zaka52avAmns', ''),
   ZakatvBuiltinSite('missavt', '🔞MissAVt┃原生', 'com.github.catvod.spider.ZakaMissavtAmns', ''),
   ZakatvBuiltinSite('hgkpz', '🔞黄瓜┃黄瓜看片', 'com.github.catvod.spider.ZakaHgkpzAmns', ''),
-  ZakatvBuiltinSite('ZakaYouTube', 'YouTube', 'com.github.catvod.spider.ZakaYouTubeAmns', '{"gl":"US","hl":"zh-CN"}'),
+  ZakatvBuiltinSite('ZakaYouTube', 'YouTube', 'com.github.catvod.spider.YouTube', ''),
 ];

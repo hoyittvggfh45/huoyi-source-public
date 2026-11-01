@@ -35,12 +35,24 @@ class ThemeAccentOption {
 }
 
 const themeAccentOptions = [
-  ThemeAccentOption('default', '默认', Color(0xFFFF664F)),
-  ThemeAccentOption('green', '绿系', Color(0xFF2E7D32)),
-  ThemeAccentOption('blue', '蓝系', Color(0xFF1565C0)),
-  ThemeAccentOption('purple', '紫系', Color(0xFF6A1B9A)),
-  ThemeAccentOption('red', '红系', Color(0xFFC62828)),
-  ThemeAccentOption('orange', '橙系', Color(0xFFEF6C00)),
+  ThemeAccentOption('jiucai', '韭菜绿', Color(0xFF4CAF50)),
+  ThemeAccentOption('matcha', '抹茶绿', Color(0xFF8BC34A)),
+  ThemeAccentOption('luhui', '芦荟绿', Color(0xFF66BB6A)),
+  ThemeAccentOption('qingci', '青瓷', Color(0xFF4DB6AC)),
+  ThemeAccentOption('boheqing', '薄荷青', Color(0xFF26C6DA)),
+  ThemeAccentOption('chunrilv', '春日绿', Color(0xFF43A047)),
+  ThemeAccentOption('qingkonglan', '晴空蓝', Color(0xFF42A5F5)),
+  ThemeAccentOption('shenhailan', '深海蓝', Color(0xFF1E88E5)),
+  ThemeAccentOption('shilan', '石蓝', Color(0xFF5C6BC0)),
+  ThemeAccentOption('qunqing', '群青', Color(0xFF3949AB)),
+  ThemeAccentOption('yuanwei', '鸢尾', Color(0xFF7E57C2)),
+  ThemeAccentOption('xunyicao', '薰衣草', Color(0xFFBA68C8)),
+  ThemeAccentOption('meizizi', '梅子紫', Color(0xFFAB47BC)),
+  ThemeAccentOption('putaozi', '葡萄紫', Color(0xFF8E24AA)),
+  ThemeAccentOption('xiangyuzi', '香芋紫', Color(0xFFB39DDB)),
+  ThemeAccentOption('shanhuhong', '珊瑚红', Color(0xFFFF7043)),
+  ThemeAccentOption('meiguifen', '玫瑰粉', Color(0xFFEC407A)),
+  ThemeAccentOption('zhuanhong', '砖红', Color(0xFFE53935)),
 ];
 
 const themeBackgroundOptions = [
@@ -56,7 +68,15 @@ Color? themeAccentColor(String id) {
   for (final option in themeAccentOptions) {
     if (option.id == id) return option.color;
   }
-  return null;
+  return switch (id) {
+    'default' => const Color(0xFFFF664F),
+    'green' => const Color(0xFF2E7D32),
+    'blue' => const Color(0xFF1565C0),
+    'purple' => const Color(0xFF6A1B9A),
+    'red' => const Color(0xFFC62828),
+    'orange' => const Color(0xFFEF6C00),
+    _ => null,
+  };
 }
 
 ThemeMode themeModeFor(String modeStyle, String legacyMode) {
@@ -184,17 +204,17 @@ ThemeData applyThemePreferences(
   }
   if (style == 'glass') {
     scheme = scheme.copyWith(
-      surface: scheme.surface.withValues(alpha: 0.92),
+      surface: scheme.surface.withValues(alpha: 0.85),
       surfaceContainerLowest: scheme.surfaceContainerLowest.withValues(
-        alpha: 0.92,
+        alpha: 0.85,
       ),
-      surfaceContainerLow: scheme.surfaceContainerLow.withValues(alpha: 0.92),
-      surfaceContainer: scheme.surfaceContainer.withValues(alpha: 0.92),
+      surfaceContainerLow: scheme.surfaceContainerLow.withValues(alpha: 0.85),
+      surfaceContainer: scheme.surfaceContainer.withValues(alpha: 0.85),
       surfaceContainerHigh: scheme.surfaceContainerHigh.withValues(
-        alpha: 0.92,
+        alpha: 0.85,
       ),
       surfaceContainerHighest: scheme.surfaceContainerHighest.withValues(
-        alpha: 0.92,
+        alpha: 0.85,
       ),
       outline: dark ? Colors.white38 : Colors.black26,
     );
@@ -204,12 +224,47 @@ ThemeData applyThemePreferences(
       outline: scheme.primary,
       outlineVariant: scheme.primary.withValues(alpha: 0.35),
     );
+    cardTheme = cardTheme.copyWith(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(radius ?? 10),
+        side: BorderSide(
+          color: scheme.primary.withValues(alpha: 0.55),
+          width: 1,
+        ),
+      ),
+    );
   }
   if (style == 'aurora') {
     scheme = scheme.copyWith(surfaceTint: scheme.primary);
   }
   if (style == 'deep') {
     cardTheme = cardTheme.copyWith(elevation: 2);
+    scheme = scheme.copyWith(
+      surfaceTint: const Color(0xFF3B6EA5),
+      surfaceContainerLowest: dark
+          ? const Color(0xFF0B1220)
+          : const Color(0xFFE8EEF5),
+      surfaceContainerLow: dark
+          ? const Color(0xFF101A2E)
+          : const Color(0xFFDCE6F2),
+      surfaceContainer: dark
+          ? const Color(0xFF16223A)
+          : const Color(0xFFCFDDF0),
+    );
+  }
+  if (style == 'paper' && !dark) {
+    scaffold = const Color(0xFFFBF6EC);
+    canvas = const Color(0xFFFBF6EC);
+    scheme = scheme.copyWith(
+      surface: const Color(0xFFFDFAF2),
+      surfaceContainerLowest: const Color(0xFFFDFAF2),
+      surfaceContainerLow: const Color(0xFFF8F1DE),
+      surfaceContainer: const Color(0xFFF3EAD3),
+      surfaceContainerHigh: const Color(0xFFEDE2C8),
+      surfaceContainerHighest: const Color(0xFFE5D8BC),
+      outline: const Color(0xFFC9BFA5),
+      outlineVariant: const Color(0xFFE0D6BE),
+    );
   }
   return base.copyWith(
     brightness: brightness,

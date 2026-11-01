@@ -137,6 +137,51 @@ func hjwFetch(path string) (string, error) {
 	return "", fmt.Errorf("hjw: no live host for %s", path)
 }
 
+func hjwCleanPic(u string) string {
+	u = strings.Trim(u, " \t\r\n`")
+	return html.UnescapeString(u)
+}
+
+func hjwTextImages(body string) []string {
+	start := strings.Index(body, `class="text text-content"`)
+	if start < 0 {
+		return nil
+	}
+	end := len(body)
+	if i := strings.Index(body[start:], `class="line-x"`); i >= 0 {
+		end = start + i
+	} else if i := strings.Index(body[start:], `recommend-container`); i >= 0 {
+		end = start + i
+	}
+	seg := body[start:end]
+	seen := map[string]bool{}
+	out := []string{}
+	for _, m := range hjwReLoader.FindAllStringSubmatch(seg, -1) {
+		u := hjwCleanPic(m[1])
+		if !strings.HasPrefix(u, "http") || seen[u] {
+			continue
+		}
+		seen[u] = true
+		out = append(out, u)
+	}
+	return out
+}
+
+func hjwVideoURL(body string) string {
+	if m := hjwReVideo.FindStringSubmatch(body); m != nil {
+		u := strings.ReplaceAll(m[1], `\/`, "/")
+		return html.UnescapeString(u)
+	}
+	flat := strings.ReplaceAll(body, `\/`, "/")
+	if m := hjwReM3U8.FindString(flat); m != "" {
+		return m
+	}
+	if m := hjwReMP4.FindString(flat); m != "" {
+		return m
+	}
+	return ""
+}
+
 func hjwParseCards(pageHTML string) []map[string]interface{} {
 	out := []map[string]interface{}{}
 	seen := map[string]bool{}
@@ -145,18 +190,16 @@ func hjwParseCards(pageHTML string) []map[string]interface{} {
 		if seen[id] {
 			continue
 		}
-		seen[id] = true
 		inner := ""
 		if m[8] >= 0 {
 			inner = pageHTML[m[8]:m[9]]
 		}
 		title := hjwClean(inner)
-		// 封面：卡内 loader 属性 / img；再向后 600 字内找
 		pic := ""
 		if lm := hjwReLoader.FindStringSubmatch(inner); lm != nil {
-			pic = lm[1]
+			pic = hjwCleanPic(lm[1])
 		} else if im := hjwReImgTag.FindStringSubmatch(inner); im != nil {
-			pic = im[1]
+			pic = hjwCleanPic(im[1])
 		}
 		if pic == "" {
 			hi := m[1] + 600
@@ -165,12 +208,16 @@ func hjwParseCards(pageHTML string) []map[string]interface{} {
 			}
 			seg := pageHTML[m[1]:hi]
 			if lm := hjwReLoader.FindStringSubmatch(seg); lm != nil {
-				pic = lm[1]
+				pic = hjwCleanPic(lm[1])
 			} else if im := hjwReImgTag.FindStringSubmatch(seg); im != nil {
-				pic = im[1]
+				pic = hjwCleanPic(im[1])
 			}
 		}
-		if pic != "" && strings.HasPrefix(pic, "/") {
+		if pic == "" {
+			continue
+		}
+		seen[id] = true
+		if strings.HasPrefix(pic, "/") {
 			if host := hjwLearnedHost(); host != "" {
 				pic = host + pic
 			}
@@ -254,7 +301,22 @@ func hjwDetail(slot, rawID string) (map[string]interface{}, error) {
 		d["pic"] = html.UnescapeString(m[1])
 	}
 	d["desc"] = title
-	g5SetChapters(d, "hjw", rawID, []string{rawID}, []string{"正片"})
+	if hjwVideoURL(body) == "" {
+		if imgs := hjwTextImages(body); len(imgs) > 0 {
+			ep := "pics://" + strings.Join(imgs, "&&")
+			g5SetChapters(d, "hjw", rawID, []string{ep}, []string{"查看图片"})
+			d["remark"] = fmt.Sprintf("共 %d 张图片", len(imgs))
+			d["remarks"] = d["remark"]
+			d["vod_remarks"] = d["remark"]
+			if len(imgs) > 0 {
+				d["pic"] = imgs[0]
+			}
+		} else {
+			g5SetChapters(d, "hjw", rawID, []string{rawID}, []string{"正片"})
+		}
+	} else {
+		g5SetChapters(d, "hjw", rawID, []string{rawID}, []string{"正片"})
+	}
 	rel := hjwParseCards(body)
 	related := make([]interface{}, 0, len(rel))
 	for _, it := range rel {
@@ -273,24 +335,19 @@ func hjwDetail(slot, rawID string) (map[string]interface{}, error) {
 }
 
 func hjwResolve(slot, rawID string) (map[string]interface{}, error) {
+	if strings.HasPrefix(rawID, "pics://") {
+		return map[string]interface{}{"url": rawID, "videoUrl": rawID, "playUrl": rawID, "headers": map[string]interface{}{"User-Agent": hjwUA}, "format": "image", "protocol": "pics"}, nil
+	}
 	body, err := hjwDetailPage(rawID)
 	if err != nil {
 		return nil, err
 	}
-	u := ""
-	if m := hjwReVideo.FindStringSubmatch(body); m != nil {
-		u = strings.ReplaceAll(m[1], `\/`, "/")
-		u = html.UnescapeString(u)
-	}
+	u := hjwVideoURL(body)
 	if u == "" {
-		flat := strings.ReplaceAll(body, `\/`, "/")
-		if m := hjwReM3U8.FindString(flat); m != "" {
-			u = m
-		} else if m := hjwReMP4.FindString(flat); m != "" {
-			u = m
+		if imgs := hjwTextImages(body); len(imgs) > 0 {
+			ep := "pics://" + strings.Join(imgs, "&&")
+			return map[string]interface{}{"url": ep, "videoUrl": ep, "playUrl": ep, "headers": map[string]interface{}{"User-Agent": hjwUA}, "format": "image", "protocol": "pics"}, nil
 		}
-	}
-	if u == "" {
 		return nil, fmt.Errorf("hjw: no stream on archives %s", rawID)
 	}
 	format := "mp4"

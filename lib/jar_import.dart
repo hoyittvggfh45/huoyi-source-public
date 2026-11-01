@@ -20,6 +20,7 @@ class StandaloneJarSite {
     required this.name,
     this.ext = '',
     this.missingConfig = false,
+    this.baseName = '',
   });
 
   final String siteId;
@@ -30,6 +31,9 @@ class StandaloneJarSite {
   final String name;
   final String ext;
   final bool missingConfig;
+  final String baseName;
+
+  String get effectiveBase => baseName.isNotEmpty ? baseName : name;
 
   JarSiteSpec get spec => JarSiteSpec(
     siteId: siteId,
@@ -45,6 +49,7 @@ class StandaloneJarSite {
     String? ext,
     String? name,
     bool? missingConfig,
+    String? baseName,
   }) => StandaloneJarSite(
     siteId: siteId,
     jarId: jarId,
@@ -54,6 +59,7 @@ class StandaloneJarSite {
     name: name ?? this.name,
     ext: ext ?? this.ext,
     missingConfig: missingConfig ?? this.missingConfig,
+    baseName: baseName ?? this.baseName,
   );
 
   Map<String, dynamic> toJson() => {
@@ -65,6 +71,7 @@ class StandaloneJarSite {
     'name': name,
     if (ext.isNotEmpty) 'ext': ext,
     if (missingConfig) 'missingConfig': true,
+    if (baseName.isNotEmpty) 'baseName': baseName,
   };
 
   factory StandaloneJarSite.fromJson(Map<String, dynamic> json) =>
@@ -77,6 +84,7 @@ class StandaloneJarSite {
         name: json['name'] as String? ?? '',
         ext: json['ext'] as String? ?? '',
         missingConfig: json['missingConfig'] == true,
+        baseName: json['baseName'] as String? ?? '',
       );
 }
 
@@ -96,6 +104,51 @@ class JarImport {
       _builtinSites.containsKey(siteId);
 
   static StandaloneJarSite? siteFor(String siteId) => _sites[siteId];
+
+  static String fileBaseName(String fileName) {
+    var base = fileName.replaceAll('\\', '/');
+    final slash = base.lastIndexOf('/');
+    if (slash >= 0) base = base.substring(slash + 1);
+    base = base.trim();
+    final lower = base.toLowerCase();
+    if (lower.endsWith('.jar') || lower.endsWith('.zip')) {
+      base = base.substring(0, base.length - 4);
+    }
+    return base.trim();
+  }
+
+  static List<String> numberedNames(String base, int count) {
+    if (count <= 1) return [base];
+    return [for (var i = 1; i <= count; i++) '$base$i'];
+  }
+
+  static String uniqueSiteKey(String key, Set<String> taken) {
+    if (!taken.contains(key)) return key;
+    var index = 2;
+    while (taken.contains('${key}_$index')) {
+      index++;
+    }
+    return '${key}_$index';
+  }
+
+  static void _renumberBase(String base) {
+    final group = [
+      for (final site in _sites.values)
+        if (site.effectiveBase == base) site,
+    ];
+    final builtinCount = _builtinSites.values
+        .where((site) => site.effectiveBase == base)
+        .length;
+    final numbered = group.length + builtinCount > 1;
+    for (var i = 0; i < group.length; i++) {
+      final site = group[i];
+      final target = numbered ? '$base${i + 1}' : base;
+      if (site.name == target && site.baseName == base) continue;
+      final renamed = site.copyWith(name: target, baseName: base);
+      _sites[renamed.siteId] = renamed;
+      _register(renamed);
+    }
+  }
 
   static void restore(SharedPreferences preferences) {
     _sites.clear();
@@ -149,6 +202,12 @@ class JarImport {
         url: tempFile.path,
         md5: zakatvJarMd5,
       );
+      var youtubeConfig = '';
+      try {
+        youtubeConfig = await rootBundle.loadString(youtubeConfigAsset);
+      } catch (_) {
+        youtubeConfig = '';
+      }
       for (final builtin in zakatvBuiltinSites) {
         final site = StandaloneJarSite(
           siteId: JarSiteSpec.siteIdFor(zakatvJarId, builtin.key),
@@ -157,7 +216,9 @@ class JarImport {
           jarMd5: zakatvJarMd5,
           className: builtin.className,
           name: builtin.name,
-          ext: builtin.ext,
+          ext: builtin.key == 'ZakaYouTube' && youtubeConfig.isNotEmpty
+              ? youtubeConfig
+              : builtin.ext,
         );
         _builtinSites[site.siteId] = site;
         _registerBuiltin(site);
@@ -176,12 +237,14 @@ class JarImport {
         List<String> updated,
         List<String> configured,
         List<String> missing,
+        List<String> newSiteIds,
       })>
       scanAndRegister({
     required String jarId,
     required String jarUrl,
     String jarMd5 = '',
     List<JarSiteConfig> configs = const [],
+    String displayName = '',
   }) async {
     final jarPath = await JarBridge.ensureJarPath(
       configId: jarId,
@@ -191,79 +254,70 @@ class JarImport {
     final storedUrl = jarUrl.startsWith('http') ? jarUrl : jarPath;
     final classes = await JarBridge.enumerate(jarPath);
     final newly = <JarClassInfo>[];
-    final updated = <String>[];
-    final configured = <String>[];
-    final missing = <String>[];
-    var changed = false;
-    final existingByClass = <String, StandaloneJarSite>{};
-    for (final site in _sites.values) {
-      if (site.jarId == jarId) existingByClass[site.className] = site;
-    }
+    final newSiteIds = <String>[];
+    final created = <({String siteId, bool hasConfig})>[];
+    final bases = <String>[];
     for (final info in classes) {
       if (!info.instantiable) continue;
       final config = matchJarSiteConfig(info.className, configs);
-      final previous = existingByClass[info.className];
-      if (previous != null) {
-        if (config != null) {
-          final name = config.name.isNotEmpty ? config.name : previous.name;
-          if (previous.name != name ||
-              previous.ext != config.ext ||
-              previous.missingConfig) {
-            final site = previous.copyWith(
-              name: name,
-              ext: config.ext,
-              missingConfig: false,
-            );
-            _sites[site.siteId] = site;
-            _register(site);
-            updated.add(site.siteId);
-            configured.add(site.name);
-            changed = true;
-          }
-        }
-        continue;
-      }
-      var siteId = JarSiteSpec.siteIdFor(
+      final fileBase = fileBaseName(displayName);
+      final base = fileBase.isNotEmpty
+          ? fileBase
+          : config != null && config.name.isNotEmpty
+          ? config.name
+          : info.simpleName;
+      final key = config != null && config.key.isNotEmpty
+          ? config.key
+          : info.simpleName;
+      final prefix = 'jar:$jarId:';
+      final takenKeys = <String>{
+        for (final id in [..._sites.keys, ..._builtinSites.keys])
+          if (id.startsWith(prefix)) id.substring(prefix.length),
+      };
+      final siteId = JarSiteSpec.siteIdFor(
         jarId,
-        config != null && config.key.isNotEmpty ? config.key : info.simpleName,
+        uniqueSiteKey(key, takenKeys),
       );
-      final collision = _sites[siteId];
-      if (collision != null && collision.className != info.className) {
-        siteId = JarSiteSpec.siteIdFor(
-          jarId,
-          info.className.replaceAll('.', '_'),
-        );
-      }
-      if (_sites.containsKey(siteId)) continue;
       final site = StandaloneJarSite(
         siteId: siteId,
         jarId: jarId,
         jarUrl: storedUrl,
         jarMd5: jarMd5,
         className: info.className,
-        name: config != null && config.name.isNotEmpty
-            ? config.name
-            : info.simpleName,
+        name: base,
         ext: config?.ext ?? '',
         missingConfig: config == null,
+        baseName: base,
       );
       _sites[siteId] = site;
       _register(site);
       newly.add(info);
-      changed = true;
-      if (config == null) {
-        missing.add(site.name);
-      } else {
+      newSiteIds.add(siteId);
+      created.add((siteId: siteId, hasConfig: config != null));
+      if (!bases.contains(base)) bases.add(base);
+    }
+    for (final base in bases) {
+      _renumberBase(base);
+    }
+    final configured = <String>[];
+    final missing = <String>[];
+    for (final item in created) {
+      final site = _sites[item.siteId];
+      if (site == null) continue;
+      if (item.hasConfig) {
         configured.add(site.name);
+      } else {
+        missing.add(site.name);
       }
     }
-    if (changed) await _persist();
+    if (created.isNotEmpty) await _persist();
     return (
       all: classes,
       newly: newly,
-      updated: updated,
+      updated: const <String>[],
       configured: configured,
       missing: missing,
+      newSiteIds: newSiteIds,
     );
   }
 
@@ -282,29 +336,48 @@ class JarImport {
     required String className,
     String name = '',
     String ext = '',
+    String displayName = '',
   }) async {
     final simple = className.split('.').last;
-    final siteId = JarSiteSpec.siteIdFor(jarId, simple);
+    final fileBase = fileBaseName(displayName);
+    final base = fileBase.isNotEmpty
+        ? fileBase
+        : name.isNotEmpty
+        ? name
+        : simple;
+    final prefix = 'jar:$jarId:';
+    final takenKeys = <String>{
+      for (final id in [..._sites.keys, ..._builtinSites.keys])
+        if (id.startsWith(prefix)) id.substring(prefix.length),
+    };
+    final siteId = JarSiteSpec.siteIdFor(
+      jarId,
+      uniqueSiteKey(simple, takenKeys),
+    );
     final site = StandaloneJarSite(
       siteId: siteId,
       jarId: jarId,
       jarUrl: jarUrl,
       jarMd5: jarMd5,
       className: className,
-      name: name.isNotEmpty ? name : simple,
+      name: base,
       ext: ext,
       missingConfig: ext.isEmpty,
+      baseName: base,
     );
     _sites[siteId] = site;
     _register(site);
+    _renumberBase(base);
     await _persist();
   }
 
   static Future<void> remove(String siteId) async {
     if (_builtinSites.containsKey(siteId)) return;
-    if (_sites.remove(siteId) == null) return;
+    final removed = _sites.remove(siteId);
+    if (removed == null) return;
     JarBridge.unregister(siteId);
     SourceSite.importedSites.remove(siteId);
+    _renumberBase(removed.effectiveBase);
     await _persist();
   }
 

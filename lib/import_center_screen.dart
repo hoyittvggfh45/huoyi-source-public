@@ -183,6 +183,7 @@ class _ImportCenterScreenState extends State<ImportCenterScreen> {
       jarId: jarId,
       jarUrl: filePath,
       configs: configs,
+      displayName: JarImport.fileBaseName(filePath),
     );
     if (!mounted) return;
     final classes = result.all;
@@ -203,7 +204,7 @@ class _ImportCenterScreenState extends State<ImportCenterScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '识别到 ${classes.length} 个 Spider 类，新增注册 $usable 个站点（进「导入」分组，重复导入不重复计数）。',
+                  '识别到 ${classes.length} 个 Spider 类，新增注册 $usable 个站点（进「导入」分组，站名跟文件名，重复导入另注册新站点、同名按序号区分）。',
                 ),
                 if (result.updated.isNotEmpty) ...[
                   const SizedBox(height: 8),

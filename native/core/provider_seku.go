@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -43,7 +44,7 @@ var sekuSlotPublicIDs = map[string]string{
 	"pigav":          "v_pigav",
 	"aoxx69":         "v_aoxx69",
 	"javdb":          "v_javdb",
-"z2_17rip":       "v_z2_17rip",
+	"z2_17rip":       "v_z2_17rip",
 	"z2_321av":       "v_z2_321av",
 	"z2_av6k":        "v_z2_av6k",
 	"z2_7mm":         "v_z2_7mm",
@@ -426,6 +427,11 @@ func (d *Downloader) resolveSekuMedia(ctx context.Context, task Task) (providerM
 	media := providerMedia{URL: address, Referer: referer, NeedsParse: parseFlagFromMap(result)}
 	if playlist := sekuMapText(result, "playlist"); playlist != "" {
 		media.Playlist = playlist
+	}
+	if keyHex := sekuMapText(result, "hlsKey"); keyHex != "" {
+		if key, err := hex.DecodeString(keyHex); err == nil && len(key) == 16 {
+			media.HLSKey = key
+		}
 	}
 	if hook := seku.HookForPlaylist(address); hook != nil {
 		media.Hook = hook

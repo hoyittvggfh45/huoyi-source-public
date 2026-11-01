@@ -224,6 +224,22 @@ class JarBridge {
   ]) async {
     final jarPath = await _ensureJar(spec);
     try {
+      return await _invokeCall(spec, jarPath, method, args);
+    } on JarBridgeFailure catch (failure) {
+      if (!failure.message.contains('未找到站点类')) rethrow;
+      final recovered = await _retryWithFreshJar(spec, method, args);
+      if (recovered != null) return recovered;
+      rethrow;
+    }
+  }
+
+  static Future<Map<String, dynamic>> _invokeCall(
+    JarSiteSpec spec,
+    String jarPath,
+    String method,
+    Map<String, dynamic> args,
+  ) async {
+    try {
       final result = await _channel.invokeMapMethod<String, dynamic>('call', {
         'siteId': spec.siteId,
         'configId': spec.configId,
@@ -245,6 +261,38 @@ class JarBridge {
       throw JarBridgeFailure(error.message ?? 'jar 桥调用失败');
     } on MissingPluginException {
       throw JarBridgeFailure('jar 桥未就绪：当前安装包未包含 jar 桥通道');
+    }
+  }
+
+  static Future<Map<String, dynamic>?> _retryWithFreshJar(
+    JarSiteSpec spec,
+    String method,
+    Map<String, dynamic> args,
+  ) async {
+    try {
+      _jarPaths.remove(spec.configId);
+      String? fallbackPath;
+      if (spec.jarMd5.isNotEmpty) {
+        final directory = await getApplicationSupportDirectory();
+        final imported = File(
+          path.join(directory.path, 'imported_jars', '${spec.jarMd5}.jar'),
+        );
+        if (await imported.exists()) fallbackPath = imported.path;
+      }
+      fallbackPath ??= await _ensureJar(spec);
+      final recovered = await _invokeCall(spec, fallbackPath, method, args);
+      if (spec.jarMd5.isNotEmpty && fallbackPath.isNotEmpty) {
+        try {
+          await ensureJarPath(
+            configId: spec.configId,
+            url: fallbackPath,
+            md5: spec.jarMd5,
+          );
+        } catch (_) {}
+      }
+      return recovered;
+    } catch (_) {
+      return null;
     }
   }
 
@@ -342,6 +390,13 @@ class JarBridge {
       'filter': true,
       'extend': <String, String>{},
     });
+    if ((result['list'] as List? ?? const []).isNotEmpty || page > 1) {
+      return _listToPage(spec, result, page: page);
+    }
+    final videos = await callJson(spec, 'homeVideoContent');
+    if ((videos['list'] as List? ?? const []).isNotEmpty) {
+      return _listToPage(spec, videos, page: page);
+    }
     return _listToPage(spec, result, page: page);
   }
 
