@@ -16,6 +16,8 @@ enum AppDrawerTool {
   proxyKernel,
   lanSync,
   ruleEditor,
+  serviceCenter,
+  miniApp,
 }
 
 class SiteSourceBox extends StatelessWidget {
@@ -86,10 +88,12 @@ class AppDrawer extends StatelessWidget {
     required String label,
     required bool selected,
     required VoidCallback onTap,
+    Widget? subtitle,
   }) {
     return ListTile(
       leading: Icon(icon),
       title: Text(label),
+      subtitle: subtitle,
       selected: selected,
       onTap: onTap,
     );
@@ -193,6 +197,22 @@ class AppDrawer extends StatelessWidget {
                 label: '小说',
                 selected: zone == HomeZone.novel,
                 onTap: () => onZoneSelected(HomeZone.novel),
+              ),
+              _sectionTitle('服务'),
+              _moduleTile(
+                icon: Icons.dns_rounded,
+                label: 'duoju',
+                subtitle: const Text('端口 5689'),
+                selected: false,
+                onTap: () => onTool(AppDrawerTool.serviceCenter),
+              ),
+              _sectionTitle('小程序'),
+              _moduleTile(
+                icon: Icons.apps_rounded,
+                label: '小程序',
+                subtitle: const Text('海阔规则模块'),
+                selected: false,
+                onTap: () => onTool(AppDrawerTool.miniApp),
               ),
               const Divider(),
               _sectionTitle('应用工具', subtitle: '通用配置与管理'),

@@ -58,6 +58,9 @@ flutter:
     - assets/py_spiders/
     - assets/jars/zakatv.jar
     - assets/jars/youtube.jar
+    - assets/node_runtime.tar.gz
+    - assets/duoju-node.tar.gz
     - assets/youtube3.json
     - assets/jar_site_configs.json
+    - assets/miniapp/
     - assets/ant_logo.png

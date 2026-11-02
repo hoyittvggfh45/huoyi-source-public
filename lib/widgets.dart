@@ -650,11 +650,14 @@ SliverGridDelegate dramaGridDelegate(BuildContext context, double width) {
   final tileWidth = (width - (columns - 1) * spacing) / columns;
   return SliverGridDelegateWithFixedCrossAxisCount(
     crossAxisCount: columns,
-    mainAxisSpacing: 22,
+    mainAxisSpacing: videoGridMainAxisSpacing(tileWidth),
     crossAxisSpacing: spacing,
     mainAxisExtent: DramaTile.extentFor(context, tileWidth),
   );
 }
+
+double videoGridMainAxisSpacing(double tileWidth) =>
+    (tileWidth * 0.10).clamp(8.0, 16.0);
 
 String formatPosition(double seconds) {
   final value = seconds.isFinite ? seconds.toInt().clamp(0, 999999) : 0;

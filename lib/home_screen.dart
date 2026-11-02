@@ -23,6 +23,8 @@ import 'proxy_kernel_screen.dart';
 import 'lan_screen.dart';
 import 'clearance_bridge.dart';
 import 'rule_editor_screen.dart';
+import 'service_center.dart';
+import 'miniapp_center.dart';
 import 'watchroom/room_screen.dart';
 import 'app_update.dart';
 import 'core_bridge.dart';
@@ -1467,6 +1469,10 @@ class _HomeScreenState extends State<HomeScreen> {
         _pushTool(ProxyKernelScreen(repository: widget.repository));
       case AppDrawerTool.ruleEditor:
         _pushTool(RuleEditorScreen(repository: widget.repository));
+      case AppDrawerTool.serviceCenter:
+        _pushTool(ServiceCenterScreen(store: widget.store));
+      case AppDrawerTool.miniApp:
+        _pushTool(MiniAppCenterScreen(store: widget.store));
     }
   }
 
