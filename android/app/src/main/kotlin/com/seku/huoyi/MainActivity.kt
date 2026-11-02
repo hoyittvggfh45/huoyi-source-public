@@ -240,7 +240,7 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         flutterEngine.plugins.add(VideoSurfacePlugin())
         flutterEngine.plugins.add(TvboxPlayerPlugin())
-        flutterEngine.plugins.add(FongmiPlayerPlugin())
+        flutterEngine.plugins.add(IjkPlayerPlugin())
         JarBridge.register(flutterEngine.dartExecutor.binaryMessenger, this)
         AppUpdateBridge.register(flutterEngine.dartExecutor.binaryMessenger, this)
         ProxyKernelBridge.register(flutterEngine.dartExecutor.binaryMessenger, this)

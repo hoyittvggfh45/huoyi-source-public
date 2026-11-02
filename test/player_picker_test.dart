@@ -8,9 +8,9 @@ void main() {
   testWidgets('tapping a player tile persists it without the confirm button', (
     tester,
   ) async {
-    SharedPreferences.setMockInitialValues({'player': 'fongmi'});
+    SharedPreferences.setMockInitialValues({'player': 'tvbox'});
     final store = LocalStore(await SharedPreferences.getInstance());
-    expect(store.player, 'fongmi');
+    expect(store.player, 'tvbox');
     await tester.pumpWidget(
       MaterialApp(home: PlayerPickerScreen(store: store)),
     );

@@ -80,7 +80,7 @@ class PyContentSource extends ContentSource {
   String? _path;
 
   @override
-  String get note => importedFileName.isNotEmpty ? '导入 py 蜘蛛' : '内置 py 蜘蛛';
+  String get note => importedFileName.isNotEmpty ? '导入 py 蜘蛛' : '';
 
   Future<String> _spiderPath() async {
     final cached = _path;

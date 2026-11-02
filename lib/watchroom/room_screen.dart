@@ -429,9 +429,7 @@ class _WatchRoomScreenState extends State<WatchRoomScreen>
       appPageRoute<void>(
         builder: (_) => RoomFullscreenPage(
           handle: _player,
-          viewType: widget.store.player == 'fongmi'
-              ? TvboxPlayerController.fongmiViewType
-              : TvboxPlayerController.viewType,
+          viewType: TvboxPlayerController.viewType,
           onCompleted: _onCompleted,
           onError: (message) => _showMessage(message),
           onRetry: () {
@@ -453,9 +451,7 @@ class _WatchRoomScreenState extends State<WatchRoomScreen>
           aspectRatio: 16 / 9,
           child: RoomPlayerView(
             handle: _player,
-            viewType: widget.store.player == 'fongmi'
-                ? TvboxPlayerController.fongmiViewType
-                : TvboxPlayerController.viewType,
+            viewType: TvboxPlayerController.viewType,
             onCompleted: _onCompleted,
             onError: (message) => _showMessage(message),
             onRetry: () {

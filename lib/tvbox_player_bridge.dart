@@ -7,7 +7,6 @@ class TvboxPlayerController {
   TvboxPlayerController._(this._channel);
 
   static const String viewType = 'huoyi/tvboxplayer';
-  static const String fongmiViewType = 'huoyi/fongmiplayer';
   static bool get supported => Platform.isAndroid;
 
   final MethodChannel _channel;

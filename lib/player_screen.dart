@@ -43,7 +43,7 @@ import 'playback_preferences.dart';
 import 'player_controls.dart';
 import 'player_core.dart';
 import 'player_route.dart';
-import 'mdk_video_pane.dart';
+import 'ijk_video_pane.dart';
 import 'network_speed.dart';
 import 'watchroom/push_to_watch_room.dart';
 import 'tvbox_video_pane.dart';
@@ -127,10 +127,10 @@ class _PlayerScreenState extends State<PlayerScreen>
   PlaybackPlan? _tvboxPlan;
   double _tvboxStartPosition = 0;
   bool _tvboxAutoplay = true;
-  final _mdkHandle = MdkPlaybackHandle();
-  PlaybackPlan? _mdkPlan;
-  double _mdkStartPosition = 0;
-  bool _mdkAutoplay = true;
+  final _ijkHandle = IjkPlaybackHandle();
+  PlaybackPlan? _ijkPlan;
+  double _ijkStartPosition = 0;
+  bool _ijkAutoplay = true;
   late PlayerCore _core;
   final _menuRevision = ValueNotifier<int>(0);
   final List<StreamSubscription<dynamic>> _subscriptions = [];
@@ -307,7 +307,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   bool get _useTvbox =>
       !_television &&
       Platform.isAndroid &&
-      (widget.store.player == 'tvbox' || widget.store.player == 'fongmi') &&
+      (widget.store.player == 'tvbox') &&
       (_plan?.decryptionKey.isEmpty ?? true) &&
       _backendManager?.current != PlaybackBackend.main;
   PlayerCore get _effectiveCore =>
@@ -316,30 +316,30 @@ class _PlayerScreenState extends State<PlayerScreen>
       !_television &&
       Platform.isAndroid &&
       _effectiveCore == PlayerCore.exo;
-  bool get _useMdkCore => !_television && _effectiveCore == PlayerCore.mdk;
+  bool get _useIjkCore => !_television && _effectiveCore == PlayerCore.ijk;
   bool get _useNativeHandle => _useTvbox || _useExoCore;
   Duration get _enginePosition => _useNativeHandle
       ? _tvboxHandle.position
-      : _useMdkCore
-      ? _mdkHandle.position
+      : _useIjkCore
+      ? _ijkHandle.position
       : _player.state.position;
   Duration get _engineDuration => _useNativeHandle
       ? _tvboxHandle.duration
-      : _useMdkCore
-      ? _mdkHandle.duration
+      : _useIjkCore
+      ? _ijkHandle.duration
       : _player.state.duration;
   bool get _enginePlaying => _useNativeHandle
       ? _tvboxHandle.playing
-      : _useMdkCore
-      ? _mdkHandle.playing
+      : _useIjkCore
+      ? _ijkHandle.playing
       : _player.state.playing;
   VideoEnhancementController? get _enhancementForUi =>
       _enhancement.supported ? _enhancement : null;
   PlaybackPreferences get _preferences => PlaybackPreferences(
     speed: _useNativeHandle
         ? _tvboxHandle.speed
-        : _useMdkCore
-        ? _mdkHandle.speed
+        : _useIjkCore
+        ? _ijkHandle.speed
         : _speed,
     quality: _requestedQuality,
     autoAdvance: _autoAdvance,
@@ -365,17 +365,17 @@ class _PlayerScreenState extends State<PlayerScreen>
           _openedIndex == _index &&
           _tvboxHandle.position > Duration.zero
       ? _tvboxHandle.positionSeconds
-      : _useMdkCore &&
+      : _useIjkCore &&
             _openedIndex == _index &&
-            _mdkHandle.position > Duration.zero
-      ? _mdkHandle.positionSeconds
+            _ijkHandle.position > Duration.zero
+      ? _ijkHandle.positionSeconds
       : _openedIndex == _index && _player.state.position.inMilliseconds > 0
       ? _player.state.position.inMilliseconds / 1000
       : _resumePosition;
   Duration get _seekFallbackPosition => _useNativeHandle
       ? _tvboxHandle.position
-      : _useMdkCore
-      ? _mdkHandle.position
+      : _useIjkCore
+      ? _ijkHandle.position
       : _player.state.position;
 
   @override
@@ -387,7 +387,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     final preferences = widget.store.playbackPreferences;
     _speed = preferences.speed;
     _tvboxHandle.speed = preferences.speed;
-    _mdkHandle.speed = preferences.speed;
+    _ijkHandle.speed = preferences.speed;
     _core = PlayerCoreStorage.read(widget.store.preferences);
     _requestedQuality = preferences.quality;
     _autoAdvance = true;
@@ -1135,11 +1135,11 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
   }
 
-  void _onMdkCompleted() {
+  void _onIjkCompleted() {
     if (_loading || _closed || !_acceptErrors || _error != null) return;
-    final duration = _mdkHandle.duration;
+    final duration = _ijkHandle.duration;
     if (duration <= Duration.zero ||
-        _mdkHandle.position < duration - const Duration(seconds: 2)) {
+        _ijkHandle.position < duration - const Duration(seconds: 2)) {
       _queueRecovery();
     } else if (_autoAdvance &&
         _foreground &&
@@ -1151,12 +1151,12 @@ class _PlayerScreenState extends State<PlayerScreen>
     } else {
       _playIntent = false;
       _interactions.cancel();
-      unawaited(_mdkHandle.pause());
+      unawaited(_ijkHandle.pause());
       unawaited(_saveProgress(flush: true));
     }
   }
 
-  void _onMdkError(String message) {
+  void _onIjkError(String message) {
     if (_closed || _loading || _error != null) return;
     if (mounted) {
       setState(() {
@@ -1205,17 +1205,17 @@ class _PlayerScreenState extends State<PlayerScreen>
       _syncDanmaku();
       return;
     }
-    if (_useMdkCore) {
-      _playIntent = !_mdkHandle.playing;
+    if (_useIjkCore) {
+      _playIntent = !_ijkHandle.playing;
       _health.reset();
-      if (_playIntent && _mdkHandle.completed) {
+      if (_playIntent && _ijkHandle.completed) {
         unawaited(_play(_index));
         return;
       }
       if (_playIntent) {
-        unawaited(_mdkHandle.play());
+        unawaited(_ijkHandle.play());
       } else {
-        unawaited(_mdkHandle.pause());
+        unawaited(_ijkHandle.pause());
       }
       if (!_playIntent) unawaited(_saveProgress(flush: true));
       _syncDanmaku();
@@ -1239,13 +1239,13 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
     final position = _useNativeHandle
         ? _tvboxHandle.positionSeconds
-        : _useMdkCore
-        ? _mdkHandle.positionSeconds
+        : _useIjkCore
+        ? _ijkHandle.positionSeconds
         : _player.state.position.inMilliseconds / 1000;
     final duration = _useNativeHandle
         ? _tvboxHandle.durationSeconds
-        : _useMdkCore
-        ? _mdkHandle.durationSeconds
+        : _useIjkCore
+        ? _ijkHandle.durationSeconds
         : _player.state.duration.inMilliseconds / 1000;
     if (position < .1) {
       return;
@@ -1605,13 +1605,13 @@ class _PlayerScreenState extends State<PlayerScreen>
         }
         final useNativeForPlan =
             (_useTvbox || _useExoCore) && plan.decryptionKey.isEmpty;
-        final useMdkForPlan = _useMdkCore && plan.decryptionKey.isEmpty;
+        final useIjkForPlan = _useIjkCore && plan.decryptionKey.isEmpty;
         _backendManager ??= PlaybackBackendManager(
           initial: useNativeForPlan
               ? PlaybackBackend.tvbox
               : PlaybackBackend.main,
         );
-        if (!useNativeForPlan && !useMdkForPlan && platform is NativePlayer) {
+        if (!useNativeForPlan && !useIjkForPlan && platform is NativePlayer) {
           if (Platform.isAndroid) {
             if (_televisionDecoderApplies) {
               final optimized =
@@ -1689,10 +1689,10 @@ class _PlayerScreenState extends State<PlayerScreen>
           _tvboxPlan = plan;
           _tvboxStartPosition = position;
           _tvboxAutoplay = _foreground && _playIntent;
-        } else if (useMdkForPlan) {
-          _mdkPlan = plan;
-          _mdkStartPosition = position;
-          _mdkAutoplay = _foreground && _playIntent;
+        } else if (useIjkForPlan) {
+          _ijkPlan = plan;
+          _ijkStartPosition = position;
+          _ijkAutoplay = _foreground && _playIntent;
         } else {
           await _player.open(
             Media(
@@ -1709,10 +1709,10 @@ class _PlayerScreenState extends State<PlayerScreen>
           return;
         }
         _openedIndex = index;
-        if (!_useNativeHandle && !_useMdkCore) _enhancement.mediaReady();
+        if (!_useNativeHandle && !_useIjkCore) _enhancement.mediaReady();
         _attachLanPlayback();
         _health.reset();
-        if (!_useNativeHandle && !_useMdkCore) {
+        if (!_useNativeHandle && !_useIjkCore) {
           await _interactions.applySpeed();
         }
         if (mounted && !_closed && ticket == _generation) {
@@ -1803,6 +1803,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       context,
       _effectiveCore,
       exoAvailable: Platform.isAndroid,
+      ijkAvailable: Platform.isAndroid,
     );
     if (next == null || next == _effectiveCore || _closed) return;
     await _switchCore(next);
@@ -2153,7 +2154,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     _menuRevision.value++;
     await _interactions.applySpeed();
     if (_useNativeHandle) unawaited(_tvboxHandle.setSpeed(_speed));
-    if (_useMdkCore) unawaited(_mdkHandle.setSpeed(_speed));
+    if (_useIjkCore) unawaited(_ijkHandle.setSpeed(_speed));
     if (qualityChanged && _plan?.local != true) {
       await _retry(quality: nextPreferences.quality);
     } else if (adBlockChanged && _plan?.local != true) {
@@ -2268,8 +2269,8 @@ class _PlayerScreenState extends State<PlayerScreen>
     try {
       if (_useNativeHandle) {
         await _tvboxHandle.seek(target);
-      } else if (_useMdkCore) {
-        await _mdkHandle.seek(target);
+      } else if (_useIjkCore) {
+        await _ijkHandle.seek(target);
       } else {
         await _player.seek(target);
       }
@@ -3284,9 +3285,7 @@ class _PlayerScreenState extends State<PlayerScreen>
               else if (!_sniffEmbedded && _useNativeHandle)
                 TvboxVideoPane(
                   key: _tvboxPaneKey,
-                  viewType: widget.store.player == 'fongmi'
-                      ? TvboxPlayerController.fongmiViewType
-                      : TvboxPlayerController.viewType,
+                  viewType: TvboxPlayerController.viewType,
                   plan: _tvboxPlan,
                   startPosition: _tvboxStartPosition,
                   autoplay: _tvboxAutoplay,
@@ -3304,17 +3303,14 @@ class _PlayerScreenState extends State<PlayerScreen>
                       ? widget.embeddedFullscreen
                       : _showFullscreen,
                 )
-              else if (!_sniffEmbedded && _useMdkCore)
-                MdkVideoPane(
-                  plan: _mdkPlan,
-                  startPosition: _mdkStartPosition,
-                  autoplay: _mdkAutoplay,
-                  handle: _mdkHandle,
-                  onCompleted: _onMdkCompleted,
-                  onError: _onMdkError,
-                  core: _effectiveCore,
-                  onCoreTap: _openCoreDialog,
-                  title: title,
+              else if (!_sniffEmbedded && _useIjkCore)
+                IjkVideoPane(
+                  plan: _ijkPlan,
+                  startPosition: _ijkStartPosition,
+                  autoplay: _ijkAutoplay,
+                  handle: _ijkHandle,
+                  onCompleted: _onIjkCompleted,
+                  onError: _onIjkError,
                   onBack: _backToList,
                   onFullscreen: widget.embedded
                       ? _notifyEmbeddedFullscreen
@@ -3331,7 +3327,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                 ),
               if (_audioMode && !hideOverlayForPictureInPicture)
                 Positioned.fill(child: _audioPosterOverlay()),
-              if (_useExoCore && !hideOverlayForPictureInPicture)
+              if ((_useExoCore || _useIjkCore) && !hideOverlayForPictureInPicture)
                 Positioned(
                   top: 8,
                   right: 8,
@@ -3506,7 +3502,7 @@ class _PlayerScreenState extends State<PlayerScreen>
               if (_mobile &&
                   !_television &&
                   !_useNativeHandle &&
-                  !_useMdkCore &&
+                  !_useIjkCore &&
                   !hideOverlayForPictureInPicture &&
                   !((_loading || _error != null) && _showFullscreen))
                 Positioned(

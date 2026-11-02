@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 enum PlayerCore {
+  exo('exo', 'EXO', 'Media3', 'Android 原生硬解，TV 最流畅'),
   mpv('mpv', 'MPV', 'media_kit', '稳定、功能丰富'),
-  mdk('mdk', 'MDK', 'fvp', '高性能、硬解强'),
-  exo('exo', 'EXO', 'Media3', 'Android 原生硬解，TV 最流畅');
+  ijk('ijk', 'IJK', 'ijkplayer', '兼容性强，老片源兜底');
 
   const PlayerCore(this.id, this.label, this.engine, this.description);
 
@@ -38,9 +38,19 @@ class PlayerCoreOption {
   final String? disabledNote;
 }
 
-List<PlayerCoreOption> playerCoreOptions({required bool exoAvailable}) {
+List<PlayerCoreOption> playerCoreOptions({
+  required bool exoAvailable,
+  bool ijkAvailable = false,
+}) {
   return PlayerCore.values.map((core) {
     if (core == PlayerCore.exo && !exoAvailable) {
+      return PlayerCoreOption(
+        core: core,
+        enabled: false,
+        disabledNote: '仅 Android 可用',
+      );
+    }
+    if (core == PlayerCore.ijk && !ijkAvailable) {
       return PlayerCoreOption(
         core: core,
         enabled: false,
@@ -99,8 +109,12 @@ Future<PlayerCore?> showPlayerCoreDialog(
   BuildContext context,
   PlayerCore current, {
   required bool exoAvailable,
+  bool ijkAvailable = false,
 }) {
-  final options = playerCoreOptions(exoAvailable: exoAvailable);
+  final options = playerCoreOptions(
+    exoAvailable: exoAvailable,
+    ijkAvailable: ijkAvailable,
+  );
   return showDialog<PlayerCore>(
     context: context,
     builder: (context) {

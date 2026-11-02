@@ -118,7 +118,7 @@ class RoomPlayerHandle extends ChangeNotifier {
       _repository = repository;
       final tvbox =
           Platform.isAndroid &&
-          (store.player == 'tvbox' || store.player == 'fongmi') &&
+          (store.player == 'tvbox') &&
           plan.decryptionKey.isEmpty;
       if (tvbox) {
         useTvbox = true;

@@ -12,13 +12,12 @@ import 'player_screen.dart';
 
 import 'package:duanju_app/xigua/xigua_player_screen.dart';
 
-/// 用户选定的播放器：guo（内置）或 xigua（移植自西瓜版）。
+/// 用户选定的播放器：guo（内置）、xigua（移植自西瓜版）或 tvbox（安卓原生）。
 /// 持久化在 LocalStore 的 `player` 键（缺失时默认 guo），App 四端可随时切换。
 enum AppPlayer {
   guo('guo', 'guo 播放器'),
   xigua('xigua', 'xigua 播放器'),
-  tvbox('tvbox', 'TVBox 原生播放器'),
-  fongmi('fongmi', 'FongMi 播放器');
+  tvbox('tvbox', 'TVBox 原生播放器');
 
   const AppPlayer(this.id, this.label);
   final String id;
@@ -160,7 +159,7 @@ class _PlayerPickerScreenState extends State<PlayerPickerScreen> {
         children: [
           for (final player in AppPlayer.values.where(
             (player) =>
-                (player != AppPlayer.tvbox && player != AppPlayer.fongmi) ||
+                (player != AppPlayer.tvbox) ||
                 Platform.isAndroid,
           ))
             Padding(
@@ -185,8 +184,6 @@ class _PlayerPickerScreenState extends State<PlayerPickerScreen> {
                       ? '内置播放器，轻量稳定，支持弹幕与线路切换'
                       : player == AppPlayer.xigua
                       ? '移植自西瓜版，支持玻璃面板、睡眠定时、观看统计与推荐'
-                      : player == AppPlayer.fongmi
-                      ? 'FongMi 风格 ExoPlayer 后端，解码失败自动切软解，仅 Android 可用'
                       : '安卓原生 ExoPlayer 后端，仅 Android 可用',
                 ),
                 trailing: _selected == player

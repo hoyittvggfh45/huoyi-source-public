@@ -123,7 +123,14 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.4.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.4.1")
     implementation("androidx.media3:media3-ui:1.4.1")
+    implementation("tv.danmaku.ijk.media:ijkplayer-java:0.8.8")
+    implementation("tv.danmaku.ijk.media:ijkplayer-armv7a:0.8.8")
+    implementation("tv.danmaku.ijk.media:ijkplayer-arm64:0.8.8")
     testImplementation("junit:junit:4.13.2")
+}
+
+repositories {
+    maven { url = uri("https://maven.aliyun.com/repository/jcenter") }
 }
 
 flutter { source = "../.." }

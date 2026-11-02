@@ -852,9 +852,7 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
             children: [
               RoomPlayerView(
                 handle: _player,
-                viewType: widget.store.player == 'fongmi'
-                    ? TvboxPlayerController.fongmiViewType
-                    : TvboxPlayerController.viewType,
+                viewType: TvboxPlayerController.viewType,
                 onCompleted: _onCompleted,
                 onError: (_) {},
                 onRetry: () => unawaited(_playCurrent()),

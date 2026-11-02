@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -111,19 +112,77 @@ class NovelReaderView extends StatefulWidget {
   State<NovelReaderView> createState() => _NovelReaderViewState();
 }
 
-class _NovelReaderViewState extends State<NovelReaderView> {
+class _FoldClipper extends CustomClipper<Path> {
+  const _FoldClipper({
+    required this.forward,
+    required this.foldX,
+    required this.bulge,
+  });
+
+  final bool forward;
+  final double foldX;
+  final double bulge;
+
+  @override
+  Path getClip(Size size) {
+    final path = Path();
+    if (forward) {
+      path.moveTo(0, 0);
+      path.lineTo(foldX, 0);
+      path.quadraticBezierTo(
+        foldX + bulge,
+        size.height / 2,
+        foldX,
+        size.height,
+      );
+      path.lineTo(0, size.height);
+    } else {
+      path.moveTo(size.width, 0);
+      path.lineTo(foldX, 0);
+      path.quadraticBezierTo(
+        foldX - bulge,
+        size.height / 2,
+        foldX,
+        size.height,
+      );
+      path.lineTo(size.width, size.height);
+    }
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(covariant _FoldClipper oldClipper) {
+    return oldClipper.forward != forward ||
+        oldClipper.foldX != foldX ||
+        oldClipper.bulge != bulge;
+  }
+}
+
+class _NovelReaderViewState extends State<NovelReaderView>
+    with SingleTickerProviderStateMixin {
   double _fontSize = 17;
-  late final PageController _controller = PageController();
+  late final AnimationController _turnController;
   int _page = 0;
   List<String> _pages = const [];
   double _pageWidth = 0;
   double _pageHeight = 0;
   double _pageFont = 0;
   String _pageText = '';
+  int _turnDirection = 0;
+  int? _turnTarget;
+  double _dragDistance = 0;
+  bool _dragging = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _turnController = AnimationController(vsync: this);
+  }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _turnController.dispose();
     super.dispose();
   }
 
@@ -133,7 +192,11 @@ class _NovelReaderViewState extends State<NovelReaderView> {
     if (oldWidget.content.text != widget.content.text) {
       _pages = const [];
       _page = 0;
-      _controller.jumpToPage(0);
+      _turnDirection = 0;
+      _turnTarget = null;
+      _dragDistance = 0;
+      _dragging = false;
+      _turnController.stop();
     }
   }
 
@@ -172,14 +235,295 @@ class _NovelReaderViewState extends State<NovelReaderView> {
     return pages.isEmpty ? const [''] : pages;
   }
 
-  void _go(int next) {
+  void _clearTurn() {
+    _turnDirection = 0;
+    _turnTarget = null;
+    _dragDistance = 0;
+    _dragging = false;
+  }
+
+  void _startTurn(int direction) {
+    if (_pages.isEmpty || _turnController.isAnimating) return;
+    final target = _page + direction;
+    if (target < 0 || target >= _pages.length) return;
+    setState(() {
+      _turnDirection = direction;
+      _turnTarget = target;
+      _dragDistance = 0;
+    });
+    _turnController.duration = const Duration(milliseconds: 560);
+    _turnController.forward(from: 0).then((_) {
+      if (!mounted) return;
+      setState(() {
+        _page = target;
+        _clearTurn();
+      });
+      _turnController.reset();
+    }, onError: (_) {});
+  }
+
+  void _onDragStart(double width) {
     if (_pages.isEmpty) return;
-    final target = next.clamp(0, _pages.length - 1);
-    if (target == _page) return;
-    _controller.animateToPage(
-      target,
-      duration: const Duration(milliseconds: 380),
-      curve: Curves.easeOutCubic,
+    _turnController.stop();
+    _dragging = true;
+    if (_turnDirection == 1) {
+      _dragDistance = -_turnController.value * width;
+    } else if (_turnDirection == -1) {
+      _dragDistance = _turnController.value * width;
+    } else {
+      _dragDistance = 0;
+    }
+  }
+
+  void _onDragUpdate(DragUpdateDetails details, double width) {
+    if (_pages.isEmpty || !_dragging) return;
+    _dragDistance += details.delta.dx;
+    final direction = _dragDistance < 0
+        ? 1
+        : _dragDistance > 0
+        ? -1
+        : 0;
+    if (direction == 0) {
+      setState(() {
+        _turnDirection = 0;
+        _turnTarget = null;
+        _turnController.value = 0;
+      });
+      return;
+    }
+    final target = _page + direction;
+    setState(() {
+      _turnDirection = direction;
+      if (target < 0 || target >= _pages.length) {
+        _turnTarget = null;
+        _turnController.value = (_dragDistance.abs() / width * 0.25).clamp(
+          0.0,
+          0.3,
+        );
+      } else {
+        _turnTarget = target;
+        _turnController.value = (_dragDistance.abs() / width).clamp(0.0, 1.0);
+      }
+    });
+  }
+
+  void _onDragEnd(DragEndDetails details) {
+    if (!_dragging) return;
+    _dragging = false;
+    final progress = _turnController.value;
+    if (progress <= 0.001) {
+      setState(_clearTurn);
+      return;
+    }
+    final velocity = details.velocity.pixelsPerSecond.dx;
+    final target = _turnTarget;
+    final fling =
+        (velocity < -500 && _turnDirection == 1) ||
+        (velocity > 500 && _turnDirection == -1);
+    if (target != null && (fling || progress >= 0.28)) {
+      _turnController.duration = const Duration(milliseconds: 480);
+      _turnController.forward().then((_) {
+        if (!mounted) return;
+        setState(() {
+          _page = target;
+          _clearTurn();
+        });
+        _turnController.reset();
+      }, onError: (_) {});
+    } else {
+      _turnController.duration = const Duration(milliseconds: 280);
+      _turnController.reverse().then((_) {
+        if (!mounted) return;
+        setState(_clearTurn);
+      }, onError: (_) {});
+    }
+  }
+
+  void _onTapUp(TapUpDetails details, double width) {
+    if (_turnController.isAnimating || _dragging) return;
+    final dx = details.localPosition.dx;
+    if (dx < width * 0.35) {
+      _startTurn(-1);
+    } else if (dx > width * 0.65) {
+      _startTurn(1);
+    }
+  }
+
+  Widget _pageBody(int index) {
+    return Container(
+      color: const Color(0xFFF7F1E3),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 14, 18, 24),
+        child: SelectableText(
+          _pages[index],
+          style: TextStyle(
+            fontSize: _fontSize,
+            height: 1.7,
+            color: Colors.black87,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _turnStack(double width) {
+    final progress = _turnDirection == 0 ? 0.0 : _turnController.value;
+    final target = _turnTarget;
+    final turning = _turnDirection != 0 && progress > 0.001;
+    final displayedPage = turning && progress > 0.5 && target != null
+        ? target
+        : _page;
+    final curl = math.sin(math.pi * progress.clamp(0.0, 1.0));
+    final children = <Widget>[];
+    if (turning && target != null) {
+      final forward = _turnDirection == 1;
+      final foldX = forward ? width * (1 - progress) : width * progress;
+      final bulge = 26 * curl;
+      final curlWidth = 72 * curl;
+      children.add(_pageBody(target));
+      children.add(
+        Positioned(
+          left: forward ? foldX : foldX - 56,
+          width: 56,
+          top: 0,
+          bottom: 0,
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: forward ? Alignment.centerLeft : Alignment.centerRight,
+                end: forward ? Alignment.centerRight : Alignment.centerLeft,
+                colors: [
+                  Colors.black.withValues(alpha: 0.22),
+                  Colors.transparent,
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      children.add(
+        ClipPath(
+          clipper: _FoldClipper(
+            forward: forward,
+            foldX: foldX,
+            bulge: bulge,
+          ),
+          child: _pageBody(_page),
+        ),
+      );
+      children.add(
+        Positioned(
+          left: forward ? foldX - 40 : foldX,
+          width: 40,
+          top: 0,
+          bottom: 0,
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: forward ? Alignment.centerLeft : Alignment.centerRight,
+                end: forward ? Alignment.centerRight : Alignment.centerLeft,
+                colors: [
+                  Colors.transparent,
+                  Colors.black.withValues(alpha: 0.18),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      if (curlWidth > 1) {
+        children.add(
+          Positioned(
+            left: forward ? foldX : foldX - curlWidth,
+            width: curlWidth,
+            top: 0,
+            bottom: 0,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: forward ? Alignment.centerLeft : Alignment.centerRight,
+                  end: forward ? Alignment.centerRight : Alignment.centerLeft,
+                  colors: const [Color(0xFFCFC3A5), Color(0xFFEDE4CC)],
+                ),
+              ),
+            ),
+          ),
+        );
+        children.add(
+          Positioned(
+            left: foldX - 0.75,
+            width: 1.5,
+            top: 0,
+            bottom: 0,
+            child: Container(color: Colors.black26),
+          ),
+        );
+      }
+    } else if (turning) {
+      children.add(
+        Transform.translate(
+          offset: Offset(-_turnDirection * progress * width * 0.5, 0),
+          child: _pageBody(_page),
+        ),
+      );
+      children.add(
+        Positioned(
+          left: _turnDirection == 1 ? width - 24 : 0,
+          width: 24,
+          top: 0,
+          bottom: 0,
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: _turnDirection == 1
+                    ? Alignment.centerRight
+                    : Alignment.centerLeft,
+                end: _turnDirection == 1
+                    ? Alignment.centerLeft
+                    : Alignment.centerRight,
+                colors: [
+                  Colors.black.withValues(alpha: 0.18),
+                  Colors.transparent,
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    } else {
+      children.add(_pageBody(_page));
+    }
+    children.add(
+      Positioned(
+        left: 18,
+        right: 18,
+        bottom: 6,
+        child: Row(
+          children: [
+            Expanded(
+              child: LinearProgressIndicator(
+                value: _pages.isEmpty ? 0 : (displayedPage + 1) / _pages.length,
+                backgroundColor: Colors.black12,
+                color: Colors.brown,
+                minHeight: 2,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '${displayedPage + 1} / ${_pages.length}',
+              style: const TextStyle(fontSize: 12, color: Colors.black54),
+            ),
+          ],
+        ),
+      ),
+    );
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragStart: (_) => _onDragStart(width),
+      onHorizontalDragUpdate: (details) => _onDragUpdate(details, width),
+      onHorizontalDragEnd: _onDragEnd,
+      onTapUp: (details) => _onTapUp(details, width),
+      child: Stack(children: children),
     );
   }
 
@@ -247,125 +591,10 @@ class _NovelReaderViewState extends State<NovelReaderView> {
                   _pageText = widget.content.text;
                   if (_page >= _pages.length) _page = _pages.length - 1;
                 }
-                return Stack(
-                  children: [
-                    PageView.builder(
-                      controller: _controller,
-                      itemCount: _pages.length,
-                      onPageChanged: (value) => setState(() => _page = value),
-                      itemBuilder: (context, index) {
-                        return AnimatedBuilder(
-                          animation: _controller,
-                          builder: (context, child) {
-                            var delta = 0.0;
-                            if (_controller.position.hasContentDimensions) {
-                              delta = (_controller.page ?? _page.toDouble()) - index;
-                            }
-                            final turn = delta.clamp(-1.0, 1.0);
-                            return Transform(
-                              transform: Matrix4.identity()
-                                ..setEntry(3, 2, 0.001)
-                                ..rotateY(-0.35 * turn),
-                              alignment: turn > 0
-                                  ? Alignment.centerLeft
-                                  : Alignment.centerRight,
-                              child: Container(
-                                color: const Color(0xFFF7F1E3),
-                                child: Stack(
-                                  children: [
-                                    Padding(
-                                      padding: const EdgeInsets.fromLTRB(
-                                        18,
-                                        14,
-                                        18,
-                                        24,
-                                      ),
-                                      child: SelectableText(
-                                        _pages[index],
-                                        style: TextStyle(
-                                          fontSize: _fontSize,
-                                          height: 1.7,
-                                          color: Colors.black87,
-                                        ),
-                                      ),
-                                    ),
-                                    if (turn.abs() > 0.01)
-                                      Positioned.fill(
-                                        child: Container(
-                                          decoration: BoxDecoration(
-                                            gradient: LinearGradient(
-                                              begin: turn > 0
-                                                  ? Alignment.centerLeft
-                                                  : Alignment.centerRight,
-                                              end: turn > 0
-                                                  ? Alignment.centerRight
-                                                  : Alignment.centerLeft,
-                                              colors: [
-                                                Colors.black.withValues(
-                                                  alpha: 0.22 * turn.abs(),
-                                                ),
-                                                Colors.transparent,
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    ),
-                    Positioned(
-                      left: 0,
-                      top: 0,
-                      bottom: 0,
-                      width: 48,
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.translucent,
-                        onTap: () => _go(_page - 1),
-                      ),
-                    ),
-                    Positioned(
-                      right: 0,
-                      top: 0,
-                      bottom: 0,
-                      width: 48,
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.translucent,
-                        onTap: () => _go(_page + 1),
-                      ),
-                    ),
-                    Positioned(
-                      left: 18,
-                      right: 18,
-                      bottom: 6,
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: LinearProgressIndicator(
-                              value: _pages.isEmpty
-                                  ? 0
-                                  : (_page + 1) / _pages.length,
-                              backgroundColor: Colors.black12,
-                              color: Colors.brown,
-                              minHeight: 2,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${_page + 1} / ${_pages.length}',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.black54,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                return AnimatedBuilder(
+                  animation: _turnController,
+                  builder: (context, _) =>
+                      _turnStack(constraints.maxWidth),
                 );
               },
             ),

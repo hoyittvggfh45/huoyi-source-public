@@ -8,6 +8,8 @@ import 'package:flutter/services.dart';
 
 import 'core_bridge.dart';
 import 'feed_diagonal_drag.dart';
+import 'hongguo_comment.dart';
+import 'hongguo_danmaku.dart';
 import 'local_store.dart';
 import 'models.dart';
 import 'network_speed.dart';
@@ -133,6 +135,8 @@ class _FullscreenFeedScreenState extends State<FullscreenFeedScreen>
   bool _sheetOpen = false;
   Drag? _diagonalDrag;
   bool _descriptionExpanded = false;
+  String? _commentDramaId;
+  HongguoCommentPage? _commentPage;
 
   @override
   void initState() {
@@ -775,7 +779,15 @@ class _FullscreenFeedScreenState extends State<FullscreenFeedScreen>
         repository: widget.repository,
         store: widget.store,
       );
-      if (mounted) setState(() {});
+      if (mounted) {
+        final plan = _player.plan;
+        if (plan != null && _commentDramaId != drama.id) {
+          _commentDramaId = drama.id;
+          _commentPage = null;
+          unawaited(_loadCommentCounts(drama.id, plan));
+        }
+        setState(() {});
+      }
     } finally {
       _opening = false;
       if (_pendingPlay) {
@@ -941,6 +953,7 @@ class _FullscreenFeedScreenState extends State<FullscreenFeedScreen>
     required IconData icon,
     required String label,
     required VoidCallback? onTap,
+    String? count,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -953,6 +966,11 @@ class _FullscreenFeedScreenState extends State<FullscreenFeedScreen>
             icon: Icon(icon, color: Colors.white),
           ),
           Text(label, style: const TextStyle(color: Colors.white)),
+          if (count != null)
+            Text(
+              count,
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+            ),
         ],
       ),
     );
@@ -977,6 +995,29 @@ class _FullscreenFeedScreenState extends State<FullscreenFeedScreen>
           ),
         ),
       ),
+    );
+  }
+
+  Future<void> _loadCommentCounts(String dramaId, PlaybackPlan plan) async {
+    if (!dramaId.startsWith('hongguo:')) return;
+    try {
+      final page = await widget.repository.comments(plan);
+      if (!mounted || _commentDramaId != dramaId) return;
+      setState(() => _commentPage = page);
+    } catch (_) {}
+  }
+
+  Future<void> _openComments(Drama drama) async {
+    final plan = _player.plan;
+    if (plan == null || !drama.id.startsWith('hongguo:')) {
+      _showNoDataNote('该剧暂无评论数据');
+      return;
+    }
+    await showHongguoComments(
+      context,
+      plan,
+      widget.repository,
+      initialPage: _commentDramaId == drama.id ? _commentPage : null,
     );
   }
 
@@ -1164,15 +1205,22 @@ class _FullscreenFeedScreenState extends State<FullscreenFeedScreen>
           child: isCurrent
               ? RoomPlayerView(
                   handle: _player,
-                  viewType: widget.store.player == 'fongmi'
-                      ? TvboxPlayerController.fongmiViewType
-                      : TvboxPlayerController.viewType,
+                  viewType: TvboxPlayerController.viewType,
                   onCompleted: _onCompleted,
                   onError: (_) {},
                   onRetry: () => unawaited(_playCurrent()),
                 )
               : _coverPlaceholder(drama),
         ),
+        if (isCurrent)
+          HongguoDanmakuLayer(
+            handle: _player,
+            repository: widget.repository,
+            store: widget.store,
+            available: _player.videoKey == '${drama.id}|$_episode' &&
+                _player.hasVideo,
+            aspectRatio: hongguoVideoAspect(_player),
+          ),
         if (!_clearScreen && _overlayVisible)
           Positioned(
             top: 0,
@@ -1267,8 +1315,13 @@ class _FullscreenFeedScreenState extends State<FullscreenFeedScreen>
                     _interactionButton(
                       icon: Icons.chat_bubble_outline_rounded,
                       label: '评论',
+                      count: _commentDramaId == drama.id &&
+                              _commentPage != null &&
+                              _commentPage!.total > 0
+                          ? '${_commentPage!.total}'
+                          : null,
                       onTap: isCurrent
-                          ? () => _showNoDataNote('该剧暂无评论数据')
+                          ? () => unawaited(_openComments(drama))
                           : null,
                     ),
                     _interactionButton(

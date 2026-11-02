@@ -83,6 +83,19 @@ void main() {
       );
     });
 
+    test('午夜未激活时小说区有成人源被隐藏，激活后不再隐藏', () {
+      addTearDown(() => ContentRegistry.midnightActivated = false);
+      expect(
+        ContentRegistry.hasHiddenAdultSources(ContentSection.novel),
+        isTrue,
+      );
+      ContentRegistry.midnightActivated = true;
+      expect(
+        ContentRegistry.hasHiddenAdultSources(ContentSection.novel),
+        isFalse,
+      );
+    });
+
     test('id 全局唯一且分区归属自洽', () {
       final all = [
         for (final section in ContentSection.values)

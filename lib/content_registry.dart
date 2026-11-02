@@ -52,18 +52,29 @@ class ContentRegistry {
       ..addAll(sources);
   }
 
-  static List<ContentSource> sourcesFor(ContentSection section) {
-    final base = section == ContentSection.novel
+  static List<ContentSource> _baseFor(ContentSection section) {
+    return section == ContentSection.novel
         ? [..._novelBuiltins, ..._novelImports]
         : [
             for (final source in _sources)
               if (source.section == section) source,
           ];
+  }
+
+  static List<ContentSource> sourcesFor(ContentSection section) {
+    final base = _baseFor(section);
     if (midnightActivated) return List.unmodifiable(base);
     return List.unmodifiable([
       for (final source in base)
         if (!isAdultSourceName(source.name)) source,
     ]);
+  }
+
+  static bool hasHiddenAdultSources(ContentSection section) {
+    if (midnightActivated) return false;
+    return _baseFor(
+      section,
+    ).any((source) => isAdultSourceName(source.name));
   }
 
   static List<ContentSource> get allSources => List.unmodifiable(_sources);

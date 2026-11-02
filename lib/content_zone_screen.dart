@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'app_page_route.dart';
 
 import 'content_detail_screen.dart';
 import 'content_models.dart';
+import 'content_registry.dart';
 import 'content_zone_binding.dart';
 import 'core_bridge.dart';
 import 'novel_reader_page.dart';
@@ -262,11 +264,22 @@ class _ContentZoneScreenState extends State<ContentZoneScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('已导入 ${record.name}')),
       );
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('导入失败，请选择可用的 py 文件')),
-        );
+        final message = switch (e) {
+          FormatException(message: '空文件') => '导入失败：文件是空的',
+          FormatException(message: '不是 py 或 txt 文件') =>
+            '导入失败：请选择 py 或 txt 文件',
+          FormatException(message: '不是小说漫画源') =>
+            '导入失败：不是小说/漫画源，视频/音频源不能导入小说区',
+          FormatException() => '导入失败：文件格式不对',
+          PlatformException() =>
+            '导入失败：所选文件取不到，试试先存到 Download 文件夹再选',
+          _ => '导入失败：文件读取或保存失败',
+        };
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
       }
     }
   }
@@ -342,12 +355,18 @@ class _ContentZoneScreenState extends State<ContentZoneScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text('小说暂无可用源'),
+              if (ContentRegistry.hasHiddenAdultSources(
+                ContentSection.novel,
+              )) ...[
+                const SizedBox(height: 8),
+                const Text('有成人源被午夜门禁隐藏，开午夜后可见'),
+              ],
               const SizedBox(height: 12),
               FilledButton.icon(
                 key: const ValueKey('novel-import-py'),
                 onPressed: _importNovel,
                 icon: const Icon(Icons.file_upload_outlined),
-                label: const Text('导入小说 py'),
+                label: const Text('导入小说'),
               ),
             ],
           ),
@@ -409,7 +428,7 @@ class _ContentZoneScreenState extends State<ContentZoneScreen> {
               if (widget.section == ContentSection.novel) ...[
                 IconButton(
                   key: const ValueKey('novel-import-py'),
-                  tooltip: '导入小说 py',
+                  tooltip: '导入小说',
                   onPressed: _importNovel,
                   icon: const Icon(Icons.file_upload_outlined),
                 ),

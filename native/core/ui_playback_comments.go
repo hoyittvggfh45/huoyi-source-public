@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -48,6 +49,14 @@ func hongguoAnyInt(value any) int64 {
 		return v
 	case int:
 		return int64(v)
+	case json.Number:
+		if n, err := v.Int64(); err == nil {
+			return n
+		}
+		if f, err := v.Float64(); err == nil {
+			return int64(f)
+		}
+		return 0
 	case string:
 		var n int64
 		fmt.Sscanf(v, "%d", &n)
@@ -64,6 +73,11 @@ func hongguoAnyFloat(value any) float64 {
 		return float64(v)
 	case int:
 		return float64(v)
+	case json.Number:
+		if f, err := v.Float64(); err == nil {
+			return f
+		}
+		return 0
 	}
 	return 0
 }
