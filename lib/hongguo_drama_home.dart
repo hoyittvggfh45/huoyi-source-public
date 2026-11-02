@@ -282,8 +282,12 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
   Future<void> _loadCommentCounts(Drama drama, PlaybackPlan plan) async {
     final key = _keyFor(drama);
     if (_commentPages.containsKey(key)) return;
+    final seriesId = hongguoNumericId(drama.id);
+    if (plan.session.isEmpty && seriesId == null) return;
     try {
-      final page = await widget.repository.comments(plan);
+      final page = plan.session.isEmpty
+          ? await widget.repository.commentsBySeries(seriesId!)
+          : await widget.repository.comments(plan);
       if (!mounted || _videos.isEmpty) return;
       final current = _videos[_index.clamp(0, _videos.length - 1)];
       if (_keyFor(current) != key) return;
@@ -300,11 +304,17 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
       _note('本集暂不支持评论');
       return;
     }
+    final seriesId = hongguoNumericId(drama.id);
+    if (plan.session.isEmpty && seriesId == null) {
+      _note('本集暂不支持评论');
+      return;
+    }
     await showHongguoComments(
       context,
       plan,
       widget.repository,
       initialPage: _commentPages[_keyFor(drama)],
+      seriesId: plan.session.isEmpty ? seriesId : null,
     );
   }
 
@@ -863,6 +873,15 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
                 store: widget.store,
                 available: keyMatches && _player.hasVideo,
                 aspectRatio: hongguoVideoAspect(_player),
+                seriesId: hongguoNumericId(drama.id),
+                videoId: _details[_keyFor(drama)] != null &&
+                        _episode >= 0 &&
+                        _episode <
+                            _details[_keyFor(drama)]!.episodes.length
+                    ? hongguoNumericId(
+                        _details[_keyFor(drama)]!.episodes[_episode].id,
+                      )
+                    : null,
               ),
             ],
           );

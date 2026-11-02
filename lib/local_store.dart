@@ -846,11 +846,11 @@ class LocalStore extends ChangeNotifier {
       : Future.value();
   String get player {
     final value = _string('player') ?? 'guo';
-    return {'guo', 'xigua', 'tvbox'}.contains(value) ? value : 'guo';
+    return {'guo', 'xigua'}.contains(value) ? value : 'guo';
   }
 
   Future<void> setPlayer(String value) =>
-      {'guo', 'xigua', 'tvbox'}.contains(value)
+      {'guo', 'xigua'}.contains(value)
       ? _setting('player', value)
       : Future.value();
   Future<void> setThemeMode(String value) =>

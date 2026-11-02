@@ -10,7 +10,7 @@ void main() {
   ) async {
     SharedPreferences.setMockInitialValues({'player': 'tvbox'});
     final store = LocalStore(await SharedPreferences.getInstance());
-    expect(store.player, 'tvbox');
+    expect(store.player, 'guo');
     await tester.pumpWidget(
       MaterialApp(home: PlayerPickerScreen(store: store)),
     );

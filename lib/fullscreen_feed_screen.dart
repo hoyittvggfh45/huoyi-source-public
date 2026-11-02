@@ -999,9 +999,12 @@ class _FullscreenFeedScreenState extends State<FullscreenFeedScreen>
   }
 
   Future<void> _loadCommentCounts(String dramaId, PlaybackPlan plan) async {
-    if (!dramaId.startsWith('hongguo:')) return;
+    final seriesId = hongguoNumericId(dramaId);
+    if (plan.session.isEmpty && seriesId == null) return;
     try {
-      final page = await widget.repository.comments(plan);
+      final page = plan.session.isEmpty
+          ? await widget.repository.commentsBySeries(seriesId!)
+          : await widget.repository.comments(plan);
       if (!mounted || _commentDramaId != dramaId) return;
       setState(() => _commentPage = page);
     } catch (_) {}
@@ -1009,7 +1012,8 @@ class _FullscreenFeedScreenState extends State<FullscreenFeedScreen>
 
   Future<void> _openComments(Drama drama) async {
     final plan = _player.plan;
-    if (plan == null || !drama.id.startsWith('hongguo:')) {
+    final seriesId = hongguoNumericId(drama.id);
+    if (plan == null || (plan.session.isEmpty && seriesId == null)) {
       _showNoDataNote('该剧暂无评论数据');
       return;
     }
@@ -1018,6 +1022,7 @@ class _FullscreenFeedScreenState extends State<FullscreenFeedScreen>
       plan,
       widget.repository,
       initialPage: _commentDramaId == drama.id ? _commentPage : null,
+      seriesId: plan.session.isEmpty ? seriesId : null,
     );
   }
 
@@ -1220,6 +1225,10 @@ class _FullscreenFeedScreenState extends State<FullscreenFeedScreen>
             available: _player.videoKey == '${drama.id}|$_episode' &&
                 _player.hasVideo,
             aspectRatio: hongguoVideoAspect(_player),
+            seriesId: hongguoNumericId(drama.id),
+            videoId: detail != null && _episode < detail.episodes.length
+                ? hongguoNumericId(detail.episodes[_episode].id)
+                : null,
           ),
         if (!_clearScreen && _overlayVisible)
           Positioned(

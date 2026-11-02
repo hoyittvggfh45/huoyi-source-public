@@ -1397,6 +1397,24 @@ class PlaybackPlan {
   final bool needsParse;
   bool get hasAlternative => session.isNotEmpty && routeIndex + 1 < routeCount;
 
+  PlaybackPlan withDanmaku(String sessionValue, String danmakuIdValue) =>
+      PlaybackPlan(
+        url: url,
+        originalUrl: originalUrl,
+        headers: headers,
+        decryptionKey: decryptionKey,
+        quality: quality,
+        qualities: qualities,
+        session: sessionValue,
+        danmakuId: danmakuIdValue,
+        prefetchedBytes: prefetchedBytes,
+        expiresAt: expiresAt,
+        routeIndex: routeIndex,
+        routeCount: routeCount,
+        local: local,
+        needsParse: needsParse,
+      );
+
   PlaybackPlan withUrl(String value) => PlaybackPlan(
     url: value,
     originalUrl: originalUrl,

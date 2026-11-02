@@ -22,9 +22,8 @@ enum PlayerCore {
 }
 
 PlayerCore effectivePlayerCore({
-  required String player,
   required PlayerCore stored,
-}) => player == 'guo' ? PlayerCore.mpv : stored;
+}) => stored;
 
 class PlayerCoreOption {
   const PlayerCoreOption({

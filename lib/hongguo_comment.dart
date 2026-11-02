@@ -90,11 +90,13 @@ class HongguoCommentSheet extends StatefulWidget {
     required this.plan,
     required this.repository,
     this.initialPage,
+    this.seriesId,
   });
 
   final PlaybackPlan plan;
   final AppRepository repository;
   final HongguoCommentPage? initialPage;
+  final String? seriesId;
 
   @override
   State<HongguoCommentSheet> createState() => _HongguoCommentSheetState();
@@ -127,7 +129,7 @@ class _HongguoCommentSheetState extends State<HongguoCommentSheet> {
       _error = null;
     });
     try {
-      final page = await widget.repository.comments(widget.plan);
+      final page = await _fetchComments();
       if (!mounted) return;
       setState(() {
         _items = page.items;
@@ -152,10 +154,7 @@ class _HongguoCommentSheetState extends State<HongguoCommentSheet> {
       _error = null;
     });
     try {
-      final page = await widget.repository.comments(
-        widget.plan,
-        cursor: _cursor,
-      );
+      final page = await _fetchComments(cursor: _cursor);
       if (!mounted) return;
       setState(() {
         _items = [..._items, ...page.items];
@@ -171,6 +170,14 @@ class _HongguoCommentSheetState extends State<HongguoCommentSheet> {
         _loadingMore = false;
       });
     }
+  }
+
+  Future<HongguoCommentPage> _fetchComments({String cursor = ''}) {
+    final seriesId = widget.seriesId;
+    if (seriesId != null) {
+      return widget.repository.commentsBySeries(seriesId, cursor: cursor);
+    }
+    return widget.repository.comments(widget.plan, cursor: cursor);
   }
 
   @override
@@ -278,6 +285,7 @@ Future<HongguoCommentPage?> showHongguoComments(
   PlaybackPlan plan,
   AppRepository repository, {
   HongguoCommentPage? initialPage,
+  String? seriesId,
 }) {
   return showModalBottomSheet<HongguoCommentPage>(
     context: context,
@@ -292,6 +300,7 @@ Future<HongguoCommentPage?> showHongguoComments(
         plan: plan,
         repository: repository,
         initialPage: initialPage,
+        seriesId: seriesId,
       ),
     ),
   );

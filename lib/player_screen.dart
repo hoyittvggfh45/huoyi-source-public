@@ -310,8 +310,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       (widget.store.player == 'tvbox') &&
       (_plan?.decryptionKey.isEmpty ?? true) &&
       _backendManager?.current != PlaybackBackend.main;
-  PlayerCore get _effectiveCore =>
-      effectivePlayerCore(player: widget.store.player, stored: _core);
+  PlayerCore get _effectiveCore => effectivePlayerCore(stored: _core);
   bool get _useExoCore =>
       !_television &&
       Platform.isAndroid &&
@@ -1795,10 +1794,6 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   Future<void> _openCoreDialog() async {
-    if (widget.store.player == 'guo') {
-      _notice('guo 播放器固定使用 MPV 内核');
-      return;
-    }
     final next = await showPlayerCoreDialog(
       context,
       _effectiveCore,

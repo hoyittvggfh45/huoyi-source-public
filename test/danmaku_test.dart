@@ -426,4 +426,29 @@ void main() {
     );
     expect(store.playbackPreferences.danmaku, isFalse);
   });
+
+  test('session-less plans load danmaku by series and video ids', () async {
+    final repository = DanmakuFixtureRepository();
+    final controller = DanmakuController(repository)
+      ..setPlan(
+        const PlaybackPlan(url: 'https://media.example.test/py.mp4'),
+      );
+    addTearDown(controller.dispose);
+    updateDanmaku(controller);
+    await flushDanmaku();
+    expect(controller.visible, isFalse);
+    expect(repository.byIdCalls, isEmpty);
+    controller.setById('7701935931787316286', '1001');
+    updateDanmaku(controller);
+    await flushDanmaku();
+    expect(controller.visible, isTrue);
+    expect(repository.byIdCalls.length, 1);
+    expect(repository.byIdCalls.single.seriesId, '7701935931787316286');
+    expect(repository.byIdCalls.single.videoId, '1001');
+    expect(controller.items.map((item) => item.text), ['编号弹幕 1001']);
+    controller.setById(null, null);
+    updateDanmaku(controller);
+    await flushDanmaku();
+    expect(repository.byIdCalls.length, 1);
+  });
 }

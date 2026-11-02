@@ -15,6 +15,14 @@ class DanmakuRequest {
   final result = Completer<DanmakuPage>();
 }
 
+class DanmakuByIdRequest {
+  DanmakuByIdRequest(this.seriesId, this.videoId, this.startMs, this.durationMs);
+  final String seriesId;
+  final String videoId;
+  final int startMs;
+  final int durationMs;
+}
+
 class DanmakuFixtureRepository extends RouteRepository {
   final danmakuCalls = <DanmakuRequest>[];
   bool holdDanmaku = false;
@@ -62,6 +70,30 @@ class DanmakuFixtureRepository extends RouteRepository {
     if (holdDanmaku) return request.result.future;
     if (failDanmaku) throw AppFailure('合成弹幕失败');
     return response?.call(request) ?? page(request);
+  }
+
+  final byIdCalls = <DanmakuByIdRequest>[];
+
+  @override
+  Future<DanmakuPage> danmakuById(
+    String seriesId,
+    String videoId, {
+    required int startMs,
+    required int durationMs,
+  }) async {
+    byIdCalls.add(DanmakuByIdRequest(seriesId, videoId, startMs, durationMs));
+    return DanmakuPage(
+      episodeId: videoId,
+      startMs: startMs,
+      nextMs: math.min(startMs + danmakuWindowMs, durationMs),
+      items: [
+        DanmakuItem(
+          id: '$videoId-$startMs',
+          text: '编号弹幕 $videoId',
+          timeMs: startMs,
+        ),
+      ],
+    );
   }
 
   @override

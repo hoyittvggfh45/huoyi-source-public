@@ -287,6 +287,9 @@ class _HomeScreenState extends State<HomeScreen> {
       group,
       force: force,
       cacheOnly: cacheOnly,
+      onMenu: () {
+        if (mounted) setState(() {});
+      },
     );
     if (!mounted ||
         generation != _categoryGeneration ||
@@ -1084,6 +1087,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _selectedDramas.clear();
       _source = source;
       _allSources = allSources;
+      _categorySelections[_categoryKey(_group.id)] = '';
       _items = [];
       _hasMore = true;
       _submittedQuery = '';

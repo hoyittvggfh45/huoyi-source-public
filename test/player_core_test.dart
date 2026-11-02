@@ -15,33 +15,29 @@ void main() {
     expect(PlayerCore.parse('mdk'), PlayerCore.mpv);
   });
 
-  test('guo always renders with mpv regardless of stored core', () {
+  test('guo follows the stored core', () {
     expect(
-      effectivePlayerCore(player: 'guo', stored: PlayerCore.exo),
-      PlayerCore.mpv,
+      effectivePlayerCore(stored: PlayerCore.exo),
+      PlayerCore.exo,
     );
     expect(
-      effectivePlayerCore(player: 'guo', stored: PlayerCore.ijk),
-      PlayerCore.mpv,
+      effectivePlayerCore(stored: PlayerCore.ijk),
+      PlayerCore.ijk,
     );
     expect(
-      effectivePlayerCore(player: 'guo', stored: PlayerCore.mpv),
+      effectivePlayerCore(stored: PlayerCore.mpv),
       PlayerCore.mpv,
     );
   });
 
   test('other players keep their stored core', () {
     expect(
-      effectivePlayerCore(player: 'tvbox', stored: PlayerCore.exo),
+      effectivePlayerCore(stored: PlayerCore.exo),
       PlayerCore.exo,
     );
     expect(
-      effectivePlayerCore(player: 'tvbox', stored: PlayerCore.ijk),
+      effectivePlayerCore(stored: PlayerCore.ijk),
       PlayerCore.ijk,
-    );
-    expect(
-      effectivePlayerCore(player: 'xigua', stored: PlayerCore.exo),
-      PlayerCore.exo,
     );
   });
 

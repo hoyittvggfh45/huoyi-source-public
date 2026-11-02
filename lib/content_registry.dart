@@ -42,6 +42,48 @@ class ContentRegistry {
       assetPath: 'assets/novel_spiders/aabook.py',
       section: ContentSection.novel,
     ),
+    PyContentSource(
+      id: 'ylxs',
+      name: '🔞月亮小说',
+      assetPath: 'assets/novel_spiders/ylxs.py',
+      section: ContentSection.novel,
+    ),
+    PyContentSource(
+      id: 'cheniyo',
+      name: '🔞桃色书屋',
+      assetPath: 'assets/novel_spiders/cheniyo.py',
+      section: ContentSection.novel,
+    ),
+    PyContentSource(
+      id: 'hwg4',
+      name: '🔞黄文阁',
+      assetPath: 'assets/novel_spiders/hwg4.py',
+      section: ContentSection.novel,
+    ),
+    PyContentSource(
+      id: 'lbwen',
+      name: '🔞刘备文',
+      assetPath: 'assets/novel_spiders/lbwen.py',
+      section: ContentSection.novel,
+    ),
+    PyContentSource(
+      id: 'cjg',
+      name: '🔞藏精阁',
+      assetPath: 'assets/novel_spiders/cjg.py',
+      section: ContentSection.novel,
+    ),
+    PyContentSource(
+      id: 'buliang',
+      name: '🔞不良小说网',
+      assetPath: 'assets/novel_spiders/buliang.py',
+      section: ContentSection.novel,
+    ),
+    PyContentSource(
+      id: 'yinse',
+      name: '🔞淫色小说网',
+      assetPath: 'assets/novel_spiders/yinse.py',
+      section: ContentSection.novel,
+    ),
   ];
 
   static final List<ContentSource> _novelImports = [];

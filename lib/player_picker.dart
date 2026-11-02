@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 
 import 'core_bridge.dart';
@@ -12,12 +10,11 @@ import 'player_screen.dart';
 
 import 'package:duanju_app/xigua/xigua_player_screen.dart';
 
-/// 用户选定的播放器：guo（内置）、xigua（移植自西瓜版）或 tvbox（安卓原生）。
+/// 用户选定的播放器：guo（内置）或 xigua（移植自西瓜版）。
 /// 持久化在 LocalStore 的 `player` 键（缺失时默认 guo），App 四端可随时切换。
 enum AppPlayer {
   guo('guo', 'guo 播放器'),
-  xigua('xigua', 'xigua 播放器'),
-  tvbox('tvbox', 'TVBox 原生播放器');
+  xigua('xigua', 'xigua 播放器');
 
   const AppPlayer(this.id, this.label);
   final String id;
@@ -51,23 +48,6 @@ Route<T> buildPlayerRoute<T>(
   PlaybackQueue? queue,
   bool startFullscreen = false,
 }) {
-  if (selectedPlayer(store) == AppPlayer.tvbox && Platform.isAndroid) {
-    return playerRoute(
-          PlayerScreen(
-            detail: detail,
-            initialIndex: initialIndex,
-            initialPosition: initialPosition,
-            localOnly: localOnly,
-            allowOnlineFallback: allowOnlineFallback,
-            mediaId: mediaId,
-            repository: repository,
-            store: store,
-            queue: queue,
-            startFullscreen: startFullscreen,
-          ),
-        )
-        as Route<T>;
-  }
   if (selectedPlayer(store) == AppPlayer.xigua) {
     // TODO(xigua): xigua 播放器暂未接 PlaybackQueue，单集上下滑切条目仅 guo 播放器生效。
     return playerRoute(
@@ -157,11 +137,7 @@ class _PlayerPickerScreenState extends State<PlayerPickerScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          for (final player in AppPlayer.values.where(
-            (player) =>
-                (player != AppPlayer.tvbox) ||
-                Platform.isAndroid,
-          ))
+          for (final player in AppPlayer.values)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: ListTile(
@@ -182,9 +158,7 @@ class _PlayerPickerScreenState extends State<PlayerPickerScreen> {
                 subtitle: Text(
                   player == AppPlayer.guo
                       ? '内置播放器，轻量稳定，支持弹幕与线路切换'
-                      : player == AppPlayer.xigua
-                      ? '移植自西瓜版，支持玻璃面板、睡眠定时、观看统计与推荐'
-                      : '安卓原生 ExoPlayer 后端，仅 Android 可用',
+                      : '移植自西瓜版，支持玻璃面板、睡眠定时、观看统计与推荐',
                 ),
                 trailing: _selected == player
                     ? const Icon(Icons.check_circle)

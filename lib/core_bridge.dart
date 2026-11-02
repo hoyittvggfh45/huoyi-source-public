@@ -130,8 +130,18 @@ abstract class AppRepository {
     required int startMs,
     required int durationMs,
   }) async => throw AppFailure('当前环境不支持弹幕');
+  Future<DanmakuPage> danmakuById(
+    String seriesId,
+    String videoId, {
+    required int startMs,
+    required int durationMs,
+  }) async => throw AppFailure('当前环境不支持弹幕');
   Future<HongguoCommentPage> comments(
     PlaybackPlan plan, {
+    String cursor = '',
+  }) async => throw AppFailure('当前环境不支持评论');
+  Future<HongguoCommentPage> commentsBySeries(
+    String seriesId, {
     String cursor = '',
   }) async => throw AppFailure('当前环境不支持评论');
   Future<void> cancelComments() async {}
@@ -726,6 +736,21 @@ class NativeRepository extends AppRepository {
   }
 
   @override
+  Future<HongguoCommentPage> commentsBySeries(
+    String seriesId, {
+    String cursor = '',
+  }) async {
+    _authorize('hongguo');
+    return HongguoCommentPage.fromJson(
+      await _read('commentsById', {
+        'action': 'hongguoCommentsById',
+        'seriesId': seriesId,
+        'cursor': cursor,
+      }),
+    );
+  }
+
+  @override
   Future<void> cancelComments() => _cancelReads('comments');
 
   @override
@@ -770,6 +795,28 @@ class NativeRepository extends AppRepository {
         'durationMs': durationMs,
       }),
       episodeId: plan.danmakuId,
+      startMs: startMs,
+      durationMs: durationMs,
+    );
+  }
+
+  @override
+  Future<DanmakuPage> danmakuById(
+    String seriesId,
+    String videoId, {
+    required int startMs,
+    required int durationMs,
+  }) async {
+    _authorize('hongguo');
+    return DanmakuPage.fromJson(
+      await _read('danmakuById', {
+        'action': 'hongguoDanmakuById',
+        'seriesId': seriesId,
+        'videoId': videoId,
+        'startMs': startMs,
+        'durationMs': durationMs,
+      }),
+      episodeId: videoId,
       startMs: startMs,
       durationMs: durationMs,
     );

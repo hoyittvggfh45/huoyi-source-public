@@ -100,6 +100,7 @@ class CatalogBrowser {
     SourceGroup group, {
     bool force = false,
     bool cacheOnly = false,
+    void Function()? onMenu,
   }) async {
     final failures = <String>[];
     await _each(group.sources, (source) async {
@@ -113,6 +114,7 @@ class CatalogBrowser {
           source.id,
           force: force,
         );
+        onMenu?.call();
       } catch (_) {
         failures.add(source.groupName);
       }

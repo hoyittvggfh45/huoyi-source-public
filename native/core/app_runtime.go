@@ -114,6 +114,8 @@ type nativeInput struct {
 	JobIDs           []string                `json:"jobIds"`
 	PlaybackSession  string                  `json:"playbackSession"`
 	Cursor           string                  `json:"cursor"`
+	SeriesID         string                  `json:"seriesId,omitempty"`
+	VideoID          string                  `json:"videoId,omitempty"`
 	StartMS          int64                   `json:"startMs"`
 	DurationMS       int64                   `json:"durationMs"`
 	Board            string                  `json:"board"`
@@ -466,7 +468,7 @@ func nativeDispatch(input nativeInput) (any, error) {
 	duration := 60 * time.Second
 	if input.Action == "moveDownloads" {
 		duration = 10 * time.Minute
-	} else if input.Action == "danmaku" || input.Action == "comments" {
+	} else if input.Action == "danmaku" || input.Action == "comments" || input.Action == "hongguoDanmakuById" || input.Action == "hongguoCommentsById" {
 		duration = 10 * time.Second
 	} else if input.Action == "preload" {
 		duration = 15 * time.Second
@@ -476,7 +478,7 @@ func nativeDispatch(input nativeInput) (any, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), duration)
 	defer cancel()
-	if input.Action == "danmaku" || input.Action == "comments" || input.Action == "preload" || input.Action == "prepareHandoff" || input.Session != "" && (input.Action == "catalog" || input.Action == "categories" || input.Action == "suggestions" || input.Action == "recommendations" || input.Action == "metadata") {
+	if input.Action == "danmaku" || input.Action == "comments" || input.Action == "hongguoDanmakuById" || input.Action == "hongguoCommentsById" || input.Action == "preload" || input.Action == "prepareHandoff" || input.Session != "" && (input.Action == "catalog" || input.Action == "categories" || input.Action == "suggestions" || input.Action == "recommendations" || input.Action == "metadata") {
 		work, finish, err := engine.beginRead(ctx, input)
 		if err != nil {
 			return nil, err
@@ -521,6 +523,10 @@ func nativeDispatch(input nativeInput) (any, error) {
 		return engine.nativeDanmaku(ctx, input)
 	case "comments":
 		return engine.nativeComments(ctx, input)
+	case "hongguoDanmakuById":
+		return engine.downloader.hongguoDanmaku(ctx, input.SeriesID, input.VideoID, input.StartMS, input.DurationMS)
+	case "hongguoCommentsById":
+		return engine.downloader.hongguoComments(ctx, input.SeriesID, input.Cursor)
 	case "cancelRead":
 		engine.cancelRead(input)
 		return true, nil

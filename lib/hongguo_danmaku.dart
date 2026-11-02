@@ -19,6 +19,19 @@ double hongguoVideoAspect(RoomPlayerHandle handle) {
   return 9 / 16;
 }
 
+String? hongguoNumericId(String value) {
+  final trimmed = value.trim();
+  final digits = trimmed.startsWith('hongguo:')
+      ? trimmed.substring('hongguo:'.length)
+      : trimmed;
+  if (digits.length < 10) return null;
+  for (var i = 0; i < digits.length; i++) {
+    final code = digits.codeUnitAt(i);
+    if (code < 48 || code > 57) return null;
+  }
+  return digits;
+}
+
 class HongguoDanmakuLayer extends StatefulWidget {
   const HongguoDanmakuLayer({
     super.key,
@@ -27,6 +40,8 @@ class HongguoDanmakuLayer extends StatefulWidget {
     required this.store,
     required this.available,
     required this.aspectRatio,
+    this.seriesId,
+    this.videoId,
   });
 
   final RoomPlayerHandle handle;
@@ -34,6 +49,8 @@ class HongguoDanmakuLayer extends StatefulWidget {
   final LocalStore store;
   final bool available;
   final double aspectRatio;
+  final String? seriesId;
+  final String? videoId;
 
   @override
   State<HongguoDanmakuLayer> createState() => _HongguoDanmakuLayerState();
@@ -76,6 +93,7 @@ class _HongguoDanmakuLayerState extends State<HongguoDanmakuLayer> {
       _boundPlan = handle.plan;
       _controller.setPlan(handle.plan);
     }
+    _controller.setById(widget.seriesId, widget.videoId);
     _controller.setEnabled(widget.store.playbackPreferences.danmaku);
     _controller.update(
       position: Duration(milliseconds: (handle.position * 1000).round()),

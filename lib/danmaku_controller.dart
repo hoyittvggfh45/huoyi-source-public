@@ -20,7 +20,16 @@ class DanmakuController extends ChangeNotifier {
         plan: _plan,
       ),
       loadPage: (plan, start, duration) =>
-          repository.danmaku(plan, startMs: start, durationMs: duration),
+          _bySeries != null &&
+                  _byVideo != null &&
+                  plan.session == _byIdSession
+              ? repository.danmakuById(
+                  _bySeries!,
+                  _byVideo!,
+                  startMs: start,
+                  durationMs: duration,
+                )
+              : repository.danmaku(plan, startMs: start, durationMs: duration),
       cancelLoad: () => repository.cancelDanmaku(),
       onItems: (list) {
         items = list;
@@ -36,6 +45,10 @@ class DanmakuController extends ChangeNotifier {
   late final DanmakuLoader _loader;
   late final DanmakuTimeSync _sync;
   PlaybackPlan? _plan;
+  PlaybackPlan? _basePlan;
+  String? _bySeries;
+  String? _byVideo;
+  static const String _byIdSession = 'byid';
   bool _closed = false;
   bool _enabled = true;
   bool _available = false;
@@ -81,15 +94,40 @@ class DanmakuController extends ChangeNotifier {
   }
 
   void setPlan(PlaybackPlan? plan) {
-    if (_closed || identical(_plan, plan)) return;
+    if (_closed || identical(_basePlan, plan)) return;
     _cancel();
+    _basePlan = plan;
     _plan = plan;
+    _bySeries = null;
+    _byVideo = null;
     _loader.clearPages();
     _seeking = false;
     _available = false;
     positionMs = durationMs = 0;
     _resetMotion();
     notifyListeners();
+  }
+
+  void setById(String? seriesId, String? videoId) {
+    if (_closed) return;
+    if (_bySeries == seriesId && _byVideo == videoId) return;
+    _bySeries = seriesId;
+    _byVideo = videoId;
+    final base = _basePlan;
+    if (base == null) return;
+    final next = seriesId != null &&
+            videoId != null &&
+            !base.local &&
+            (base.session.isEmpty || base.danmakuId.isEmpty)
+        ? base.withDanmaku(_byIdSession, videoId)
+        : base;
+    if (identical(_plan, next)) return;
+    _cancel();
+    _plan = next;
+    _loader.clearPages();
+    _resetMotion();
+    notifyListeners();
+    _ensureWindow();
   }
 
   void setEnabled(bool enabled) {
