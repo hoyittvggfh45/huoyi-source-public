@@ -137,7 +137,6 @@ class _AppBootstrapState extends State<AppBootstrap>
       unawaited(AppUpdateChecker.maybeCheckSilently());
       unawaited(ProxyKernelService.maybeAutostart());
       await JarImport.registerBuiltinZakatv();
-      await JarImport.registerBuiltinYoutubeFix();
       if (mounted) {
         setState(() {
           store = LocalStore(preferences);

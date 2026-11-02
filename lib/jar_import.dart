@@ -90,6 +90,30 @@ class StandaloneJarSite {
 
 class JarImport {
   static const _prefsKey = 'standalone_jar_sites';
+  static const _learnedPrefsKey = 'learned_jar_configs';
+
+  static Future<List<JarSiteConfig>> _loadLearnedConfigs() async {
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      final raw = preferences.getString(_learnedPrefsKey);
+      if (raw == null || raw.isEmpty) return const [];
+      return parseLearnedJarConfigs(raw);
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  static Future<void> _saveLearnedConfigs(
+    List<JarSiteConfig> configs,
+  ) async {
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.setString(
+        _learnedPrefsKey,
+        jsonEncode([for (final config in configs) config.toJson()]),
+      );
+    } catch (_) {}
+  }
   static final Map<String, StandaloneJarSite> _sites = {};
   static final Map<String, StandaloneJarSite> _builtinSites = {};
   static bool _builtinRegistered = false;
@@ -216,7 +240,8 @@ class JarImport {
           jarMd5: zakatvJarMd5,
           className: builtin.className,
           name: builtin.name,
-          ext: builtin.key == 'ZakaYouTube' && youtubeConfig.isNotEmpty
+          ext: builtin.className == youtubeSpiderClass &&
+                  youtubeConfig.isNotEmpty
               ? youtubeConfig
               : builtin.ext,
         );
@@ -224,41 +249,6 @@ class JarImport {
         _registerBuiltin(site);
       }
       _builtinRegistered = true;
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  static Future<bool> registerBuiltinYoutubeFix() async {
-    if (!JarBridge.supported) return false;
-    try {
-      final bytes = await rootBundle.load(youtubeFixJarAsset);
-      final tempDir = await getTemporaryDirectory();
-      final tempFile = File('${tempDir.path}/youtube2.jar');
-      await tempFile.writeAsBytes(bytes.buffer.asUint8List());
-      final jarPath = await JarBridge.ensureJarPath(
-        configId: youtubeFixJarId,
-        url: tempFile.path,
-        md5: youtubeFixJarMd5,
-      );
-      var youtubeConfig = '';
-      try {
-        youtubeConfig = await rootBundle.loadString(youtubeConfigAsset);
-      } catch (_) {
-        youtubeConfig = '';
-      }
-      final site = StandaloneJarSite(
-        siteId: JarSiteSpec.siteIdFor(youtubeFixJarId, 'YouTube'),
-        jarId: youtubeFixJarId,
-        jarUrl: jarPath,
-        jarMd5: youtubeFixJarMd5,
-        className: youtubeSpiderClass,
-        name: youtubeFixSiteName,
-        ext: youtubeConfig,
-      );
-      _builtinSites[site.siteId] = site;
-      _registerBuiltin(site);
       return true;
     } catch (_) {
       return false;
@@ -288,18 +278,25 @@ class JarImport {
     );
     final storedUrl = jarUrl.startsWith('http') ? jarUrl : jarPath;
     final classes = await JarBridge.enumerate(jarPath);
+    final builtinConfigs = await loadBuiltinJarConfigs();
+    final learnedConfigs = await _loadLearnedConfigs();
     final newly = <JarClassInfo>[];
     final newSiteIds = <String>[];
     final created = <({String siteId, bool hasConfig})>[];
     final bases = <String>[];
+    final usedCallerConfigs = <JarSiteConfig>[];
     for (final info in classes) {
       if (!info.instantiable) continue;
-      final config = matchJarSiteConfig(info.className, configs);
+      final callerConfig = matchJarSiteConfig(info.className, configs);
+      if (callerConfig != null) usedCallerConfigs.add(callerConfig);
+      final config = callerConfig ??
+          matchJarSiteConfig(info.className, learnedConfigs) ??
+          matchJarSiteConfig(info.className, builtinConfigs);
       final fileBase = fileBaseName(displayName);
-      final base = fileBase.isNotEmpty
-          ? fileBase
-          : config != null && config.name.isNotEmpty
+      final base = config != null && config.name.isNotEmpty
           ? config.name
+          : fileBase.isNotEmpty
+          ? fileBase
           : info.simpleName;
       final key = config != null && config.key.isNotEmpty
           ? config.key
@@ -346,6 +343,16 @@ class JarImport {
       }
     }
     if (created.isNotEmpty) await _persist();
+    if (usedCallerConfigs.isNotEmpty) {
+      final merged = upsertLearnedJarConfigs(
+        learnedConfigs,
+        usedCallerConfigs,
+      );
+      if (!identical(merged, learnedConfigs)) {
+        await _saveLearnedConfigs(merged);
+      }
+    }
+    JarBridge.invalidateJar(jarId);
     return (
       all: classes,
       newly: newly,
@@ -432,6 +439,21 @@ class JarImport {
     );
     await JarBridge.updateExt(siteId, ext);
     await _persist();
+    if (ext.isNotEmpty) {
+      final learned = await _loadLearnedConfigs();
+      final key = siteId.split(':').last;
+      final merged = upsertLearnedJarConfigs(learned, [
+        JarSiteConfig(
+          key: key,
+          name: site.name,
+          api: site.className,
+          ext: ext,
+        ),
+      ]);
+      if (!identical(merged, learned)) {
+        await _saveLearnedConfigs(merged);
+      }
+    }
   }
 
   static Future<void> _persist() async {
