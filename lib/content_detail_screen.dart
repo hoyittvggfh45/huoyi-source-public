@@ -5,6 +5,7 @@ import 'package:media_kit/media_kit.dart';
 
 import 'content_models.dart';
 import 'core_bridge.dart';
+import 'novel_cover.dart';
 
 class ContentDetailScreen extends StatefulWidget {
   const ContentDetailScreen({
@@ -48,6 +49,22 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
   String _trackError = '';
   double _rate = 1.0;
   final List<StreamSubscription<dynamic>> _subs = [];
+
+  Widget _coverBox(
+    ContentBook book,
+    ColorScheme colors,
+    double width,
+    double height,
+  ) {
+    if (widget.source.section == ContentSection.novel) {
+      return novelCoverFallback(book.id, width, height);
+    }
+    return Container(
+      width: width,
+      height: height,
+      color: colors.surfaceContainerHighest,
+    );
+  }
 
   @override
   void initState() {
@@ -237,17 +254,9 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
                           width: 40,
                           height: 40,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => Container(
-                            width: 40,
-                            height: 40,
-                            color: colors.surfaceContainerHighest,
-                          ),
+                          errorBuilder: (_, _, _) => _coverBox(book, colors, 40, 40),
                         )
-                      : Container(
-                          width: 40,
-                          height: 40,
-                          color: colors.surfaceContainerHighest,
-                        ),
+                      : _coverBox(book, colors, 40, 40),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -416,17 +425,10 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
                               width: 96,
                               height: 128,
                               fit: BoxFit.cover,
-                              errorBuilder: (_, _, _) => Container(
-                                width: 96,
-                                height: 128,
-                                color: colors.surfaceContainerHighest,
-                              ),
+                              errorBuilder: (_, _, _) =>
+                                  _coverBox(book, colors, 96, 128),
                             )
-                          : Container(
-                              width: 96,
-                              height: 128,
-                              color: colors.surfaceContainerHighest,
-                            ),
+                          : _coverBox(book, colors, 96, 128),
                     ),
                     const SizedBox(width: 14),
                     Expanded(

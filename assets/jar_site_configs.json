@@ -895,12 +895,6 @@
       "ext": "{\"proxy\":\"\"}"
     },
     {
-      "key": "Qinav",
-      "name": "🔞Qinav",
-      "api": "csp_Qinav",
-      "ext": ""
-    },
-    {
       "key": "Wukong",
       "name": "🔞悟空传媒",
       "api": "csp_Wukong",

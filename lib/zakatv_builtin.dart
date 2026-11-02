@@ -162,7 +162,6 @@ const List<ZakatvBuiltinSite> zakatvBuiltinSites = [
   ZakatvBuiltinSite('missavt', '🔞MissAVt┃原生', 'com.github.catvod.spider.ZakaMissavtAmns', ''),
   ZakatvBuiltinSite('hgkpz', '🔞黄瓜┃黄瓜看片', 'com.github.catvod.spider.ZakaHgkpzAmns', ''),
   ZakatvBuiltinSite('ZakaYouTube', '油管', 'com.github.catvod.spider.YtNewAmns', '{"proxy":""}'),
-  ZakatvBuiltinSite('Qinav', '🔞Qinav', 'com.github.catvod.spider.Qinav', ''),
   ZakatvBuiltinSite('Wukong', '🔞悟空传媒', 'com.github.catvod.spider.Wukong', ''),
   ZakatvBuiltinSite('Chengren91', '🔞91成人', 'com.github.catvod.spider.Chengren91', ''),
 ];

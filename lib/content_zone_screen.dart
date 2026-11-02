@@ -8,6 +8,7 @@ import 'content_models.dart';
 import 'content_registry.dart';
 import 'content_zone_binding.dart';
 import 'core_bridge.dart';
+import 'novel_cover.dart';
 import 'novel_reader_page.dart';
 import 'novel_source_store.dart';
 import 'source_picker_sheet.dart';
@@ -607,12 +608,17 @@ class _ContentZoneScreenState extends State<ContentZoneScreen> {
     );
   }
 
-  Widget _coverFallback(ColorScheme colors, ContentBook book) => Container(
-    color: colors.surfaceContainerHighest,
-    alignment: Alignment.center,
-    child: Icon(
-      book.isFolder ? Icons.folder_rounded : Icons.image_not_supported,
-      color: colors.onSurfaceVariant,
-    ),
-  );
+  Widget _coverFallback(ColorScheme colors, ContentBook book) {
+    if (widget.section == ContentSection.novel && !book.isFolder) {
+      return Image.asset(novelDefaultCoverFor(book.id), fit: BoxFit.cover);
+    }
+    return Container(
+      color: colors.surfaceContainerHighest,
+      alignment: Alignment.center,
+      child: Icon(
+        book.isFolder ? Icons.folder_rounded : Icons.image_not_supported,
+        color: colors.onSurfaceVariant,
+      ),
+    );
+  }
 }
