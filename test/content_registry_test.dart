@@ -63,7 +63,18 @@ void main() {
       ContentRegistry.midnightActivated = true;
       expect(
         ContentRegistry.sourcesFor(ContentSection.novel).map((s) => s.id),
-        ['aabook', 'ylxs', 'cheniyo', 'hwg4', 'lbwen', 'cjg', 'buliang', 'yinse'],
+        [
+          'aabook',
+          'ylxs',
+          'cheniyo',
+          'hwg4',
+          'lbwen',
+          'cjg',
+          'buliang',
+          'yinse',
+          'ssxxs',
+          'mhbl',
+        ],
       );
       expect(
         ContentRegistry.sourcesFor(ContentSection.novel).first.name,
@@ -88,6 +99,8 @@ void main() {
           'cjg',
           'buliang',
           'yinse',
+          'ssxxs',
+          'mhbl',
           'novel_demo',
         ],
       );

@@ -905,6 +905,12 @@
       "name": "🔞悟空传媒",
       "api": "csp_Wukong",
       "ext": ""
+    },
+    {
+      "key": "Chengren91",
+      "name": "🔞91成人",
+      "api": "csp_Chengren91",
+      "ext": ""
     }
   ]
 }

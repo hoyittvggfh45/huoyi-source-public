@@ -84,6 +84,18 @@ class ContentRegistry {
       assetPath: 'assets/novel_spiders/yinse.py',
       section: ContentSection.novel,
     ),
+    PyContentSource(
+      id: 'ssxxs',
+      name: '🔞涩涩小说',
+      assetPath: 'assets/novel_spiders/ssxxs.py',
+      section: ContentSection.novel,
+    ),
+    PyContentSource(
+      id: 'mhbl',
+      name: '🔞漫画部落',
+      assetPath: 'assets/novel_spiders/mhbl.py',
+      section: ContentSection.novel,
+    ),
   ];
 
   static final List<ContentSource> _novelImports = [];
