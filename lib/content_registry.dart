@@ -1,7 +1,9 @@
 import 'content_audio.dart';
 import 'content_http.dart';
+import 'content_lrts.dart';
 import 'content_models.dart';
 import 'content_py.dart';
+import 'midnight_zone.dart';
 
 class ContentRegistry {
   ContentRegistry._();
@@ -23,6 +25,23 @@ class ContentRegistry {
       fixedCategoryName: '听书',
       filterKey: 'acat',
     ),
+    LrtsSource(_http),
+    PyContentSource(
+      id: 'hsvoice31',
+      name: '🔞黄色有声小说',
+      assetPath: 'assets/audio_spiders/hsvoice31.py',
+    ),
+  ];
+
+  static bool midnightActivated = false;
+
+  static final List<ContentSource> _novelBuiltins = [
+    PyContentSource(
+      id: 'aabook',
+      name: '🔞疯情书库',
+      assetPath: 'assets/novel_spiders/aabook.py',
+      section: ContentSection.novel,
+    ),
   ];
 
   static final List<ContentSource> _novelImports = [];
@@ -34,13 +53,17 @@ class ContentRegistry {
   }
 
   static List<ContentSource> sourcesFor(ContentSection section) {
-    if (section == ContentSection.novel) {
-      return List.unmodifiable(_novelImports);
-    }
-    return [
-      for (final source in _sources)
-        if (source.section == section) source,
-    ];
+    final base = section == ContentSection.novel
+        ? [..._novelBuiltins, ..._novelImports]
+        : [
+            for (final source in _sources)
+              if (source.section == section) source,
+          ];
+    if (midnightActivated) return List.unmodifiable(base);
+    return List.unmodifiable([
+      for (final source in base)
+        if (!isAdultSourceName(source.name)) source,
+    ]);
   }
 
   static List<ContentSource> get allSources => List.unmodifiable(_sources);

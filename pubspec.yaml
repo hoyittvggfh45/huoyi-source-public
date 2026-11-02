@@ -1,7 +1,7 @@
 name: duanju_app
 description: 独立运行的多端短剧应用
 publish_to: none
-version: 1.0.4+22
+version: 1.0.4+23
 
 environment:
   sdk: '>=3.12.0 <4.0.0'
@@ -55,6 +55,7 @@ flutter:
     - assets/live/
     - assets/proxy_kernel/
     - assets/audio_spiders/
+    - assets/novel_spiders/
     - assets/py_spiders/
     - assets/jars/zakatv.jar
     - assets/jars/youtube.jar

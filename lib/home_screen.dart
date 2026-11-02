@@ -11,6 +11,7 @@ import 'back_history.dart';
 import 'liquid_glass.dart';
 import 'app_drawer.dart';
 import 'midnight_zone.dart';
+import 'content_registry.dart';
 import 'content_zone_screen.dart';
 import 'content_models.dart';
 import 'player_picker.dart';
@@ -1480,6 +1481,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _onMinorProtectionChanged(bool enabled) async {
     if (!enabled) return;
     await saveMidnightActivated(false);
+    ContentRegistry.midnightActivated = false;
     if (!mounted) return;
     setState(() => _midnightActivated = false);
     if (_zone == HomeZone.midnight) {
@@ -1494,6 +1496,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadMidnightActivated() async {
     final activated = await loadMidnightActivated();
+    ContentRegistry.midnightActivated = activated;
     if (mounted) setState(() => _midnightActivated = activated);
   }
 
