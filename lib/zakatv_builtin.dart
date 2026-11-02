@@ -12,6 +12,10 @@ const String youtubeJarAsset = 'assets/jars/youtube.jar';
 const String youtubeJarMd5 = 'd294ce251d3b2aa8528efff12cc4bf19';
 const String youtubeConfigAsset = 'assets/youtube3.json';
 const String youtubeSpiderClass = 'com.github.catvod.spider.YouTube';
+const String youtubeFixJarAsset = 'assets/jars/youtube2.jar';
+const String youtubeFixJarMd5 = 'c5fd9c64a994467e2e0e5ceb1eeaaa78';
+const String youtubeFixJarId = 'youtubefix';
+const String youtubeFixSiteName = '油管';
 const String zakatvJarId = 'zakatv';
 const List<ZakatvBuiltinSite> zakatvBuiltinSites = [
   ZakatvBuiltinSite('ZakaMjv011', '🔞mjv011', 'com.github.catvod.spider.ZakaMjv011Amns', ''),

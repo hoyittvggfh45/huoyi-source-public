@@ -487,6 +487,9 @@ object JarBridge {
                 loader.loadClass(className)
             } catch (error: ClassNotFoundException) {
                 loaders.remove(configId)
+                runCatching {
+                    File(context.codeCacheDir, "jarbridge_$configId").deleteRecursively()
+                }
                 val file = File(jarPath)
                 val state = if (file.exists()) "存在，${file.length()} 字节" else "不存在"
                 throw IllegalStateException("jar 中未找到站点类 $className，该配置的 api 与 spider 不匹配或 jar 不完整（jar 文件：$state）")

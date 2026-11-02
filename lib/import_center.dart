@@ -289,7 +289,7 @@ class ImportEngine {
     return ImportOutcome(
       fileName: candidate.name,
       status: ImportOutcomeStatus.success,
-      reason: '已注册占位：JS 引擎未就绪，打开该站会明确报错',
+      reason: '已注册为 JS 蜘蛛站（经内置 Go 脚本引擎执行，安卓与 iOS 同一套引擎，不走网页视图）',
       siteName: candidate.baseName,
     );
   }

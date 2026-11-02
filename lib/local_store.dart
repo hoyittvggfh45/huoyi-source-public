@@ -330,6 +330,7 @@ class LocalStore extends ChangeNotifier {
     for (final id in _registeredImportIds) {
       SourceSite.importedSites.remove(id);
       SourceSite.importedPyFiles.remove(id);
+      SourceSite.importedJsFiles.remove(id);
     }
     _registeredImportIds.clear();
     for (final record in _importedSiteRecords) {
@@ -338,6 +339,9 @@ class LocalStore extends ChangeNotifier {
       _registeredImportIds.add(record.id);
       if (record.type == ImportedSiteRecord.typePy) {
         SourceSite.importedPyFiles[record.id] = record.fileName;
+      }
+      if (record.type == ImportedSiteRecord.typeJs) {
+        SourceSite.importedJsFiles[record.id] = record.fileName;
       }
     }
   }

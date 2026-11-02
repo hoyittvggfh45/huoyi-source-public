@@ -740,6 +740,7 @@ class SourceSite {
 
   /// py 导入站的蜘蛛文件名（应用文档目录 imported_spiders/ 下），key 为站点 id。
   static final Map<String, String> importedPyFiles = {};
+  static final Map<String, String> importedJsFiles = {};
   static final Map<String, String> importedPyRemoteUrls = {};
   static bool isCustomId(String id) => id.startsWith('custom:');
   static bool isAvailable(String id) =>

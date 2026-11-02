@@ -307,12 +307,52 @@ class NativeRepository extends AppRepository {
   static bool isJsSource(String source) =>
       SourceSite.importedSites[source]?.importType == 'js';
 
-  static const jsNotReadyMessage =
-      'JS 引擎未就绪：JS 蜘蛛运行时（drpy 兼容层）尚未接入，暂不能打开该站。'
-      '该站已注册在「导入」分组，引擎接入后即可使用。';
+  Future<String> _jsSpiderScript(String source) async {
+    final fileName = SourceSite.importedJsFiles[source];
+    if (fileName == null || fileName.isEmpty) {
+      throw AppFailure('导入记录缺少 JS 蜘蛛文件，请在导入中心删除该站后重新导入');
+    }
+    final scriptPath = await ImportFileStore.pathOf(fileName);
+    final scriptFile = File(scriptPath);
+    if (!await scriptFile.exists()) {
+      throw AppFailure('JS 蜘蛛文件已丢失，请在导入中心删除该站后重新导入');
+    }
+    return scriptFile.readAsString();
+  }
 
-  void _guardImported(String source) {
-    if (isJsSource(source)) throw AppFailure(jsNotReadyMessage);
+  Future<Map<String, dynamic>> _jsCall(
+    String source,
+    String operation, {
+    String category = '',
+    int page = 1,
+    String query = '',
+    String vodId = '',
+    String flag = '',
+    String playId = '',
+  }) async {
+    _authorize(source);
+    final script = await _jsSpiderScript(source);
+    final result = await _call({
+      'action': 'jsSpider',
+      'content': script,
+      'command': operation,
+      'category': category,
+      'page': page,
+      'query': query,
+      'drama': {
+        'id': vodId,
+        'source': source,
+        'sourceId': vodId,
+        'title': '',
+        'description': '',
+        'cover': '',
+      },
+      'flag': flag,
+      'playId': playId,
+    });
+    final inner = result['result'];
+    if (inner is Map) return Map<String, dynamic>.from(inner);
+    return {};
   }
 
   Future<String> _pySpiderPath(String source) async {
@@ -1280,9 +1320,12 @@ class NativeRepository extends AppRepository {
         (spec) => JarBridge.categories(spec, force: force),
       );
     }
-    _guardImported(source);
     if (isPySource(source)) {
       final home = await _pyCall(source, {'action': 'categories'});
+      return PyContract.categoriesFromHome(home);
+    }
+    if (isJsSource(source)) {
+      final home = await _jsCall(source, 'home');
       return PyContract.categoriesFromHome(home);
     }
     final result = await _read('categories-$source', {
@@ -1328,7 +1371,19 @@ class NativeRepository extends AppRepository {
         ),
       );
     }
-    _guardImported(source);
+    if (isJsSource(source)) {
+      if (query.isNotEmpty) {
+        final result = await _jsCall(source, 'search', query: query, page: page);
+        return PyContract.pageFromResult(source, result, page: page);
+      }
+      final result = await _jsCall(
+        source,
+        'category',
+        category: category,
+        page: page,
+      );
+      return PyContract.pageFromResult(source, result, page: page);
+    }
     if (isPySource(source)) {
       final result = await _pyCall(source, {
         'action': 'catalog',
@@ -1379,6 +1434,7 @@ class NativeRepository extends AppRepository {
     ].toSet().toList();
     final jarSources = sources.where(JarBridge.isJarSource).toList();
     final pyTargets = sources.where(isPySource).toList();
+    final jsTargets = sources.where(isJsSource).toList();
     final rest = sources
         .where(
           (source) =>
@@ -1387,7 +1443,7 @@ class NativeRepository extends AppRepository {
               !isJsSource(source),
         )
         .toList();
-    if (jarSources.isEmpty && pyTargets.isEmpty) {
+    if (jarSources.isEmpty && pyTargets.isEmpty && jsTargets.isEmpty) {
       return CatalogPage.fromJson(
         await _call({
           'action': 'searchAcross',
@@ -1417,6 +1473,12 @@ class NativeRepository extends AppRepository {
       } catch (_) {}
     }
     for (final target in pyTargets) {
+      try {
+        final page = await catalog(target, query: query);
+        items.addAll(page.items);
+      } catch (_) {}
+    }
+    for (final target in jsTargets) {
       try {
         final page = await catalog(target, query: query);
         items.addAll(page.items);
@@ -1494,8 +1556,9 @@ class NativeRepository extends AppRepository {
     if (JarBridge.isJarSource(drama.source)) {
       return _jarCall(drama.source, (_) => JarBridge.coverFile(drama));
     }
-    _guardImported(drama.source);
-    if (isPySource(drama.source)) return _pyCover(drama, force: force);
+    if (isPySource(drama.source) || isJsSource(drama.source)) {
+      return _pyCover(drama, force: force);
+    }
     final epoch = access?.profileEpoch;
     final result = await _call({
       'action': 'cover',
@@ -1528,7 +1591,6 @@ class NativeRepository extends AppRepository {
     if (JarBridge.isJarSource(drama.source)) {
       return _jarCall(drama.source, (spec) => JarBridge.detail(spec, drama));
     }
-    _guardImported(drama.source);
     if (isPySource(drama.source)) {
       final vodId = drama.sourceId.isNotEmpty
           ? drama.sourceId
@@ -1539,6 +1601,15 @@ class NativeRepository extends AppRepository {
         'action': 'detail',
         'vodId': vodId,
       });
+      return PyContract.detailFromResult(drama.source, drama, result);
+    }
+    if (isJsSource(drama.source)) {
+      final vodId = drama.sourceId.isNotEmpty
+          ? drama.sourceId
+          : drama.id.startsWith('${drama.source}:')
+          ? drama.id.substring(drama.source.length + 1)
+          : drama.id;
+      final result = await _jsCall(drama.source, 'detail', vodId: vodId);
       return PyContract.detailFromResult(drama.source, drama, result);
     }
     return DramaDetail.fromJson(
@@ -1667,7 +1738,6 @@ class NativeRepository extends AppRepository {
         (spec) => _jarResolve(spec, drama, episode),
       );
     }
-    _guardImported(drama.source);
     if (isPySource(drama.source)) {
       final goPlan = await _tryGoHongguoPlan(
         drama,
@@ -1682,6 +1752,19 @@ class NativeRepository extends AppRepository {
         episode.raw['flag'] as String? ?? '',
         episode.raw['id'] as String? ?? episode.id,
       );
+    }
+    if (isJsSource(drama.source)) {
+      final result = await _jsCall(
+        drama.source,
+        'player',
+        flag: episode.raw['flag'] as String? ?? '',
+        playId: episode.raw['id'] as String? ?? episode.id,
+      );
+      final plan = PyContract.planFromResult(result);
+      if (plan.url.isEmpty) {
+        throw AppFailure('JS 蜘蛛取流未返回可播放地址');
+      }
+      return plan;
     }
     final parseApis = await ParseInterfaceStore.loadEnabled();
     return PlaybackPlan.fromJson(
@@ -1907,7 +1990,6 @@ class NativeRepository extends AppRepository {
         (spec) => _jarResolve(spec, drama, episode),
       );
     }
-    _guardImported(drama.source);
     if (isPySource(drama.source)) {
       final goPlan = await _tryGoHongguoPlan(
         drama,
@@ -1923,6 +2005,19 @@ class NativeRepository extends AppRepository {
         episode.raw['flag'] as String? ?? '',
         episode.raw['id'] as String? ?? episode.id,
       );
+    }
+    if (isJsSource(drama.source)) {
+      final result = await _jsCall(
+        drama.source,
+        'player',
+        flag: episode.raw['flag'] as String? ?? '',
+        playId: episode.raw['id'] as String? ?? episode.id,
+      );
+      final plan = PyContract.planFromResult(result);
+      if (plan.url.isEmpty) {
+        throw AppFailure('JS 蜘蛛取流未返回可播放地址');
+      }
+      return plan;
     }
     final parseApis = await ParseInterfaceStore.loadEnabled();
     return PlaybackPlan.fromJson(

@@ -147,6 +147,8 @@ type nativeInput struct {
 	Session          string                  `json:"session"`
 	Sequence         int64                   `json:"sequence"`
 	Force            bool                    `json:"force"`
+	Flag             string                  `json:"flag,omitempty"`
+	PlayID           string                  `json:"playId,omitempty"`
 	AdBlock          *bool                   `json:"adBlock"`
 	Path             string                  `json:"path"`
 	Sha256           string                  `json:"sha256"`
@@ -430,6 +432,12 @@ func nativeDispatch(input nativeInput) (any, error) {
 		}
 		var raw json.RawMessage = []byte(out)
 		return map[string]any{"result": raw}, nil
+	case "jsSpider":
+		out, err := jsSpiderDispatch(input)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"result": out}, nil
 	}
 	nativeState.Lock()
 	if input.Action == "initialize" {

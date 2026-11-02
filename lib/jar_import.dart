@@ -230,6 +230,41 @@ class JarImport {
     }
   }
 
+  static Future<bool> registerBuiltinYoutubeFix() async {
+    if (!JarBridge.supported) return false;
+    try {
+      final bytes = await rootBundle.load(youtubeFixJarAsset);
+      final tempDir = await getTemporaryDirectory();
+      final tempFile = File('${tempDir.path}/youtube2.jar');
+      await tempFile.writeAsBytes(bytes.buffer.asUint8List());
+      final jarPath = await JarBridge.ensureJarPath(
+        configId: youtubeFixJarId,
+        url: tempFile.path,
+        md5: youtubeFixJarMd5,
+      );
+      var youtubeConfig = '';
+      try {
+        youtubeConfig = await rootBundle.loadString(youtubeConfigAsset);
+      } catch (_) {
+        youtubeConfig = '';
+      }
+      final site = StandaloneJarSite(
+        siteId: JarSiteSpec.siteIdFor(youtubeFixJarId, 'YouTube'),
+        jarId: youtubeFixJarId,
+        jarUrl: jarPath,
+        jarMd5: youtubeFixJarMd5,
+        className: youtubeSpiderClass,
+        name: youtubeFixSiteName,
+        ext: youtubeConfig,
+      );
+      _builtinSites[site.siteId] = site;
+      _registerBuiltin(site);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   static Future<
       ({
         List<JarClassInfo> all,

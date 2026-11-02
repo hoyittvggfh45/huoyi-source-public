@@ -401,7 +401,7 @@ class _ImportCenterSectionState extends State<ImportCenterSection> {
                 ),
                 title: Text(record.name),
                 subtitle: Text(
-                  '${record.type == ImportedSiteRecord.typePy ? 'Python 蜘蛛' : 'JS 蜘蛛（引擎未就绪）'}'
+                  '${record.type == ImportedSiteRecord.typePy ? 'Python 蜘蛛' : 'JS 蜘蛛'}'
                   ' · 哈希 ${record.contentHash.substring(0, 8)}'
                   '${record.enabled ? '' : ' · 已停用'}',
                   style: Theme.of(context).textTheme.bodySmall,

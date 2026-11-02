@@ -293,7 +293,7 @@ void main() {
       expect(broken.outcomes.single.reason, contains('playerContent'));
     });
 
-    test('js 注册占位与无法识别', () async {
+    test('js 注册与无法识别', () async {
       final store = await newStore();
       final engine = ImportEngine(
         store: store,

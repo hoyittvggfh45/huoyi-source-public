@@ -62,7 +62,7 @@ class ImportedSiteRecord {
   SourceSite get asSite => SourceSite(
     id,
     name,
-    type == typePy ? 'Python 蜘蛛导入站' : 'JS 蜘蛛导入站（引擎未就绪）',
+    type == typePy ? 'Python 蜘蛛导入站' : 'JS 蜘蛛导入站',
     section: SourceSite.sectionVideo,
     origin: SourceSite.originImport,
     importType: type,
