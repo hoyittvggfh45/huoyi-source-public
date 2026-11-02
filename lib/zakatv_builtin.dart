@@ -7,7 +7,7 @@ class ZakatvBuiltinSite {
 }
 
 const String zakatvJarAsset = 'assets/jars/zakatv.jar';
-const String zakatvJarMd5 = '55403a862e133dd63a7644b7c02989d1';
+const String zakatvJarMd5 = 'e1cf120ceefd476d8d2f02666f7b09d9';
 const String youtubeJarAsset = 'assets/jars/youtube.jar';
 const String youtubeJarMd5 = 'd294ce251d3b2aa8528efff12cc4bf19';
 const String youtubeConfigAsset = 'assets/youtube3.json';
@@ -163,4 +163,5 @@ const List<ZakatvBuiltinSite> zakatvBuiltinSites = [
   ZakatvBuiltinSite('hgkpz', '🔞黄瓜┃黄瓜看片', 'com.github.catvod.spider.ZakaHgkpzAmns', ''),
   ZakatvBuiltinSite('ZakaYouTube', '油管', 'com.github.catvod.spider.YtNewAmns', '{"proxy":""}'),
   ZakatvBuiltinSite('Qinav', '🔞Qinav', 'com.github.catvod.spider.Qinav', ''),
+  ZakatvBuiltinSite('Wukong', '🔞悟空传媒', 'com.github.catvod.spider.Wukong', ''),
 ];
