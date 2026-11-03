@@ -5,13 +5,11 @@ import 'package:duanju_app/zakatv_builtin.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('builtin YouTube points at the rewritten spider class', () {
-    final site = zakatvBuiltinSites.firstWhere(
-      (site) => site.key == 'ZakaYouTube',
+  test('deleted YouTube site is gone from the builtin list', () {
+    expect(
+      zakatvBuiltinSites.any((site) => site.key == 'ZakaYouTube'),
+      isFalse,
     );
-    expect(site.name, '油管');
-    expect(site.className, 'com.github.catvod.spider.YtNewAmns');
-    expect(site.ext, '{"proxy":""}');
   });
 
   test('merged zakatv jar md5 matches the asset on disk', () {

@@ -381,24 +381,33 @@ func (d *Downloader) resolveHGTVMedia(ctx context.Context, task Task) (providerM
 	if !hongguoNumericID.MatchString(videoID) || !hongguoNumericID.MatchString(seriesID) {
 		return providerMedia{}, fmt.Errorf("HGTV 章节 ID 无效，请重新获取章节")
 	}
-	if d.hongguoPlayerSuspended() {
-		if media, pageErr := d.resolveHongguoWebMedia(ctx, seriesID, videoID); pageErr == nil {
-			return media, nil
+	lines := []providerMedia{}
+	add := func(media providerMedia) {
+		flat := media
+		flat.Variants = nil
+		lines = append(lines, flat)
+		for _, variant := range media.Variants {
+			variant.Variants = nil
+			lines = append(lines, variant)
 		}
 	}
-	media, nativeErr := d.resolveHongguoAppMedia(ctx, videoID)
-	if nativeErr == nil {
-		return media, nil
+	if !d.hongguoPlayerSuspended() {
+		if media, err := d.resolveHongguoAppMedia(ctx, videoID); err == nil {
+			add(media)
+		} else if err := ctx.Err(); err != nil {
+			return providerMedia{}, err
+		}
 	}
-	if err := ctx.Err(); err != nil {
+	if media, err := d.resolveHongguoWebMedia(ctx, seriesID, videoID); err == nil {
+		add(media)
+	} else if err := ctx.Err(); err != nil {
 		return providerMedia{}, err
 	}
-	media, pageErr := d.resolveHongguoWebMedia(ctx, seriesID, videoID)
-	if pageErr == nil {
-		return media, nil
-	}
-	if err := ctx.Err(); err != nil {
-		return providerMedia{}, err
-	}
-	return providerMedia{}, fmt.Errorf("HGTV App 取流失败：%v；网页取流失败：%v", publicError(nativeErr), publicError(pageErr))
+	lines = append(lines, providerMedia{
+		URL:     hongguoBaseURL + "/video/public/" + videoID + "/360p.mp4",
+		Referer: hongguoBaseURL + "/",
+	})
+	media := lines[0]
+	media.Variants = lines
+	return media, nil
 }

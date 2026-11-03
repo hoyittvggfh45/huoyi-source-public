@@ -184,5 +184,17 @@ func TestHGTVLiveSmoke(t *testing.T) {
 	if len(media.CENCKey) != 16 || !strings.HasPrefix(media.URL, "https://") {
 		t.Fatalf("resolve: CENCKey=%d bytes, URL=%q", len(media.CENCKey), media.URL)
 	}
+	if len(media.Variants) == 0 {
+		t.Fatal("resolve: no variants, want multi-line")
+	}
+	static := false
+	for _, variant := range media.Variants {
+		if strings.HasSuffix(variant.URL, "/360p.mp4") {
+			static = true
+		}
+	}
+	if !static {
+		t.Fatal("resolve: variants lack static 360p line")
+	}
 	t.Logf("resolve %s ep1: CENCKey=16 bytes, URL host set, quality=%d", seriesID, media.Quality)
 }

@@ -104,7 +104,7 @@ func splitProviderDramaID(id string) (source, sourceID string, ok bool) {
 
 func isHuangguoProviderSource(source string) bool {
 	switch canonicalProviderSource(source) {
-	case sourceHuangguoAI, sourceHuangguoVideo, sourceHuangdou, sourceHongguo, sourceHuangju, sourceYeguo, sourceDSD, sourceCloudFront, sourceGuipian, sourceHanxiaoquan, sourceIkanbot, sourceA123, sourceHGTV:
+	case sourceHuangguoAI, sourceHuangguoVideo, sourceHuangdou, sourceHongguo, sourceHuangju, sourceYeguo, sourceDSD, sourceCloudFront, sourceGuipian, sourceHanxiaoquan, sourceIkanbot, sourceA123, sourceHGTV, sourceHGTVMirror:
 		return true
 	default:
 		return isDuanjuProviderSource(source) || isSekuSource(source)

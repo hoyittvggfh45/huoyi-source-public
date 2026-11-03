@@ -28,17 +28,14 @@ void main() {
     );
   });
 
-  test('rewritten YouTube spider auto-configures on import', () {
+  test('deleted YouTube site no longer matches a config', () {
     final text = File('assets/jar_site_configs.json').readAsStringSync();
     final configs = parseJarSiteConfigs(text);
     final matched = matchJarSiteConfig(
       'com.github.catvod.spider.YtNewAmns',
       configs,
     );
-    expect(matched, isNotNull);
-    expect(matched!.key, 'ZakaYouTube');
-    expect(matched.name, '油管');
-    expect(matched.ext, '{"proxy":""}');
+    expect(matched, isNull);
   });
 
   test('builtin jar configs asset constant points at the json file', () {

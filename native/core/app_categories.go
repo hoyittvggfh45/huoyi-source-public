@@ -57,6 +57,8 @@ func validNativeCategory(source, category string) bool {
 		if _, ok := hgtvCategoryFor(category); ok {
 			return true
 		}
+	case sourceHGTVMirror:
+		return hgtvMirrorCategoryID.MatchString(category)
 	case sourceHongguo:
 		for _, genre := range hongguoAppGenres {
 			if category == genre.key {
@@ -105,6 +107,8 @@ func (engine *nativeEngine) nativeCategories(ctx context.Context, source string,
 			all = append(all, nativeCategory{ID: entry.id, Name: entry.name})
 		}
 		return all, nil
+	case sourceHGTVMirror:
+		return append(all, engine.downloader.fetchHGTVMirrorCategories(ctx)...), nil
 	case sourceHongguo:
 		for _, genre := range hongguoAppGenres {
 			all = append(all, nativeCategory{ID: genre.key, Name: genre.name})

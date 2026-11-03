@@ -166,6 +166,9 @@ func (d *Downloader) resolveProviderMedia(ctx context.Context, task Task) (provi
 	if chapter.Source == sourceHGTV {
 		return d.resolveHGTVMedia(ctx, task)
 	}
+	if chapter.Source == sourceHGTVMirror {
+		return d.resolveHGTVMirrorMedia(ctx, task)
+	}
 	if strings.HasPrefix(chapter.VideoURL, "hongguo-audio://") {
 		return d.resolveHongguoAudioMedia(ctx, task)
 	}

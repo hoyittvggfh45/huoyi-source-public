@@ -695,6 +695,7 @@ class SourceSite {
   static const knownValues = [
     hongguo,
     SourceSite('hgtv', 'HGTV', '短剧 · 漫剧 · AI 剧', section: sectionDrama),
+    SourceSite('hgtvmirror', '红果镜像', '镜站 · 真人剧 · 漫剧 · AI 剧', section: sectionDrama),
     ikanbot,
     a123,
     hanxiaoquan,
@@ -718,6 +719,7 @@ class SourceSite {
   static const allValues = [
     hongguo,
     SourceSite('hgtv', 'HGTV', '短剧 · 漫剧 · AI 剧', section: sectionDrama),
+    SourceSite('hgtvmirror', '红果镜像', '镜站 · 真人剧 · 漫剧 · AI 剧', section: sectionDrama),
     ikanbot,
     a123,
     hanxiaoquan,

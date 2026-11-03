@@ -10,14 +10,19 @@ enum NonVideoKind { novel, pics }
 class NonVideoContent {
   const NonVideoContent.novel({required this.title, required this.text})
     : kind = NonVideoKind.novel,
-      urls = const [];
-  const NonVideoContent.pics({required this.title, required this.urls})
-    : kind = NonVideoKind.pics,
-      text = '';
+      urls = const [],
+      headers = const {};
+  const NonVideoContent.pics({
+    required this.title,
+    required this.urls,
+    this.headers = const {},
+  }) : kind = NonVideoKind.pics,
+       text = '';
   final NonVideoKind kind;
   final String title;
   final String text;
   final List<String> urls;
+  final Map<String, String> headers;
   bool get isNovel => kind == NonVideoKind.novel;
   bool get isPics => kind == NonVideoKind.pics;
 }
@@ -28,7 +33,10 @@ String? _findPayload(String value, String scheme) {
   return value.substring(start);
 }
 
-NonVideoContent? parseNonVideoUrl(String raw) {
+NonVideoContent? parseNonVideoUrl(
+  String raw, {
+  Map<String, String> headers = const {},
+}) {
   final value = raw.trim();
   if (value.isEmpty) return null;
   final novel = _findPayload(value, 'novel://');
@@ -57,7 +65,7 @@ NonVideoContent? parseNonVideoUrl(String raw) {
         if (part.trim().isNotEmpty) part.trim(),
     ];
     if (urls.isEmpty) return null;
-    return NonVideoContent.pics(title: '', urls: urls);
+    return NonVideoContent.pics(title: '', urls: urls, headers: headers);
   }
   return null;
 }
@@ -92,15 +100,25 @@ NonVideoKind? nonVideoKindOfEpisode(Episode episode) {
   return null;
 }
 
-Map<String, String> _imageHeaders(String url) {
+Map<String, String> _imageHeaders(
+  String url,
+  Map<String, String> sourceHeaders,
+) {
   if (url.startsWith('http://127.0.0.1') ||
       url.startsWith('http://localhost')) {
     return const {};
   }
-  return const {
+  final userAgent =
+      sourceHeaders['User-Agent'] ?? sourceHeaders['user-agent'];
+  final referer = sourceHeaders['Referer'] ?? sourceHeaders['referer'];
+  return {
     'User-Agent':
+        userAgent ??
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Referer': 'https://mjv011.com/',
+    'Referer':
+        referer != null && referer.isNotEmpty
+            ? referer
+            : 'https://mjv011.com/',
   };
 }
 
@@ -677,7 +695,10 @@ class _PicsViewerViewState extends State<PicsViewerView> {
               for (final next in [value - 1, value + 1]) {
                 if (next >= 0 && next < urls.length) {
                   precacheImage(
-                    NetworkImage(urls[next], headers: _imageHeaders(urls[next])),
+                    NetworkImage(
+                      urls[next],
+                      headers: _imageHeaders(urls[next], widget.content.headers),
+                    ),
                     context,
                   );
                 }
@@ -690,7 +711,7 @@ class _PicsViewerViewState extends State<PicsViewerView> {
                 child: Center(
                   child: Image.network(
                     urls[i],
-                    headers: _imageHeaders(urls[i]),
+                    headers: _imageHeaders(urls[i], widget.content.headers),
                     fit: BoxFit.contain,
                     errorBuilder: (context, _, _) => Padding(
                       padding: const EdgeInsets.all(24),

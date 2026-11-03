@@ -754,6 +754,8 @@ func (engine *nativeEngine) nativeCatalog(ctx context.Context, input nativeInput
 	switch source {
 	case sourceHGTV:
 		items, result.HasMore, result.Filters, err = d.fetchHGTVCatalogPage(ctx, category, page, input.Filters)
+	case sourceHGTVMirror:
+		items, result.HasMore, result.Filters, err = d.fetchHGTVMirrorCatalogPage(ctx, category, page)
 	case sourceHongguo:
 		if hongguoIsBookCategory(category) {
 			if category == "novel" {
@@ -912,6 +914,8 @@ func (engine *nativeEngine) nativeDetail(ctx context.Context, drama nativeDrama)
 		}
 	case sourceHGTV:
 		raw, chapters, err = engine.downloader.fetchHGTVDetail(ctx, sourceID)
+	case sourceHGTVMirror:
+		raw, chapters, err = engine.downloader.fetchHGTVMirrorDetail(ctx, sourceID)
 	case sourceHuangguoAI:
 		raw, chapters, err = engine.downloader.fetchHuangguoAIDetail(ctx, sourceID)
 	case sourceHuangguoVideo:

@@ -167,12 +167,17 @@ class _NovelReaderPageState extends State<NovelReaderPage> {
         widget.book.id,
         _chapters[index],
       );
-      final parsed = parseNonVideoUrl(track.url);
+      final parsed = parseNonVideoUrl(track.url, headers: track.headers);
       if (!mounted) return;
       if (parsed == null || (!parsed.isNovel && !parsed.isPics)) {
+        final url = track.url.toLowerCase();
+        final isVideo =
+            (url.startsWith('http://') || url.startsWith('https://')) &&
+            (url.contains('.m3u8') ||
+                RegExp(r'\.(mp4|mkv|mov|webm|avi|flv)(\?|$)').hasMatch(url));
         setState(() {
           _loading = false;
-          _error = '该章不是小说文本';
+          _error = isVideo ? '该章是视频，阅读器打不开' : '该章不是小说文本';
           _ttsPlaying = false;
           _ttsPaused = false;
         });
@@ -330,7 +335,7 @@ class _NovelReaderPageState extends State<NovelReaderPage> {
         }
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFFF7F1E3),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: Stack(
           children: [
             _loading

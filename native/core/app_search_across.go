@@ -35,7 +35,8 @@ func nativeSourceSupportsSearch(source string) bool {
 	}
 	switch source {
 	case sourceHongguo, sourceHuangju, sourceGuipian, sourceHanxiaoquan,
-		sourceYeguo, sourceDSD, sourceA123, sourceIkanbot, sourceHGTV:
+		sourceYeguo, sourceDSD, sourceA123, sourceIkanbot, sourceHGTV,
+		sourceHGTVMirror:
 		return true
 	}
 	if isDuanjuProviderSource(source) {
@@ -62,6 +63,16 @@ func (engine *nativeEngine) nativeSearchSource(ctx context.Context, source, quer
 	switch {
 	case source == sourceHGTV:
 		items, err := d.searchHGTVDramas(ctx, query)
+		if err != nil {
+			return result, err
+		}
+		for _, drama := range items {
+			result.Items = append(result.Items, nativeNormalize(drama))
+		}
+		result.Page = 1
+		return result, nil
+	case source == sourceHGTVMirror:
+		items, err := d.searchHGTVMirrorDramas(ctx, query)
 		if err != nil {
 			return result, err
 		}

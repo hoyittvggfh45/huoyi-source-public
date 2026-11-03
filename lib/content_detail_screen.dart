@@ -51,6 +51,7 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
   bool _autoPlayed = false;
   bool _trackLoading = false;
   String _trackError = '';
+  bool _autoRetried = false;
   double _rate = 1.0;
   final List<StreamSubscription<dynamic>> _subs = [];
 
@@ -88,7 +89,11 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
         if (completed == true) _next(auto: true);
       }),
       _player.stream.error.listen((_) {
-        if (mounted && _trackError.isEmpty) {
+        if (!mounted || _trackError.isNotEmpty) return;
+        if (!_autoRetried) {
+          _autoRetried = true;
+          unawaited(_playChapter(_playingIndex));
+        } else {
           setState(() => _trackError = '音频播放出错');
         }
       }),
@@ -182,6 +187,7 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
       _playingIndex = index;
       _trackLoading = true;
       _trackError = '';
+      _autoRetried = false;
       _position = Duration.zero;
       _duration = Duration.zero;
     });

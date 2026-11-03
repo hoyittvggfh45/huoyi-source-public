@@ -158,6 +158,10 @@ ThemeData applyThemePreferences(
           ? Color.lerp(accentColor, Colors.white, 0.82)!
           : Color.lerp(accentColor, Colors.black, 0.35)!,
     );
+    scaffold = dark
+        ? Color.lerp(accentColor, Colors.black, 0.88)!
+        : Color.lerp(accentColor, Colors.white, 0.92)!;
+    canvas = scaffold;
   }
   var cardTheme = base.cardTheme;
   var dialogTheme = base.dialogTheme;
@@ -279,6 +283,7 @@ ThemeData applyThemePreferences(
     colorScheme: scheme,
     scaffoldBackgroundColor: scaffold,
     canvasColor: canvas,
+    appBarTheme: base.appBarTheme.copyWith(backgroundColor: scaffold),
     drawerTheme: DrawerThemeData(backgroundColor: scheme.surface),
     cardTheme: cardTheme,
     dialogTheme: dialogTheme,

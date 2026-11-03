@@ -889,12 +889,6 @@
       "ext": ""
     },
     {
-      "key": "ZakaYouTube",
-      "name": "油管",
-      "api": "csp_YtNewAmns",
-      "ext": "{\"proxy\":\"\"}"
-    },
-    {
       "key": "Wukong",
       "name": "🔞悟空传媒",
       "api": "csp_Wukong",
@@ -907,27 +901,9 @@
       "ext": ""
     },
     {
-      "key": "hgtv",
-      "name": "红果镜像",
-      "api": "csp_Hgtv",
-      "ext": ""
-    },
-    {
-      "key": "go_hua",
-      "name": "Hua",
-      "api": "csp_Hua",
-      "ext": "{}"
-    },
-    {
       "key": "go_tingshu",
       "name": "听书",
       "api": "csp_TingShu",
-      "ext": "{}"
-    },
-    {
-      "key": "go_ytdl",
-      "name": "Ytdl",
-      "api": "csp_Ytdl",
       "ext": "{}"
     }
   ]
