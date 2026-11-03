@@ -75,20 +75,8 @@ const List<AggregationStationDef> aggregationStationDefs = [
     column: AggregationColumn.video,
   ),
   AggregationStationDef(
-    key: 'go_webvod',
-    name: '映画漫光',
-    kind: 'Go壳',
-    column: AggregationColumn.video,
-  ),
-  AggregationStationDef(
     key: 'go_lego',
     name: 'Lego',
-    kind: 'Go壳',
-    column: AggregationColumn.novel,
-  ),
-  AggregationStationDef(
-    key: 'go_novelbd',
-    name: 'NovelBd',
     kind: 'Go壳',
     column: AggregationColumn.novel,
   ),

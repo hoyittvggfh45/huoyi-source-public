@@ -39,6 +39,7 @@ class PlayerMenu extends StatefulWidget {
     this.showDanmaku = false,
     this.danmakuStatus = '',
     this.onRetryDanmaku,
+    this.onSendLocalDanmaku,
     this.preloadStatus = '',
     this.enhancement,
     this.onCompareEnhancement,
@@ -59,6 +60,7 @@ class PlayerMenu extends StatefulWidget {
   final bool showDanmaku;
   final String danmakuStatus;
   final VoidCallback? onRetryDanmaku;
+  final VoidCallback? onSendLocalDanmaku;
   final String preloadStatus;
   final VideoEnhancementController? enhancement;
   final VoidCallback? onCompareEnhancement;
@@ -294,27 +296,35 @@ class _PlayerMenuState extends State<PlayerMenu> {
             ),
             onCompare: widget.onCompareEnhancement ?? () {},
           ),
-        if (all && widget.showDanmaku) ...[
-          SwitchListTile.adaptive(
-            key: const ValueKey('player-danmaku-enabled'),
-            contentPadding: EdgeInsets.zero,
-            title: const Text('弹幕'),
-            subtitle: Text(widget.danmakuStatus),
-            value: preferences.danmaku,
-            onChanged: _busy
-                ? null
-                : (value) => _run(
-                    () => widget.onPreferences(
-                      preferences.copyWith(danmaku: value),
+        if (all && (widget.showDanmaku || widget.onSendLocalDanmaku != null)) ...[
+          if (widget.showDanmaku)
+            SwitchListTile.adaptive(
+              key: const ValueKey('player-danmaku-enabled'),
+              contentPadding: EdgeInsets.zero,
+              title: const Text('弹幕'),
+              subtitle: Text(widget.danmakuStatus),
+              value: preferences.danmaku,
+              onChanged: _busy
+                  ? null
+                  : (value) => _run(
+                      () => widget.onPreferences(
+                        preferences.copyWith(danmaku: value),
+                      ),
                     ),
-                  ),
-          ),
+            ),
           if (widget.onRetryDanmaku != null)
             TextButton.icon(
               key: const ValueKey('player-danmaku-retry'),
               onPressed: _busy ? null : widget.onRetryDanmaku,
               icon: const Icon(Icons.refresh_rounded),
               label: const Text('重试弹幕'),
+            ),
+          if (widget.onSendLocalDanmaku != null)
+            TextButton.icon(
+              key: const ValueKey('player-danmaku-send-local'),
+              onPressed: _busy ? null : widget.onSendLocalDanmaku,
+              icon: const Icon(Icons.send_rounded),
+              label: const Text('发送本地弹幕'),
             ),
           const SizedBox(height: 8),
         ],

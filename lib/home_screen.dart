@@ -112,6 +112,7 @@ class _HomeScreenState extends State<HomeScreen> {
   static const _recommendationCategory = 'app:recommendations';
   final _search = TextEditingController();
   final _scroll = ScrollController();
+  bool _resetScrollOnNextLoad = false;
   final _filtersKey = GlobalKey<RemoteRowState>();
   final _gridKey = GlobalKey<RemoteGridState>();
   final _navKey = GlobalKey<RemoteListState>();
@@ -851,6 +852,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _hasMore = true;
         _error = null;
       });
+      _resetScrollOnNextLoad = true;
       unawaited(
         saveUserChange(
           context,
@@ -1054,6 +1056,12 @@ class _HomeScreenState extends State<HomeScreen> {
         _error = result.warning.isEmpty ? null : result.warning;
         _sectionFetchedAt[_catalogSection] = DateTime.now();
       });
+      if (!more && _resetScrollOnNextLoad) {
+        _resetScrollOnNextLoad = false;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _scroll.hasClients) _scroll.jumpTo(0);
+        });
+      }
       unawaited(
         saveUserChange(context, () => widget.store.refreshDramas(result.items)),
       );
@@ -1114,6 +1122,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_scroll.hasClients) {
       _scroll.jumpTo(0);
     }
+    _resetScrollOnNextLoad = true;
     _load(force: true);
     _loadCategories(force: true);
   }

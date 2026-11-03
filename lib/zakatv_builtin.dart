@@ -7,7 +7,7 @@ class ZakatvBuiltinSite {
 }
 
 const String zakatvJarAsset = 'assets/jars/zakatv.jar';
-const String zakatvJarMd5 = 'ab80ce6ba20e533055a2a9657be7343b';
+const String zakatvJarMd5 = '2a8679b05d1d65659ed10b5f002ccda5';
 const String youtubeJarAsset = 'assets/jars/youtube.jar';
 const String youtubeJarMd5 = 'd294ce251d3b2aa8528efff12cc4bf19';
 const String youtubeConfigAsset = 'assets/youtube3.json';
@@ -171,9 +171,7 @@ const List<ZakatvBuiltinSite> zakatvBuiltinSites = [
   ZakatvBuiltinSite('go_hua', 'Hua', 'com.github.catvod.spider.Hua', '{}'),
   ZakatvBuiltinSite('go_lego', 'Lego', 'com.github.catvod.spider.Lego', '{}'),
   ZakatvBuiltinSite('go_music1', '音乐', 'com.github.catvod.spider.Music1', '{}'),
-  ZakatvBuiltinSite('go_novelbd', 'NovelBd', 'com.github.catvod.spider.NovelBd', '{}'),
   ZakatvBuiltinSite('go_tingshu', '听书', 'com.github.catvod.spider.TingShu', '{}'),
   ZakatvBuiltinSite('go_ytdl', 'Ytdl', 'com.github.catvod.spider.Ytdl', '{}'),
-  ZakatvBuiltinSite('go_webvod', '映画漫光', 'com.github.catvod.spider.WebVodSpider', '{}'),
   ZakatvBuiltinSite('bili', 'B站Java版', 'com.github.catvod.spider.Bili', '{"type":"舞蹈#音乐#游戏#科技#生活#美食#动画#影视","cookie":""}'),
 ];

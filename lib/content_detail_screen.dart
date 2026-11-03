@@ -3,9 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
 
+import 'app_page_route.dart';
 import 'content_models.dart';
 import 'core_bridge.dart';
 import 'novel_cover.dart';
+import 'novel_reader_page.dart';
 import 'reading_bookshelf.dart';
 
 class ContentDetailScreen extends StatefulWidget {
@@ -250,7 +252,23 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
     }
   }
 
+  void _openNovelReader([int? chapterIndex]) {
+    Navigator.of(context).push(
+      appPageRoute(
+        builder: (_) => NovelReaderPage(
+          source: widget.source,
+          book: widget.book,
+          initialChapterIndex: chapterIndex,
+        ),
+      ),
+    );
+  }
+
   void _onChapterTap(int index) {
+    if (widget.source.section == ContentSection.novel) {
+      _openNovelReader(index);
+      return;
+    }
     if (index == _playingIndex) {
       _toggle();
     } else {
@@ -503,17 +521,31 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
                             const SizedBox(height: 10),
                             Align(
                               alignment: Alignment.centerLeft,
-                              child: FilledButton.icon(
-                                key: const ValueKey('detail-bookshelf-toggle'),
-                                onPressed: _toggleShelf,
-                                icon: Icon(
-                                  _shelved
-                                      ? Icons.bookmark
-                                      : Icons.bookmark_border,
-                                ),
-                                label: Text(
-                                  _shelved ? '移出书架' : '加入书架',
-                                ),
+                              child: Wrap(
+                                spacing: 10,
+                                children: [
+                                  FilledButton.icon(
+                                    onPressed: () => _openNovelReader(),
+                                    icon: const Icon(
+                                      Icons.menu_book_outlined,
+                                    ),
+                                    label: const Text('阅读'),
+                                  ),
+                                  FilledButton.icon(
+                                    key: const ValueKey(
+                                      'detail-bookshelf-toggle',
+                                    ),
+                                    onPressed: _toggleShelf,
+                                    icon: Icon(
+                                      _shelved
+                                          ? Icons.bookmark
+                                          : Icons.bookmark_border,
+                                    ),
+                                    label: Text(
+                                      _shelved ? '移出书架' : '加入书架',
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],

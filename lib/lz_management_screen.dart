@@ -16,6 +16,7 @@ class LzManagementScreen extends StatefulWidget {
 
 class _LzManagementScreenState extends State<LzManagementScreen> {
   List<LzRuleEntry>? _entries;
+  List<LzRuleEntry>? _discovered;
   bool? _rootReadable;
   bool _loading = true;
   String? _error;
@@ -33,11 +34,18 @@ class _LzManagementScreenState extends State<LzManagementScreen> {
     });
     try {
       final readable = await widget.store.rootReadable;
+      await widget.store.ensureFolders();
       final entries = await widget.store.scan();
+      final found = await widget.store.scanFolder();
+      final fixed = entries.map((entry) => entry.path.relative).toSet();
+      final discovered = found
+          .where((entry) => !fixed.contains(entry.path.relative))
+          .toList();
       if (!mounted) return;
       setState(() {
         _rootReadable = readable;
         _entries = entries;
+        _discovered = discovered;
         _loading = false;
       });
     } catch (error) {
@@ -161,37 +169,46 @@ class _LzManagementScreenState extends State<LzManagementScreen> {
                 ),
                 const SizedBox(height: 8),
                 for (final entry in _entries!)
-                  Card(
-                    key: ValueKey('lz-entry-${entry.path.relative}'),
-                    child: ListTile(
-                      title: Text(entry.path.relative),
-                      subtitle: Text(_detail(entry)),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (!entry.exists ||
-                              entry.path.kind != LzRuleKind.dir)
-                            TextButton(
-                              key: ValueKey(
-                                'lz-import-${entry.path.relative}',
-                              ),
-                              onPressed: () => _importInto(entry.path),
-                              child: const Text('导入'),
-                            ),
-                          if (entry.exists)
-                            TextButton(
-                              key: ValueKey(
-                                'lz-delete-${entry.path.relative}',
-                              ),
-                              onPressed: () => _deleteEntry(entry),
-                              child: const Text('删除'),
-                            ),
-                        ],
-                      ),
-                    ),
+                  _entryCard(entry, 'lz-entry'),
+                if (_discovered != null && _discovered!.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const Text(
+                    'lz 文件夹里的实际文件',
+                    style: TextStyle(fontWeight: FontWeight.w700),
                   ),
+                  const SizedBox(height: 8),
+                  for (final entry in _discovered!)
+                    _entryCard(entry, 'lz-found'),
+                ],
               ],
             ),
+    );
+  }
+
+  Widget _entryCard(LzRuleEntry entry, String keyPrefix) {
+    return Card(
+      key: ValueKey('$keyPrefix-${entry.path.relative}'),
+      child: ListTile(
+        title: Text(entry.path.relative),
+        subtitle: Text(_detail(entry)),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (!entry.exists || entry.path.kind != LzRuleKind.dir)
+              TextButton(
+                key: ValueKey('$keyPrefix-import-${entry.path.relative}'),
+                onPressed: () => _importInto(entry.path),
+                child: const Text('导入'),
+              ),
+            if (entry.exists)
+              TextButton(
+                key: ValueKey('$keyPrefix-delete-${entry.path.relative}'),
+                onPressed: () => _deleteEntry(entry),
+                child: const Text('删除'),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

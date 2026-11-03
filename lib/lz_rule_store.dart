@@ -3,7 +3,15 @@ import 'dart:io';
 
 import 'core_bridge.dart';
 
-enum LzRuleKind { json, txt, dir }
+enum LzRuleKind { json, txt, py, js, other, dir }
+
+LzRuleKind lzKindForName(String name) {
+  if (name.endsWith('.json')) return LzRuleKind.json;
+  if (name.endsWith('.txt')) return LzRuleKind.txt;
+  if (name.endsWith('.py')) return LzRuleKind.py;
+  if (name.endsWith('.js')) return LzRuleKind.js;
+  return LzRuleKind.other;
+}
 
 class LzRulePath {
   const LzRulePath(this.relative, this.kind);
@@ -60,12 +68,70 @@ class LzRuleStore {
     }
   }
 
+  Future<void> ensureFolders() async {
+    try {
+      final dirs = <String>{'lz', 'novel'};
+      for (final path in lzRulePaths) {
+        final parts = path.relative.split('/');
+        for (var i = 1; i < parts.length; i++) {
+          dirs.add(parts.sublist(0, i).join('/'));
+        }
+        if (path.kind == LzRuleKind.dir) {
+          dirs.add(path.relative);
+        }
+      }
+      for (final dir in dirs) {
+        await Directory('$root/$dir').create(recursive: true);
+      }
+    } catch (_) {}
+  }
+
   Future<List<LzRuleEntry>> scan() async {
     final entries = <LzRuleEntry>[];
     for (final path in lzRulePaths) {
       entries.add(await _scanOne(path));
     }
     return entries;
+  }
+
+  Future<List<LzRuleEntry>> scanFolder() async {
+    final found = <LzRuleEntry>[];
+    try {
+      final base = Directory('$root/lz');
+      if (!await base.exists()) return const [];
+      await _collect(base, 'lz', found, 0);
+    } catch (_) {
+      return found;
+    }
+    found.sort((a, b) => a.path.relative.compareTo(b.path.relative));
+    return found;
+  }
+
+  Future<void> _collect(
+    Directory dir,
+    String relative,
+    List<LzRuleEntry> out,
+    int depth,
+  ) async {
+    if (out.length >= 500 || depth > 4) return;
+    List<FileSystemEntity> children;
+    try {
+      children = await dir.list().toList();
+    } catch (_) {
+      return;
+    }
+    for (final child in children) {
+      if (out.length >= 500) return;
+      final name = child.path.split('/').last;
+      if (name.startsWith('.')) continue;
+      final childRelative = '$relative/$name';
+      if (child is Directory) {
+        out.add(await _scanOne(LzRulePath(childRelative, LzRuleKind.dir)));
+        await _collect(child, childRelative, out, depth + 1);
+      } else if (child is File) {
+        out.add(await _scanOne(LzRulePath(childRelative, lzKindForName(name))));
+      }
+    }
   }
 
   Future<LzRuleEntry> _scanOne(LzRulePath path) async {
@@ -104,7 +170,9 @@ class LzRuleStore {
           } else if (decoded is Map) {
             count = 1;
           }
-        } else {
+        } else if (path.kind == LzRuleKind.txt ||
+            path.kind == LzRuleKind.py ||
+            path.kind == LzRuleKind.js) {
           final lines = await file.readAsLines();
           count = lines.where((line) => line.trim().isNotEmpty).length;
         }

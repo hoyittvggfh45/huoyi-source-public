@@ -4,6 +4,7 @@ import 'core_bridge.dart';
 import 'danmaku_loader.dart';
 import 'danmaku_models.dart';
 import 'danmaku_time_sync.dart';
+import 'local_danmaku_store.dart';
 import 'models.dart';
 
 class DanmakuController extends ChangeNotifier {
@@ -32,7 +33,7 @@ class DanmakuController extends ChangeNotifier {
               : repository.danmaku(plan, startMs: start, durationMs: duration),
       cancelLoad: () => repository.cancelDanmaku(),
       onItems: (list) {
-        items = list;
+        _remoteItems = list;
         dataRevision++;
       },
       onChanged: notifyListeners,
@@ -62,7 +63,12 @@ class DanmakuController extends ChangeNotifier {
   double rate = 1;
   int motionRevision = 0;
   int dataRevision = 0;
-  List<DanmakuItem> items = const [];
+  List<DanmakuItem> _remoteItems = const [];
+  List<DanmakuItem> _localItems = const [];
+  String? _localKey;
+  int _localLoadToken = 0;
+
+  List<DanmakuItem> get items => [..._remoteItems, ..._localItems];
 
   bool get supported =>
       _plan != null &&
@@ -79,11 +85,28 @@ class DanmakuController extends ChangeNotifier {
       durationMs > 0 &&
       positionMs < durationMs;
   bool get moving => visible && _playing && !_buffering;
+  bool get localVisible =>
+      !_closed &&
+      _enabled &&
+      _available &&
+      _foreground &&
+      !_seeking &&
+      durationMs > 0 &&
+      positionMs < durationMs &&
+      _localItems.isNotEmpty;
+  bool get anyVisible => visible || localVisible;
+  bool get anyMoving =>
+      anyVisible && _playing && !_buffering;
+  bool get canSendLocal => _localKey != null;
   bool get loading => _loader.loading;
   bool get canRetry => visible && _loader.hasFailures;
   String get status {
     if (!_enabled) return '弹幕已关闭';
-    if (_plan?.local == true) return '本地播放不加载弹幕';
+    if (_plan?.local == true) {
+      return _localItems.isEmpty
+          ? '暂无本地弹幕'
+          : '本地弹幕 ${_localItems.length} 条';
+    }
     if (_plan != null && !supported) return '本集暂不支持弹幕';
     if (canRetry) return '弹幕暂不可用，可重试';
     if (loading && !_loader.hasPages) return '正在加载弹幕';
@@ -105,6 +128,9 @@ class DanmakuController extends ChangeNotifier {
     _available = false;
     positionMs = durationMs = 0;
     _resetMotion();
+    _localItems = const [];
+    _localKey = _computeLocalKey();
+    _loadLocal();
     notifyListeners();
   }
 
@@ -126,8 +152,69 @@ class DanmakuController extends ChangeNotifier {
     _plan = next;
     _loader.clearPages();
     _resetMotion();
+    _localItems = const [];
+    _localKey = _computeLocalKey();
+    _loadLocal();
     notifyListeners();
     _ensureWindow();
+  }
+
+  Future<void> sendLocal(String text) async {
+    final key = _localKey;
+    final trimmed = text.trim();
+    if (_closed || key == null || trimmed.isEmpty) return;
+    final entry = LocalDanmakuEntry(text: trimmed, timeMs: positionMs);
+    await LocalDanmakuStore.add(key, entry);
+    if (_closed || _localKey != key) return;
+    _localItems = [
+      ..._localItems,
+      DanmakuItem(
+        id: 'local:$key:${_localItems.length}',
+        text: entry.text,
+        timeMs: entry.timeMs,
+      ),
+    ];
+    dataRevision++;
+    notifyListeners();
+  }
+
+  Future<void> clearLocal() async {
+    final key = _localKey;
+    if (_closed || key == null) return;
+    await LocalDanmakuStore.clear(key);
+    if (_closed || _localKey != key) return;
+    _localItems = const [];
+    dataRevision++;
+    notifyListeners();
+  }
+
+  String? _computeLocalKey() {
+    if (_bySeries != null && _byVideo != null) {
+      return 'byid:$_bySeries:$_byVideo';
+    }
+    final plan = _plan;
+    if (plan == null) return null;
+    if (plan.danmakuId.isNotEmpty) return 'dm:${plan.danmakuId}';
+    if (plan.local) return 'local:${plan.url}';
+    return null;
+  }
+
+  Future<void> _loadLocal() async {
+    final key = _localKey;
+    final token = ++_localLoadToken;
+    if (key == null) return;
+    final entries = await LocalDanmakuStore.load(key);
+    if (_closed || token != _localLoadToken || _localKey != key) return;
+    _localItems = [
+      for (var i = 0; i < entries.length; i++)
+        DanmakuItem(
+          id: 'local:$key:$i',
+          text: entries[i].text,
+          timeMs: entries[i].timeMs,
+        ),
+    ];
+    dataRevision++;
+    notifyListeners();
   }
 
   void setEnabled(bool enabled) {
@@ -151,7 +238,7 @@ class DanmakuController extends ChangeNotifier {
     bool discontinuity = false,
   }) {
     if (_closed) return;
-    final wasVisible = visible, wasMoving = moving;
+    final wasVisible = anyVisible, wasMoving = anyMoving;
     final previousRate = rate;
     final nextPosition = position.inMilliseconds.clamp(0, danmakuMaxDurationMs);
     final nextDuration = duration.inMilliseconds;
@@ -178,20 +265,20 @@ class DanmakuController extends ChangeNotifier {
     _buffering = buffering;
     _foreground = foreground;
     _available = available;
-    if (wasVisible && !visible) _cancel();
+    if (wasVisible && !anyVisible) _cancel();
     final motionChanged =
         drift ||
         jumped ||
         durationChanged ||
-        wasVisible != visible ||
-        wasMoving != moving ||
+        wasVisible != anyVisible ||
+        wasMoving != anyMoving ||
         previousRate != rate;
     if (motionChanged) {
       _resetMotion();
     }
     final now = _now();
     if (motionChanged ||
-        moving &&
+        anyMoving &&
             items.isNotEmpty &&
             now.difference(_lastPositionNotification).inMilliseconds >= 250) {
       _lastPositionNotification = now;
@@ -226,7 +313,7 @@ class DanmakuController extends ChangeNotifier {
 
   void _resetMotion() {
     motionRevision++;
-    _sync.reset(positionMs: positionMs, rate: rate, moving: moving);
+    _sync.reset(positionMs: positionMs, rate: rate, moving: anyMoving);
   }
 
   void _cancel() {

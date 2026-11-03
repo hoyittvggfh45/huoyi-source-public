@@ -1106,9 +1106,20 @@ func legadoExploreCategories(src LegadoSource) interface{} {
 			for _, item := range arr {
 				title, _ := item["title"].(string)
 				url, _ := item["url"].(string)
-				if title == "" && url == "" {
+				if url == "" {
 					continue
 				}
+				out = append(out, map[string]string{"title": title, "url": url})
+			}
+			return out
+		}
+	}
+	if strings.HasPrefix(trimmed, "{") {
+		var item map[string]interface{}
+		if json.Unmarshal([]byte(trimmed), &item) == nil {
+			title, _ := item["title"].(string)
+			url, _ := item["url"].(string)
+			if url != "" {
 				out = append(out, map[string]string{"title": title, "url": url})
 			}
 			return out
@@ -1130,14 +1141,14 @@ func legadoExploreCategories(src LegadoSource) interface{} {
 
 func legadoExplore(src LegadoSource, urlTmpl string, page int) (interface{}, error) {
 	if src.ExploreURL == "" || src.ExploreBookList == "" {
-		return nil, fmt.Errorf("legado source missing exploreUrl or explore bookList rule")
+		return []map[string]string{}, nil
 	}
 	ctx := newLegadoJSCtx(src.URL)
 	ctx.setSource(src)
 	ctx.page = page
 	u := legadoAbs(src.URL, ctx.expandURLTemplate(urlTmpl))
 	if u == "" {
-		return nil, fmt.Errorf("legado explore url empty")
+		return []map[string]string{}, nil
 	}
 	pageBody, err := legadoFetchSrc(src, u)
 	if err != nil {

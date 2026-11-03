@@ -949,12 +949,6 @@
       "ext": "{}"
     },
     {
-      "key": "go_novelbd",
-      "name": "NovelBd",
-      "api": "csp_NovelBd",
-      "ext": "{}"
-    },
-    {
       "key": "go_tingshu",
       "name": "听书",
       "api": "csp_TingShu",
@@ -964,12 +958,6 @@
       "key": "go_ytdl",
       "name": "Ytdl",
       "api": "csp_Ytdl",
-      "ext": "{}"
-    },
-    {
-      "key": "go_webvod",
-      "name": "映画漫光",
-      "api": "csp_WebVodSpider",
       "ext": "{}"
     },
     {

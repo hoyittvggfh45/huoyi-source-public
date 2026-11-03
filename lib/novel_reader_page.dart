@@ -14,11 +14,13 @@ class NovelReaderPage extends StatefulWidget {
     required this.source,
     required this.book,
     this.ttsEngine,
+    this.initialChapterIndex,
   });
 
   final ContentSource source;
   final ContentBook book;
   final NovelTtsEngine? ttsEngine;
+  final int? initialChapterIndex;
 
   @override
   State<NovelReaderPage> createState() => _NovelReaderPageState();
@@ -136,10 +138,11 @@ class _NovelReaderPageState extends State<NovelReaderPage> {
       try {
         bookmark = await loadBookmark(widget.source.id, widget.book.id);
       } catch (_) {}
-      final startIndex = bookmark == null
-          ? 0
-          : bookmark.chapterIndex.clamp(0, _chapters.length - 1);
-      _initialPage = bookmark?.pageIndex ?? 0;
+      final startIndex = (widget.initialChapterIndex ??
+              (bookmark == null ? 0 : bookmark.chapterIndex))
+          .clamp(0, _chapters.length - 1);
+      _initialPage =
+          widget.initialChapterIndex != null ? 0 : bookmark?.pageIndex ?? 0;
       await _loadChapter(startIndex, resume: true);
     } catch (_) {
       if (mounted) {

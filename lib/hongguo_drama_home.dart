@@ -485,7 +485,12 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
         store: widget.store,
         preloadedPlan: preloaded,
       );
-      if (!mounted || token != _playToken) return;
+      if (!mounted) return;
+      if (_tab != 0) {
+        unawaited(_player.pause());
+        return;
+      }
+      if (token != _playToken) return;
       final plan = _player.plan;
       if (plan != null) {
         if (!_playbackServiceHeld) {
@@ -616,6 +621,7 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
     if (index == _tab) return;
     setState(() => _tab = index);
     if (index != 0) {
+      _playToken++;
       if (_player.hasVideo) unawaited(_player.pause());
     } else if (_player.hasVideo) {
       if (!_player.playing) unawaited(_player.play());

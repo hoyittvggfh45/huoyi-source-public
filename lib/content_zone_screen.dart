@@ -9,7 +9,6 @@ import 'content_registry.dart';
 import 'content_zone_binding.dart';
 import 'core_bridge.dart';
 import 'novel_cover.dart';
-import 'novel_reader_page.dart';
 import 'novel_source_store.dart';
 import 'reading_bookshelf_screen.dart';
 import 'source_picker_sheet.dart';
@@ -42,6 +41,7 @@ class _ContentZoneScreenState extends State<ContentZoneScreen> {
   String _error = '';
   String _query = '';
   final _searchController = TextEditingController();
+  final _scroll = ScrollController();
 
   @override
   void initState() {
@@ -94,6 +94,7 @@ class _ContentZoneScreenState extends State<ContentZoneScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
@@ -156,6 +157,11 @@ class _ContentZoneScreenState extends State<ContentZoneScreen> {
         _loading = false;
         _loadingMore = false;
       });
+      if (reset) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _scroll.hasClients) _scroll.jumpTo(0);
+        });
+      }
     } on AppFailure catch (e) {
       if (mounted) {
         setState(() {
@@ -236,14 +242,6 @@ class _ContentZoneScreenState extends State<ContentZoneScreen> {
       _loadPage(reset: true);
       return;
     }
-    if (widget.section == ContentSection.novel) {
-      Navigator.of(context).push(
-        appPageRoute(
-          builder: (_) => NovelReaderPage(source: source, book: book),
-        ),
-      );
-      return;
-    }
     Navigator.of(context).push(
       appPageRoute(
         builder: (_) => ContentDetailScreen(
@@ -257,14 +255,20 @@ class _ContentZoneScreenState extends State<ContentZoneScreen> {
 
   Future<void> _importNovel() async {
     try {
-      final record = await NovelSourceStore.importPicked();
-      if (record == null || !mounted) return;
+      final result = await NovelSourceStore.importPickedMany();
+      if (result.records.isEmpty || !mounted) return;
       await NovelSourceStore.applyToRegistry();
       if (!mounted) return;
       _bindSection();
       setState(() {});
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('已导入 ${record.name}')),
+        SnackBar(
+          content: Text(
+            result.records.length == 1 && result.skipped == 0
+                ? '已导入 ${result.records.first.name}'
+                : '已导入 ${result.records.length} 条，跳过 ${result.skipped} 条',
+          ),
+        ),
       );
     } catch (e) {
       if (mounted) {
@@ -503,6 +507,7 @@ class _ContentZoneScreenState extends State<ContentZoneScreen> {
           )
         else if (_categories.isNotEmpty)
           SingleChildScrollView(
+            key: ValueKey(_source?.id),
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
             child: Row(
@@ -545,6 +550,7 @@ class _ContentZoneScreenState extends State<ContentZoneScreen> {
       return const Center(child: Text('暂无内容'));
     }
     return ListView(
+      controller: _scroll,
       padding: const EdgeInsets.all(16),
       children: [
         GridView.builder(

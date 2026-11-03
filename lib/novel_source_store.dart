@@ -134,6 +134,12 @@ class NovelSourceStore {
   }
 
   static Future<NovelImportRecord?> importPicked() async {
+    final result = await importPickedMany();
+    return result.records.isEmpty ? null : result.records.first;
+  }
+
+  static Future<({List<NovelImportRecord> records, int skipped})>
+  importPickedMany() async {
     PlatformFile? picked;
     try {
       picked = await FilePicker.pickFile(
@@ -148,45 +154,113 @@ class NovelSourceStore {
         throw const FormatException('不是 py、txt 或 json 文件');
       }
     }
-    if (picked == null) return null;
+    if (picked == null) return (records: <NovelImportRecord>[], skipped: 0);
     final bytes = await picked.readAsBytes();
     if (bytes.isEmpty) throw const FormatException('空文件');
+    var text = utf8.decode(bytes, allowMalformed: true);
+    if (text.startsWith('\uFEFF')) text = text.substring(1);
     final isTxt = picked.name.toLowerCase().endsWith('.txt');
     final isJson = picked.name.toLowerCase().endsWith('.json');
-    var jsonType = 0;
-    if (isJson) {
-      jsonType = validateLegadoJson(
-        utf8.decode(bytes, allowMalformed: true),
-      ).type;
-    } else if (!isTxt &&
-        !isNovelComicPyText(utf8.decode(bytes, allowMalformed: true))) {
-      throw const FormatException('不是小说漫画源');
+    dynamic decoded;
+    var decodedJson = false;
+    if (isJson || isTxt) {
+      try {
+        decoded = jsonDecode(text);
+        decodedJson = true;
+      } catch (_) {
+        if (isJson) throw const FormatException('不是合法 JSON');
+      }
     }
     final stamp = DateTime.now().millisecondsSinceEpoch;
+    final records = await load();
+    var added = 0;
+    var skipped = 0;
+    Future<NovelImportRecord?> saveJsonSource(
+      Map<String, dynamic> map,
+      String id,
+    ) async {
+      LegadoJsonInfo info;
+      try {
+        info = validateLegadoJson(jsonEncode(map));
+      } catch (_) {
+        return null;
+      }
+      final fileName = await ImportFileStore.save(
+        id,
+        'json',
+        utf8.encode(jsonEncode(map)),
+      );
+      return NovelImportRecord(
+        id: id,
+        name: info.name,
+        fileName: fileName,
+        kind: NovelImportKind.json,
+        sourceType: info.type,
+      );
+    }
+
+    if (decodedJson && decoded is List) {
+      for (var i = 0; i < decoded.length; i++) {
+        final item = decoded[i];
+        if (item is! Map) {
+          skipped++;
+          continue;
+        }
+        final record = await saveJsonSource(
+          Map<String, dynamic>.from(item),
+          'novel_${stamp}_$i',
+        );
+        if (record == null) {
+          skipped++;
+        } else {
+          records.add(record);
+          added++;
+        }
+      }
+      if (added == 0) {
+        throw FormatException('批量文件里没有可导入的书源，跳过 $skipped 条');
+      }
+      await _save(records);
+      return (
+        records: records.sublist(records.length - added),
+        skipped: skipped,
+      );
+    }
+    if (decodedJson && decoded is Map) {
+      final record = await saveJsonSource(
+        Map<String, dynamic>.from(decoded),
+        'novel_$stamp',
+      );
+      if (record == null) {
+        validateLegadoJson(text);
+        throw const FormatException('不是书源 JSON');
+      }
+      records.add(record);
+      await _save(records);
+      return (records: [record], skipped: 0);
+    }
+    if (!isTxt && !isNovelComicPyText(text)) {
+      throw const FormatException('不是小说漫画源');
+    }
     final fileName = await ImportFileStore.save(
       'novel_$stamp',
-      isTxt ? 'txt' : isJson ? 'json' : 'py',
+      isTxt ? 'txt' : 'py',
       bytes,
     );
     final base = (picked.name.split('/').last.split('\\').last).replaceAll(
       RegExp(r'\.(py|txt|json)$', caseSensitive: false),
       '',
     );
-    final records = await load();
     final record = NovelImportRecord(
       id: 'novel_$stamp',
       name: base.isEmpty ? '小说源$stamp' : base,
       fileName: fileName,
-      kind: isTxt
-          ? NovelImportKind.txt
-          : isJson
-          ? NovelImportKind.json
-          : NovelImportKind.py,
-      sourceType: isJson ? jsonType : 0,
+      kind: isTxt ? NovelImportKind.txt : NovelImportKind.py,
+      sourceType: 0,
     );
     records.add(record);
     await _save(records);
-    return record;
+    return (records: [record], skipped: 0);
   }
 
   static Future<void> remove(NovelImportRecord record) async {

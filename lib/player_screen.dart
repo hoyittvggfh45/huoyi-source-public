@@ -2102,6 +2102,36 @@ class _PlayerScreenState extends State<PlayerScreen>
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  Future<void> _sendLocalDanmaku() async {
+    if (_closed) return;
+    final input = TextEditingController();
+    final text = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('发送本地弹幕'),
+        content: TextField(
+          controller: input,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: '弹幕内容，只存在本机'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(input.text),
+            child: const Text('发送'),
+          ),
+        ],
+      ),
+    );
+    input.dispose();
+    if (_closed || text == null || text.trim().isEmpty) return;
+    await _danmaku.sendLocal(text);
+    if (mounted && !_closed) _notice('已发送本地弹幕');
+  }
+
   Future<void> _setPreferences(PlaybackPreferences preferences) async {
     if (_closed || widget.store.profileEpoch != _profileEpoch) {
       if (mounted && !_closed) _notice('当前用户已变更，请重试');
@@ -2222,6 +2252,9 @@ class _PlayerScreenState extends State<PlayerScreen>
               showDanmaku: widget.detail.drama.source == 'hongguo',
               danmakuStatus: _danmaku.status,
               onRetryDanmaku: _danmaku.canRetry ? _danmaku.retry : null,
+              onSendLocalDanmaku: _danmaku.canSendLocal
+                  ? _sendLocalDanmaku
+                  : null,
               preloadStatus: _preloader.status,
               enhancement: _enhancementForUi,
               onCompareEnhancement: () {

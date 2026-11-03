@@ -181,7 +181,7 @@ func TestHongguoResolveJointErrorMentionsThrottling(t *testing.T) {
 		t.Fatal("all tiers failed must return an error")
 	}
 	text := err.Error()
-	if !strings.Contains(text, "网页兜底取流失败") || !strings.Contains(text, "备用取流失败") || !strings.Contains(text, "限流") {
+	if !strings.Contains(text, "App 取流失败") || !strings.Contains(text, "网页兜底取流失败") || !strings.Contains(text, "网页取流失败") || strings.Contains(text, "备用取流失败") || !strings.Contains(text, "限流") {
 		t.Fatal("joint error must name tiers and throttling honestly", text)
 	}
 }

@@ -400,9 +400,5 @@ func (d *Downloader) resolveHGTVMedia(ctx context.Context, task Task) (providerM
 	if err := ctx.Err(); err != nil {
 		return providerMedia{}, err
 	}
-	media, apiErr := d.resolveHongguoPlaybackAPI(ctx, seriesID, videoID)
-	if apiErr == nil {
-		return media, nil
-	}
-	return providerMedia{}, fmt.Errorf("HGTV App 取流失败：%v；网页取流失败：%v；备用取流失败：%w", publicError(nativeErr), publicError(pageErr), apiErr)
+	return providerMedia{}, fmt.Errorf("HGTV App 取流失败：%v；网页取流失败：%v", publicError(nativeErr), publicError(pageErr))
 }

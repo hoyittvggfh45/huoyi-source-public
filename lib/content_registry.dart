@@ -5,6 +5,7 @@ import 'content_lrts.dart';
 import 'content_models.dart';
 import 'content_py.dart';
 import 'midnight_zone.dart';
+import 'novel_yckceo_builtins.dart';
 
 class ContentRegistry {
   ContentRegistry._();
@@ -148,7 +149,12 @@ class ContentRegistry {
 
   static List<ContentSource> _baseFor(ContentSection section) {
     return section == ContentSection.novel
-        ? [..._novelBuiltins, ..._novelJsonBuiltins, ..._novelImports]
+        ? [
+            ..._novelBuiltins,
+            ..._novelJsonBuiltins,
+            ...novelYckceoBuiltins,
+            ..._novelImports,
+          ]
         : [
             for (final source in _sources)
               if (source.section == section) source,

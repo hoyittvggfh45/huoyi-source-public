@@ -125,7 +125,7 @@ class _DanmakuOverlayState extends State<DanmakuOverlay> {
                   animation: widget.controller,
                   builder: (context, _) {
                     final controller = widget.controller;
-                    if (!controller.visible || rows == 0) {
+                    if (!controller.anyVisible || rows == 0) {
                       return const SizedBox.shrink();
                     }
                     final layout = (
@@ -172,7 +172,7 @@ class _DanmakuOverlayState extends State<DanmakuOverlay> {
                                 flight: flight,
                                 width: width,
                                 positionMs: controller.positionMs,
-                                moving: controller.moving,
+                                moving: controller.anyMoving,
                                 rate: controller.rate,
                                 revision: controller.motionRevision,
                                 style: style,

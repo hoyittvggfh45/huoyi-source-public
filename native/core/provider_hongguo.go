@@ -233,11 +233,7 @@ func (d *Downloader) resolveHongguoMedia(ctx context.Context, task Task) (provid
 	if err := ctx.Err(); err != nil {
 		return providerMedia{}, err
 	}
-	media, apiErr := d.resolveHongguoPlaybackAPI(ctx, seriesID, videoID)
-	if apiErr == nil {
-		return media, nil
-	}
-	detail := fmt.Errorf("红果 App 取流失败：%v；网页兜底取流失败：%v；网页取流失败：%v；备用取流失败：%w", publicError(nativeErr), publicError(fallbackErr), publicError(pageErr), apiErr)
+	detail := fmt.Errorf("红果 App 取流失败：%v；网页兜底取流失败：%v；网页取流失败：%v", publicError(nativeErr), publicError(fallbackErr), publicError(pageErr))
 	if errors.Is(fallbackErr, errHongguoWebFallbackUnavailable) || strings.Contains(nativeErr.Error(), "限流") || d.hongguoPlayerSuspended() {
 		return providerMedia{}, fmt.Errorf("%w；设备或游客会话可能被限流，请稍后重试", detail)
 	}
