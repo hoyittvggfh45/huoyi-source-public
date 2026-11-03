@@ -30,6 +30,9 @@ dependencies:
   wakelock_plus: ^1.8.0
   webview_flutter: ^4.14.1
   enough_convert: ^1.7.1
+  flutter_tts: ^4.2.5
+  html: ^0.15.0
+  http: ^1.6.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -55,6 +58,7 @@ flutter:
     - assets/proxy_kernel/
     - assets/audio_spiders/
     - assets/novel_spiders/
+    - assets/novel_json_sources/
     - assets/py_spiders/
     - assets/jars/zakatv.jar
     - assets/jars/youtube.jar

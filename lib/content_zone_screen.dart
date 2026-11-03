@@ -11,6 +11,7 @@ import 'core_bridge.dart';
 import 'novel_cover.dart';
 import 'novel_reader_page.dart';
 import 'novel_source_store.dart';
+import 'reading_bookshelf_screen.dart';
 import 'source_picker_sheet.dart';
 
 /// 听书 / 漫画 / 小说共用的分区页：源切换 + 分类 + 搜索 + 卡片列表，
@@ -269,11 +270,9 @@ class _ContentZoneScreenState extends State<ContentZoneScreen> {
       if (mounted) {
         final message = switch (e) {
           FormatException(message: '空文件') => '导入失败：文件是空的',
-          FormatException(message: '不是 py 或 txt 文件') =>
-            '导入失败：请选择 py 或 txt 文件',
           FormatException(message: '不是小说漫画源') =>
-            '导入失败：不是小说/漫画源，视频/音频源不能导入小说区',
-          FormatException() => '导入失败：文件格式不对',
+            '导入失败：不是小说/漫画源，视频/音频源不能导入阅读区',
+          FormatException(message: final m) => '导入失败：$m',
           PlatformException() =>
             '导入失败：所选文件取不到，试试先存到 Download 文件夹再选',
           _ => '导入失败：文件读取或保存失败',
@@ -303,6 +302,9 @@ class _ContentZoneScreenState extends State<ContentZoneScreen> {
                     final record = records[index];
                     return ListTile(
                       title: Text(record.name),
+                      subtitle: record.kind == NovelImportKind.json
+                          ? Text(record.sourceType == 2 ? '漫画源' : '小说源')
+                          : null,
                       trailing: IconButton(
                         tooltip: '删除',
                         icon: const Icon(Icons.delete_outline),
@@ -438,6 +440,19 @@ class _ContentZoneScreenState extends State<ContentZoneScreen> {
                   tooltip: '管理小说源',
                   onPressed: _manageNovel,
                   icon: const Icon(Icons.settings_outlined),
+                ),
+                IconButton(
+                  key: const ValueKey('novel-bookshelf'),
+                  tooltip: '书架',
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      appPageRoute(
+                        builder: (_) =>
+                            ReadingBookshelfScreen(sources: _sources),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.collections_bookmark_rounded),
                 ),
               ],
             ],

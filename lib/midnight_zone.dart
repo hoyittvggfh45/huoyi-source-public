@@ -32,18 +32,3 @@ List<T> filterSourcesByAdult<T>(
       if (isAdultSourceName(nameOf(source)) == adultOnly) source,
   ];
 }
-
-class MidnightActivationCounter {
-  int _count = 0;
-
-  int get count => _count;
-
-  bool tap() {
-    _count += 1;
-    if (_count >= 5) {
-      _count = 0;
-      return true;
-    }
-    return false;
-  }
-}

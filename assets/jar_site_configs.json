@@ -9,7 +9,7 @@
     {
       "key": "ZakaMjv011",
       "name": "🔞mjv011",
-      "api": "csp_ZakaMjv011Amns",
+      "api": "csp_ZakaMjv011Amns2",
       "ext": ""
     },
     {
@@ -905,6 +905,78 @@
       "name": "🔞91成人",
       "api": "csp_Chengren91",
       "ext": ""
+    },
+    {
+      "key": "hgtv",
+      "name": "红果镜像",
+      "api": "csp_Hgtv",
+      "ext": ""
+    },
+    {
+      "key": "cntv",
+      "name": "央视",
+      "api": "csp_CntvSpider",
+      "ext": ""
+    },
+    {
+      "key": "go_bilibili",
+      "name": "B站",
+      "api": "csp_Bilibili",
+      "ext": "{}"
+    },
+    {
+      "key": "go_cjjh",
+      "name": "CJJH",
+      "api": "csp_CJJH",
+      "ext": "{}"
+    },
+    {
+      "key": "go_hua",
+      "name": "Hua",
+      "api": "csp_Hua",
+      "ext": "{}"
+    },
+    {
+      "key": "go_lego",
+      "name": "Lego",
+      "api": "csp_Lego",
+      "ext": "{}"
+    },
+    {
+      "key": "go_music1",
+      "name": "音乐",
+      "api": "csp_Music1",
+      "ext": "{}"
+    },
+    {
+      "key": "go_novelbd",
+      "name": "NovelBd",
+      "api": "csp_NovelBd",
+      "ext": "{}"
+    },
+    {
+      "key": "go_tingshu",
+      "name": "听书",
+      "api": "csp_TingShu",
+      "ext": "{}"
+    },
+    {
+      "key": "go_ytdl",
+      "name": "Ytdl",
+      "api": "csp_Ytdl",
+      "ext": "{}"
+    },
+    {
+      "key": "go_webvod",
+      "name": "映画漫光",
+      "api": "csp_WebVodSpider",
+      "ext": "{}"
+    },
+    {
+      "key": "bili",
+      "name": "B站Java版",
+      "api": "csp_Bili",
+      "ext": "{\"type\":\"舞蹈#音乐#游戏#科技#生活#美食#动画#影视\",\"cookie\":\"\"}"
     }
   ]
 }

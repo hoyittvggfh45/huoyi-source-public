@@ -105,9 +105,19 @@ Map<String, String> _imageHeaders(String url) {
 }
 
 class NovelReaderView extends StatefulWidget {
-  const NovelReaderView({super.key, required this.content, required this.title});
+  const NovelReaderView({
+    super.key,
+    required this.content,
+    required this.title,
+    this.onCenterTap,
+    this.initialPage = 0,
+    this.onPageChanged,
+  });
   final NonVideoContent content;
   final String title;
+  final VoidCallback? onCenterTap;
+  final int initialPage;
+  final ValueChanged<int>? onPageChanged;
   @override
   State<NovelReaderView> createState() => _NovelReaderViewState();
 }
@@ -178,6 +188,7 @@ class _NovelReaderViewState extends State<NovelReaderView>
   void initState() {
     super.initState();
     _turnController = AnimationController(vsync: this);
+    _page = widget.initialPage;
   }
 
   @override
@@ -258,6 +269,7 @@ class _NovelReaderViewState extends State<NovelReaderView>
         _page = target;
         _clearTurn();
       });
+      widget.onPageChanged?.call(target);
       _turnController.reset();
     }, onError: (_) {});
   }
@@ -328,6 +340,7 @@ class _NovelReaderViewState extends State<NovelReaderView>
           _page = target;
           _clearTurn();
         });
+        widget.onPageChanged?.call(target);
         _turnController.reset();
       }, onError: (_) {});
     } else {
@@ -346,6 +359,8 @@ class _NovelReaderViewState extends State<NovelReaderView>
       _startTurn(-1);
     } else if (dx > width * 0.65) {
       _startTurn(1);
+    } else {
+      widget.onCenterTap?.call();
     }
   }
 
@@ -354,7 +369,7 @@ class _NovelReaderViewState extends State<NovelReaderView>
       color: const Color(0xFFF7F1E3),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(18, 14, 18, 24),
-        child: SelectableText(
+        child: Text(
           _pages[index],
           style: TextStyle(
             fontSize: _fontSize,
@@ -523,7 +538,7 @@ class _NovelReaderViewState extends State<NovelReaderView>
       onHorizontalDragUpdate: (details) => _onDragUpdate(details, width),
       onHorizontalDragEnd: _onDragEnd,
       onTapUp: (details) => _onTapUp(details, width),
-      child: Stack(children: children),
+      child: Stack(fit: StackFit.expand, children: children),
     );
   }
 
@@ -606,9 +621,17 @@ class _NovelReaderViewState extends State<NovelReaderView>
 }
 
 class PicsViewerView extends StatefulWidget {
-  const PicsViewerView({super.key, required this.content, required this.title});
+  const PicsViewerView({
+    super.key,
+    required this.content,
+    required this.title,
+    this.initialIndex = 0,
+    this.onIndexChanged,
+  });
   final NonVideoContent content;
   final String title;
+  final int initialIndex;
+  final ValueChanged<int>? onIndexChanged;
   @override
   State<PicsViewerView> createState() => _PicsViewerViewState();
 }
@@ -619,7 +642,8 @@ class _PicsViewerViewState extends State<PicsViewerView> {
   @override
   void initState() {
     super.initState();
-    _controller = PageController();
+    _controller = PageController(initialPage: widget.initialIndex);
+    _index = widget.initialIndex;
   }
 
   @override
@@ -649,6 +673,7 @@ class _PicsViewerViewState extends State<PicsViewerView> {
             itemCount: urls.length,
             onPageChanged: (value) {
               setState(() => _index = value);
+              widget.onIndexChanged?.call(value);
               for (final next in [value - 1, value + 1]) {
                 if (next >= 0 && next < urls.length) {
                   precacheImage(

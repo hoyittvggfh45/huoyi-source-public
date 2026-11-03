@@ -63,6 +63,17 @@ object JarBridge {
                         mapOf("released" to true)
                     }
                 }
+                "jarProxy" -> {
+                    val configId = call.argument<String>("configId").orEmpty()
+                    val jarPath = call.argument<String>("jarPath").orEmpty()
+                    val className = call.argument<String>("className").orEmpty()
+                    if (configId.isEmpty() || jarPath.isEmpty() || className.isEmpty()) {
+                        result.error("jar_invalid", "缺少 jar 代理调用参数", null)
+                    } else {
+                        val param = call.argument<Map<String, Any?>>("param") ?: emptyMap()
+                        runAsync(result) { jarProxy(context, configId, jarPath, className, param) }
+                    }
+                }
                 "setJarFingerprint" -> {
                     val enabled = call.argument<Boolean>("enabled") ?: true
                     com.github.catvod.net.OkHttp.setFingerprintEnabled(enabled)
@@ -622,5 +633,53 @@ object JarBridge {
         } catch (error: NoSuchMethodException) {
             throw IllegalStateException("jar 站点 $className 未实现方法 $method（与 catvod Spider 契约不符）")
         }
+    }
+
+    private fun jarProxy(
+        context: Context,
+        configId: String,
+        jarPath: String,
+        className: String,
+        param: Map<String, Any?>
+    ): Map<String, Any?> {
+        val loader = loaderFor(context, configId, jarPath)
+        val type = try {
+            loader.loadClass(className)
+        } catch (error: ClassNotFoundException) {
+            throw IllegalStateException("jar 中未找到代理类 $className，无法处理本地代理请求")
+        }
+        val args = HashMap<String, String>()
+        param.forEach { (key, value) ->
+            if (key != null && value != null) args[key.toString()] = value.toString()
+        }
+        val returned = try {
+            val method = type.getMethod("proxy", Map::class.java)
+            if (!java.lang.reflect.Modifier.isStatic(method.modifiers)) {
+                throw IllegalStateException("jar 类 $className 的 proxy 方法不是静态方法，无法处理本地代理请求")
+            }
+            method.invoke(null, args)
+        } catch (error: NoSuchMethodException) {
+            throw IllegalStateException("jar 类 $className 未实现静态 proxy 方法，无法处理本地代理请求")
+        } catch (error: InvocationTargetException) {
+            throw IllegalStateException("jar 类 $className.proxy 执行失败：${error.targetException?.message ?: error.targetException?.javaClass?.simpleName ?: "未知错误"}")
+        }
+        val array = returned as? Array<*>
+            ?: throw IllegalStateException("jar 类 $className.proxy 返回格式错误：需要 [状态码、类型、字节流] 三元组")
+        if (array.size < 3) {
+            throw IllegalStateException("jar 类 $className.proxy 返回格式错误：需要 [状态码、类型、字节流] 三元组")
+        }
+        val status = (array[0] as? Number)?.toInt() ?: 200
+        val mime = array[1] as? String ?: "application/octet-stream"
+        val body = when (val raw = array[2]) {
+            is ByteArray -> raw
+            is String -> raw.toByteArray(Charsets.UTF_8)
+            is java.io.InputStream -> raw.use { it.readBytes() }
+            else -> throw IllegalStateException("jar 类 $className.proxy 返回的字节流类型不受支持：${raw?.javaClass?.simpleName ?: "空"}")
+        }
+        return mapOf(
+            "status" to status,
+            "mime" to mime,
+            "bodyBase64" to android.util.Base64.encodeToString(body, android.util.Base64.NO_WRAP),
+        )
     }
 }

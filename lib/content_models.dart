@@ -5,7 +5,7 @@ enum ContentSection { audio, novel }
 extension ContentSectionLabel on ContentSection {
   String get title => switch (this) {
     ContentSection.audio => '听书',
-    ContentSection.novel => '小说',
+    ContentSection.novel => '阅读',
   };
 }
 

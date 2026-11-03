@@ -2,6 +2,7 @@ package core
 
 import (
 	"crypto/md5"
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -18,6 +19,7 @@ type legadoJSCtx struct {
 	rt        *goja.Runtime
 	javaObj   *goja.Object
 	vars      map[string]string
+	bookVars  map[string]string
 	baseURL   string
 	sourceURL string
 	page      int
@@ -28,9 +30,12 @@ type legadoJSCtx struct {
 	curBlock  string
 	curJSON   interface{}
 	curJSONOK bool
+	jsErr     error
+	headers   map[string]string
 }
 
 func (c *legadoJSCtx) setSource(src LegadoSource) {
+	c.headers = src.Headers
 	c.sourceObj = map[string]interface{}{
 		"bookSourceName":    src.Name,
 		"bookSourceUrl":     src.URL,
@@ -45,6 +50,7 @@ func (c *legadoJSCtx) setSource(src LegadoSource) {
 func newLegadoJSCtx(sourceURL string) *legadoJSCtx {
 	return &legadoJSCtx{
 		vars:      map[string]string{},
+		bookVars:  map[string]string{},
 		sourceURL: sourceURL,
 		baseURL:   sourceURL,
 		page:      1,
@@ -134,6 +140,22 @@ func (c *legadoJSCtx) runtime() *goja.Runtime {
 		sum := md5.Sum([]byte(call.Arguments[0].String()))
 		return rt.ToValue(fmt.Sprintf("%x", sum))
 	}))
+	javaObj.Set("md5Encode", legadoJSGuard(func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) == 0 {
+			return rt.ToValue("")
+		}
+		sum := md5.Sum([]byte(call.Arguments[0].String()))
+		return rt.ToValue(fmt.Sprintf("%x", sum))
+	}))
+	javaObj.Set("randomUUID", legadoJSGuard(func(call goja.FunctionCall) goja.Value {
+		var b [16]byte
+		if _, err := rand.Read(b[:]); err != nil {
+			return rt.ToValue("")
+		}
+		b[6] = (b[6] & 0x0f) | 0x40
+		b[8] = (b[8] & 0x3f) | 0x80
+		return rt.ToValue(fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16]))
+	}))
 	javaObj.Set("base64Encode", legadoJSGuard(func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) == 0 {
 			return rt.ToValue("")
@@ -151,11 +173,27 @@ func (c *legadoJSCtx) runtime() *goja.Runtime {
 		return rt.ToValue(string(b))
 	}))
 	rt.Set("java", javaObj)
+	bookObj := rt.NewObject()
+	bookObj.Set("getVariable", legadoJSGuard(func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) == 0 {
+			return rt.ToValue("")
+		}
+		return rt.ToValue(c.bookVars[call.Arguments[0].String()])
+	}))
+	bookObj.Set("putVariable", legadoJSGuard(func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) >= 2 {
+			c.bookVars[call.Arguments[0].String()] = legadoJSValueString(rt, call.Arguments[1])
+		}
+		return goja.Undefined()
+	}))
+	bookObj.Set("bookUrl", c.bookURL)
+	bookObj.Set("name", c.bookTitle)
+	rt.Set("book", bookObj)
 	rt.Set("Reload", legadoJSGuard(func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) == 0 {
 			return rt.ToValue("")
 		}
-		body, err := legadoFetch(call.Arguments[0].String())
+		body, err := legadoRequest(call.Arguments[0].String(), "GET", "", c.headers)
 		if err != nil {
 			return rt.ToValue("")
 		}
@@ -232,7 +270,7 @@ func (c *legadoJSCtx) javaAjaxDo(urlStr, method, body string, headers map[string
 	if urlStr == "" {
 		return ""
 	}
-	resp, err := legadoRequest(urlStr, method, body, headers)
+	resp, err := legadoRequest(urlStr, method, body, legadoMergeHeaders(c.headers, headers))
 	if err != nil {
 		return ""
 	}
@@ -313,7 +351,7 @@ func (c *legadoJSCtx) javaGetString(call goja.FunctionCall) string {
 		return ""
 	}
 	if strings.HasPrefix(arg, "http") {
-		resp, err := legadoRequest(arg, "GET", "", nil)
+		resp, err := legadoRequest(arg, "GET", "", c.headers)
 		if err != nil {
 			return ""
 		}
@@ -664,6 +702,7 @@ func (c *legadoJSCtx) expandTemplates(s, block string) string {
 		rt := c.runtime()
 		v, err := c.evalJSCur(inner, block)
 		if err != nil {
+			c.jsErr = err
 			return ""
 		}
 		return legadoJSValueString(rt, v)
@@ -762,9 +801,44 @@ func (c *legadoJSCtx) evalScalar(block, rule string) string {
 	return c.evalScalarNoReplace(block, rule)
 }
 
+var legadoSingleBraceRe = regexp.MustCompile(`\{(\$\.[A-Za-z0-9_\.\[\]\*]+)\}`)
+
+func legadoExpandSingleBrace(rule, block string) (string, bool) {
+	if !legadoIsJSONBody(block) || strings.Contains(rule, "<js>") || strings.Contains(rule, "@js:") {
+		return rule, false
+	}
+	locs := legadoSingleBraceRe.FindAllStringSubmatchIndex(rule, -1)
+	if len(locs) == 0 {
+		return rule, false
+	}
+	var out strings.Builder
+	last := 0
+	hit := false
+	for _, loc := range locs {
+		start, end, gstart, gend := loc[0], loc[1], loc[2], loc[3]
+		if (start > 0 && rule[start-1] == '{') || (end < len(rule) && rule[end] == '}') {
+			continue
+		}
+		out.WriteString(rule[last:start])
+		out.WriteString(legadoJSONFieldAny(block, rule[gstart:gend]))
+		last = end
+		hit = true
+	}
+	if !hit {
+		return rule, false
+	}
+	out.WriteString(rule[last:])
+	return out.String(), true
+}
+
 func (c *legadoJSCtx) evalScalarNoReplace(block, rule string) string {
 	hadTemplate := strings.Contains(rule, "{{") || strings.Contains(rule, "@get:")
-	expanded := c.expandTemplates(legadoApplyPutGet(rule, block, c), block)
+	putRule := legadoApplyPutGet(rule, block, c)
+	if single, ok := legadoExpandSingleBrace(putRule, block); ok {
+		putRule = single
+		hadTemplate = true
+	}
+	expanded := c.expandTemplates(putRule, block)
 	probe := legadoPutRe.ReplaceAllString(rule, "")
 	probe = legadoGetRe.ReplaceAllString(probe, "")
 	probe = legadoTemplateRe.ReplaceAllString(probe, "")
@@ -791,6 +865,7 @@ func (c *legadoJSCtx) evalScalarNoReplace(block, rule string) string {
 			rt := c.runtime()
 			v, err := c.evalJSCur(st.text, cur)
 			if err != nil {
+				c.jsErr = err
 				return ""
 			}
 			cur = legadoJSValueString(rt, v)
@@ -882,6 +957,7 @@ func (c *legadoJSCtx) evalList(body, rule string) []string {
 				out, err = c.evalJS(st.text, rt.ToValue(""))
 			}
 			if err != nil {
+				c.jsErr = err
 				return nil
 			}
 			if arr, ok := out.Export().([]interface{}); ok {
@@ -1111,6 +1187,7 @@ type legadoStep struct {
 	tag          string
 	classes      []string
 	id           string
+	textContains string
 	attrName     string
 	attrVal      string
 	attrContains bool
@@ -1225,6 +1302,12 @@ func legadoParseDialectStep(part string) (legadoStep, bool) {
 		}
 		st.id = toks[1]
 		rest = toks[2:]
+	case head == "text":
+		if len(toks) < 2 || toks[1] == "" {
+			return legadoStep{}, false
+		}
+		st.textContains = strings.Join(toks[1:], ".")
+		rest = nil
 	case head == "":
 		if len(toks) < 2 || toks[1] == "" {
 			return legadoStep{}, false
@@ -1406,6 +1489,9 @@ func legadoNodeMatches(n *html.Node, st legadoStep) bool {
 		}
 	}
 	if st.id != "" && legadoAttrVal(n, "id") != st.id {
+		return false
+	}
+	if st.textContains != "" && !strings.Contains(hikerNodeText(n), st.textContains) {
 		return false
 	}
 	if st.attrName != "" {

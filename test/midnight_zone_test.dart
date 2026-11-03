@@ -34,16 +34,6 @@ void main() {
     expect(await loadMidnightActivated(), isFalse);
   });
 
-  test('activation counter fires on the fifth tap then resets', () {
-    final counter = MidnightActivationCounter();
-    for (var i = 0; i < 4; i++) {
-      expect(counter.tap(), isFalse);
-    }
-    expect(counter.tap(), isTrue);
-    expect(counter.count, 0);
-    expect(counter.tap(), isFalse);
-  });
-
   test('signature verdict allows unknown and expected values only', () {
     expect(isSignatureAllowed(null), isTrue);
     expect(isSignatureAllowed(releaseSignatureSha256), isTrue);

@@ -4,13 +4,14 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'content_legado.dart';
 import 'content_models.dart';
 import 'content_py.dart';
 import 'content_registry.dart';
 import 'content_txt.dart';
 import 'import_file_store.dart';
 
-enum NovelImportKind { py, txt }
+enum NovelImportKind { py, txt, json }
 
 class NovelImportRecord {
   const NovelImportRecord({
@@ -18,18 +19,21 @@ class NovelImportRecord {
     required this.name,
     required this.fileName,
     this.kind = NovelImportKind.py,
+    this.sourceType = 0,
   });
 
   final String id;
   final String name;
   final String fileName;
   final NovelImportKind kind;
+  final int sourceType;
 
   Map<String, dynamic> toJson() => {
     'id': id,
     'name': name,
     'fileName': fileName,
     'kind': kind.name,
+    'sourceType': sourceType,
   };
 
   static NovelImportRecord? fromJson(Map<String, dynamic> map) {
@@ -39,16 +43,25 @@ class NovelImportRecord {
     final rawKind = map['kind']?.toString();
     final kind = rawKind == 'txt'
         ? NovelImportKind.txt
+        : rawKind == 'json'
+        ? NovelImportKind.json
         : rawKind == 'py'
         ? NovelImportKind.py
         : fileName.toLowerCase().endsWith('.txt')
         ? NovelImportKind.txt
+        : fileName.toLowerCase().endsWith('.json')
+        ? NovelImportKind.json
         : NovelImportKind.py;
+    final rawType = map['sourceType'];
+    final sourceType = rawType is num
+        ? rawType.toInt()
+        : int.tryParse(rawType?.toString() ?? '') ?? 0;
     return NovelImportRecord(
       id: id,
       name: map['name']?.toString() ?? id,
       fileName: fileName,
       kind: kind,
+      sourceType: sourceType,
     );
   }
 
@@ -58,6 +71,13 @@ class NovelImportRecord {
       name: name,
       importedFileName: fileName,
       section: ContentSection.novel,
+    ),
+    NovelImportKind.json => JsonContentSource(
+      id: id,
+      name: name,
+      importedFileName: fileName,
+      section: ContentSection.novel,
+      sourceType: sourceType,
     ),
     NovelImportKind.py => PyContentSource(
       id: id,
@@ -118,32 +138,38 @@ class NovelSourceStore {
     try {
       picked = await FilePicker.pickFile(
         type: FileType.custom,
-        allowedExtensions: ['py', 'txt'],
+        allowedExtensions: ['py', 'txt', 'json'],
       );
     } on PlatformException catch (e) {
       if (e.code != 'unknown_path') rethrow;
       picked = await FilePicker.pickFile(type: FileType.any);
       final ext = picked?.extension?.toLowerCase();
-      if (picked != null && ext != 'py' && ext != 'txt') {
-        throw const FormatException('不是 py 或 txt 文件');
+      if (picked != null && ext != 'py' && ext != 'txt' && ext != 'json') {
+        throw const FormatException('不是 py、txt 或 json 文件');
       }
     }
     if (picked == null) return null;
     final bytes = await picked.readAsBytes();
     if (bytes.isEmpty) throw const FormatException('空文件');
     final isTxt = picked.name.toLowerCase().endsWith('.txt');
-    if (!isTxt &&
+    final isJson = picked.name.toLowerCase().endsWith('.json');
+    var jsonType = 0;
+    if (isJson) {
+      jsonType = validateLegadoJson(
+        utf8.decode(bytes, allowMalformed: true),
+      ).type;
+    } else if (!isTxt &&
         !isNovelComicPyText(utf8.decode(bytes, allowMalformed: true))) {
       throw const FormatException('不是小说漫画源');
     }
     final stamp = DateTime.now().millisecondsSinceEpoch;
     final fileName = await ImportFileStore.save(
       'novel_$stamp',
-      isTxt ? 'txt' : 'py',
+      isTxt ? 'txt' : isJson ? 'json' : 'py',
       bytes,
     );
     final base = (picked.name.split('/').last.split('\\').last).replaceAll(
-      RegExp(r'\.(py|txt)$', caseSensitive: false),
+      RegExp(r'\.(py|txt|json)$', caseSensitive: false),
       '',
     );
     final records = await load();
@@ -151,7 +177,12 @@ class NovelSourceStore {
       id: 'novel_$stamp',
       name: base.isEmpty ? '小说源$stamp' : base,
       fileName: fileName,
-      kind: isTxt ? NovelImportKind.txt : NovelImportKind.py,
+      kind: isTxt
+          ? NovelImportKind.txt
+          : isJson
+          ? NovelImportKind.json
+          : NovelImportKind.py,
+      sourceType: isJson ? jsonType : 0,
     );
     records.add(record);
     await _save(records);

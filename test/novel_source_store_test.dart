@@ -1,3 +1,4 @@
+import 'package:duanju_app/content_legado.dart';
 import 'package:duanju_app/novel_source_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -50,6 +51,37 @@ void main() {
 
     test('空文本不是小说漫画源', () {
       expect(NovelSourceStore.isNovelComicPyText(''), isFalse);
+    });
+  });
+
+  group('导入记录类型', () {
+    test('漫画类型往返不丢', () {
+      final record = NovelImportRecord(
+        id: 'novel_1',
+        name: 'C',
+        fileName: 'novel_1.json',
+        kind: NovelImportKind.json,
+        sourceType: 2,
+      );
+      final back = NovelImportRecord.fromJson(record.toJson());
+      expect(back?.sourceType, 2);
+      final source = back?.toSource();
+      expect(source, isA<JsonContentSource>());
+      expect((source as JsonContentSource).isComic, isTrue);
+    });
+
+    test('老记录缺类型默认小说', () {
+      final back = NovelImportRecord.fromJson({
+        'id': 'novel_2',
+        'name': 'T',
+        'fileName': 'novel_2.json',
+        'kind': 'json',
+      });
+      expect(back?.sourceType, 0);
+      expect(
+        (back?.toSource() as JsonContentSource).isComic,
+        isFalse,
+      );
     });
   });
 }

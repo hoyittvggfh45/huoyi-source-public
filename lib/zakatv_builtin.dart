@@ -7,14 +7,14 @@ class ZakatvBuiltinSite {
 }
 
 const String zakatvJarAsset = 'assets/jars/zakatv.jar';
-const String zakatvJarMd5 = '6beb33ed9c31f95a0ee3137056419d4e';
+const String zakatvJarMd5 = 'ab80ce6ba20e533055a2a9657be7343b';
 const String youtubeJarAsset = 'assets/jars/youtube.jar';
 const String youtubeJarMd5 = 'd294ce251d3b2aa8528efff12cc4bf19';
 const String youtubeConfigAsset = 'assets/youtube3.json';
 const String youtubeSpiderClass = 'com.github.catvod.spider.YouTube';
 const String zakatvJarId = 'zakatv';
 const List<ZakatvBuiltinSite> zakatvBuiltinSites = [
-  ZakatvBuiltinSite('ZakaMjv011', '🔞mjv011', 'com.github.catvod.spider.ZakaMjv011Amns', ''),
+  ZakatvBuiltinSite('ZakaMjv011', '🔞mjv011', 'com.github.catvod.spider.ZakaMjv011Amns2', ''),
   ZakatvBuiltinSite('ZakaHuangguo', '🔞黄果', 'com.github.catvod.spider.ZakaHuangguoAmns', ''),
   ZakatvBuiltinSite('ZakaHl365', '🔞黑料不打烊', 'com.github.catvod.spider.ZakaHl365Amns', ''),
   ZakatvBuiltinSite('ZakaLnkl', '🔞lnkl', 'com.github.catvod.spider.ZakaLnklAmns', ''),
@@ -164,4 +164,16 @@ const List<ZakatvBuiltinSite> zakatvBuiltinSites = [
   ZakatvBuiltinSite('ZakaYouTube', '油管', 'com.github.catvod.spider.YtNewAmns', '{"proxy":""}'),
   ZakatvBuiltinSite('Wukong', '🔞悟空传媒', 'com.github.catvod.spider.Wukong', ''),
   ZakatvBuiltinSite('Chengren91', '🔞91成人', 'com.github.catvod.spider.Chengren91', ''),
+  ZakatvBuiltinSite('hgtv', '红果镜像', 'com.github.catvod.spider.Hgtv', ''),
+  ZakatvBuiltinSite('cntv', '央视', 'com.github.catvod.spider.CntvSpider', ''),
+  ZakatvBuiltinSite('go_bilibili', 'B站', 'com.github.catvod.spider.Bilibili', '{}'),
+  ZakatvBuiltinSite('go_cjjh', 'CJJH', 'com.github.catvod.spider.CJJH', '{}'),
+  ZakatvBuiltinSite('go_hua', 'Hua', 'com.github.catvod.spider.Hua', '{}'),
+  ZakatvBuiltinSite('go_lego', 'Lego', 'com.github.catvod.spider.Lego', '{}'),
+  ZakatvBuiltinSite('go_music1', '音乐', 'com.github.catvod.spider.Music1', '{}'),
+  ZakatvBuiltinSite('go_novelbd', 'NovelBd', 'com.github.catvod.spider.NovelBd', '{}'),
+  ZakatvBuiltinSite('go_tingshu', '听书', 'com.github.catvod.spider.TingShu', '{}'),
+  ZakatvBuiltinSite('go_ytdl', 'Ytdl', 'com.github.catvod.spider.Ytdl', '{}'),
+  ZakatvBuiltinSite('go_webvod', '映画漫光', 'com.github.catvod.spider.WebVodSpider', '{}'),
+  ZakatvBuiltinSite('bili', 'B站Java版', 'com.github.catvod.spider.Bili', '{"type":"舞蹈#音乐#游戏#科技#生活#美食#动画#影视","cookie":""}'),
 ];

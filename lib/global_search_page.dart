@@ -54,7 +54,7 @@ int globalSearchSectionRank(String section) => switch (section) {
   '点播' => 1,
   '午夜' => 2,
   '听书' => 3,
-  '小说' => 4,
+  '阅读' => 4,
   _ => 5,
 };
 
@@ -140,7 +140,7 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
       final bookGroups = <_BookGroup>[];
       for (final entry in [
         ('听书', ContentRegistry.sourcesFor(ContentSection.audio)),
-        ('小说', ContentRegistry.sourcesFor(ContentSection.novel)),
+        ('阅读', ContentRegistry.sourcesFor(ContentSection.novel)),
       ]) {
         for (final source in entry.$2) {
           try {
@@ -362,7 +362,7 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
     final colors = Theme.of(context).colorScheme;
     return InkWell(
       onTap: () {
-        if (group.section == '小说') {
+        if (group.section == '阅读') {
           Navigator.of(context).push(
             appPageRoute(
               builder: (_) => NovelReaderPage(source: group.source, book: book),

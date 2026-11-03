@@ -481,6 +481,23 @@ class NativeRepository extends AppRepository {
     }
   }
 
+  Future<List<CatalogFilterGroup>> _jarCategoryFilterGroups(
+    String source,
+    String category,
+  ) async {
+    if (category.isEmpty) return const [];
+    try {
+      final home = await _jarCall(
+        source,
+        (spec) => JarBridge.home(spec),
+      );
+      final raw = PyContract.filtersFromHome(home);
+      return PyContract.filterGroupsForCategory(raw, category);
+    } catch (_) {
+      return const [];
+    }
+  }
+
   Future<PlaybackPlan> _applyPyFormat(String source, PlaybackPlan plan) async {
     if (plan.url.isEmpty) return plan;
     try {
@@ -499,9 +516,53 @@ class NativeRepository extends AppRepository {
     final existing = _pyProxyServer;
     if (existing != null) return existing;
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-    server.listen(_handlePyProxyRequest);
+    server.listen(_handleLocalProxyRequest);
     _pyProxyServer = server;
     return server;
+  }
+
+  Future<void> _handleLocalProxyRequest(HttpRequest request) async {
+    if (request.uri.path == '/jarproxy') {
+      await _handleJarProxyRequest(request);
+    } else {
+      await _handlePyProxyRequest(request);
+    }
+  }
+
+  Future<void> _handleJarProxyRequest(HttpRequest request) async {
+    try {
+      final payload = request.uri.queryParameters['d'] ?? '';
+      final decoded = jsonDecode(utf8.decode(base64Url.decode(payload))) as Map;
+      final siteId = decoded['siteId'] as String? ?? '';
+      final configId = decoded['configId'] as String? ?? '';
+      final className = decoded['className'] as String? ?? '';
+      final spec = JarBridge.specFor(siteId);
+      if (spec == null ||
+          spec.configId != configId ||
+          spec.className != className) {
+        throw JarBridgeFailure('jar 本地代理请求与注册站点不匹配，拒绝分发');
+      }
+      final rawParam = decoded['param'];
+      final param = <String, String>{};
+      if (rawParam is Map) {
+        rawParam.forEach((key, value) {
+          if (value != null) param[key.toString()] = value.toString();
+        });
+      }
+      final result = await JarBridge.jarProxy(spec, param);
+      final body = base64Decode(result['bodyBase64'] as String? ?? '');
+      request.response.statusCode = result['status'] as int? ?? 200;
+      request.response.headers.set(
+        HttpHeaders.contentTypeHeader,
+        result['mime'] as String? ?? 'application/octet-stream',
+      );
+      request.response.add(body);
+      await request.response.close();
+    } catch (error) {
+      request.response.statusCode = 500;
+      request.response.write('jar proxy failed: $error');
+      await request.response.close();
+    }
   }
 
   Object _pyProxyParam(String rest) {
@@ -1348,7 +1409,28 @@ class NativeRepository extends AppRepository {
   ) async {
     final takeover = await JarYoutubeTakeover.tryResolve(spec, drama, episode);
     if (takeover != null) return takeover;
-    return JarBridge.resolve(spec, drama, episode);
+    final plan = await JarBridge.resolve(spec, drama, episode);
+    return _applyJarProxy(spec, plan);
+  }
+
+  Future<PlaybackPlan> _applyJarProxy(
+    JarSiteSpec spec,
+    PlaybackPlan plan,
+  ) async {
+    if (!plan.url.startsWith('proxy://') && !plan.url.startsWith('proxy:')) {
+      return plan;
+    }
+    try {
+      final server = await _ensurePyProxyServer();
+      final param = JarBridge.parseProxyParams(plan.url);
+      final local = JarBridge.jarProxyLocalUrl(
+        server.port,
+        JarBridge.jarProxyPayload(spec, param),
+      );
+      return plan.withUrl(local);
+    } catch (error) {
+      throw AppFailure('jar 本地代理服务启动失败：$error');
+    }
   }
 
   @override
@@ -1408,14 +1490,27 @@ class NativeRepository extends AppRepository {
       );
     }
     if (JarBridge.isJarSource(source)) {
-      return _jarCall(
+      final pageResult = await _jarCall(
         source,
         (spec) => JarBridge.catalog(
           spec,
           page: page,
           query: query,
           category: category,
+          filters: filters,
         ),
+      );
+      if (category.isEmpty) return pageResult;
+      final groups = await _jarCategoryFilterGroups(source, category);
+      if (groups.isEmpty) return pageResult;
+      return CatalogPage(
+        pageResult.items,
+        hasMore: pageResult.hasMore,
+        warning: pageResult.warning,
+        page: pageResult.page,
+        fresh: pageResult.fresh,
+        tags: pageResult.tags,
+        filters: groups,
       );
     }
     if (isJsSource(source)) {

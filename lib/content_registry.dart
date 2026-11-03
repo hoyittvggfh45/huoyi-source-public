@@ -1,5 +1,6 @@
 import 'content_audio.dart';
 import 'content_http.dart';
+import 'content_legado.dart';
 import 'content_lrts.dart';
 import 'content_models.dart';
 import 'content_py.dart';
@@ -100,6 +101,45 @@ class ContentRegistry {
 
   static final List<ContentSource> _novelImports = [];
 
+  static final List<ContentSource> _novelJsonBuiltins = [
+    JsonContentSource(
+      id: 'biquge7',
+      name: '笔趣阁（遇知）',
+      assetPath: 'assets/novel_json_sources/biquge7.json',
+      section: ContentSection.novel,
+    ),
+    JsonContentSource(
+      id: 'kk169',
+      name: '穿越小说（优质）',
+      assetPath: 'assets/novel_json_sources/kk169.json',
+      section: ContentSection.novel,
+    ),
+    JsonContentSource(
+      id: 'quanwenyuedu',
+      name: '免费小说',
+      assetPath: 'assets/novel_json_sources/quanwenyuedu.json',
+      section: ContentSection.novel,
+    ),
+    JsonContentSource(
+      id: 'rulianshi',
+      name: '包容小说',
+      assetPath: 'assets/novel_json_sources/rulianshi.json',
+      section: ContentSection.novel,
+    ),
+    JsonContentSource(
+      id: 'yueyouxs',
+      name: '阅友小说',
+      assetPath: 'assets/novel_json_sources/yueyouxs.json',
+      section: ContentSection.novel,
+    ),
+    JsonContentSource(
+      id: 'zhulang',
+      name: '逐浪小说',
+      assetPath: 'assets/novel_json_sources/zhulang.json',
+      section: ContentSection.novel,
+    ),
+  ];
+
   static void setNovelImports(List<ContentSource> sources) {
     _novelImports
       ..clear()
@@ -108,7 +148,7 @@ class ContentRegistry {
 
   static List<ContentSource> _baseFor(ContentSection section) {
     return section == ContentSection.novel
-        ? [..._novelBuiltins, ..._novelImports]
+        ? [..._novelBuiltins, ..._novelJsonBuiltins, ..._novelImports]
         : [
             for (final source in _sources)
               if (source.section == section) source,

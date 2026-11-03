@@ -1228,7 +1228,7 @@ class _DetailScreenState extends State<DetailScreen> {
       child: Row(
         children: [
           ChoiceChip(
-            label: const Text('小说'),
+            label: const Text('阅读'),
             selected: !_audioLine,
             onSelected: (_) {
               if (_audioLine) {

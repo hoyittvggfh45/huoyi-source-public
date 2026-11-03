@@ -367,6 +367,7 @@ class JarBridge {
     int page = 1,
     String query = '',
     String category = '',
+    Map<String, String> filters = const {},
   }) async {
     if (query.isNotEmpty) {
       final result = await callJson(spec, 'searchContent', {
@@ -388,7 +389,7 @@ class JarBridge {
       'tid': category,
       'pg': '$page',
       'filter': true,
-      'extend': <String, String>{},
+      'extend': filters,
     });
     if ((result['list'] as List? ?? const []).isNotEmpty || page > 1) {
       return _listToPage(spec, result, page: page);
@@ -480,11 +481,6 @@ class JarBridge {
     if (url.isEmpty) {
       throw JarBridgeFailure('jar 站点「${spec.name}」未返回播放地址');
     }
-    if (url.startsWith('proxy://') || url.startsWith('proxy:')) {
-      throw JarBridgeFailure(
-        'jar 站点「${spec.name}」返回本地代理(proxy)地址，当前 jar 桥未实现本地代理服务，无法播放',
-      );
-    }
     final headers = <String, String>{};
     final rawHeaders = result['header'];
     if (rawHeaders is Map) {
@@ -503,6 +499,70 @@ class JarBridge {
     }
     final needsParse = _parseFlag(result['parse']) || _parseFlag(result['jx']);
     return PlaybackPlan(url: url, headers: headers, needsParse: needsParse);
+  }
+
+  static Map<String, String> parseProxyParams(String proxyUrl) {
+    var rest = proxyUrl;
+    if (rest.startsWith('proxy://')) {
+      rest = rest.substring('proxy://'.length);
+    } else if (rest.startsWith('proxy:')) {
+      rest = rest.substring('proxy:'.length);
+    }
+    if (!rest.contains('=')) return {'url': rest};
+    final map = <String, String>{};
+    for (final part in rest.split('&')) {
+      final eq = part.indexOf('=');
+      if (eq > 0) {
+        map[Uri.decodeComponent(part.substring(0, eq))] =
+            Uri.decodeComponent(part.substring(eq + 1));
+      }
+    }
+    return map.isNotEmpty ? map : {'url': rest};
+  }
+
+  static Map<String, dynamic> jarProxyPayload(
+    JarSiteSpec spec,
+    Map<String, String> param,
+  ) => {
+    'siteId': spec.siteId,
+    'configId': spec.configId,
+    'className': spec.className,
+    'param': param,
+  };
+
+  static String jarProxyLocalUrl(int port, Map<String, dynamic> payload) {
+    final encoded = base64Url.encode(utf8.encode(jsonEncode(payload)));
+    return 'http://127.0.0.1:$port/jarproxy?d=$encoded';
+  }
+
+  static Future<Map<String, dynamic>> jarProxy(
+    JarSiteSpec spec,
+    Map<String, String> param,
+  ) async {
+    final jarPath = await _ensureJar(spec);
+    try {
+      final result = await _channel.invokeMapMethod<String, dynamic>('jarProxy', {
+        'configId': spec.configId,
+        'jarPath': jarPath,
+        'className': spec.className,
+        'param': param,
+      });
+      final mime = result?['mime'] as String? ?? 'application/octet-stream';
+      final body = result?['bodyBase64'] as String? ?? '';
+      if (body.isEmpty) {
+        throw JarBridgeFailure('jar 站点「${spec.name}」的本地代理未返回内容');
+      }
+      final status = result?['status'];
+      return {
+        'status': status is int ? status : 200,
+        'mime': mime,
+        'bodyBase64': body,
+      };
+    } on PlatformException catch (error) {
+      throw JarBridgeFailure(error.message ?? 'jar 本地代理调用失败');
+    } on MissingPluginException {
+      throw JarBridgeFailure('jar 桥未就绪：当前安装包未包含 jar 桥通道');
+    }
   }
 
   static Future<String> coverFile(Drama drama) async {

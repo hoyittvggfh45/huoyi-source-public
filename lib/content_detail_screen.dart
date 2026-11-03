@@ -6,6 +6,7 @@ import 'package:media_kit/media_kit.dart';
 import 'content_models.dart';
 import 'core_bridge.dart';
 import 'novel_cover.dart';
+import 'reading_bookshelf.dart';
 
 class ContentDetailScreen extends StatefulWidget {
   const ContentDetailScreen({
@@ -39,6 +40,7 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
   ContentBookDetail? _detail;
   String _error = '';
   bool _loading = true;
+  bool _shelved = false;
   late final Player _player = Player();
   int _playingIndex = -1;
   Duration _position = Duration.zero;
@@ -69,6 +71,7 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
   @override
   void initState() {
     super.initState();
+    unawaited(_loadShelved());
     _subs.addAll([
       _player.stream.position.listen((value) {
         if (mounted) setState(() => _position = value);
@@ -98,6 +101,36 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
     }
     _player.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadShelved() async {
+    try {
+      final shelved = await isShelved(widget.source.id, widget.book.id);
+      if (mounted) setState(() => _shelved = shelved);
+    } catch (_) {}
+  }
+
+  Future<void> _toggleShelf() async {
+    try {
+      if (_shelved) {
+        await removeShelfEntry(widget.source.id, widget.book.id);
+        if (mounted) setState(() => _shelved = false);
+      } else {
+        await addShelfEntry(
+          ReadingShelfEntry(
+            sourceId: widget.source.id,
+            sourceName: widget.source.name,
+            bookId: widget.book.id,
+            title: widget.book.title,
+            cover: widget.book.cover,
+            author: widget.book.author,
+            chapterTotal: _detail?.chapters.length ?? 0,
+            updatedAtMs: DateTime.now().millisecondsSinceEpoch,
+          ),
+        );
+        if (mounted) setState(() => _shelved = true);
+      }
+    } catch (_) {}
   }
 
   Future<void> _load() async {
@@ -466,6 +499,24 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
                               fontSize: 12,
                             ),
                           ),
+                          if (widget.source.section == ContentSection.novel) ...[
+                            const SizedBox(height: 10),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: FilledButton.icon(
+                                key: const ValueKey('detail-bookshelf-toggle'),
+                                onPressed: _toggleShelf,
+                                icon: Icon(
+                                  _shelved
+                                      ? Icons.bookmark
+                                      : Icons.bookmark_border,
+                                ),
+                                label: Text(
+                                  _shelved ? '移出书架' : '加入书架',
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),

@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  testWidgets('小说区无源时显示导入入口', (tester) async {
+  testWidgets('小说区显示导入入口', (tester) async {
     SharedPreferences.setMockInitialValues({});
     ContentRegistry.setNovelImports([]);
     await tester.pumpWidget(
@@ -15,7 +15,6 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('小说暂无可用源'), findsOneWidget);
     expect(find.byKey(const ValueKey('novel-import-py')), findsOneWidget);
   });
 }

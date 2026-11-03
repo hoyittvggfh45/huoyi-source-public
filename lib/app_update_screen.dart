@@ -23,10 +23,7 @@ class _AppUpdateScreenState extends State<AppUpdateScreen> {
   bool _checked = false;
   DownloadProgress? _progress;
   final ResumableDownloader _downloader = ResumableDownloader();
-  final _activationCounter = MidnightActivationCounter();
-
   Future<void> _onVersionDoubleTap() async {
-    if (!_activationCounter.tap()) return;
     await activateMidnightAndExit();
   }
 
