@@ -1,11 +1,10 @@
 import 'content_audio.dart';
 import 'content_http.dart';
-import 'content_legado.dart';
+import 'content_jar_audio.dart';
 import 'content_lrts.dart';
 import 'content_models.dart';
 import 'content_py.dart';
 import 'midnight_zone.dart';
-import 'novel_yckceo_builtins.dart';
 
 class ContentRegistry {
   ContentRegistry._();
@@ -33,6 +32,17 @@ class ContentRegistry {
       name: '🔞黄色有声小说',
       assetPath: 'assets/audio_spiders/hsvoice31.py',
     ),
+    PyContentSource(
+      id: 'tingyou',
+      name: '听友听书',
+      assetPath: 'assets/audio_spiders/tingyou.py',
+    ),
+    PyContentSource(
+      id: 'hysxs',
+      name: '🔞H有声小说',
+      assetPath: 'assets/audio_spiders/hysxs.py',
+    ),
+    JarAudioContentSource(),
   ];
 
   static bool midnightActivated = false;
@@ -98,48 +108,82 @@ class ContentRegistry {
       assetPath: 'assets/novel_spiders/mhbl.py',
       section: ContentSection.novel,
     ),
+    PyContentSource(
+      id: 'ho5ho',
+      name: '🔞ho5ho',
+      assetPath: 'assets/novel_spiders/ho5ho.py',
+      section: ContentSection.novel,
+    ),
+    PyContentSource(
+      id: 'modu18',
+      name: '🔞魔都18',
+      assetPath: 'assets/novel_spiders/modu18.py',
+      section: ContentSection.novel,
+    ),
+    PyContentSource(
+      id: 'h528',
+      name: '🔞風月文學網',
+      assetPath: 'assets/novel_spiders/h528.py',
+      section: ContentSection.novel,
+    ),
+    PyContentSource(
+      id: '69story',
+      name: '🔞69成人小說網',
+      assetPath: 'assets/novel_spiders/69story.py',
+      section: ContentSection.novel,
+    ),
+    PyContentSource(
+      id: 'canovel',
+      name: '🔞CA情色小說',
+      assetPath: 'assets/novel_spiders/canovel.py',
+      section: ContentSection.novel,
+    ),
+    PyContentSource(
+      id: '1000novel',
+      name: '🔞1000成人小說網',
+      assetPath: 'assets/novel_spiders/1000novel.py',
+      section: ContentSection.novel,
+    ),
+    PyContentSource(
+      id: 'nnhanman',
+      name: '🔞鸟鸟韩漫',
+      assetPath: 'assets/novel_spiders/nnhanman.py',
+      section: ContentSection.novel,
+    ),
+    PyContentSource(
+      id: 'jywx2',
+      name: '🔞九一文学网',
+      assetPath: 'assets/novel_spiders/jywx2.py',
+      section: ContentSection.novel,
+    ),
+    PyContentSource(
+      id: '55comics',
+      name: '🔞污污漫书',
+      assetPath: 'assets/novel_spiders/55comics.py',
+      section: ContentSection.novel,
+    ),
+    PyContentSource(
+      id: 'kmh001',
+      name: '🔞K漫画',
+      assetPath: 'assets/novel_spiders/kmh001.py',
+      section: ContentSection.novel,
+    ),
+    PyContentSource(
+      id: 'csmanhua',
+      name: '🔞成色漫画',
+      assetPath: 'assets/novel_spiders/csmanhua.py',
+      section: ContentSection.novel,
+    ),
+    PyContentSource(
+      id: 'kxmanhua',
+      name: '🔞开心看漫画',
+      assetPath: 'assets/novel_spiders/kxmanhua.py',
+      section: ContentSection.novel,
+    ),
   ];
 
   static final List<ContentSource> _novelImports = [];
 
-  static final List<ContentSource> _novelJsonBuiltins = [
-    JsonContentSource(
-      id: 'biquge7',
-      name: '笔趣阁（遇知）',
-      assetPath: 'assets/novel_json_sources/biquge7.json',
-      section: ContentSection.novel,
-    ),
-    JsonContentSource(
-      id: 'kk169',
-      name: '穿越小说（优质）',
-      assetPath: 'assets/novel_json_sources/kk169.json',
-      section: ContentSection.novel,
-    ),
-    JsonContentSource(
-      id: 'quanwenyuedu',
-      name: '免费小说',
-      assetPath: 'assets/novel_json_sources/quanwenyuedu.json',
-      section: ContentSection.novel,
-    ),
-    JsonContentSource(
-      id: 'rulianshi',
-      name: '包容小说',
-      assetPath: 'assets/novel_json_sources/rulianshi.json',
-      section: ContentSection.novel,
-    ),
-    JsonContentSource(
-      id: 'yueyouxs',
-      name: '阅友小说',
-      assetPath: 'assets/novel_json_sources/yueyouxs.json',
-      section: ContentSection.novel,
-    ),
-    JsonContentSource(
-      id: 'zhulang',
-      name: '逐浪小说',
-      assetPath: 'assets/novel_json_sources/zhulang.json',
-      section: ContentSection.novel,
-    ),
-  ];
 
   static void setNovelImports(List<ContentSource> sources) {
     _novelImports
@@ -151,8 +195,6 @@ class ContentRegistry {
     return section == ContentSection.novel
         ? [
             ..._novelBuiltins,
-            ..._novelJsonBuiltins,
-            ...novelYckceoBuiltins,
             ..._novelImports,
           ]
         : [

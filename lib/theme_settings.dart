@@ -65,6 +65,14 @@ const themeBackgroundOptions = [
 const themeBackgroundFileName = 'theme_background_image';
 
 Color? themeAccentColor(String id) {
+  if (id.startsWith('custom:')) {
+    final hex = id.substring('custom:'.length);
+    final value = int.tryParse(hex, radix: 16);
+    if (hex.length == 6 && value != null) {
+      return Color(0xFF000000 | value);
+    }
+    return null;
+  }
   for (final option in themeAccentOptions) {
     if (option.id == id) return option.color;
   }

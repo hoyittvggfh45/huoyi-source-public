@@ -88,6 +88,39 @@ class _ThemeSettingsScreenState extends State<ThemeSettingsScreen> {
                 ),
             ],
           ),
+          _sectionTitle('亮暗'),
+          Row(
+            children: [
+              for (final mode in ['system', 'light', 'dark'])
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      left: mode == 'system' ? 0 : 6,
+                      right: mode == 'dark' ? 0 : 6,
+                    ),
+                    child: _selectCard(
+                      title: mode == 'system'
+                          ? '跟随系统'
+                          : mode == 'light'
+                              ? '浅色'
+                              : '深色',
+                      subtitle: mode == 'system'
+                          ? '跟随手机系统'
+                          : mode == 'light'
+                              ? '浅色界面'
+                              : '深色界面',
+                      selected: store.themeModeStyle.isEmpty &&
+                          store.themeMode == mode,
+                      onTap: () async {
+                        await store.setThemeMode(mode);
+                        await store.setThemeModeStyle('');
+                        if (mounted) setState(() {});
+                      },
+                    ),
+                  ),
+                ),
+            ],
+          ),
           _sectionTitle('界面风格'),
           GridView.builder(
             shrinkWrap: true,
@@ -123,8 +156,11 @@ class _ThemeSettingsScreenState extends State<ThemeSettingsScreen> {
               crossAxisSpacing: 8,
               childAspectRatio: 0.78,
             ),
-            itemCount: themeAccentOptions.length,
+            itemCount: themeAccentOptions.length + 1,
             itemBuilder: (context, index) {
+              if (index == themeAccentOptions.length) {
+                return _customAccentTile();
+              }
               final option = themeAccentOptions[index];
               final selected = store.themeAccent == option.id;
               return InkWell(
@@ -343,6 +379,211 @@ class _ThemeSettingsScreenState extends State<ThemeSettingsScreen> {
       Color(0xFF7C5CFF),
       Color(0xFF2EE5A6),
     ];
+  }
+
+  Widget _customAccentTile() {
+    final colors = Theme.of(context).colorScheme;
+    final accent = widget.store.themeAccent;
+    final custom = accent.startsWith('custom:')
+        ? themeAccentColor(accent)
+        : null;
+    final selected = custom != null;
+    return InkWell(
+      key: const ValueKey('custom-accent-tile'),
+      borderRadius: BorderRadius.circular(24),
+      onTap: () async {
+        await _showCustomColorDialog();
+        if (mounted) setState(() {});
+      },
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: custom ?? colors.surfaceContainerHighest,
+              shape: BoxShape.circle,
+              border: selected
+                  ? Border.all(color: colors.primary, width: 2)
+                  : null,
+            ),
+            child: custom == null
+                ? Icon(
+                    Icons.add_rounded,
+                    color: colors.onSurfaceVariant,
+                    size: 20,
+                  )
+                : Icon(
+                    Icons.check_rounded,
+                    color:
+                        ThemeData.estimateBrightnessForColor(custom) ==
+                                Brightness.light
+                            ? Colors.black
+                            : Colors.white,
+                    size: 20,
+                  ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '自定义',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11,
+              color: selected ? colors.primary : colors.onSurfaceVariant,
+              fontWeight: selected ? FontWeight.w700 : null,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showCustomColorDialog() async {
+    final store = widget.store;
+    final current =
+        themeAccentColor(store.themeAccent) ?? const Color(0xFF1E88E5);
+    var red = (current.r * 255.0).round().clamp(0, 255).toDouble();
+    var green = (current.g * 255.0).round().clamp(0, 255).toDouble();
+    var blue = (current.b * 255.0).round().clamp(0, 255).toDouble();
+    final hexController = TextEditingController(
+      text: _rgbHex(red.toInt(), green.toInt(), blue.toInt()),
+    );
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            final color = Color.fromARGB(
+              255,
+              red.toInt(),
+              green.toInt(),
+              blue.toInt(),
+            );
+            void syncHex() {
+              hexController.text = _rgbHex(
+                red.toInt(),
+                green.toInt(),
+                blue.toInt(),
+              );
+            }
+            return AlertDialog(
+              title: const Text('自定义主题色'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    height: 56,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      '#${_rgbHex(red.toInt(), green.toInt(), blue.toInt())}',
+                      style: TextStyle(
+                        color:
+                            ThemeData.estimateBrightnessForColor(color) ==
+                                    Brightness.light
+                                ? Colors.black
+                                : Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _colorSlider('红', red, Colors.red, (value) {
+                    setDialogState(() {
+                      red = value;
+                      syncHex();
+                    });
+                  }),
+                  _colorSlider('绿', green, Colors.green, (value) {
+                    setDialogState(() {
+                      green = value;
+                      syncHex();
+                    });
+                  }),
+                  _colorSlider('蓝', blue, Colors.blue, (value) {
+                    setDialogState(() {
+                      blue = value;
+                      syncHex();
+                    });
+                  }),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: hexController,
+                    decoration: const InputDecoration(
+                      labelText: '十六进制颜色',
+                      prefixText: '#',
+                    ),
+                    maxLength: 6,
+                    onChanged: (text) {
+                      final value = int.tryParse(text, radix: 16);
+                      if (text.length == 6 && value != null) {
+                        setDialogState(() {
+                          red = ((value >> 16) & 0xFF).toDouble();
+                          green = ((value >> 8) & 0xFF).toDouble();
+                          blue = (value & 0xFF).toDouble();
+                        });
+                      }
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: const Text('取消'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  child: const Text('确定'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    if (confirmed == true && mounted) {
+      await store.setThemeAccent(
+        'custom:${_rgbHex(red.toInt(), green.toInt(), blue.toInt())}',
+      );
+      if (mounted) setState(() {});
+    }
+  }
+
+  String _rgbHex(int red, int green, int blue) =>
+      '${red.toRadixString(16).padLeft(2, '0')}'
+              '${green.toRadixString(16).padLeft(2, '0')}'
+              '${blue.toRadixString(16).padLeft(2, '0')}'
+          .toUpperCase();
+
+  Widget _colorSlider(
+    String label,
+    double value,
+    Color color,
+    ValueChanged<double> onChanged,
+  ) {
+    return Row(
+      children: [
+        SizedBox(width: 16, child: Text(label)),
+        Expanded(
+          child: Slider(
+            value: value,
+            min: 0,
+            max: 255,
+            divisions: 255,
+            activeColor: color,
+            onChanged: onChanged,
+          ),
+        ),
+        SizedBox(width: 32, child: Text(value.toInt().toString())),
+      ],
+    );
   }
 
   Widget _optionRow({

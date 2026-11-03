@@ -641,34 +641,62 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
       },
       bottomNavigationBar: Theme(
         data: Theme.of(context).copyWith(
-          colorScheme: const ColorScheme.dark(
-            primary: Colors.white,
-            onPrimary: Colors.black,
-            surface: Colors.black,
-            onSurface: Colors.white,
-            onSurfaceVariant: Colors.white70,
-            secondary: Colors.white,
-          ),
+          colorScheme: _tab == 0
+              ? const ColorScheme.dark(
+                  primary: Colors.white,
+                  onPrimary: Colors.black,
+                  surface: Colors.black,
+                  onSurface: Colors.white,
+                  onSurfaceVariant: Colors.white70,
+                  secondary: Colors.white,
+                )
+              : const ColorScheme.light(
+                  primary: Colors.black,
+                  onPrimary: Colors.white,
+                  surface: Colors.transparent,
+                  onSurface: Colors.black,
+                  onSurfaceVariant: Colors.black54,
+                  secondary: Colors.black,
+                ),
         ),
         child: NavigationBar(
-          backgroundColor: Colors.black,
+          backgroundColor: _tab == 0 ? Colors.black : Colors.transparent,
+          elevation: _tab == 0 ? 3 : 0,
           indicatorColor: Colors.transparent,
           selectedIndex: _tab,
           onDestinationSelected: _selectTab,
-          destinations: const [
+          destinations: [
             NavigationDestination(
-              icon: Icon(Icons.home_outlined, color: Colors.white70),
-              selectedIcon: Icon(Icons.home, color: Colors.white),
+              icon: Icon(
+                Icons.home_outlined,
+                color: _tab == 0 ? Colors.white70 : Colors.black54,
+              ),
+              selectedIcon: Icon(
+                Icons.home,
+                color: _tab == 0 ? Colors.white : Colors.black,
+              ),
               label: '首页',
             ),
             NavigationDestination(
-              icon: Icon(Icons.theater_comedy_outlined, color: Colors.white70),
-              selectedIcon: Icon(Icons.theater_comedy, color: Colors.white),
+              icon: Icon(
+                Icons.theater_comedy_outlined,
+                color: _tab == 0 ? Colors.white70 : Colors.black54,
+              ),
+              selectedIcon: Icon(
+                Icons.theater_comedy,
+                color: _tab == 0 ? Colors.white : Colors.black,
+              ),
               label: '剧场',
             ),
             NavigationDestination(
-              icon: Icon(Icons.person_outline, color: Colors.white70),
-              selectedIcon: Icon(Icons.person, color: Colors.white),
+              icon: Icon(
+                Icons.person_outline,
+                color: _tab == 0 ? Colors.white70 : Colors.black54,
+              ),
+              selectedIcon: Icon(
+                Icons.person,
+                color: _tab == 0 ? Colors.white : Colors.black,
+              ),
               label: '我的',
             ),
           ],

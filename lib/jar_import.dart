@@ -21,6 +21,7 @@ class StandaloneJarSite {
     this.ext = '',
     this.missingConfig = false,
     this.baseName = '',
+    this.section = SourceSite.sectionVideo,
   });
 
   final String siteId;
@@ -32,6 +33,7 @@ class StandaloneJarSite {
   final String ext;
   final bool missingConfig;
   final String baseName;
+  final String section;
 
   String get effectiveBase => baseName.isNotEmpty ? baseName : name;
 
@@ -50,6 +52,7 @@ class StandaloneJarSite {
     String? name,
     bool? missingConfig,
     String? baseName,
+    String? section,
   }) => StandaloneJarSite(
     siteId: siteId,
     jarId: jarId,
@@ -60,6 +63,7 @@ class StandaloneJarSite {
     ext: ext ?? this.ext,
     missingConfig: missingConfig ?? this.missingConfig,
     baseName: baseName ?? this.baseName,
+    section: section ?? this.section,
   );
 
   Map<String, dynamic> toJson() => {
@@ -208,7 +212,7 @@ class JarImport {
       site.siteId,
       site.name,
       'ZakaTV jar 内置 · ${site.className}',
-      section: SourceSite.sectionVideo,
+      section: site.section,
       origin: SourceSite.originImport,
       importType: 'jar',
     );
@@ -244,6 +248,7 @@ class JarImport {
                   youtubeConfig.isNotEmpty
               ? youtubeConfig
               : builtin.ext,
+          section: builtin.section,
         );
         _builtinSites[site.siteId] = site;
         _registerBuiltin(site);

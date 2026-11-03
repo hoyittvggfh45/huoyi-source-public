@@ -884,6 +884,7 @@ class LocalStore extends ChangeNotifier {
 
   String get themeAccent {
     final value = _configurationError == null ? _string('themeAccent') : null;
+    if (value != null && _isCustomThemeAccentId(value)) return value;
     return {
           'default',
           'green',
@@ -914,6 +915,12 @@ class LocalStore extends ChangeNotifier {
         : '';
   }
 
+  static bool _isCustomThemeAccentId(String id) {
+    if (!id.startsWith('custom:')) return false;
+    final hex = id.substring('custom:'.length);
+    return hex.length == 6 && int.tryParse(hex, radix: 16) != null;
+  }
+
   Future<void> setThemeAccent(String value) =>
       {
         'default',
@@ -941,7 +948,7 @@ class LocalStore extends ChangeNotifier {
         'meiguifen',
         'zhuanhong',
         '',
-      }.contains(value)
+      }.contains(value) || _isCustomThemeAccentId(value)
       ? _setting('themeAccent', value)
       : Future.value();
 

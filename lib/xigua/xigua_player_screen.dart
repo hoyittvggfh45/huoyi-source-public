@@ -1514,7 +1514,9 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
           }
           prepared = await widget.repository.resolveParse(prepared, apis);
         }
-      } else if (!prepared.local && looksLikeWebPage(prepared.url)) {
+      } else if (!prepared.local &&
+          looksLikeWebPage(prepared.url) &&
+          !JarBridge.isJarSource(widget.detail.drama.source)) {
         _lastPageUrl = prepared.url;
         final selected = await ParseInterfaceStore.loadSelected();
         final parsed = applySelectedParse(

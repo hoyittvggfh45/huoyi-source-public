@@ -1,6 +1,7 @@
 import 'package:duanju_app/app_theme.dart';
 import 'package:duanju_app/local_store.dart';
 import 'package:duanju_app/theme_settings.dart';
+import 'package:duanju_app/theme_settings_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -47,6 +48,60 @@ void main() {
     expect(paper.textTheme.titleMedium?.fontFamily, 'serif');
     final candy = applyThemePreferences(AppTheme.light, style: 'candy');
     expect(candy.filledButtonTheme.style?.shape?.resolve({}), isA<StadiumBorder>());
+  });
+
+  test('custom accent id parses to its color and applies as primary', () {
+    expect(themeAccentColor('custom:1E88E5'), const Color(0xFF1E88E5));
+    expect(themeAccentColor('custom:ff0000'), const Color(0xFFFF0000));
+    expect(themeAccentColor('custom:12345'), isNull);
+    expect(themeAccentColor('custom:ZZZZZZ'), isNull);
+    expect(themeAccentColor('custom:'), isNull);
+    final themed = applyThemePreferences(
+      AppTheme.platformLight,
+      accent: 'custom:1E88E5',
+    );
+    expect(themed.colorScheme.primary, const Color(0xFF1E88E5));
+  });
+
+  test('custom accent id roundtrips through LocalStore and resets', () async {
+    SharedPreferences.setMockInitialValues({});
+    final store = LocalStore(await SharedPreferences.getInstance());
+    await store.setThemeAccent('custom:1E88E5');
+    expect(store.themeAccent, 'custom:1E88E5');
+    final restored = LocalStore(store.preferences);
+    expect(restored.themeAccent, 'custom:1E88E5');
+    await store.setThemeAccent('custom:XYZ');
+    expect(store.themeAccent, 'custom:1E88E5');
+    await store.resetThemeSettings();
+    expect(store.themeAccent, '');
+    store.dispose();
+    restored.dispose();
+  });
+
+  testWidgets('custom accent tile opens picker and saves hex', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final store = LocalStore(await SharedPreferences.getInstance());
+    await tester.pumpWidget(
+      MaterialApp(home: ThemeSettingsScreen(store: store)),
+    );
+    await tester.pumpAndSettle();
+    final tile = find.byKey(const ValueKey('custom-accent-tile'));
+    await tester.dragUntilVisible(
+      tile,
+      find.byType(ListView),
+      const Offset(0, -200),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(tile);
+    await tester.pumpAndSettle();
+    expect(find.text('自定义主题色'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), 'FF0000');
+    await tester.tap(find.text('确定'));
+    await tester.pumpAndSettle();
+    expect(store.themeAccent, 'custom:FF0000');
+    store.dispose();
   });
 
   test('theme prefs roundtrip through LocalStore', () async {

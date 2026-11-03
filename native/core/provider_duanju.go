@@ -245,6 +245,18 @@ var duanjuStaticCategories = map[string][]duanjuCategory{
 	sourceHuaguo: {
 		{ID: "27", Name: "短剧"},
 	},
+	sourceGuanguo: {
+		{ID: "", Name: "全部"},
+	},
+	sourceWangguo: {
+		{ID: "", Name: "全部"},
+	},
+	sourceFaguo: {
+		{ID: "", Name: "全部"},
+	},
+	sourceWuguo: {
+		{ID: "", Name: "全部"},
+	},
 }
 
 func duanjuQueryEscape(value string) string { return url.QueryEscape(strings.TrimSpace(value)) }

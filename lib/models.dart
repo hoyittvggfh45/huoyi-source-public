@@ -706,7 +706,12 @@ class SourceSite {
     SourceSite('huangguo-video', '黄果视频', '视频剧集'),
     SourceSite('huangguoai', '黄果 AI', 'AI 短剧'),
     SourceSite('cloudfront', '黄果旧版', '旧 API 剧库'),
-    SourceSite('youtube', 'YouTube', 'YouTube · 高清 DASH · 短剧区', section: sectionDrama),
+    SourceSite(
+      'youtube',
+      'YouTube',
+      'YouTube · 高清 DASH · 短剧区',
+      section: sectionDrama,
+    ),
     ...duanjuValues,
     ...videoValues,
   ];
@@ -724,7 +729,12 @@ class SourceSite {
     SourceSite('huangguo-video', '黄果视频', '视频剧集'),
     SourceSite('huangguoai', '黄果 AI', 'AI 短剧'),
     SourceSite('cloudfront', '黄果旧版', '旧 API 剧库'),
-    SourceSite('youtube', 'YouTube', 'YouTube · 高清 DASH · 短剧区', section: sectionDrama),
+    SourceSite(
+      'youtube',
+      'YouTube',
+      'YouTube · 高清 DASH · 短剧区',
+      section: sectionDrama,
+    ),
     ...duanjuValues,
     ...videoValues,
   ];
@@ -801,7 +811,9 @@ bool isVodZoneSource(SourceSite site) =>
     site.isVideoSection &&
     (site.origin == SourceSite.originConfig ||
         (site.origin == SourceSite.originImport &&
-            (site.importType == 'py' || site.importType == 'jar')));
+            (site.importType == 'py' || site.importType == 'jar')) ||
+        (site.origin == SourceSite.originBuiltin &&
+            !site.name.startsWith('🔞')));
 
 bool isMidnightZoneSource(SourceSite site) =>
     site.isVideoSection && site.origin == SourceSite.originBuiltin;

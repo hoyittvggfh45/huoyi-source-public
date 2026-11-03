@@ -54,6 +54,10 @@ func signHongguoPlayerRequest(request *http.Request, body []byte, now time.Time)
 	}
 	request.Header.Set("X-Argus", hongguoPlayerArgus(request.URL.RawQuery, body, stamp, request.URL.Query().Get("device_id"), nonce))
 	request.Header.Set("X-Ladon", hongguoPlayerLadon(request.URL.Query().Get("aid"), stamp, nonce[2:6]))
+	request.Header.Set("X-Helios", sixGodHelios(stamp, 0))
+	if medusa, err := sixGodGenMedusa(request.URL.String(), body, stamp, sixGodMedusaOpts{}); err == nil {
+		request.Header.Set("X-Medusa", medusa)
+	}
 }
 
 func hongguoPlayerArgus(query string, body []byte, timestamp uint32, deviceID string, nonce hongguoPlayerNonce) string {

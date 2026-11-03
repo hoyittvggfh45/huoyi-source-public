@@ -21,7 +21,6 @@ import 'jar_bridge.dart';
 import 'import_center_screen.dart';
 import 'parse_settings_screen.dart';
 import 'app_theme.dart';
-import 'ios_dialogs.dart';
 import 'liquid_glass.dart';
 import 'local_store.dart';
 import 'py_bridge.dart';
@@ -547,29 +546,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _push(Widget page) =>
       Navigator.push(context, appPageRoute<void>(builder: (_) => page));
 
-  Future<void> _chooseGlassTheme() async {
-    final selected = await showChoiceSheet<String>(
-      context,
-      title: '外观主题',
-      choices: [
-        for (final mode in ['system', 'light', 'dark'])
-          SheetChoice(
-            mode,
-            AppTheme.label(mode),
-            selected: widget.store.themeMode == mode,
-            icon: switch (mode) {
-              'light' => LucideIcons.sun,
-              'dark' => LucideIcons.moon,
-              _ => LucideIcons.sunMoon,
-            },
-          ),
-      ],
-    );
-    if (selected != null && mounted) {
-      await saveUserChange(context, () => widget.store.setThemeMode(selected));
-    }
-  }
-
   Widget _glassIcon(IconData icon, Color color) => DecoratedBox(
     decoration: BoxDecoration(
       color: color,
@@ -935,7 +911,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             color: const Color(0xFFAF52DE),
             title: '外观主题',
             detail: AppTheme.label(store.themeMode),
-            onTap: _chooseGlassTheme,
+            onTap: () =>
+                _push(ThemeSettingsScreen(store: widget.store)),
           ),
           if (style != DramaUiStyle.drama)
             _glassRow(

@@ -21,6 +21,7 @@ import 'zoo_builtin_seed.dart';
 import 'home_screen.dart';
 import 'hongguo_account.dart';
 import 'jar_bridge.dart';
+import 'builtin_py_sites.dart';
 import 'jar_import.dart';
 import 'local_store.dart';
 import 'profiles_screen.dart';
@@ -137,12 +138,11 @@ class _AppBootstrapState extends State<AppBootstrap>
       unawaited(AppUpdateChecker.maybeCheckSilently());
       unawaited(ProxyKernelService.maybeAutostart());
       await JarImport.registerBuiltinZakatv();
+      await BuiltinPySites.register();
       if (mounted) {
         setState(() {
           store = LocalStore(preferences);
-          unawaited(
-            JarBridge.setJarFingerprint(store!.jarFingerprintEnabled),
-          );
+          unawaited(JarBridge.setJarFingerprint(store!.jarFingerprintEnabled));
           unawaited(store!.syncLibraryFromDb());
           repository.access = store;
           LanController.current?.dispose();

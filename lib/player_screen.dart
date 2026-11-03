@@ -1529,7 +1529,9 @@ class _PlayerScreenState extends State<PlayerScreen>
           }
           prepared = await widget.repository.resolveParse(prepared, apis);
         }
-      } else if (!prepared.local && looksLikeWebPage(prepared.url)) {
+      } else if (!prepared.local &&
+          looksLikeWebPage(prepared.url) &&
+          !JarBridge.isJarSource(widget.detail.drama.source)) {
         _lastPageUrl = prepared.url;
         final parsed = applySelectedParse(
           url: prepared.url,

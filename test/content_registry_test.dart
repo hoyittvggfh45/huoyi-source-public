@@ -8,11 +8,11 @@ void main() {
     test('听书：听书网、喜马拉雅、红果听书、懒人听书', () {
       expect(
         ContentRegistry.sourcesFor(ContentSection.audio).map((s) => s.id),
-        ['tingshuwang', 'ximalaya', 'hongguo_audio', 'lrts'],
+        ['tingshuwang', 'ximalaya', 'hongguo_audio', 'lrts', 'tingyou', 'jar_tingshu'],
       );
       expect(
         ContentRegistry.sourcesFor(ContentSection.audio).map((s) => s.name),
-        ['听书网', '喜马拉雅', '红果听书', '懒人听书'],
+        ['听书网', '喜马拉雅', '红果听书', '懒人听书', '听友听书', '听书'],
       );
     });
 
@@ -20,30 +20,39 @@ void main() {
       addTearDown(() => ContentRegistry.midnightActivated = false);
       expect(
         ContentRegistry.sourcesFor(ContentSection.audio).map((s) => s.id),
-        ['tingshuwang', 'ximalaya', 'hongguo_audio', 'lrts'],
+        ['tingshuwang', 'ximalaya', 'hongguo_audio', 'lrts', 'tingyou', 'jar_tingshu'],
       );
       ContentRegistry.midnightActivated = true;
       expect(
         ContentRegistry.sourcesFor(ContentSection.audio).map((s) => s.id),
-        ['tingshuwang', 'ximalaya', 'hongguo_audio', 'lrts', 'hsvoice31'],
+        ['tingshuwang', 'ximalaya', 'hongguo_audio', 'lrts', 'hsvoice31', 'tingyou', 'hysxs', 'jar_tingshu'],
       );
       expect(
         ContentRegistry.sourcesFor(ContentSection.audio).last.name,
-        '🔞黄色有声小说',
+        '听书',
       );
     });
 
     test('小说：内置源默认在列，导入后只进小说区', () {
-      addTearDown(() => ContentRegistry.setNovelImports([]));
+      addTearDown(() {
+        ContentRegistry.setNovelImports([]);
+        ContentRegistry.midnightActivated = false;
+      });
+      ContentRegistry.midnightActivated = true;
       expect(
         ContentRegistry.sourcesFor(ContentSection.novel).map((s) => s.id),
         containsAll([
-          'biquge7',
-          'kk169',
-          'quanwenyuedu',
-          'rulianshi',
-          'yueyouxs',
-          'zhulang',
+          'aabook',
+          'ylxs',
+          'cheniyo',
+          'hwg4',
+          'lbwen',
+          'cjg',
+          'buliang',
+          'yinse',
+          'ssxxs',
+          'mhbl',
+          'ho5ho',
         ]),
       );
       ContentRegistry.setNovelImports([
@@ -59,9 +68,10 @@ void main() {
       ).map((s) => s.id);
       expect(novelIds, contains('novel_demo'));
       expect(novelIds.last, 'novel_demo');
+      ContentRegistry.midnightActivated = false;
       expect(
         ContentRegistry.sourcesFor(ContentSection.audio).map((s) => s.id),
-        ['tingshuwang', 'ximalaya', 'hongguo_audio', 'lrts'],
+        ['tingshuwang', 'ximalaya', 'hongguo_audio', 'lrts', 'tingyou', 'jar_tingshu'],
       );
     });
 
@@ -73,17 +83,7 @@ void main() {
       final offIds = ContentRegistry.sourcesFor(
         ContentSection.novel,
       ).map((s) => s.id);
-      expect(
-        offIds,
-        containsAll([
-          'biquge7',
-          'kk169',
-          'quanwenyuedu',
-          'rulianshi',
-          'yueyouxs',
-          'zhulang',
-        ]),
-      );
+      expect(offIds, isEmpty);
       expect(offIds, isNot(contains('aabook')));
       ContentRegistry.midnightActivated = true;
       final onIds = ContentRegistry.sourcesFor(

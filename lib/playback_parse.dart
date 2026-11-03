@@ -111,8 +111,16 @@ final _mediaExtensionPattern = RegExp(
   caseSensitive: false,
 );
 
-bool looksLikeDirectMedia(String url) =>
-    _mediaExtensionPattern.hasMatch(url.split('#').first);
+bool looksLikeDirectMedia(String url) {
+  final uri = Uri.tryParse(url);
+  if (uri != null &&
+      (uri.host == '127.0.0.1' ||
+          uri.host == 'localhost' ||
+          uri.host == '::1')) {
+    return true;
+  }
+  return _mediaExtensionPattern.hasMatch(url.split('#').first);
+}
 
 bool looksLikeWebPage(String url) {
   final uri = Uri.tryParse(url);

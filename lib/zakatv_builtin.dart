@@ -1,9 +1,18 @@
+import 'models.dart';
+
 class ZakatvBuiltinSite {
-  const ZakatvBuiltinSite(this.key, this.name, this.className, this.ext);
+  const ZakatvBuiltinSite(
+    this.key,
+    this.name,
+    this.className,
+    this.ext, {
+    this.section = SourceSite.sectionVideo,
+  });
   final String key;
   final String name;
   final String className;
   final String ext;
+  final String section;
 }
 
 const String zakatvJarAsset = 'assets/jars/zakatv.jar';
@@ -164,14 +173,14 @@ const List<ZakatvBuiltinSite> zakatvBuiltinSites = [
   ZakatvBuiltinSite('ZakaYouTube', '油管', 'com.github.catvod.spider.YtNewAmns', '{"proxy":""}'),
   ZakatvBuiltinSite('Wukong', '🔞悟空传媒', 'com.github.catvod.spider.Wukong', ''),
   ZakatvBuiltinSite('Chengren91', '🔞91成人', 'com.github.catvod.spider.Chengren91', ''),
-  ZakatvBuiltinSite('hgtv', '红果镜像', 'com.github.catvod.spider.Hgtv', ''),
-  ZakatvBuiltinSite('cntv', '央视', 'com.github.catvod.spider.CntvSpider', ''),
-  ZakatvBuiltinSite('go_bilibili', 'B站', 'com.github.catvod.spider.Bilibili', '{}'),
-  ZakatvBuiltinSite('go_cjjh', 'CJJH', 'com.github.catvod.spider.CJJH', '{}'),
+  ZakatvBuiltinSite(
+    'hgtv',
+    '红果镜像',
+    'com.github.catvod.spider.Hgtv',
+    '',
+    section: SourceSite.sectionDrama,
+  ),
   ZakatvBuiltinSite('go_hua', 'Hua', 'com.github.catvod.spider.Hua', '{}'),
-  ZakatvBuiltinSite('go_lego', 'Lego', 'com.github.catvod.spider.Lego', '{}'),
-  ZakatvBuiltinSite('go_music1', '音乐', 'com.github.catvod.spider.Music1', '{}'),
   ZakatvBuiltinSite('go_tingshu', '听书', 'com.github.catvod.spider.TingShu', '{}'),
   ZakatvBuiltinSite('go_ytdl', 'Ytdl', 'com.github.catvod.spider.Ytdl', '{}'),
-  ZakatvBuiltinSite('bili', 'B站Java版', 'com.github.catvod.spider.Bili', '{"type":"舞蹈#音乐#游戏#科技#生活#美食#动画#影视","cookie":""}'),
 ];

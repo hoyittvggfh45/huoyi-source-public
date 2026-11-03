@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'app_build.dart';
 
-enum HomeZone { drama, vod, midnight, live, audio, novel, aggregation }
+enum HomeZone { drama, vod, midnight, live, audio, novel }
 
 enum AppDrawerTool {
   sources,
@@ -16,7 +16,6 @@ enum AppDrawerTool {
   proxyKernel,
   lanSync,
   ruleEditor,
-  subscribe,
 }
 
 class SiteSourceBox extends StatelessWidget {
@@ -184,13 +183,6 @@ class AppDrawer extends StatelessWidget {
                 selected: false,
                 onTap: onWatchRoom,
               ),
-              _sectionTitle('聚合'),
-              _moduleTile(
-                icon: Icons.dashboard_rounded,
-                label: '聚合',
-                selected: zone == HomeZone.aggregation,
-                onTap: () => onZoneSelected(HomeZone.aggregation),
-              ),
               _sectionTitle('阅读'),
               _moduleTile(
                 icon: Icons.headphones_rounded,
@@ -203,13 +195,6 @@ class AppDrawer extends StatelessWidget {
                 label: '阅读',
                 selected: zone == HomeZone.novel,
                 onTap: () => onZoneSelected(HomeZone.novel),
-              ),
-              _sectionTitle('订阅'),
-              _moduleTile(
-                icon: Icons.rss_feed_rounded,
-                label: '订阅',
-                selected: false,
-                onTap: () => onTool(AppDrawerTool.subscribe),
               ),
               const Divider(),
               _sectionTitle('应用工具', subtitle: '通用配置与管理'),

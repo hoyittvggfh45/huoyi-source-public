@@ -23,7 +23,7 @@ import 'proxy_kernel_screen.dart';
 import 'lan_screen.dart';
 import 'clearance_bridge.dart';
 import 'rule_editor_screen.dart';
-import 'subscription_screen.dart';
+
 import 'watchroom/room_screen.dart';
 import 'app_update.dart';
 import 'core_bridge.dart';
@@ -42,13 +42,8 @@ import 'fullscreen_feed_screen.dart';
 import 'drama_style_home.dart';
 import 'hongguo_drama_home.dart';
 import 'import_file_store.dart';
-import 'aggregation_dashboard.dart';
-import 'aggregation_prefs.dart';
-import 'aggregation_settings_screen.dart';
-import 'ai_assistant_screen.dart';
-import 'experiment_zone_screen.dart';
-import 'lz_management_screen.dart';
-import 'lz_rule_store.dart';
+
+
 import 'imported_site_record.dart';
 import 'py_bridge.dart';
 import 'ui_style.dart';
@@ -184,18 +179,11 @@ class _HomeScreenState extends State<HomeScreen> {
     HomeZone.live => '直播',
     HomeZone.audio => '听书',
     HomeZone.novel => '阅读',
-    HomeZone.aggregation => '聚合',
+
     _ => appName,
   };
 
   List<SourceSite> get _sectionSources {
-    if (_zone == HomeZone.aggregation) {
-      final ids = aggregationStationDefs.map((def) => def.siteId).toSet();
-      return [
-        for (final site in widget.store.visibleSources)
-          if (ids.contains(site.id)) site,
-      ];
-    }
     return [
       for (final site in widget.store.visibleSources)
         if (_zone == HomeZone.vod
@@ -1249,53 +1237,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _openAggregationStation(SourceSite site) {
-    final zone = isMidnightZoneSource(site)
-        ? HomeZone.midnight
-        : isVodZoneSource(site)
-        ? HomeZone.vod
-        : HomeZone.drama;
-    if (zone != _zone) _setZone(zone);
-    _changeSource(site);
-  }
-
-  Future<List<Drama>> _searchAggregationStations(String query) async {
-    final sites = _sectionSources;
-    final group = SourceGroup('aggregation', '聚合', sites);
-    final page = await _browser.load(
-      group,
-      query: query,
-      crossSource: true,
-      crossSources: [for (final site in sites) site.id],
-    );
-    return page.items;
-  }
-
-  void _pushAggregationSettings() {
-    _pushTool(
-      AggregationSettingsScreen(
-        onOpenAi: () => _pushTool(const AiAssistantScreen()),
-        onOpenLz: () => _pushTool(LzManagementScreen(store: LzRuleStore())),
-        onOpenExperiment: _pushAggregationExperiment,
-      ),
-    );
-  }
-
-  Future<void> _pushAggregationExperiment() async {
-    final enabled = await AggregationPrefs.experimentEnabled();
-    if (!mounted) return;
-    _pushTool(
-      ExperimentZoneScreen(
-        enabled: enabled,
-        onEnabledChanged: (value) =>
-            unawaited(AggregationPrefs.setExperimentEnabled(value)),
-        onOpenFloatingSettings: _pushAggregationSettings,
-        onOpenAi: () => _pushTool(const AiAssistantScreen()),
-        onOpenLz: () => _pushTool(LzManagementScreen(store: LzRuleStore())),
-      ),
-    );
-  }
-
   void _openGlobalVideoResult(Drama drama) {
     final site = widget.store.sources
         .where((s) => s.id == drama.source)
@@ -1541,8 +1482,6 @@ class _HomeScreenState extends State<HomeScreen> {
         _pushTool(ProxyKernelScreen(repository: widget.repository));
       case AppDrawerTool.ruleEditor:
         _pushTool(RuleEditorScreen(repository: widget.repository));
-      case AppDrawerTool.subscribe:
-        _pushTool(const SubscriptionScreen());
     }
   }
 
@@ -2407,18 +2346,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     if (_zone == HomeZone.novel) {
       return const ContentZoneScreen(section: ContentSection.novel);
-    }
-    if (_zone == HomeZone.aggregation) {
-      return AggregationDashboard(
-        entries: aggregationEntries(widget.store.visibleSources),
-        onOpenStation: _openAggregationStation,
-        onSearch: _searchAggregationStations,
-        onOpenResult: _openGlobalVideoResult,
-        onOpenAi: () => _pushTool(const AiAssistantScreen()),
-        onOpenLz: () => _pushTool(LzManagementScreen(store: LzRuleStore())),
-        onOpenExperiment: _pushAggregationExperiment,
-        onOpenSettings: _pushAggregationSettings,
-      );
     }
     if (_sectionSources.isEmpty) {
       return StatusPanel(
