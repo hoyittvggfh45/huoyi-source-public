@@ -52,6 +52,9 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
   bool _television = false;
   bool _landscape = true;
   bool _rotated = false;
+  bool _orientationApplied = false;
+  Animation<double>? _orientationAnimation;
+  void Function(AnimationStatus)? _orientationListener;
 
   LivePlaybackController get _playback => widget.playback;
 
@@ -104,7 +107,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
     _television = AppLayout.isTelevision(context);
     _orientationController = AppOrientationScope.maybeOf(context);
     _followVideoRatio();
-    unawaited(_applyOrientation());
+    _applyOrientationDeferred();
   }
 
   /// 全屏方向跟随画面比例：竖屏流全屏仍是竖屏，横屏流全屏是横屏。
@@ -131,9 +134,53 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
     }
   }
 
+  void _applyOrientationDeferred() {
+    if (_television ||
+        _orientationApplied ||
+        _orientationAnimation != null) {
+      return;
+    }
+    final animation = ModalRoute.of(context)?.animation;
+    if (animation == null || animation.status == AnimationStatus.completed) {
+      _orientationApplied = true;
+      unawaited(_applyOrientation());
+      return;
+    }
+    _orientationAnimation = animation;
+    _orientationListener = (status) {
+      if (status == AnimationStatus.completed &&
+          mounted &&
+          !_orientationApplied) {
+        _orientationApplied = true;
+        _cancelDeferredOrientation();
+        unawaited(_applyOrientation());
+      }
+    };
+    animation.addStatusListener(_orientationListener!);
+    Future.delayed(const Duration(seconds: 1), () {
+      if (mounted && !_orientationApplied) {
+        _orientationApplied = true;
+        _cancelDeferredOrientation();
+        unawaited(_applyOrientation());
+      }
+    });
+  }
+
+  void _cancelDeferredOrientation() {
+    final animation = _orientationAnimation;
+    final listener = _orientationListener;
+    _orientationAnimation = null;
+    _orientationListener = null;
+    if (animation != null && listener != null) {
+      animation.removeStatusListener(listener);
+    }
+  }
+
   Future<void> _toggleRotate() async {
     if (_television) return;
     _rotated = true;
+    _cancelDeferredOrientation();
+    _orientationApplied = true;
     setState(() => _landscape = !_landscape);
     await _applyOrientation();
     if (Platform.isAndroid) {
@@ -143,6 +190,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
 
   @override
   void dispose() {
+    _cancelDeferredOrientation();
     _playback.removeListener(_changed);
     WidgetsBinding.instance.removeObserver(this);
     if (_playbackServiceHeld) {
@@ -165,7 +213,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
 
   void _changed() {
     if (!mounted) return;
-    if (_followVideoRatio()) {
+    if (_followVideoRatio() && _orientationApplied) {
       unawaited(_applyOrientation());
       if (Platform.isAndroid) {
         unawaited(
