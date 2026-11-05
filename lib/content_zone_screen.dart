@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import 'app_page_route.dart';
 
+import 'audio_history_screen.dart';
 import 'content_detail_screen.dart';
 import 'content_models.dart';
 import 'content_registry.dart';
@@ -457,6 +458,38 @@ class _ContentZoneScreenState extends State<ContentZoneScreen> {
                     );
                   },
                   icon: const Icon(Icons.collections_bookmark_rounded),
+                ),
+              ],
+              if (widget.section == ContentSection.audio) ...[
+                IconButton(
+                  key: const ValueKey('audio-history'),
+                  tooltip: '收听记录',
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      appPageRoute(
+                        builder: (_) => AudioHistoryScreen(
+                          sources: _sources,
+                          initialTab: 0,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.history_rounded),
+                ),
+                IconButton(
+                  key: const ValueKey('audio-favorites'),
+                  tooltip: '我的收藏',
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      appPageRoute(
+                        builder: (_) => AudioHistoryScreen(
+                          sources: _sources,
+                          initialTab: 1,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.star_border_rounded),
                 ),
               ],
             ],

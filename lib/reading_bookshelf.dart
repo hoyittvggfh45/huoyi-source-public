@@ -6,6 +6,8 @@ import 'midnight_zone.dart';
 
 const _shelfKey = 'readingBookshelf';
 const _bookmarkKey = 'readingBookmarks';
+const _historyKey = 'readingHistory';
+const _readingHistoryLimit = 50;
 
 String readingBookmarkKey(String sourceId, String bookId) =>
     '$sourceId::$bookId';
@@ -144,6 +146,47 @@ Future<void> removeShelfEntry(String sourceId, String bookId) async {
     (item) => item.sourceId == sourceId && item.bookId == bookId,
   );
   await saveShelf(entries);
+}
+
+Future<List<ReadingShelfEntry>> loadReadingHistory() async {
+  final preferences = await SharedPreferences.getInstance();
+  final raw = preferences.getString(_historyKey);
+  if (raw == null || raw.isEmpty) return [];
+  final decoded = jsonDecode(raw);
+  if (decoded is! List) return [];
+  return [
+    for (final item in decoded)
+      if (item is Map<String, dynamic>)
+        ReadingShelfEntry.fromJson(item),
+  ];
+}
+
+Future<void> saveReadingHistory(List<ReadingShelfEntry> entries) async {
+  final preferences = await SharedPreferences.getInstance();
+  await preferences.setString(
+    _historyKey,
+    jsonEncode([for (final entry in entries) entry.toJson()]),
+  );
+}
+
+Future<void> recordReadingHistory(ReadingShelfEntry entry) async {
+  final entries = await loadReadingHistory();
+  entries.removeWhere(
+    (item) => item.sourceId == entry.sourceId && item.bookId == entry.bookId,
+  );
+  entries.insert(0, entry);
+  if (entries.length > _readingHistoryLimit) {
+    entries.removeRange(_readingHistoryLimit, entries.length);
+  }
+  await saveReadingHistory(entries);
+}
+
+Future<void> removeReadingHistory(String sourceId, String bookId) async {
+  final entries = await loadReadingHistory();
+  entries.removeWhere(
+    (item) => item.sourceId == sourceId && item.bookId == bookId,
+  );
+  await saveReadingHistory(entries);
 }
 
 Future<Map<String, ReadingBookmark>> loadBookmarks() async {

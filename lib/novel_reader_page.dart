@@ -31,6 +31,7 @@ class _NovelReaderPageState extends State<NovelReaderPage> {
   int _index = 0;
   int _initialPage = 0;
   int _currentPage = 0;
+  int _historyChapterIndex = -1;
   bool _shelved = false;
   NonVideoContent? _content;
   bool _loading = true;
@@ -100,6 +101,30 @@ class _NovelReaderPageState extends State<NovelReaderPage> {
         chapterTotal: _chapters.length,
       );
     } catch (_) {}
+    if (_index != _historyChapterIndex) {
+      unawaited(_recordHistory());
+    }
+  }
+
+  Future<void> _recordHistory() async {
+    if (_chapters.isEmpty) return;
+    try {
+      await recordReadingHistory(
+        ReadingShelfEntry(
+          sourceId: widget.source.id,
+          sourceName: widget.source.name,
+          bookId: widget.book.id,
+          title: widget.book.title,
+          cover: widget.book.cover,
+          author: widget.book.author,
+          lastChapterIndex: _index,
+          lastChapterTitle: _chapters[_index].title,
+          chapterTotal: _chapters.length,
+          updatedAtMs: DateTime.now().millisecondsSinceEpoch,
+        ),
+      );
+      _historyChapterIndex = _index;
+    } catch (_) {}
   }
 
   void _onReaderPageChanged(int page) {
@@ -144,6 +169,7 @@ class _NovelReaderPageState extends State<NovelReaderPage> {
       _initialPage =
           widget.initialChapterIndex != null ? 0 : bookmark?.pageIndex ?? 0;
       await _loadChapter(startIndex, resume: true);
+      unawaited(_recordHistory());
     } catch (_) {
       if (mounted) {
         setState(() {

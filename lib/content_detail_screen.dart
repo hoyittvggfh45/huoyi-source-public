@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
 
 import 'app_page_route.dart';
+import 'audio_history.dart';
 import 'content_models.dart';
 import 'core_bridge.dart';
 import 'novel_cover.dart';
@@ -16,11 +17,15 @@ class ContentDetailScreen extends StatefulWidget {
     required this.source,
     required this.book,
     this.autoPlay = false,
+    this.initialChapterIndex,
+    this.initialPositionMs,
   });
 
   final ContentSource source;
   final ContentBook book;
   final bool autoPlay;
+  final int? initialChapterIndex;
+  final int? initialPositionMs;
 
   @override
   State<ContentDetailScreen> createState() => _ContentDetailScreenState();
@@ -53,6 +58,11 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
   String _trackError = '';
   bool _autoRetried = false;
   double _rate = 1.0;
+  AudioListenRecord? _resume;
+  bool _favorited = false;
+  ({int chapter, int ms})? _pendingSeek;
+  int _lastSavedAtMs = 0;
+  int _lastSavedPositionMs = -1;
   final List<StreamSubscription<dynamic>> _subs = [];
 
   Widget _coverBox(
@@ -75,18 +85,24 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
   void initState() {
     super.initState();
     unawaited(_loadShelved());
+    unawaited(_loadAudioState());
     _subs.addAll([
       _player.stream.position.listen((value) {
         if (mounted) setState(() => _position = value);
+        unawaited(_saveResumeThrottled());
       }),
       _player.stream.duration.listen((value) {
         if (mounted) setState(() => _duration = value);
+        _applyPendingSeek();
       }),
       _player.stream.playing.listen((value) {
         if (mounted) setState(() => _playing = value);
       }),
       _player.stream.completed.listen((completed) {
-        if (completed == true) _next(auto: true);
+        if (completed == true) {
+          unawaited(_saveResumeNow());
+          _next(auto: true);
+        }
       }),
       _player.stream.error.listen((_) {
         if (!mounted || _trackError.isNotEmpty) return;
@@ -103,11 +119,121 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
 
   @override
   void dispose() {
+    unawaited(_saveResumeNow());
     for (final sub in _subs) {
       sub.cancel();
     }
     _player.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadAudioState() async {
+    if (widget.source.section != ContentSection.audio) return;
+    try {
+      final resume = await loadAudioResume(widget.source.id, widget.book.id);
+      final favorited = await isAudioFavorite(widget.source.id, widget.book.id);
+      if (mounted) {
+        setState(() {
+          _resume = resume;
+          _favorited = favorited;
+        });
+      }
+    } catch (_) {}
+  }
+
+  AudioListenRecord _recordFor(int chapterIndex, int positionMs) {
+    final detail = _detail;
+    final chapter =
+        detail != null &&
+            chapterIndex >= 0 &&
+            chapterIndex < detail.chapters.length
+        ? detail.chapters[chapterIndex]
+        : null;
+    return AudioListenRecord(
+      sourceId: widget.source.id,
+      sourceName: widget.source.name,
+      bookId: widget.book.id,
+      title: widget.book.title,
+      cover: widget.book.cover,
+      author: widget.book.author,
+      chapterIndex: chapterIndex,
+      chapterTitle: chapter?.title ?? '',
+      positionMs: positionMs,
+      durationMs: _duration.inMilliseconds,
+      updatedAtMs: DateTime.now().millisecondsSinceEpoch,
+    );
+  }
+
+  Future<void> _saveChapterStart(int index) async {
+    if (widget.source.section != ContentSection.audio) return;
+    try {
+      final record = _recordFor(index, 0);
+      await saveAudioResume(record);
+      await recordAudioHistory(record);
+      if (mounted) setState(() => _resume = record);
+    } catch (_) {}
+  }
+
+  Future<void> _saveResumeNow() async {
+    if (widget.source.section != ContentSection.audio) return;
+    if (_playingIndex < 0 || _position.inMilliseconds <= 0) return;
+    try {
+      final record = _recordFor(_playingIndex, _position.inMilliseconds);
+      await saveAudioResume(record);
+      await recordAudioHistory(record);
+      if (mounted) setState(() => _resume = record);
+    } catch (_) {}
+  }
+
+  Future<void> _saveResumeThrottled() async {
+    if (widget.source.section != ContentSection.audio) return;
+    if (_playingIndex < 0 || !_playing) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final positionMs = _position.inMilliseconds;
+    if (positionMs <= 0) return;
+    if (now - _lastSavedAtMs < 5000 &&
+        (positionMs - _lastSavedPositionMs).abs() < 5000) {
+      return;
+    }
+    _lastSavedAtMs = now;
+    _lastSavedPositionMs = positionMs;
+    try {
+      final record = _recordFor(_playingIndex, positionMs);
+      await saveAudioResume(record);
+      if (mounted) setState(() => _resume = record);
+    } catch (_) {}
+  }
+
+  void _applyPendingSeek() {
+    final pending = _pendingSeek;
+    if (pending == null) return;
+    if (pending.chapter != _playingIndex) return;
+    if (_duration.inMilliseconds <= 0) return;
+    final target = pending.ms.clamp(0, _duration.inMilliseconds);
+    _pendingSeek = null;
+    unawaited(_player.seek(Duration(milliseconds: target)));
+  }
+
+  Future<void> _toggleFavorite() async {
+    try {
+      if (_favorited) {
+        await removeAudioFavorite(widget.source.id, widget.book.id);
+        if (mounted) setState(() => _favorited = false);
+      } else {
+        await addAudioFavorite(
+          AudioFavoriteEntry(
+            sourceId: widget.source.id,
+            sourceName: widget.source.name,
+            bookId: widget.book.id,
+            title: widget.book.title,
+            cover: widget.book.cover,
+            author: widget.book.author,
+            updatedAtMs: DateTime.now().millisecondsSinceEpoch,
+          ),
+        );
+        if (mounted) setState(() => _favorited = true);
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadShelved() async {
@@ -155,12 +281,34 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
           _detail = detail;
           _loading = false;
         });
-        if (widget.autoPlay &&
-            widget.source.section == ContentSection.audio &&
-            !_autoPlayed &&
-            detail.chapters.isNotEmpty) {
-          _autoPlayed = true;
-          unawaited(_playChapter(0));
+        if (widget.source.section == ContentSection.audio &&
+            detail.chapters.isNotEmpty &&
+            !_autoPlayed) {
+          if (widget.initialChapterIndex != null) {
+            _autoPlayed = true;
+            final start = widget.initialChapterIndex!.clamp(
+              0,
+              detail.chapters.length - 1,
+            );
+            unawaited(
+              _playChapter(start, seekMs: widget.initialPositionMs ?? 0),
+            );
+          } else if (widget.autoPlay) {
+            _autoPlayed = true;
+            await _loadAudioState();
+            final start = (_resume?.chapterIndex ?? 0).clamp(
+              0,
+              detail.chapters.length - 1,
+            );
+            unawaited(
+              _playChapter(
+                start,
+                seekMs: _resume?.chapterIndex == start
+                    ? _resume!.positionMs
+                    : 0,
+              ),
+            );
+          }
         }
       }
     } on AppFailure catch (e) {
@@ -180,9 +328,10 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
     }
   }
 
-  Future<void> _playChapter(int index) async {
+  Future<void> _playChapter(int index, {int seekMs = 0}) async {
     final detail = _detail;
     if (detail == null || index < 0 || index >= detail.chapters.length) return;
+    _pendingSeek = seekMs > 0 ? (chapter: index, ms: seekMs) : null;
     setState(() {
       _playingIndex = index;
       _trackLoading = true;
@@ -200,8 +349,12 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
       await _player.open(Media(track.url));
       await _player.setRate(_rate);
       await _player.play();
-      if (mounted) setState(() => _trackLoading = false);
+      if (mounted) {
+        setState(() => _trackLoading = false);
+        unawaited(_saveChapterStart(index));
+      }
     } on AppFailure catch (e) {
+      _pendingSeek = null;
       if (mounted) {
         setState(() {
           _trackLoading = false;
@@ -209,6 +362,7 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
         });
       }
     } catch (_) {
+      _pendingSeek = null;
       if (mounted) {
         setState(() {
           _trackLoading = false;
@@ -245,6 +399,8 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
   }
 
   Future<void> _stop() async {
+    _pendingSeek = null;
+    await _saveResumeNow();
     await _player.stop();
     if (mounted) {
       setState(() {
@@ -367,6 +523,7 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
                       value: posMs,
                       max: maxMs,
                       onChanged: (value) {
+                      _pendingSeek = null;
                         _player.seek(Duration(milliseconds: value.toInt()));
                       },
                     ),
@@ -555,11 +712,58 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
                               ),
                             ),
                           ],
+                          if (widget.source.section == ContentSection.audio) ...[
+                            const SizedBox(height: 10),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Wrap(
+                                spacing: 10,
+                                children: [
+                                  FilledButton.icon(
+                                    key: const ValueKey(
+                                      'detail-audio-favorite-toggle',
+                                    ),
+                                    onPressed: _toggleFavorite,
+                                    icon: Icon(
+                                      _favorited
+                                          ? Icons.star
+                                          : Icons.star_border,
+                                    ),
+                                    label: Text(_favorited ? '已收藏' : '收藏'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
                   ],
                 ),
+                if (widget.source.section == ContentSection.audio &&
+                    _resume != null &&
+                    _resume!.started &&
+                    _resume!.chapterIndex < (_detail?.chapters.length ?? 0) &&
+                    !(_playingIndex == _resume!.chapterIndex &&
+                        _position.inMilliseconds >=
+                            _resume!.positionMs - 2000)) ...[
+                  const SizedBox(height: 14),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: FilledButton.icon(
+                      key: const ValueKey('detail-audio-resume'),
+                      onPressed: () => _playChapter(
+                        _resume!.chapterIndex,
+                        seekMs: _resume!.positionMs,
+                      ),
+                      icon: const Icon(Icons.play_arrow_rounded),
+                      label: Text(
+                        '继续收听：第 ${_resume!.chapterIndex + 1} 集 '
+                        '${_formatAudioTime(Duration(milliseconds: _resume!.positionMs))}',
+                      ),
+                    ),
+                  ),
+                ],
                 if (_playingIndex >= 0) ...[
                   const SizedBox(height: 14),
                   _playerBar(),

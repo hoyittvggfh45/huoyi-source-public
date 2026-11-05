@@ -1649,7 +1649,10 @@ class NativeRepository extends AppRepository {
     _authorize(drama.source);
     final url = drama.cover.trim();
     if (url.isEmpty) throw AppFailure('海报暂不可用');
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    final fetchUrl = url.startsWith('proxy://')
+        ? await _pyProxyLocalUrl(drama.source, url)
+        : url;
+    if (!fetchUrl.startsWith('http://') && !fetchUrl.startsWith('https://')) {
       throw AppFailure('该站海报需经蜘蛛代理取图，暂未接入');
     }
     final directory = await getApplicationSupportDirectory();
@@ -1664,7 +1667,7 @@ class NativeRepository extends AppRepository {
     final client = HttpClient()
       ..connectionTimeout = const Duration(seconds: 10);
     try {
-      final request = await client.getUrl(Uri.parse(url));
+      final request = await client.getUrl(Uri.parse(fetchUrl));
       request.headers.set(HttpHeaders.userAgentHeader, 'Mozilla/5.0');
       final response = await request.close();
       if (response.statusCode != 200) {
