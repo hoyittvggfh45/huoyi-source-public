@@ -34,6 +34,7 @@ import 'lan_screen.dart';
 import 'proxy_kernel_screen.dart';
 import 'rule_editor_screen.dart';
 import 'theme_settings_screen.dart';
+import 'tgdrama_login_page.dart';
 import 'drama_settings.dart';
 import 'hongguo_device_screen.dart';
 import 'ui_style.dart';
@@ -356,6 +357,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             ),
+          ListTile(
+            key: const ValueKey('tgdrama-login-entry'),
+            leading: const Icon(Icons.telegram),
+            title: const Text('Telegram 登录'),
+            subtitle: const Text('TG影视库扫码或手机号登录'),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => Navigator.push(
+              context,
+              appPageRoute<void>(builder: (_) => const TgdramaLoginPage()),
+            ),
+          ),
           ListTile(
             key: const ValueKey('site-check-entry'),
             leading: const Icon(Icons.fact_check_outlined),
@@ -911,8 +923,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             color: const Color(0xFFAF52DE),
             title: '外观主题',
             detail: AppTheme.label(store.themeMode),
-            onTap: () =>
-                _push(ThemeSettingsScreen(store: widget.store)),
+            onTap: () => _push(ThemeSettingsScreen(store: widget.store)),
           ),
           if (style != DramaUiStyle.drama)
             _glassRow(

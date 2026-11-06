@@ -17,8 +17,10 @@ import 'jar_youtube_takeover.dart';
 import 'danmaku_models.dart';
 import 'hongguo_comment.dart';
 import 'import_file_store.dart';
+import 'builtin_py_sites.dart';
 import 'py_bridge.dart';
 import 'py_lazy_fetch.dart';
+import 'tgdrama_service.dart';
 import 'py_contract.dart';
 import 'background_downloads.dart';
 import 'local_store.dart';
@@ -390,10 +392,24 @@ class NativeRepository extends AppRepository {
     }
   }
 
+  Future<void> _ensureTgdramaService(String source) async {
+    if (source != BuiltinPySites.tgdramaSiteId) return;
+    final ok = await TgdramaService.instance.ensureRunning();
+    if (!ok) {
+      final reason = TgdramaService.instance.lastError;
+      throw AppFailure(
+        reason == null || reason.isEmpty
+            ? 'TG影视库本地服务未启动，请先到设置里登录 Telegram'
+            : 'TG影视库本地服务未启动：$reason，请先到设置里登录 Telegram',
+      );
+    }
+  }
+
   Future<Map<String, dynamic>> _pyCall(
     String source,
     Map<String, dynamic> request,
   ) async {
+    await _ensureTgdramaService(source);
     _authorize(source);
     final path = await _pySpiderPath(source);
     final ext = SourceSite.importedSites[source]?.importExt ?? '';
@@ -409,6 +425,7 @@ class NativeRepository extends AppRepository {
     String source,
     Map<String, dynamic> request,
   ) async {
+    await _ensureTgdramaService(source);
     _authorize(source);
     final path = await _pySpiderPath(source);
     final ext = SourceSite.importedSites[source]?.importExt ?? '';
@@ -487,10 +504,7 @@ class NativeRepository extends AppRepository {
   ) async {
     if (category.isEmpty) return const [];
     try {
-      final home = await _jarCall(
-        source,
-        (spec) => JarBridge.home(spec),
-      );
+      final home = await _jarCall(source, (spec) => JarBridge.home(spec));
       final raw = PyContract.filtersFromHome(home);
       return PyContract.filterGroupsForCategory(raw, category);
     } catch (_) {
@@ -1515,7 +1529,12 @@ class NativeRepository extends AppRepository {
     }
     if (isJsSource(source)) {
       if (query.isNotEmpty) {
-        final result = await _jsCall(source, 'search', query: query, page: page);
+        final result = await _jsCall(
+          source,
+          'search',
+          query: query,
+          page: page,
+        );
         return PyContract.pageFromResult(source, result, page: page);
       }
       final result = await _jsCall(
@@ -1809,8 +1828,7 @@ class NativeRepository extends AppRepository {
       episode.raw['id'] as String? ?? episode.id,
     );
     if (videoId.isEmpty) return null;
-    var seriesId =
-        drama.sourceId.isNotEmpty ? drama.sourceId : drama.id;
+    var seriesId = drama.sourceId.isNotEmpty ? drama.sourceId : drama.id;
     final seriesColon = seriesId.lastIndexOf(':');
     if (seriesColon >= 0) seriesId = seriesId.substring(seriesColon + 1);
     if (seriesId.isEmpty || !RegExp(r'^[0-9]+$').hasMatch(seriesId)) {

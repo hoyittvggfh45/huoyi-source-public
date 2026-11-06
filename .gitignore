@@ -15,6 +15,7 @@ windows/runner/duanju_core.dll
 __pycache__/
 *.pyc
 key.properties
+assets/tgdrama_session.json
 .DS_Store
 .idea/
 *.iml

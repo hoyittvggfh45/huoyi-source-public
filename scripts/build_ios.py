@@ -117,6 +117,12 @@ def main():
     variant = BuildVariant(options.all_sources)
     auth_key = os.environ.get('JIANHUANG_AUTH_KEY', '')
     auth_defines = ['--dart-define=JIANHUANG_AUTH_KEY=' + auth_key] if auth_key else []
+    tg_api_id = os.environ.get('TG_API_ID', '')
+    if tg_api_id:
+        auth_defines.append('--dart-define=TG_API_ID=' + tg_api_id)
+    tg_api_hash = os.environ.get('TG_API_HASH', '')
+    if tg_api_hash:
+        auth_defines.append('--dart-define=TG_API_HASH=' + tg_api_hash)
     build_core(options.simulator, variant)
     if options.core_only:
         return

@@ -37,6 +37,12 @@ with china_mirror_environment(environment, options.cn_mirrors) as env, mirrored_
     auth_key = os.environ.get('JIANHUANG_AUTH_KEY', '')
     if auth_key:
         build_args.append('--dart-define=JIANHUANG_AUTH_KEY=' + auth_key)
+    tg_api_id = os.environ.get('TG_API_ID', '')
+    if tg_api_id:
+        build_args.append('--dart-define=TG_API_ID=' + tg_api_id)
+    tg_api_hash = os.environ.get('TG_API_HASH', '')
+    if tg_api_hash:
+        build_args.append('--dart-define=TG_API_HASH=' + tg_api_hash)
     if options.abi:
         targets = {'arm64-v8a': 'android-arm64', 'armeabi-v7a': 'android-arm', 'x86_64': 'android-x64'}
         build_args += ['--target-platform', ','.join(targets[abi] for abi in options.abi)]
