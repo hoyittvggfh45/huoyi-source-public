@@ -27,7 +27,8 @@ class TgdramaAuthStatus {
 class TgdramaService with WidgetsBindingObserver {
   TgdramaService({
     http.Client? httpClient,
-    Future<Process> Function(List<String> command)? processLauncher,
+    Future<Process> Function(List<String> command, {String? workingDirectory})?
+    processLauncher,
     Future<Directory> Function()? supportDirProvider,
     this._isAndroidProvider,
     Future<ByteData> Function(String assetPath)? assetLoader,
@@ -68,7 +69,11 @@ class TgdramaService with WidgetsBindingObserver {
   static TgdramaService get instance => _instance;
 
   final http.Client _httpClient;
-  final Future<Process> Function(List<String> command) _processLauncher;
+  final Future<Process> Function(
+    List<String> command, {
+    String? workingDirectory,
+  })
+  _processLauncher;
   final Future<Directory> Function() _supportDirProvider;
   final bool Function()? _isAndroidProvider;
   final Future<ByteData> Function(String assetPath) _assetLoader;
@@ -77,6 +82,13 @@ class TgdramaService with WidgetsBindingObserver {
 
   static const _linkerPath = '/system/bin/linker64';
   static const _chmodPath = '/system/bin/chmod';
+  static const _maxLogChars = 4000;
+
+  String? get lastError => _lastError;
+
+  String get lastLogTail => _logBuffer.toString();
+
+  int? get lastExitCode => _lastExitCode;
 
   Process? _process;
   bool _processExited = false;
@@ -84,15 +96,22 @@ class TgdramaService with WidgetsBindingObserver {
   bool _observing = false;
   Future<bool>? _starting;
   String? _lastError;
-
-  String? get lastError => _lastError;
+  int? _lastExitCode;
+  final StringBuffer _logBuffer = StringBuffer();
+  IOSink? _logSink;
 
   bool get isRunning => _process != null && !_processExited;
 
   bool get _isAndroid => _isAndroidProvider?.call() ?? Platform.isAndroid;
 
-  static Future<Process> _defaultProcessLauncher(List<String> command) =>
-      Process.start(command.first, command.sublist(1));
+  static Future<Process> _defaultProcessLauncher(
+    List<String> command, {
+    String? workingDirectory,
+  }) => Process.start(
+    command.first,
+    command.sublist(1),
+    workingDirectory: workingDirectory,
+  );
 
   void dispose() {
     if (_observing) {
@@ -141,14 +160,11 @@ class TgdramaService with WidgetsBindingObserver {
     await _seedSessionAndConfig(File(binaryPath).parent);
     final execNote = await _ensureExecutable(binaryPath);
     try {
-      final process = await _launch([
-        binaryPath,
-        '-port',
-        '$defaultPort',
-        '-bind',
-        '127.0.0.1',
-      ]);
-      _trackProcess(process);
+      final process = await _launch(
+        [binaryPath, '-port', '$defaultPort', '-bind', '127.0.0.1'],
+        workingDirectory: File(binaryPath).parent.path,
+      );
+      _trackProcess(process, File(binaryPath).parent);
     } catch (error) {
       _lastError =
           'TG影视库本地服务启动失败：$error'
@@ -162,15 +178,24 @@ class TgdramaService with WidgetsBindingObserver {
         return true;
       }
       if (!isRunning) {
-        _lastError = 'TG影视库本地服务进程已退出';
+        _lastError = 'TG影视库本地服务进程已退出${_exitDetail()}';
         return false;
       }
       if (attempt < _healthPollAttempts - 1) {
         await Future.delayed(_healthPollInterval);
       }
     }
-    _lastError = 'TG影视库本地服务健康检查超时（$baseUrl 未在 8 秒内就绪）';
+    _lastError = 'TG影视库本地服务健康检查超时（$baseUrl 未在 8 秒内就绪）${_exitDetail()}';
     return false;
+  }
+
+  String _exitDetail() {
+    final parts = <String>[];
+    if (_lastExitCode != null) parts.add('退出码 $_lastExitCode');
+    final tail = lastLogTail.trim();
+    if (tail.isNotEmpty) parts.add('进程日志：$tail');
+    if (parts.isEmpty) return '';
+    return '（${parts.join('；')}）';
   }
 
   Future<bool> healthCheck() async {
@@ -303,31 +328,81 @@ class TgdramaService with WidgetsBindingObserver {
     final process = _process;
     _process = null;
     _processExited = false;
-    if (process == null) return;
+    if (process == null) {
+      _closeLogSink();
+      return;
+    }
     try {
       process.kill();
     } catch (_) {}
+    _closeLogSink();
   }
 
-  void _trackProcess(Process process) {
+  void _trackProcess(Process process, Directory workDir) {
     _process = process;
     _processExited = false;
+    _lastExitCode = null;
+    _logBuffer.clear();
+    try {
+      _logSink = File(
+        '${workDir.path}/plugin.log',
+      ).openWrite(mode: FileMode.write);
+    } catch (_) {
+      _logSink = null;
+    }
+    void appendChunk(String chunk) {
+      if (chunk.isEmpty) return;
+      _logBuffer.write(chunk);
+      if (_logBuffer.length > _maxLogChars) {
+        final kept = _logBuffer.toString().substring(
+          _logBuffer.length - _maxLogChars,
+        );
+        _logBuffer
+          ..clear()
+          ..write(kept);
+      }
+      try {
+        _logSink?.write(chunk);
+      } catch (_) {}
+    }
+
+    process.stdout.transform(utf8.decoder).listen(appendChunk, onError: (_) {});
+    process.stderr.transform(utf8.decoder).listen(appendChunk, onError: (_) {});
     unawaited(
-      process.exitCode.then((_) {
+      process.exitCode.then((code) {
+        _lastExitCode = code;
         if (identical(_process, process)) {
           _process = null;
           _processExited = true;
         }
+        _closeLogSink();
       }),
     );
   }
 
-  Future<Process> _launch(List<String> command) async {
+  void _closeLogSink() {
+    final sink = _logSink;
+    _logSink = null;
     try {
-      return await _processLauncher(command);
+      sink?.close();
+    } catch (_) {}
+  }
+
+  Future<Process> _launch(
+    List<String> command, {
+    required String workingDirectory,
+  }) async {
+    try {
+      return await _processLauncher(
+        command,
+        workingDirectory: workingDirectory,
+      );
     } on ProcessException catch (error) {
       if (!_isPermissionDenied(error)) rethrow;
-      return await _processLauncher([_linkerPath, ...command]);
+      return await _processLauncher(
+        [_linkerPath, ...command],
+        workingDirectory: workingDirectory,
+      );
     }
   }
 

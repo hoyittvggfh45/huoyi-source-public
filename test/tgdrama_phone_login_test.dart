@@ -45,12 +45,12 @@ void main() {
   }
 
   group('checkAvailability', () {
-    test('助手不存在时不可用，reason 非空且让人先用扫码登录', () async {
+    test('助手不存在时不可用，reason 非空且点出助手未就绪', () async {
       final service = serviceWith();
       final result = await service.checkAvailability();
       expect(result.available, isFalse);
       expect(result.reason, isNotEmpty);
-      expect(result.reason, contains('扫码登录'));
+      expect(result.reason, contains('tgphone 未安装'));
     });
 
     test('助手在但 config 不存在时不可用', () async {

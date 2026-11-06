@@ -53,18 +53,26 @@ void main() {
   TgdramaService createService({
     required MockClient client,
     _FakeProcess Function()? processFactory,
-    Future<Process> Function(List<String> command)? processLauncher,
+    Future<Process> Function(
+      List<String> command, {
+      String? workingDirectory,
+    })?
+    processLauncher,
     Future<ProcessResult> Function(String executable, List<String> args)?
     chmodRunner,
     Future<ByteData> Function(String assetPath)? assetLoader,
     bool Function()? isAndroidProvider,
   }) {
     final launches = <List<String>>[];
+    final launchDirs = <String?>[];
     final service = TgdramaService(
       httpClient: client,
-      processLauncher: (command) async {
+      processLauncher: (command, {workingDirectory}) async {
         launches.add(List<String>.from(command));
-        if (processLauncher != null) return processLauncher(command);
+        launchDirs.add(workingDirectory);
+        if (processLauncher != null) {
+          return processLauncher(command, workingDirectory: workingDirectory);
+        }
         return processFactory?.call() ?? _FakeProcess();
       },
       supportDirProvider: () async => tempDir,
@@ -73,6 +81,7 @@ void main() {
       chmodRunner: chmodRunner,
     );
     serviceLaunches[service] = launches;
+    serviceLaunchDirs[service] = launchDirs;
     created.add(service);
     return service;
   }
@@ -233,7 +242,10 @@ void main() {
 
   test('直接启动报 Permission denied 时走链接器兜底启动', () async {
     final binaryPath = '${tempDir.path}/tgdrama/tgdrama-android';
-    Future<Process> denyDirect(List<String> command) async {
+    Future<Process> denyDirect(
+      List<String> command, {
+      String? workingDirectory,
+    }) async {
       if (command.first == '/system/bin/linker64') return _FakeProcess();
       throw ProcessException(
         command.first,
@@ -266,7 +278,10 @@ void main() {
     Future<ProcessResult> noopChmod(String executable, List<String> args) =>
         Future.value(ProcessResult(0, 0, '', ''));
     final binaryPath = '${tempDir.path}/tgdrama/tgdrama-android';
-    Future<Process> denyDirect(List<String> command) async {
+    Future<Process> denyDirect(
+      List<String> command, {
+      String? workingDirectory,
+    }) async {
       if (command.first == '/system/bin/linker64') return _FakeProcess();
       throw ProcessException(
         command.first,
@@ -289,7 +304,10 @@ void main() {
   });
 
   test('直接启动报非权限错误时不走兜底，直接失败', () async {
-    Future<Process> failDirect(List<String> command) async {
+    Future<Process> failDirect(
+      List<String> command, {
+      String? workingDirectory,
+    }) async {
       throw ProcessException(
         command.first,
         command.sublist(1),
@@ -305,6 +323,49 @@ void main() {
     expect(await service.ensureRunning(), isFalse);
     expect(service.lastError, contains('No such file'));
     expect(serviceLaunches[service]!.length, 1);
+  });
+
+  test('启动时工作目录就是插件所在目录', () async {
+    final service = createService(client: clientFor());
+    expect(await service.ensureRunning(), isTrue);
+    expect(serviceLaunchDirs[service]!.single, '${tempDir.path}/tgdrama');
+  });
+
+  test('插件输出进日志：lastLogTail 与 plugin.log 都有', () async {
+    final service = createService(
+      client: clientFor(),
+      processFactory: () => _FakeProcess(
+        stdoutLines: ['listening on 127.0.0.1:5278\n'],
+        stderrLines: ['warn: slow start\n'],
+      ),
+    );
+    expect(await service.ensureRunning(), isTrue);
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    expect(service.lastLogTail, contains('listening on 127.0.0.1:5278'));
+    expect(service.lastLogTail, contains('warn: slow start'));
+    final logText = await File(
+      '${tempDir.path}/tgdrama/plugin.log',
+    ).readAsString();
+    expect(logText, contains('listening on 127.0.0.1:5278'));
+  });
+
+  test('进程启动后立刻退出：lastError 带退出码与日志尾', () async {
+    final service = createService(
+      client: clientFor(healthStatus: 500),
+      processFactory: () {
+        final process = _FakeProcess(
+          stderrLines: ['fatal: config.yaml not found\n'],
+        );
+        process.exitNow(1);
+        return process;
+      },
+    );
+    expect(await service.ensureRunning(), isFalse);
+    expect(service.lastExitCode, 1);
+    expect(service.lastError, contains('进程已退出'));
+    expect(service.lastError, contains('退出码 1'));
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    expect(service.lastLogTail, contains('config.yaml not found'));
   });
 
   test('健康检查一直失败回 false 且 lastError 有内容', () async {
@@ -457,18 +518,24 @@ void main() {
 }
 
 final Map<TgdramaService, List<List<String>>> serviceLaunches = {};
+final Map<TgdramaService, List<String?>> serviceLaunchDirs = {};
 
 class _FakeProcess implements Process {
-  _FakeProcess();
+  _FakeProcess({this.stdoutLines = const [], this.stderrLines = const []});
+
+  final List<String> stdoutLines;
+  final List<String> stderrLines;
 
   final Completer<int> _exitCode = Completer<int>();
   bool killed = false;
 
   @override
-  Stream<List<int>> get stderr => const Stream<List<int>>.empty();
+  Stream<List<int>> get stderr =>
+      Stream<List<int>>.fromIterable(stderrLines.map(utf8.encode));
 
   @override
-  Stream<List<int>> get stdout => const Stream<List<int>>.empty();
+  Stream<List<int>> get stdout =>
+      Stream<List<int>>.fromIterable(stdoutLines.map(utf8.encode));
 
   @override
   IOSink get stdin => IOSink(StreamController<List<int>>());
