@@ -53,6 +53,9 @@ void main() {
   TgdramaService createService({
     required MockClient client,
     _FakeProcess Function()? processFactory,
+    Future<Process> Function(List<String> command)? processLauncher,
+    Future<ProcessResult> Function(String executable, List<String> args)?
+    chmodRunner,
     Future<ByteData> Function(String assetPath)? assetLoader,
     bool Function()? isAndroidProvider,
   }) {
@@ -61,11 +64,13 @@ void main() {
       httpClient: client,
       processLauncher: (command) async {
         launches.add(List<String>.from(command));
+        if (processLauncher != null) return processLauncher(command);
         return processFactory?.call() ?? _FakeProcess();
       },
       supportDirProvider: () async => tempDir,
       isAndroidProvider: isAndroidProvider ?? () => true,
       assetLoader: assetLoader ?? realBinaryBytes,
+      chmodRunner: chmodRunner,
     );
     serviceLaunches[service] = launches;
     created.add(service);
@@ -224,6 +229,82 @@ void main() {
       await File('${tempDir.path}/tgdrama/session.json').exists(),
       isFalse,
     );
+  });
+
+  test('直接启动报 Permission denied 时走链接器兜底启动', () async {
+    final binaryPath = '${tempDir.path}/tgdrama/tgdrama-android';
+    Future<Process> denyDirect(List<String> command) async {
+      if (command.first == '/system/bin/linker64') return _FakeProcess();
+      throw ProcessException(
+        command.first,
+        command.sublist(1),
+        'Permission denied',
+        13,
+      );
+    }
+
+    final service = createService(
+      client: clientFor(),
+      processLauncher: denyDirect,
+    );
+    expect(await service.ensureRunning(), isTrue);
+    expect(service.isRunning, isTrue);
+    expect(service.lastError, isNull);
+    final launches = serviceLaunches[service]!;
+    expect(launches.length, 2);
+    expect(launches[1], [
+      '/system/bin/linker64',
+      binaryPath,
+      '-port',
+      '5278',
+      '-bind',
+      '127.0.0.1',
+    ]);
+  });
+
+  test('chmod 未设执行位时仍靠链接器兜底启动', () async {
+    Future<ProcessResult> noopChmod(String executable, List<String> args) =>
+        Future.value(ProcessResult(0, 0, '', ''));
+    final binaryPath = '${tempDir.path}/tgdrama/tgdrama-android';
+    Future<Process> denyDirect(List<String> command) async {
+      if (command.first == '/system/bin/linker64') return _FakeProcess();
+      throw ProcessException(
+        command.first,
+        command.sublist(1),
+        'Permission denied',
+        13,
+      );
+    }
+
+    final service = createService(
+      client: clientFor(),
+      processLauncher: denyDirect,
+      chmodRunner: noopChmod,
+    );
+    expect(await service.ensureRunning(), isTrue);
+    expect(service.isRunning, isTrue);
+    final launches = serviceLaunches[service]!;
+    expect(launches.last.first, '/system/bin/linker64');
+    expect(launches.last[1], binaryPath);
+  });
+
+  test('直接启动报非权限错误时不走兜底，直接失败', () async {
+    Future<Process> failDirect(List<String> command) async {
+      throw ProcessException(
+        command.first,
+        command.sublist(1),
+        'No such file or directory',
+        2,
+      );
+    }
+
+    final service = createService(
+      client: clientFor(),
+      processLauncher: failDirect,
+    );
+    expect(await service.ensureRunning(), isFalse);
+    expect(service.lastError, contains('No such file'));
+    expect(serviceLaunches[service]!.length, 1);
   });
 
   test('健康检查一直失败回 false 且 lastError 有内容', () async {

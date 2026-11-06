@@ -778,6 +778,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
           _glassRow(
+            key: const ValueKey('tgdrama-login-entry'),
+            icon: LucideIcons.send,
+            color: const Color(0xFF229ED9),
+            title: 'Telegram 登录',
+            detail: 'TG影视库扫码或手机号登录',
+            onTap: () => _push(const TgdramaLoginPage()),
+          ),
+          _glassRow(
             key: const ValueKey('site-check-entry'),
             icon: LucideIcons.listChecks,
             color: const Color(0xFF30B0C7),

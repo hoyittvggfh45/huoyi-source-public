@@ -17,6 +17,8 @@ void main() {
 
   TgdramaPhoneLoginService serviceWith({
     Future<ByteData> Function(String assetPath)? assetLoader,
+    Future<ProcessResult> Function(String executable, List<String> args)?
+    runProcess,
     String? bundledApiId,
     String? bundledApiHash,
   }) {
@@ -24,6 +26,7 @@ void main() {
       supportDir: tempDir,
       assetLoader:
           assetLoader ?? (_) async => throw StateError('no asset in test'),
+      runProcess: runProcess,
       bundledApiId: bundledApiId,
       bundledApiHash: bundledApiHash,
     );
@@ -150,6 +153,34 @@ void main() {
           ),
         ),
       );
+    });
+
+    test('助手直接跑报 Permission denied 时走链接器兜底重跑', () async {
+      await putHelper();
+      await putConfig(
+        'telegram:\n  api_id: 123456\n  api_hash: 0123456789abcdef0123456789abcdef\n',
+      );
+      final stateFile = File('${tempDir.path}/tgdrama/phone_login_state.json');
+      await stateFile.create(recursive: true);
+      await stateFile.writeAsString('{"phone_code_hash":"abc123"}');
+      final calls = <List<String>>[];
+      Future<ProcessResult> denyDirect(
+        String executable,
+        List<String> args,
+      ) async {
+        calls.add([executable, ...args]);
+        if (executable == '/system/bin/linker64') {
+          return ProcessResult(0, 0, '', '');
+        }
+        throw ProcessException(executable, args, 'Permission denied', 13);
+      }
+
+      final service = serviceWith(runProcess: denyDirect);
+      await service.sendCode('13800000000');
+      expect(calls.length, 2);
+      expect(calls[0].first, contains('tgphone'));
+      expect(calls[1].first, '/system/bin/linker64');
+      expect(calls[1][1], contains('tgphone'));
     });
   });
 

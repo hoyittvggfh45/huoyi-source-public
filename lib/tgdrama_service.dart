@@ -31,11 +31,14 @@ class TgdramaService with WidgetsBindingObserver {
     Future<Directory> Function()? supportDirProvider,
     this._isAndroidProvider,
     Future<ByteData> Function(String assetPath)? assetLoader,
+    Future<ProcessResult> Function(String executable, List<String> args)?
+    chmodRunner,
   }) : _httpClient = httpClient ?? http.Client(),
        _processLauncher = processLauncher ?? _defaultProcessLauncher,
        _supportDirProvider =
            supportDirProvider ?? getApplicationSupportDirectory,
-       _assetLoader = assetLoader ?? rootBundle.load {
+       _assetLoader = assetLoader ?? rootBundle.load,
+       _chmodRunner = chmodRunner ?? Process.run {
     try {
       WidgetsBinding.instance.addObserver(this);
       _observing = true;
@@ -69,6 +72,11 @@ class TgdramaService with WidgetsBindingObserver {
   final Future<Directory> Function() _supportDirProvider;
   final bool Function()? _isAndroidProvider;
   final Future<ByteData> Function(String assetPath) _assetLoader;
+  final Future<ProcessResult> Function(String executable, List<String> args)
+  _chmodRunner;
+
+  static const _linkerPath = '/system/bin/linker64';
+  static const _chmodPath = '/system/bin/chmod';
 
   Process? _process;
   bool _processExited = false;
@@ -131,20 +139,9 @@ class TgdramaService with WidgetsBindingObserver {
       return false;
     }
     await _seedSessionAndConfig(File(binaryPath).parent);
+    final execNote = await _ensureExecutable(binaryPath);
     try {
-      final chmodResult = await Process.run('chmod', ['755', binaryPath]);
-      if (chmodResult.exitCode != 0) {
-        _lastError =
-            'TG影视库二进制授权失败：chmod 退出码 '
-            '${chmodResult.exitCode}';
-        return false;
-      }
-    } catch (error) {
-      _lastError = 'TG影视库二进制授权失败：$error';
-      return false;
-    }
-    try {
-      final process = await _processLauncher([
+      final process = await _launch([
         binaryPath,
         '-port',
         '$defaultPort',
@@ -153,7 +150,9 @@ class TgdramaService with WidgetsBindingObserver {
       ]);
       _trackProcess(process);
     } catch (error) {
-      _lastError = 'TG影视库本地服务启动失败：$error';
+      _lastError =
+          'TG影视库本地服务启动失败：$error'
+          '${execNote == null ? '' : '（$execNote）'}';
       return false;
     }
     _everStarted = true;
@@ -321,6 +320,56 @@ class TgdramaService with WidgetsBindingObserver {
         }
       }),
     );
+  }
+
+  Future<Process> _launch(List<String> command) async {
+    try {
+      return await _processLauncher(command);
+    } on ProcessException catch (error) {
+      if (!_isPermissionDenied(error)) rethrow;
+      return await _processLauncher([_linkerPath, ...command]);
+    }
+  }
+
+  bool _isPermissionDenied(ProcessException error) =>
+      error.errorCode == 13 || error.message.contains('Permission denied');
+
+  Future<String?> _ensureExecutable(String binaryPath) async {
+    const attempts = [
+      ('chmod', '755'),
+      (_chmodPath, '755'),
+      (_chmodPath, '777'),
+    ];
+    for (final attempt in attempts) {
+      try {
+        final result = await _chmodRunner(attempt.$1, [attempt.$2, binaryPath]);
+        if (result.exitCode != 0) continue;
+      } catch (_) {
+        continue;
+      }
+      if (await _hasOwnerExecBit(binaryPath)) return null;
+    }
+    if (await _hasOwnerExecBit(binaryPath)) return null;
+    final mode = await _fileModeOctal(binaryPath);
+    return '二进制文件未含执行位（mode $mode），已尝试链接器兜底启动';
+  }
+
+  Future<bool> _hasOwnerExecBit(String path) async {
+    try {
+      final stat = await File(path).stat();
+      return (stat.mode & 0x40) != 0;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<String> _fileModeOctal(String path) async {
+    try {
+      final stat = await File(path).stat();
+      return (stat.mode & 0x1FF).toRadixString(8).padLeft(3, '0');
+    } catch (_) {
+      return '未知';
+    }
   }
 
   Future<String> _resolveBinary() async {

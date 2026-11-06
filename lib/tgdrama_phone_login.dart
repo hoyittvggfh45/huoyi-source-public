@@ -209,7 +209,7 @@ class TgdramaPhoneLoginService {
       throw StateError('请先输入手机号');
     }
     final helper = await _helperPath();
-    final result = await _runProcess(helper, [
+    final result = await _runHelper(helper, [
       'send-code',
       '--phone',
       normalized,
@@ -269,7 +269,7 @@ class TgdramaPhoneLoginService {
       args.addAll(['--password', pwd]);
     }
     final helper = await _helperPath();
-    final result = await _runProcess(helper, args);
+    final result = await _runHelper(helper, args);
     _throwIfHelperFailed(result, '登录失败');
     try {
       if (await state.exists()) await state.delete();
@@ -342,6 +342,17 @@ class TgdramaPhoneLoginService {
       r'"phone_code_hash"\s*:\s*"([^"]*)"',
     ).firstMatch(stateJson);
     return match?.group(1);
+  }
+
+  Future<ProcessResult> _runHelper(String helper, List<String> args) async {
+    try {
+      return await _runProcess(helper, args);
+    } on ProcessException catch (error) {
+      final denied =
+          error.errorCode == 13 || error.message.contains('Permission denied');
+      if (!denied) rethrow;
+      return await _runProcess('/system/bin/linker64', [helper, ...args]);
+    }
   }
 
   void _throwIfHelperFailed(ProcessResult result, String action) {
