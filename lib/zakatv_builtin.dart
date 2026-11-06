@@ -154,7 +154,7 @@ const List<ZakatvBuiltinSite> zakatvBuiltinSites = [
   ZakatvBuiltinSite('xhy11', '🔞小黄鸭┃xhy11', 'com.github.catvod.spider.ZakaXhyAmns', '{"host":"https://www.xhy11.cc","brand":"👑帝皇影视","tg":"https://t.me/+3t5XRPPo9mlkZDRl"}'),
   ZakatvBuiltinSite('pj5ti', '🔞蜜桃社┃pj5ti', 'com.github.catvod.spider.ZakaPj5tiAmns', ''),
   ZakatvBuiltinSite('MyConfig', '⚙️配置┃中心', 'com.github.catvod.spider.AAConfigAmns', ''),
-  ZakatvBuiltinSite('ZakaTg', 'tg频道', 'com.github.catvod.spider.ZakaTgAmns', '{"mirror":"https://tg.i-c-a.su","size":50,"block":100,"channels":[{"name":"超清AV","user":"cctv_av"},{"name":"那些极品姐姐","user":"zfjp1024"},{"name":"麻豆 girl","user":"madougirl"},{"name":"黄果漫剧","user":"hgmanju"},{"name":"海角 AV","user":"hjgc0"},{"name":"无码 91","user":"wmav91"},{"name":"收藏 AV","user":"shoucangav"}],"relay":"https://tv506.ystv.top/api/tg"}'),
+  ZakatvBuiltinSite('ZakaTg', 'tg频道', 'com.github.catvod.spider.ZakaTgAmns', '{"size":50,"block":100,"channels":[{"name":"超清AV","user":"cctv_av"},{"name":"那些极品姐姐","user":"zfjp1024"},{"name":"麻豆 girl","user":"madougirl"},{"name":"黄果漫剧","user":"hgmanju"},{"name":"海角 AV","user":"hjgc0"},{"name":"无码 91","user":"wmav91"},{"name":"收藏 AV","user":"shoucangav"}]}'),
   ZakatvBuiltinSite('push_agent', '🛴推送┃播放', 'com.github.catvod.spider.PushAmns', ''),
   ZakatvBuiltinSite('MyAll', '📁资源┃中心', 'com.github.catvod.spider.MyAllAmns', ''),
   ZakatvBuiltinSite('zakajavdb', '🔞JAVDB┃磁力自动离线', 'com.github.catvod.spider.ZakaJavdbAmns', ''),

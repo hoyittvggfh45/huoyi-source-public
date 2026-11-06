@@ -44,6 +44,8 @@ class _TgdramaLoginPageState extends State<TgdramaLoginPage> {
 
   TdlibAuthState? _tdlibState;
   bool _tdlibBusy = false;
+  bool _tdlibStarted = false;
+  bool _tdlibStarting = false;
   String? _tdlibError;
   String _tdlibMeName = '';
   String _tdlibRoute = TdlibRoute.plugin;
@@ -77,12 +79,57 @@ class _TgdramaLoginPageState extends State<TgdramaLoginPage> {
     super.initState();
     _refreshStatus();
     _refreshPhoneAvailability();
-    _refreshTdlibStatus();
-    if (_tdlib.isSupported) {
-      _tdlibAuthSub = _tdlib.authStateStream.listen(
+    _refreshTdlibRoute();
+  }
+
+  Future<void> _refreshTdlibRoute() async {
+    final route = await TdlibRoute.current();
+    if (!mounted) return;
+    setState(() => _tdlibRoute = route);
+  }
+
+  Future<bool> _ensureTdlibInitialized() async {
+    if (_tdlibStarted) return true;
+    if (_tdlibStarting) return false;
+    if (!_tdlib.isSupported) {
+      setState(() {
+        _tdlibRoute = TdlibRoute.plugin;
+        _tdlibError = '当前设备不支持 TDLib 登录，请用扫码或手机号登录';
+      });
+      return false;
+    }
+    setState(() {
+      _tdlibStarting = true;
+      _tdlibError = null;
+    });
+    try {
+      _tdlibAuthSub ??= _tdlib.authStateStream.listen(
         _onTdlibAuthState,
         onError: (_) {},
       );
+      final state = await _tdlib.init();
+      if (!mounted) return false;
+      final route = await TdlibRoute.current();
+      setState(() {
+        _tdlibState = state;
+        _tdlibRoute = route;
+        _tdlibStarted = true;
+        _tdlibStarting = false;
+        _tdlibError = null;
+      });
+      await _applyTdlibState(state);
+      return true;
+    } catch (e) {
+      unawaited(_tdlibAuthSub?.cancel());
+      _tdlibAuthSub = null;
+      unawaited(TdlibRoute.set(TdlibRoute.plugin));
+      if (!mounted) return false;
+      setState(() {
+        _tdlibStarting = false;
+        _tdlibRoute = TdlibRoute.plugin;
+        _tdlibError = _plainError(e);
+      });
+      return false;
     }
   }
 
@@ -102,6 +149,10 @@ class _TgdramaLoginPageState extends State<TgdramaLoginPage> {
   }
 
   Future<void> _refreshTdlibStatus() async {
+    if (!_tdlibStarted) {
+      await _ensureTdlibInitialized();
+      return;
+    }
     if (!_tdlib.isSupported) return;
     try {
       final state = await _tdlib.init();
@@ -181,6 +232,7 @@ class _TgdramaLoginPageState extends State<TgdramaLoginPage> {
   }
 
   Future<void> _tdlibRequestQr() async {
+    if (!await _ensureTdlibInitialized()) return;
     setState(() {
       _tdlibBusy = true;
       _tdlibError = null;
@@ -201,6 +253,7 @@ class _TgdramaLoginPageState extends State<TgdramaLoginPage> {
       setState(() => _tdlibError = '请先输入手机号');
       return;
     }
+    if (!await _ensureTdlibInitialized()) return;
     setState(() {
       _tdlibBusy = true;
       _tdlibError = null;
@@ -221,6 +274,7 @@ class _TgdramaLoginPageState extends State<TgdramaLoginPage> {
   }
 
   Future<void> _tdlibLogout() async {
+    if (!_tdlibStarted) return;
     setState(() => _tdlibBusy = true);
     try {
       await _tdlib.logout();
@@ -805,6 +859,8 @@ class _TgdramaLoginPageState extends State<TgdramaLoginPage> {
 
   String _tdlibStatusText() {
     if (_tdlibError != null) return _tdlibError!;
+    if (_tdlibStarting) return '正在启用 TDLib…';
+    if (!_tdlibStarted) return '尚未启用：点“启用 TDLib 登录”开始，失败仍可用扫码或手机号登录';
     final state = _tdlibState;
     if (state == null) return '正在初始化…';
     switch (state.name) {
@@ -843,11 +899,18 @@ class _TgdramaLoginPageState extends State<TgdramaLoginPage> {
             const Text('应用内直连 Telegram，不用起插件进程。手机号登录为主，扫码备用。'),
             const SizedBox(height: 8),
             Text(_tdlibStatusText()),
-            if (_tdlibRoute == TdlibRoute.tdlib) ...[
+            if (_tdlibStarted && _tdlibRoute == TdlibRoute.tdlib) ...[
               const SizedBox(height: 4),
               const Text('TG影视库内容当前走 TDLib'),
             ],
             const SizedBox(height: 12),
+            if (!_tdlibStarted) ...[
+              FilledButton(
+                onPressed: _tdlibStarting ? null : _ensureTdlibInitialized,
+                child: Text(_tdlibStarting ? '正在启用…' : '启用 TDLib 登录'),
+              ),
+              const SizedBox(height: 12),
+            ],
             if (ready) ...[
               Row(
                 children: [

@@ -79,7 +79,7 @@ object TdlibPlugin {
             try {
                 val value = kotlinx.coroutines.runBlocking { block() }
                 mainHandler.post { result.success(value) }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 mainHandler.post { result.error("tdlib_error", e.message ?: "TDLib call failed", null) }
             }
         }
@@ -103,6 +103,9 @@ object TdlibPlugin {
         }
         val newScope = ensureScope()
         val newClient = TdlibClient()
+        if (!newClient.ready) {
+            throw IllegalStateException("TDLib 原生库加载失败，当前设备不支持 TDLib 登录")
+        }
         val newAuth = TdlibAuthRepository(
             client = newClient,
             apiId = apiId,

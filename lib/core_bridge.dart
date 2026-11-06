@@ -400,7 +400,7 @@ class NativeRepository extends AppRepository {
   }
 
   Future<void> _ensureTgdramaService(String source) async {
-    if (source != BuiltinPySites.tgdramaSiteId) return;
+    if (source != BuiltinPySites.tgdramaSiteId && source != 'ZakaTg') return;
     final ok = await TgdramaService.instance.ensureRunning();
     if (!ok) {
       final reason = TgdramaService.instance.lastError;
@@ -1419,6 +1419,7 @@ class NativeRepository extends AppRepository {
   ) async {
     final spec = JarBridge.specFor(source);
     if (spec == null) throw AppFailure('jar 站点未注册');
+    await _ensureTgdramaService(source);
     _authorize(source);
     try {
       return await run(spec);

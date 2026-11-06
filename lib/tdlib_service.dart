@@ -271,6 +271,8 @@ class TdlibService {
       throw AppFailure('当前安装包未集成 TDLib 桥');
     } on PlatformException catch (error) {
       throw AppFailure(error.message ?? 'TDLib 调用失败');
+    } catch (e) {
+      throw AppFailure('TDLib 调用失败：$e');
     }
   }
 

@@ -17,7 +17,7 @@ class TdlibException(val error: TdApi.Error) :
 
 class TdlibClient {
 
-    private val nativeReady: Boolean = NativeLibs.ensureLoaded()
+    val nativeReady: Boolean = NativeLibs.ensureLoaded()
 
     private val _updates = MutableSharedFlow<TdApi.Update>(
         extraBufferCapacity = 512,
@@ -27,14 +27,27 @@ class TdlibClient {
 
     private val fileCache = ConcurrentHashMap<Int, TdApi.File>()
 
-    private val client: Client = Client.create(
-        { obj -> onIncoming(obj) },
-        { e -> e.printStackTrace() },
-        { e -> e.printStackTrace() }
-    )
+    private val client: Client? = createClient()
+
+    val ready: Boolean get() = client != null
 
     init {
-        Client.execute(TdApi.SetLogVerbosityLevel(1))
+        if (client != null) {
+            runCatching { Client.execute(TdApi.SetLogVerbosityLevel(1)) }
+        }
+    }
+
+    private fun createClient(): Client? {
+        if (!nativeReady) return null
+        return try {
+            Client.create(
+                { obj -> onIncoming(obj) },
+                { e -> e.printStackTrace() },
+                { e -> e.printStackTrace() }
+            )
+        } catch (e: Throwable) {
+            null
+        }
     }
 
     private fun onIncoming(obj: TdApi.Object) {
@@ -48,8 +61,9 @@ class TdlibClient {
 
     @Suppress("UNCHECKED_CAST")
     suspend fun <T : TdApi.Object> send(function: TdApi.Function<*>): T {
+        val active = client ?: throw IllegalStateException("TDLib native library failed to load")
         val deferred = CompletableDeferred<TdApi.Object>()
-        client.send(function) { result -> deferred.complete(result) }
+        active.send(function) { result -> deferred.complete(result) }
         val result = deferred.await()
         if (result is TdApi.Error) throw TdlibException(result)
         if (result is TdApi.File) fileCache[result.id] = result
@@ -62,7 +76,7 @@ class TdlibClient {
         }
 
     fun close() {
-        client.send(TdApi.Close()) { }
+        client?.send(TdApi.Close()) { }
     }
 }
 
@@ -72,12 +86,15 @@ private object NativeLibs {
 
     @Synchronized
     fun ensureLoaded(): Boolean {
-        if (!loaded) {
+        if (loaded) return true
+        return try {
             System.loadLibrary("cryptox")
             System.loadLibrary("sslx")
             System.loadLibrary("tdjni")
             loaded = true
+            true
+        } catch (e: Throwable) {
+            false
         }
-        return true
     }
 }

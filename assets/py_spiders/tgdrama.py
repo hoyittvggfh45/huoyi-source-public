@@ -307,7 +307,7 @@ class TgdramaMapper:
             "vod_id": cls.pack("show", {"id": show_id}),
             "vod_name": cls.text(raw.get("name"), "未命名短剧"),
             "vod_pic": base_url + "/api/covers/%s" % show_id if (base_url and cover) else "",
-            "vod_remarks": "更新至%d集" % ep_latest if ep_latest > 1 else ("共%d集" % ep_count if ep_count else ""),
+            "vod_remarks": "电影" if ep_count == 1 else ("更新至%d集" % ep_latest if ep_latest > 1 else ("共%d集" % ep_count if ep_count else "")),
             "vod_content": cls.text(raw.get("intro")),
         }
 
@@ -394,6 +394,7 @@ class Spider(BaseSpider):
         self.client = TgdramaHttpClient(self.config)
         self._show_chats = {}
         self._refresh_tried = False
+        self._sync_triggered = set()
 
     def getName(self):
         return "tgdrama"
@@ -739,10 +740,32 @@ class Spider(BaseSpider):
         )
         return self._page_result([card], page, 1, 1)
 
+    def _syncing_page(self, page=1):
+        card = TgdramaMapper.info_vod(
+            "正在同步",
+            TgdramaMapper.pack("info", {"key": "syncing"}),
+            "稍后下拉刷新",
+        )
+        return self._page_result([card], page, 1, 1)
+
+    def _trigger_sync(self, tg_chat_id):
+        try:
+            target = int(str(tg_chat_id).strip())
+        except (TypeError, ValueError):
+            return
+        if target in self._sync_triggered:
+            return
+        self._sync_triggered.add(target)
+        try:
+            self.client.sync_chats(target)
+        except Exception:
+            pass
+
     def _channel_page_by_tg(self, tg_chat_id, page):
         local_id = self._local_chat_id(tg_chat_id)
         if local_id is None:
-            return self._not_synced_page(page)
+            self._trigger_sync(tg_chat_id)
+            return self._syncing_page(page)
         for chat in self._chats():
             if not isinstance(chat, dict):
                 continue
@@ -752,9 +775,14 @@ class Spider(BaseSpider):
             except (TypeError, ValueError):
                 continue
             if not _is_enabled(chat.get("enabled")):
-                return self._not_synced_page(page)
+                self._trigger_sync(tg_chat_id)
+                return self._syncing_page(page)
             break
-        return self._channel_page(local_id, page)
+        result = self._channel_page(local_id, page)
+        if not result.get("list"):
+            self._trigger_sync(tg_chat_id)
+            return self._syncing_page(page)
+        return result
 
     def categoryContent(self, tid, pg, filter=False, extend=None):
         page = TgdramaHttpClient._positive_int(pg, 1, 1, 9999)
@@ -904,7 +932,10 @@ class Spider(BaseSpider):
         return {"list": []}
 
     def _info_detail(self, key):
-        if key == "not_synced":
+        if key == "syncing":
+            content = "正在同步这个频道的视频，稍后再下拉刷新看看。\n同步状态去频道管理页查看。"
+            title = "正在同步"
+        elif key == "not_synced":
             content = "这个频道还没同步到本地库，里面暂时没有剧。\n插件同步完成后，点分类里的频道名就能看该频道的剧；同步状态去频道管理页查看。"
             title = "该频道尚未同步"
         elif key == "login":
@@ -1016,6 +1047,8 @@ class Spider(BaseSpider):
             tokens.append(episode)
         if not names:
             return None
+        if len(names) == 1:
+            names = ["直接播放$%s" % names[0].split("$", 1)[1]]
         progress = data.get("progress") or []
         if progress:
             first = progress[0] if isinstance(progress[0], dict) else {}
@@ -1024,6 +1057,8 @@ class Spider(BaseSpider):
             except (TypeError, ValueError):
                 pct = 0
             remark = "上次看到 第%s集 %.0f%%" % (first.get("episode_no") or "?", pct)
+        elif len(tokens) == 1:
+            remark = "电影"
         else:
             try:
                 ep_latest = int(show.get("ep_latest") or 0)

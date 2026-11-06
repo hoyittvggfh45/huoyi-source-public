@@ -95,10 +95,12 @@ class FakePhoneLoginService extends TgdramaPhoneLoginService {
 }
 
 class FakeTdlibService extends TdlibService {
-  final _events = StreamController<TdlibAuthState>();
+  final _events = StreamController<TdlibAuthState>.broadcast();
   var initialState = const TdlibAuthState(
     name: TdlibAuthStateName.waitPhoneNumber,
   );
+  var initCalls = 0;
+  String? initError;
   var qrRequested = false;
   String? lastPhone;
   String? lastCode;
@@ -112,7 +114,11 @@ class FakeTdlibService extends TdlibService {
   Stream<TdlibAuthState> get authStateStream => _events.stream;
 
   @override
-  Future<TdlibAuthState> init() async => initialState;
+  Future<TdlibAuthState> init() async {
+    initCalls++;
+    if (initError != null) throw StateError(initError!);
+    return initialState;
+  }
 
   @override
   Future<void> requestQr() async {
@@ -510,17 +516,80 @@ void main() {
       expect(find.text('TDLib 登录'), findsNothing);
     });
 
-    testWidgets('支持时显示 TDLib 卡与未登录状态', (tester) async {
+    testWidgets('支持时显示 TDLib 卡，打开页不初始化、显示尚未启用', (tester) async {
       await pumpTdlibPage(tester);
 
       expect(find.text('TDLib 登录'), findsOneWidget);
-      expect(find.text('未登录：请选择手机号登录或扫码登录'), findsOneWidget);
+      expect(fakeTdlib.initCalls, 0);
+      expect(
+        find.text('尚未启用：点“启用 TDLib 登录”开始，失败仍可用扫码或手机号登录'),
+        findsOneWidget,
+      );
       expect(find.byKey(const ValueKey('tdlib_phone_field')), findsOneWidget);
       expect(
         find.widgetWithText(OutlinedButton, '扫码登录'),
         findsOneWidget,
       );
       expect(tdlibSendCodeButton(), findsOneWidget);
+      expect(
+        find.widgetWithText(FilledButton, '启用 TDLib 登录'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('点启用后才初始化 TDLib', (tester) async {
+      await pumpTdlibPage(tester);
+
+      expect(fakeTdlib.initCalls, 0);
+      await tester.tap(find.widgetWithText(FilledButton, '启用 TDLib 登录'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(fakeTdlib.initCalls, 1);
+      expect(find.text('未登录：请选择手机号登录或扫码登录'), findsOneWidget);
+    });
+
+    testWidgets('点扫码按钮先惰性初始化再请求二维码', (tester) async {
+      await pumpTdlibPage(tester);
+
+      expect(fakeTdlib.initCalls, 0);
+      await tester.tap(find.widgetWithText(OutlinedButton, '扫码登录'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(fakeTdlib.initCalls, 1);
+      expect(fakeTdlib.qrRequested, isTrue);
+      expect(find.byType(QrImageView), findsOneWidget);
+    });
+
+    testWidgets('启用失败只在卡内显示错误并回落插件路，可重试', (tester) async {
+      fakeTdlib.initError = 'TDLib 原生库加载失败';
+      await pumpTdlibPage(tester);
+
+      await tester.tap(find.widgetWithText(FilledButton, '启用 TDLib 登录'));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+
+      expect(fakeTdlib.initCalls, 1);
+      expect(find.text('TDLib 原生库加载失败'), findsWidgets);
+      expect(await TdlibRoute.current(), TdlibRoute.plugin);
+      expect(find.text('TDLib 登录'), findsOneWidget);
+      expect(
+        find.widgetWithText(OutlinedButton, '扫码登录'),
+        findsOneWidget,
+      );
+
+      fakeTdlib.initError = null;
+      await tester.tap(find.widgetWithText(FilledButton, '启用 TDLib 登录'));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+
+      expect(fakeTdlib.initCalls, 2);
+      expect(find.text('未登录：请选择手机号登录或扫码登录'), findsOneWidget);
     });
 
     testWidgets('扫码流程：点扫码登录弹窗出本地二维码', (tester) async {
@@ -606,6 +675,10 @@ void main() {
       );
       await pumpTdlibPage(tester);
 
+      await tester.tap(find.widgetWithText(FilledButton, '启用 TDLib 登录'));
+      await tester.pump();
+      await tester.pump();
+
       expect(find.text('已登录：Test User'), findsOneWidget);
       expect(find.text('切回插件路'), findsOneWidget);
 
@@ -624,6 +697,10 @@ void main() {
         name: TdlibAuthStateName.ready,
       );
       await pumpTdlibPage(tester);
+
+      await tester.tap(find.widgetWithText(FilledButton, '启用 TDLib 登录'));
+      await tester.pump();
+      await tester.pump();
 
       await tester.tap(find.text('切回插件路'));
       await tester.pump();

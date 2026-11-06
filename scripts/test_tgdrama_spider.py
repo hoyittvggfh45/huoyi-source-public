@@ -158,6 +158,7 @@ class StubClient:
         self._seq = list(chats_sequence)
         self.refresh_calls = 0
         self.refresh_error = refresh_error
+        self.sync_calls = []
 
     def chats(self):
         if self._seq:
@@ -169,6 +170,10 @@ class StubClient:
         if self.refresh_error:
             raise Exception("refresh failed")
         return True
+
+    def sync_chats(self, tg_chat_id=0):
+        self.sync_calls.append(int(tg_chat_id))
+        return {"ok": True, "syncing": True}
 
     def tags(self):
         return []
@@ -445,20 +450,131 @@ class TgdramaSpiderTest(unittest.TestCase):
         spider.homeContent(False)
         self.assertEqual(stub.refresh_calls, 1)
 
-    def test_fallback_channel_page_honest_empty(self):
+    def test_fallback_channel_page_triggers_sync(self):
         spider = make_spider(db_path="/nonexistent/tgdrama.db")
-        spider.client = StubClient([], refresh_error=True)
+        stub = StubClient([], refresh_error=True)
+        spider.client = stub
         page = spider.categoryContent("chantg:-1002753266064", 1)
         self.assertEqual(len(page["list"]), 1)
         card = page["list"][0]
-        self.assertEqual(card["vod_name"], "该频道尚未同步")
+        self.assertEqual(card["vod_name"], "正在同步")
+        self.assertEqual(card["vod_remarks"], "稍后下拉刷新")
         self.assertEqual(card["vod_tag"], "action")
+        self.assertEqual(stub.sync_calls, [-1002753266064])
         detail = spider.detailContent([card["vod_id"]])["list"][0]
-        self.assertEqual(detail["vod_name"], "该频道尚未同步")
-        self.assertIn("还没同步到本地库", detail["vod_content"])
+        self.assertEqual(detail["vod_name"], "正在同步")
+        self.assertIn("稍后", detail["vod_content"])
         mgmt = spider.categoryContent("channels", 1)["list"]
         self.assertEqual(len(mgmt), 53)
         self.assertEqual(mgmt[1]["vod_remarks"], "未同步 · 去频道管理页查看同步状态")
+
+    def test_empty_channel_triggers_sync_then_shows(self):
+        class StatefulStub:
+            def __init__(self):
+                self.synced = False
+                self.sync_calls = []
+
+            def chats(self):
+                return [dict(REAL_CHATS[0])]
+
+            def refresh_chats(self):
+                return True
+
+            def tags(self):
+                return []
+
+            def sync_chats(self, tg_chat_id=0):
+                self.sync_calls.append(int(tg_chat_id))
+                self.synced = True
+                return {"ok": True, "syncing": True}
+
+            def shows(self, *args, **kwargs):
+                if not self.synced:
+                    return {"list": [], "total": 0}
+                return {"list": [
+                    {"id": 21, "name": "测试短剧·闪婚首富", "cover_path": "", "intro": ""},
+                    {"id": 22, "name": "测试短剧·豪门千金", "cover_path": "", "intro": ""},
+                ], "total": 2}
+
+            def show_detail(self, show_id):
+                return {"episodes": [{"id": 30 + int(show_id)}]}
+
+            def episodes_lines(self, episode_id):
+                return {"lines": [{"chat_id": 1, "segments": [{"id": 40}]}]}
+
+        spider = make_spider(db_path="/nonexistent/tgdrama.db")
+        stub = StatefulStub()
+        spider.client = stub
+        first = spider.categoryContent("chantg:-1001234567890", 1)
+        self.assertEqual([item["vod_name"] for item in first["list"]], ["正在同步"])
+        self.assertEqual(stub.sync_calls, [-1001234567890])
+        second = spider.categoryContent("chantg:-1001234567890", 1)
+        names = sorted(item["vod_name"] for item in second["list"])
+        self.assertEqual(names, sorted(["测试短剧·闪婚首富", "测试短剧·豪门千金"]))
+        self.assertEqual(stub.sync_calls, [-1001234567890])
+
+    def test_movie_and_group_channel_cards(self):
+        import sqlite3
+        conn = sqlite3.connect(DB_PATH)
+        try:
+            now = int(time.time())
+            cur = conn.execute(
+                "INSERT INTO chats(tg_chat_id, name, type, enabled, message_count, updated_at) "
+                "VALUES(?,?,?,?,?,?)",
+                (-1005555555555, "测试单片频道", "channel", 1, 5, now))
+            chat_id = cur.lastrowid
+            conn.commit()
+        finally:
+            conn.close()
+        spider = make_spider()
+        first = spider.categoryContent("chantg:-1005555555555", 1)
+        self.assertEqual([item["vod_name"] for item in first["list"]], ["正在同步"])
+        self.assertIn(-1005555555555, spider._sync_triggered)
+        conn = sqlite3.connect(DB_PATH)
+        try:
+            now = int(time.time())
+            movie_source = None
+            for name, count in (("同名聚集·测试", 2), ("单条电影·测试", 1)):
+                cur = conn.execute(
+                    "INSERT INTO shows(name, updated_at) VALUES(?,?)", (name, now))
+                show_id = cur.lastrowid
+                for number in range(1, count + 1):
+                    cur = conn.execute(
+                        "INSERT INTO episodes(show_id, episode_no, title) VALUES(?,?,?)",
+                        (show_id, number, "第%d集" % number))
+                    episode_id = cur.lastrowid
+                    cur = conn.execute(
+                        "INSERT INTO sources(episode_id, chat_id, message_id, file_size, "
+                        "duration, mime, created_at) VALUES(?,?,?,?,?,?,?)",
+                        (episode_id, chat_id, 5000 + show_id * 10 + number,
+                         1048576, 30.0, "video/mp4", now))
+                    if name == "单条电影·测试":
+                        movie_source = cur.lastrowid
+            conn.commit()
+        finally:
+            conn.close()
+        second = spider.categoryContent("chantg:-1005555555555", 1)
+        cards = {item["vod_name"]: item for item in second["list"]}
+        self.assertEqual(set(cards), {"同名聚集·测试", "单条电影·测试"})
+        self.assertEqual(cards["单条电影·测试"]["vod_remarks"], "电影")
+        self.assertEqual(cards["同名聚集·测试"]["vod_remarks"], "更新至2集")
+        movie_detail = spider.detailContent(
+            [cards["单条电影·测试"]["vod_id"]])["list"][0]
+        self.assertEqual(movie_detail["vod_remarks"], "电影")
+        self.assertTrue(movie_detail["vod_play_url"].startswith("直接播放$"))
+        self.assertNotIn("#", movie_detail["vod_play_url"])
+        group_detail = spider.detailContent(
+            [cards["同名聚集·测试"]["vod_id"]])["list"][0]
+        self.assertEqual(len(group_detail["vod_play_url"].split("#")), 2)
+        ep_pack = movie_detail["vod_play_url"].split("$", 1)[1]
+        result = spider.playerContent("TG影视库", ep_pack)
+        self.assertEqual(result["parse"], 0)
+        self.assertEqual(result["url"], BASE_URL + "/api/stream/%d" % movie_source)
+        request = urllib.request.Request(
+            result["url"], headers={"Range": "bytes=0-511"})
+        with urllib.request.urlopen(request, timeout=10) as response:
+            self.assertEqual(response.status, 206)
+            self.assertEqual(len(response.read()), 512)
 
     def test_fallback_not_shown_when_normal(self):
         spider = make_spider()
