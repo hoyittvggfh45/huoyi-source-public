@@ -19,7 +19,7 @@ SPIDER_PATH = ROOT / "assets" / "py_spiders" / "tgdrama.py"
 HOST_PATH = ROOT / "android" / "app" / "src" / "main" / "python" / "py_spider_host.py"
 BACKEND_PATH = Path(os.environ.get(
     "TGDRAMA_FAKE_BACKEND",
-    str(Path.home() / "workspace" / "tg_zip_check" / "tgdrama_backend.py"),
+    str(ROOT / "scripts" / "tgdrama_fake_backend.py"),
 ))
 
 TMP = None
@@ -52,29 +52,70 @@ def _wait_ready(url, timeout=30):
     return False
 
 
+def _free_port():
+    probe = socket.socket()
+    probe.bind(("127.0.0.1", 0))
+    port = probe.getsockname()[1]
+    probe.close()
+    return port
+
+
+def _read_log_tail(path, limit=4000):
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as handle:
+            text = handle.read()
+    except OSError:
+        return "<no backend log>"
+    if len(text) > limit:
+        text = text[-limit:]
+    return text.strip() or "<empty backend log>"
+
+
+def _start_fake_backend(data_dir, attempts=3):
+    global PROC, FAKE_PORT, BASE_URL
+    log_path = os.path.join(TMP.name, "fake-backend.log")
+    last_error = ""
+    for attempt in range(1, attempts + 1):
+        FAKE_PORT = _free_port()
+        BASE_URL = "http://127.0.0.1:%d" % FAKE_PORT
+        env = dict(os.environ)
+        env["TGD_FAKE"] = "1"
+        env["TGD_HOST"] = "127.0.0.1"
+        env["TGD_PORT"] = str(FAKE_PORT)
+        env["TGD_DATA"] = data_dir
+        log_file = open(log_path, "w", encoding="utf-8")
+        PROC = subprocess.Popen(
+            [sys.executable, str(BACKEND_PATH)],
+            env=env,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+        )
+        time.sleep(0.5)
+        code = PROC.poll()
+        if code is not None:
+            log_file.close()
+            last_error = "attempt %d: exited immediately code=%s log=%s" % (
+                attempt, code, _read_log_tail(log_path))
+            continue
+        if _wait_ready(BASE_URL + "/api/auth/status", timeout=45):
+            log_file.close()
+            return
+        PROC.terminate()
+        try:
+            PROC.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            PROC.kill()
+        log_file.close()
+        last_error = "attempt %d: not ready on port %d log=%s" % (
+            attempt, FAKE_PORT, _read_log_tail(log_path))
+    raise RuntimeError("fake backend did not start: %s" % last_error)
+
+
 def setUpModule():
     global TMP, PROC, SPIDER_MOD, HOST_MOD, FAKE_PORT, BASE_URL, DB_PATH, EXTEND
     TMP = tempfile.TemporaryDirectory(prefix="tgdrama-spider-test-")
     data_dir = os.path.join(TMP.name, "fakehome")
-    probe = socket.socket()
-    probe.bind(("127.0.0.1", 0))
-    FAKE_PORT = probe.getsockname()[1]
-    probe.close()
-    BASE_URL = "http://127.0.0.1:%d" % FAKE_PORT
-    env = dict(os.environ)
-    env["TGD_FAKE"] = "1"
-    env["TGD_PORT"] = str(FAKE_PORT)
-    env["TGD_DATA"] = data_dir
-    PROC = subprocess.Popen(
-        [sys.executable, str(BACKEND_PATH)],
-        env=env,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    if PROC.poll() is not None:
-        raise RuntimeError("fake backend exited immediately")
-    if not _wait_ready(BASE_URL + "/api/auth/status"):
-        raise RuntimeError("fake backend did not start")
+    _start_fake_backend(data_dir)
     DB_PATH = os.path.join(data_dir, "tgdrama.db")
     if not os.path.isfile(DB_PATH):
         raise RuntimeError("fake backend did not create db")

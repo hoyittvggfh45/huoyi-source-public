@@ -172,8 +172,10 @@ object TdlibPlugin {
         runCatching { c.send<TdApi.Ok>(TdApi.LoadChats(TdApi.ChatListMain(), limit)) }
             .onFailure { if (it !is TdlibException || it.error.code != 404) throw it }
         val found = c.send<TdApi.Chats>(TdApi.GetChats(TdApi.ChatListMain(), limit))
-        val items = found.chatIds.mapNotNull { chatId ->
-            runCatching { c.send<TdApi.Chat>(TdApi.GetChat(chatId)) }.getOrNull()?.let { chatMap(it) }
+        val items = mutableListOf<Map<String, Any?>>()
+        for (chatId in found.chatIds) {
+            val chat = runCatching { c.send<TdApi.Chat>(TdApi.GetChat(chatId)) }.getOrNull() ?: continue
+            items.add(chatMap(chat))
         }
         return mapOf("chats" to items)
     }
