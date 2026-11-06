@@ -1,6 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:duanju_app/tdlib_route.dart';
+import 'package:duanju_app/tdlib_service.dart';
 import 'package:duanju_app/tgdrama_login_page.dart';
 import 'package:duanju_app/tgdrama_phone_login.dart';
 import 'package:duanju_app/tgdrama_service.dart';
@@ -85,6 +91,83 @@ class FakePhoneLoginService extends TgdramaPhoneLoginService {
     if (verifyNeedsPassword && (password == null || password.isEmpty)) {
       throw StateError('SESSION_PASSWORD_NEEDED：该账号开了二步验证');
     }
+  }
+}
+
+class FakeTdlibService extends TdlibService {
+  final _events = StreamController<TdlibAuthState>();
+  var initialState = const TdlibAuthState(
+    name: TdlibAuthStateName.waitPhoneNumber,
+  );
+  var qrRequested = false;
+  String? lastPhone;
+  String? lastCode;
+  String? lastPassword;
+  var logoutCalled = false;
+
+  @override
+  bool get isSupported => true;
+
+  @override
+  Stream<TdlibAuthState> get authStateStream => _events.stream;
+
+  @override
+  Future<TdlibAuthState> init() async => initialState;
+
+  @override
+  Future<void> requestQr() async {
+    qrRequested = true;
+    initialState = const TdlibAuthState(
+      name: TdlibAuthStateName.showQr,
+      link: 'tg://login?token=tdlib-test',
+    );
+    _events.add(initialState);
+  }
+
+  @override
+  Future<void> requestPhone(String phone) async {
+    lastPhone = phone;
+    initialState = const TdlibAuthState(name: TdlibAuthStateName.waitCode);
+    _events.add(initialState);
+  }
+
+  @override
+  Future<void> submitCode(String code) async {
+    lastCode = code;
+    if (code == '99999') {
+      initialState = const TdlibAuthState(
+        name: TdlibAuthStateName.waitPassword,
+      );
+    } else {
+      initialState = const TdlibAuthState(name: TdlibAuthStateName.ready);
+    }
+    _events.add(initialState);
+  }
+
+  @override
+  Future<void> submitPassword(String password) async {
+    lastPassword = password;
+    initialState = const TdlibAuthState(name: TdlibAuthStateName.ready);
+    _events.add(initialState);
+  }
+
+  @override
+  Future<void> logout() async {
+    logoutCalled = true;
+    initialState = const TdlibAuthState(name: TdlibAuthStateName.loggedOut);
+    _events.add(initialState);
+  }
+
+  @override
+  Future<TdlibMe> getMe() async => const TdlibMe(
+    id: 123,
+    firstName: 'Test',
+    lastName: 'User',
+    username: 'testuser',
+  );
+
+  void dispose() {
+    _events.close();
   }
 }
 
@@ -374,5 +457,181 @@ void main() {
 
     expect(fakePhone.lastPassword, 'pw123');
     expect(find.text('二步验证'), findsNothing);
+  });
+
+  group('TDLib 登录', () {
+    late FakeTdlibService fakeTdlib;
+
+    setUp(() {
+      SharedPreferences.setMockInitialValues({});
+      fakeTdlib = FakeTdlibService();
+    });
+
+    tearDown(() {
+      fakeTdlib.dispose();
+    });
+
+    Future<void> pumpTdlibPage(WidgetTester tester) async {
+      await tester.binding.setSurfaceSize(const Size(800, 3000));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: TgdramaLoginPage(
+            service: fakeService,
+            phoneLoginService: fakePhone,
+            tdlibService: fakeTdlib,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+    }
+
+    Finder tdlibSendCodeButton() {
+      final card = find.ancestor(
+        of: find.byKey(const ValueKey('tdlib_phone_field')),
+        matching: find.byType(Card),
+      );
+      return find.descendant(of: card, matching: find.text('发送验证码'));
+    }
+
+    testWidgets('不支持时不显示 TDLib 卡', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: TgdramaLoginPage(
+            service: fakeService,
+            phoneLoginService: fakePhone,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('TDLib 登录'), findsNothing);
+    });
+
+    testWidgets('支持时显示 TDLib 卡与未登录状态', (tester) async {
+      await pumpTdlibPage(tester);
+
+      expect(find.text('TDLib 登录'), findsOneWidget);
+      expect(find.text('未登录：请选择手机号登录或扫码登录'), findsOneWidget);
+      expect(find.byKey(const ValueKey('tdlib_phone_field')), findsOneWidget);
+      expect(
+        find.widgetWithText(OutlinedButton, '扫码登录'),
+        findsOneWidget,
+      );
+      expect(tdlibSendCodeButton(), findsOneWidget);
+    });
+
+    testWidgets('扫码流程：点扫码登录弹窗出本地二维码', (tester) async {
+      await pumpTdlibPage(tester);
+
+      await tester.tap(find.widgetWithText(OutlinedButton, '扫码登录'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(fakeTdlib.qrRequested, isTrue);
+      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(find.byType(QrImageView), findsOneWidget);
+      expect(find.text('等待扫码…'), findsOneWidget);
+    });
+
+    testWidgets('手机号流程：发码后弹窗输验证码，登录成功切到 TDLib 路', (tester) async {
+      await pumpTdlibPage(tester);
+
+      await tester.enterText(
+        find.byKey(const ValueKey('tdlib_phone_field')),
+        '13800000000',
+      );
+      await tester.tap(tdlibSendCodeButton());
+      await tester.pump();
+      await tester.pump();
+
+      expect(fakeTdlib.lastPhone, '13800000000');
+      expect(find.text('输入验证码'), findsOneWidget);
+      await tester.enterText(
+        find.byKey(const ValueKey('tgdrama_code_field')),
+        '12345',
+      );
+      await tester.tap(find.text('登录'));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+
+      expect(fakeTdlib.lastCode, '12345');
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.text('已登录：Test User'), findsOneWidget);
+      expect(find.text('退出登录'), findsOneWidget);
+      expect(find.text('TG影视库内容当前走 TDLib'), findsOneWidget);
+      expect(await TdlibRoute.current(), TdlibRoute.tdlib);
+    });
+
+    testWidgets('验证码后需二步验证：弹密码框，提交后登录成功', (tester) async {
+      await pumpTdlibPage(tester);
+
+      await tester.enterText(
+        find.byKey(const ValueKey('tdlib_phone_field')),
+        '13800000000',
+      );
+      await tester.tap(tdlibSendCodeButton());
+      await tester.pump();
+      await tester.pump();
+
+      await tester.enterText(
+        find.byKey(const ValueKey('tgdrama_code_field')),
+        '99999',
+      );
+      await tester.tap(find.text('登录'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('二步验证'), findsOneWidget);
+      await tester.enterText(
+        find.byKey(const ValueKey('tgdrama_password_field')),
+        'pw123',
+      );
+      await tester.tap(find.text('提交'));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+
+      expect(fakeTdlib.lastPassword, 'pw123');
+      expect(find.text('二步验证'), findsNothing);
+      expect(find.text('已登录：Test User'), findsOneWidget);
+    });
+
+    testWidgets('退出登录后路由切回插件路', (tester) async {
+      fakeTdlib.initialState = const TdlibAuthState(
+        name: TdlibAuthStateName.ready,
+      );
+      await pumpTdlibPage(tester);
+
+      expect(find.text('已登录：Test User'), findsOneWidget);
+      expect(find.text('切回插件路'), findsOneWidget);
+
+      await tester.tap(find.text('退出登录'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(fakeTdlib.logoutCalled, isTrue);
+      expect(find.text('已退出登录'), findsOneWidget);
+      expect(find.text('TG影视库内容当前走 TDLib'), findsNothing);
+      expect(await TdlibRoute.current(), TdlibRoute.plugin);
+    });
+
+    testWidgets('切回插件路只改路由不退出登录', (tester) async {
+      fakeTdlib.initialState = const TdlibAuthState(
+        name: TdlibAuthStateName.ready,
+      );
+      await pumpTdlibPage(tester);
+
+      await tester.tap(find.text('切回插件路'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('已登录：Test User'), findsOneWidget);
+      expect(find.text('TG影视库内容当前走 TDLib'), findsNothing);
+      expect(await TdlibRoute.current(), TdlibRoute.plugin);
+    });
   });
 }

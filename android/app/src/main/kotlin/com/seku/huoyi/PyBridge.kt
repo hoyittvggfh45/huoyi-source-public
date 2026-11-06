@@ -62,11 +62,19 @@ class PyBridge(context: Context) {
         }
     }
 
+    private val pythonLock = Any()
+
     private fun python(): Python {
-        if (!Python.isStarted()) {
-            Python.start(AndroidPlatform(appContext))
+        synchronized(pythonLock) {
+            if (!Python.isStarted()) {
+                try {
+                    Python.start(AndroidPlatform(appContext))
+                } catch (error: IllegalStateException) {
+                    if (!Python.isStarted()) throw error
+                }
+            }
+            return Python.getInstance()
         }
-        return Python.getInstance()
     }
 
     private fun host() = python().getModule("py_spider_host")

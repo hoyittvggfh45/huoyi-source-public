@@ -21,6 +21,8 @@ import 'builtin_py_sites.dart';
 import 'py_bridge.dart';
 import 'py_lazy_fetch.dart';
 import 'tgdrama_service.dart';
+import 'tdlib_content.dart';
+import 'tdlib_route.dart';
 import 'py_contract.dart';
 import 'background_downloads.dart';
 import 'local_store.dart';
@@ -392,6 +394,11 @@ class NativeRepository extends AppRepository {
     }
   }
 
+  Future<bool> _useTdlib(String source) async {
+    if (source != BuiltinPySites.tgdramaSiteId) return false;
+    return TdlibRoute.isTdlib;
+  }
+
   Future<void> _ensureTgdramaService(String source) async {
     if (source != BuiltinPySites.tgdramaSiteId) return;
     final ok = await TgdramaService.instance.ensureRunning();
@@ -647,6 +654,10 @@ class NativeRepository extends AppRepository {
     String flag,
     String playId,
   ) async {
+    if (await _useTdlib(source)) {
+      _authorize(source);
+      return TdlibContent.instance.resolvePlan(flag, playId);
+    }
     final result = await _pyCall(source, {
       'action': 'resolve',
       'flag': flag,
@@ -1457,6 +1468,10 @@ class NativeRepository extends AppRepository {
       _authorize(source);
       return categories(haijiaoGo, force: force);
     }
+    if (await _useTdlib(source)) {
+      _authorize(source);
+      return TdlibContent.instance.categories();
+    }
     if (JarBridge.isJarSource(source)) {
       return _jarCall(
         source,
@@ -1501,6 +1516,15 @@ class NativeRepository extends AppRepository {
         category: category,
         force: force,
         filters: filters,
+      );
+    }
+    if (await _useTdlib(source)) {
+      _authorize(source);
+      return TdlibContent.instance.catalog(
+        category: category,
+        page: page,
+        query: query,
+        force: force,
       );
     }
     if (JarBridge.isJarSource(source)) {
@@ -1754,6 +1778,10 @@ class NativeRepository extends AppRepository {
     }
     if (JarBridge.isJarSource(drama.source)) {
       return _jarCall(drama.source, (spec) => JarBridge.detail(spec, drama));
+    }
+    if (await _useTdlib(drama.source)) {
+      _authorize(drama.source);
+      return TdlibContent.instance.detail(drama);
     }
     if (isPySource(drama.source)) {
       final vodId = drama.sourceId.isNotEmpty

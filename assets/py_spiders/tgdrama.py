@@ -1,6 +1,11 @@
+import base64
+import http.client
 import json
+import os
+import ssl
+import time
 import urllib.parse
-import urllib.request
+from copy import deepcopy
 
 try:
     from base.spider import BaseSpider
@@ -11,267 +16,1153 @@ except Exception:
         class BaseSpider:
             pass
 
-BASE = 'http://127.0.0.1:5278'
+
+DEFAULT_CONFIG = {
+    "base_url": "http://127.0.0.1:5278",
+    "timeout": 12,
+    "page_size": 30,
+    "channel_scan_max": 200,
+    "db_path": "",
+}
 
 
-def _http_json(path, params=None, timeout=10):
-    url = BASE + path
-    if params:
-        url += '?' + urllib.parse.urlencode(params)
-    try:
-        req = urllib.request.Request(url, headers={'Accept': 'application/json'})
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            if resp.status != 200:
-                return None
-            return json.loads(resp.read().decode('utf-8', 'replace'))
-    except Exception:
-        return None
+FALLBACK_CHANNELS = (
+    (2753266064, "日本精品av|中文字幕|Jav", "jav_all"),
+    (2698059227, "日本AV|母子乱伦|巨乳调教💯", "JableTVB"),
+    (3523242707, "AI成人短剧/黄果短剧/黄豆魔改短剧", "craimgd"),
+    (1519261559, "收藏AV", "shoucangav"),
+    (2124166721, "中文字幕 | 日本AV即是正义！", "cosfulimax"),
+    (3436294431, "无码FC2｜优质精选｜高画质｜磁力链接｜115·迅雷·PikPak", "NEWFC2"),
+    (1928340095, "JAV中字", "onlyjavzh"),
+    (4327733666, "日本 AV 一本道", "AVkanpian01"),
+    (3761040325, "中文字幕👩‍🦯🏃‍♀小日子电影6", ""),
+    (4474113674, "母子乱伦|伦理|妈妈", "muziLL01"),
+    (3704977995, "绝美反差学生少妇", "JMFCXMG"),
+    (1354793440, "日本 AV💋 无码 高清", "AVGQWM8"),
+    (1480171113, "AV番号精选-种子磁链下载", "javbest"),
+    (1122461141, "AV日报-无码|步兵|种子|磁链|下载|高清|日本", "avpush2"),
+    (1219457818, "AV日报-种子|磁链|下载链接|日本|有码|无码|骑兵|步兵", "javday"),
+    (4299635687, "推特精选", "bbbjhbgq"),
+    (1693277285, "磁力链接精选福利集", "cili8888"),
+    (1879901314, "那些极品姐姐", "zfjp1024"),
+    (2604815578, "🫦91|麻豆|国产|反差|海角🫦", ""),
+    (2648812064, "抖音网红丨色料吃瓜", "seliao212"),
+    (3905645410, "黄果漫剧", "hgmanju"),
+    (1301075074, "超清AV |中文字幕|热门女优", ""),
+    (2591554205, "AV/番号/无码/高清💿", "AV_cao"),
+    (4435379058, "成人小说/色情有声小说🔴", "YSxiaoshuo01"),
+    (3628483985, "🎥日本AV| JAV |中文字幕|番号资源库", "porncloud004"),
+    (2124172984, "🇭🇰男人唔咸濕AV專線", "mic6388av"),
+    (1853804800, "日本AV无码🎀fc2素人高清🎀字母圈暗网", "wmav91"),
+    (1901957482, "AV无码原片-日本", "avwmjav"),
+    (3802482805, "st站每日开票预览", "MXFLJ6"),
+    (1981480055, "🎥 色情云|日本AV| JAV |中文字幕|番号资源库", "av8plus"),
+    (4422690627, "推特反差淫妻", "tuite905"),
+    (4361772103, "AV精选|AI短剧|中文字幕|无码|破解|国产|直播|欧美", "avjx_zongbu"),
+    (3418006020, "海角少妇御姐少女", "hing475"),
+    (2052699130, "日本AV中文学习资料", "rbav00"),
+    (3915334056, "日本精选无码优质av资源分享", "rbjx336"),
+    (3684099016, "淫妻反差俱乐部", "lspjsn"),
+    (2415398795, "PIKPAK成人磁力资源大全", "pikpaklove"),
+    (3479159773, "网红 肛交 直播 泄密", "knapianzhibo"),
+    (2347289238, "日本AV｜中文字幕｜无码高清", "misscctav"),
+    (3961122432, "国产AV｜优质精选｜@AV114514", "AV114514"),
+    (2304875899, "飞鸟社备用", "seqingtvb"),
+    (1488881373, "AV收藏|优质精选|无码破解|中文字幕|番号磁力大全", "AV688"),
+    (2543598876, "Stymei全网综合分享", ""),
+    (3915473772, "人妻|素人|少妇", "SURENrenqi01"),
+    (4375112420, "每日大赛|中文福利", "ZWmeiriDS"),
+    (2871409701, "短剧在线看(短剧频道）", "DuanJuPD"),
+    (2241401720, "Cos涩涩大杂烩", "CosSSDZH"),
+    (1563276756, "【番号帝】番号查询", "FLLAVWM"),
+    (4305291478, "TG免费高速代理-免费VPN高速节点", "gydlpd"),
+    (1853403121, "BiBi色区🔞丨自拍丨熟女丨国产", "bisequcom"),
+    (2038170041, "全网精选资源🔞", "xianyu44"),
+    (2401842508, "海角社区|偷情乱伦精选", "haijiaojingxuan"),
+)
 
 
-def _str(value):
-    if value is None:
-        return ''
-    return str(value).strip()
+class TgdramaError(Exception):
+    pass
 
 
-def _int(value):
-    if isinstance(value, bool):
-        return int(value)
-    if isinstance(value, (int, float)):
-        return int(value)
-    try:
-        return int(str(value).strip())
-    except Exception:
-        return 0
+class TgdramaHttpClient:
+    _SSL = ssl._create_unverified_context()
+
+    def __init__(self, config):
+        self.base_url = str(config.get("base_url") or DEFAULT_CONFIG["base_url"]).rstrip("/")
+        self.timeout = self._positive_int(config.get("timeout"), 12, 3, 60)
+        self.headers = {
+            "User-Agent": "ys-tgdrama/1.0",
+            "Accept": "application/json, */*",
+        }
+        self._conn = {}
+
+    @staticmethod
+    def _positive_int(value, fallback, minimum, maximum):
+        try:
+            number = int(value)
+        except (TypeError, ValueError):
+            return fallback
+        return max(minimum, min(maximum, number))
+
+    def _url(self, path):
+        return self.base_url + path
+
+    def _split_target(self, url, params=None):
+        parsed = urllib.parse.urlsplit(url)
+        authority = "%s:%s" % ((parsed.hostname or "").lower(), parsed.port or 0)
+        path = parsed.path or "/"
+        query = parsed.query
+        if params:
+            extra = urllib.parse.urlencode(params)
+            query = (query + "&" + extra) if query else extra
+        target = path + ("?" + query if query else "")
+        return authority, parsed.hostname, parsed.port, target, parsed.scheme
+
+    def _conn_of(self, authority, host, port, scheme):
+        entry = self._conn.get(authority)
+        if entry is not None and time.time() - entry[0] < 90:
+            return entry[1]
+        if entry is not None:
+            try:
+                entry[1].close()
+            except Exception:
+                pass
+            self._conn.pop(authority, None)
+        if scheme == "https":
+            conn = http.client.HTTPSConnection(host, port, timeout=self.timeout, context=self._SSL)
+        else:
+            conn = http.client.HTTPConnection(host, port, timeout=self.timeout)
+        self._conn[authority] = [time.time(), conn]
+        return conn
+
+    def _drop(self, authority):
+        entry = self._conn.pop(authority, None)
+        if entry is not None:
+            try:
+                entry[1].close()
+            except Exception:
+                pass
+
+    def _send(self, method, url, params=None, json_body=None):
+        data = None
+        headers = dict(self.headers)
+        if json_body is not None:
+            data = json.dumps(json_body, ensure_ascii=False).encode("utf-8")
+            headers["Content-Type"] = "application/json"
+        for attempt in (0, 1):
+            authority, host, port, target, scheme = self._split_target(url, params)
+            try:
+                conn = self._conn_of(authority, host, port, scheme)
+                conn.request(method, target, body=data, headers=headers)
+                response = conn.getresponse()
+                body = response.read()
+                hdrs = dict(response.getheaders())
+                if response.will_close:
+                    self._drop(authority)
+                return response.status, hdrs, body
+            except Exception as error:
+                self._drop(authority)
+                if attempt == 1:
+                    raise TgdramaError("连接 tgdrama 服务失败：%s" % error)
+        raise TgdramaError("连接 tgdrama 服务失败")
+
+    def _request(self, method, path, params=None, json_body=None):
+        status, _headers, body = self._send(method, self._url(path), params, json_body)
+        payload = {}
+        if body:
+            try:
+                payload = json.loads(body.decode("utf-8", "replace"))
+            except ValueError:
+                payload = {}
+        if status >= 400 or (isinstance(payload, dict) and payload.get("error")):
+            message = ""
+            if isinstance(payload, dict):
+                message = str(payload.get("error") or "")
+            raise TgdramaError(message or ("请求 %s 失败：HTTP %s" % (path, status)))
+        return payload
+
+    def shows(self, page=1, tag="", favorite=False):
+        params = {"page": max(int(page or 1), 1)}
+        if favorite:
+            params["fav"] = "1"
+        elif tag:
+            params["tag"] = tag
+        return self._request("GET", "/api/shows", params=params)
+
+    def show_detail(self, show_id):
+        return self._request("GET", "/api/shows/%s" % show_id)
+
+    def episodes_lines(self, episode_id):
+        return self._request("GET", "/api/episodes/%s/lines" % episode_id)
+
+    def episode_stream_url(self, episode_id):
+        return self._url("/api/episodes/%s/play" % episode_id)
+
+    def segment_stream_url(self, segment_id):
+        return self._url("/api/stream/%s" % segment_id)
+
+    def hls_index_url(self, episode_id):
+        return self._url("/api/episodes/%s/hls/index.m3u8" % episode_id)
+
+    def hls_playable(self, episode_id):
+        try:
+            status, _headers, body = self._send("GET", self.hls_index_url(episode_id))
+        except TgdramaError:
+            return False
+        if status != 200 or not body:
+            return False
+        return body.decode("utf-8", "replace").lstrip().startswith("#EXTM3U")
+
+    def search(self, keyword):
+        return self._request("GET", "/api/search", params={"q": keyword})
+
+    def tags(self):
+        return self._request("GET", "/api/tags")
+
+    def history(self, limit=10):
+        return self._request("GET", "/api/history", params={"limit": max(int(limit or 10), 1)})
+
+    def save_history(self, episode_id, position, duration):
+        return self._request("POST", "/api/history", json_body={
+            "episode_id": int(episode_id),
+            "position": float(position),
+            "duration": float(duration),
+        })
+
+    def chats(self):
+        return self._request("GET", "/api/chats")
+
+    def refresh_chats(self):
+        try:
+            self._request("POST", "/api/chats/refresh")
+            return True
+        except (TgdramaError, OSError, ValueError):
+            return False
+
+    def toggle_chat(self, tg_chat_id, enabled):
+        return self._request("POST", "/api/chats/toggle", json_body={
+            "tg_chat_id": int(tg_chat_id),
+            "enabled": bool(enabled),
+        })
+
+    def sync_chats(self, tg_chat_id=0):
+        return self._request("POST", "/api/chats/sync", json_body={"tg_chat_id": int(tg_chat_id)})
+
+    def clear_cache(self):
+        return self._request("POST", "/api/cache/clear", json_body={})
+
+    def close(self):
+        for authority in list(self._conn.keys()):
+            self._drop(authority)
 
 
-def _as_map(value):
-    if isinstance(value, dict):
+class TgdramaMapper:
+    ID_PREFIX = "tgdrama"
+
+    @classmethod
+    def pack(cls, kind, payload=None):
+        raw = json.dumps(payload or {}, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        body = base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+        return "%s:%s:%s" % (cls.ID_PREFIX, kind, body)
+
+    @classmethod
+    def unpack(cls, value):
+        parts = str(value or "").split(":", 2)
+        if len(parts) != 3 or parts[0] != cls.ID_PREFIX:
+            return None
+        try:
+            body = parts[2] + "=" * (-len(parts[2]) % 4)
+            data = json.loads(base64.urlsafe_b64decode(body.encode("ascii")).decode("utf-8"))
+            return {"kind": parts[1], "data": data if isinstance(data, dict) else {}}
+        except (ValueError, TypeError, UnicodeError):
+            return None
+
+    @staticmethod
+    def text(value, fallback=""):
+        if value is None or value == "":
+            return fallback
+        return str(value)
+
+    @staticmethod
+    def label(value):
+        return str(value or "").replace("$", "_").replace("#", "_")
+
+    @classmethod
+    def show_vod(cls, raw, base_url=""):
+        show_id = raw.get("id")
+        ep_count = 0
+        ep_latest = 0
+        try:
+            ep_count = int(raw.get("ep_count") or 0)
+        except (TypeError, ValueError):
+            ep_count = 0
+        try:
+            ep_latest = int(raw.get("ep_latest") or 0)
+        except (TypeError, ValueError):
+            ep_latest = 0
+        cover = str(raw.get("cover_path") or "")
+        return {
+            "vod_id": cls.pack("show", {"id": show_id}),
+            "vod_name": cls.text(raw.get("name"), "未命名短剧"),
+            "vod_pic": base_url + "/api/covers/%s" % show_id if (base_url and cover) else "",
+            "vod_remarks": "更新至%d集" % ep_latest if ep_latest > 1 else ("共%d集" % ep_count if ep_count else ""),
+            "vod_content": cls.text(raw.get("intro")),
+        }
+
+    @classmethod
+    def history_vod(cls, raw, base_url=""):
+        show_id = raw.get("show_id")
+        cover = str(raw.get("cover_path") or "")
+        try:
+            episode_no = int(raw.get("episode_no") or 0)
+        except (TypeError, ValueError):
+            episode_no = 0
+        try:
+            progress = float(raw.get("progress") or 0)
+        except (TypeError, ValueError):
+            progress = 0
+        return {
+            "vod_id": cls.pack("episode", {"id": raw.get("episode_id"), "show": show_id}),
+            "vod_name": cls.text(raw.get("show_name") or raw.get("name"), "未命名短剧"),
+            "vod_pic": base_url + "/api/covers/%s" % show_id if (base_url and cover) else "",
+            "vod_remarks": "看到 第%d集 %.0f%%" % (episode_no, progress * 100) if progress else "第%d集" % episode_no,
+            "vod_content": "",
+        }
+
+    @classmethod
+    def info_vod(cls, name, vod_id, remarks="", pic=""):
+        return {
+            "vod_id": vod_id,
+            "vod_name": name,
+            "vod_pic": pic,
+            "vod_remarks": remarks,
+            "vod_tag": "action",
+        }
+
+
+def _as_list(value):
+    if isinstance(value, list):
         return value
-    return {}
+    if isinstance(value, dict):
+        for key in ("list", "shows", "items", "data", "tags", "chats"):
+            if isinstance(value.get(key), list):
+                return value[key]
+    return []
 
 
-def _cover_of(node):
-    raw = _str(node.get('cover_path') or node.get('cover') or node.get('poster'))
-    if not raw:
-        return ''
-    if raw.startswith('http://') or raw.startswith('https://'):
-        return raw
-    if raw.startswith('/'):
-        return BASE + raw
-    return BASE + '/' + raw
+def _is_enabled(value):
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    return str(value or "").strip().lower() in ("1", "true", "yes", "on")
 
 
-def _remark_of(node):
-    count = _int(node.get('total'))
-    if count <= 0:
-        count = _int(node.get('episode_count'))
-    if count <= 0:
-        eps = node.get('episodes')
-        if isinstance(eps, list):
-            count = len(eps)
-    return '共%d集' % count if count > 0 else ''
-
-
-def _parse_tags(decoded):
-    rows = decoded
-    if isinstance(rows, dict):
-        for key in ('tags', 'list', 'data', 'items'):
-            if isinstance(rows.get(key), list):
-                rows = rows[key]
-                break
-    if not isinstance(rows, list):
-        return [('all', '全部')]
+def _parse_tags(value):
+    rows = _as_list(value)
     seen = set()
     out = []
     for entry in rows:
         if isinstance(entry, str):
-            tag_id = entry.strip()
-            name = tag_id
+            name = entry.strip()
+            count = 0
+        elif isinstance(entry, dict):
+            name = str(entry.get("name") or entry.get("tag") or entry.get("title") or "").strip()
+            try:
+                count = int(entry.get("count") or 0)
+            except (TypeError, ValueError):
+                count = 0
         else:
-            node = _as_map(entry)
-            name = _str(node.get('name') or node.get('tag') or node.get('title') or node.get('label'))
-            tag_id = _str(node.get('tag') or node.get('name') or node.get('id'))
-            if not name:
-                name = tag_id
-        if not tag_id or not name or tag_id in seen:
             continue
-        seen.add(tag_id)
-        out.append((tag_id, name))
-    return out if out else [('all', '全部')]
-
-
-def _show_rows(decoded):
-    if isinstance(decoded, list):
-        return decoded
-    if not isinstance(decoded, dict):
-        return []
-    for key in ('list', 'shows', 'items'):
-        if isinstance(decoded.get(key), list):
-            return decoded[key]
-    data = _as_map(decoded.get('data'))
-    for key in ('list', 'shows', 'items'):
-        if isinstance(data.get(key), list):
-            return data[key]
-    return []
-
-
-def _parse_shows(decoded):
-    out = []
-    seen = set()
-    for entry in _show_rows(decoded):
-        node = _as_map(entry)
-        show_id = _str(node.get('id') or node.get('show_id'))
-        if not show_id or show_id in seen:
+        if not name or name in seen:
             continue
-        title = _str(node.get('name') or node.get('title'))
-        if not title:
-            continue
-        seen.add(show_id)
-        out.append({
-            'vod_id': show_id,
-            'vod_name': title,
-            'vod_pic': _cover_of(node),
-            'vod_remarks': _remark_of(node),
-        })
+        seen.add(name)
+        out.append((name, count))
     return out
-
-
-def _parse_episodes(raw, series_id):
-    if not isinstance(raw, list):
-        return []
-    indexed = []
-    for i, entry in enumerate(raw):
-        node = _as_map(entry)
-        ep_id = _str(node.get('id') or node.get('episode_id'))
-        if not ep_id:
-            continue
-        number = _int(node.get('episode_no') or node.get('episodeNo'))
-        if number <= 0:
-            number = i + 1
-        name = _str(node.get('name') or node.get('title'))
-        indexed.append((number, ep_id, name if name else '第%d集' % number))
-    indexed.sort(key=lambda item: item[0])
-    return indexed
-
-
-def _parse_detail(decoded, series_id):
-    node = _as_map(decoded)
-    for key in ('show', 'data'):
-        inner = _as_map(node.get(key))
-        if inner and (isinstance(inner.get('episodes'), list) or inner.get('name') is not None or inner.get('title') is not None):
-            node = inner
-            break
-    episodes = _parse_episodes(node.get('episodes'), series_id)
-    if not episodes:
-        return None
-    return {
-        'vod_id': series_id,
-        'vod_name': _str(node.get('name') or node.get('title')),
-        'vod_pic': _cover_of(node),
-        'vod_content': _str(node.get('synopsis') or node.get('description') or node.get('introduction')),
-        'type_name': '',
-        'episodes': episodes,
-    }
-
-
-def _norm_id(ids):
-    if isinstance(ids, (list, tuple)):
-        return str(ids[0]) if ids else ''
-    return str(ids)
-
-
-def _norm_pg(pg):
-    try:
-        return int(pg)
-    except Exception:
-        try:
-            return int(str(pg).strip())
-        except Exception:
-            return 1
 
 
 class Spider(BaseSpider):
 
+    def __init__(self):
+        try:
+            super().__init__()
+        except Exception:
+            pass
+        self.config = deepcopy(DEFAULT_CONFIG)
+        self.client = TgdramaHttpClient(self.config)
+        self._show_chats = {}
+        self._refresh_tried = False
+
     def getName(self):
-        return 'tgdrama'
+        return "tgdrama"
 
     def getDependence(self):
         return []
 
     def init(self, extend=None):
-        pass
+        options = self._parse_options(extend)
+        self._apply_options(options)
 
     def destroy(self):
-        pass
+        try:
+            self.client.close()
+        except Exception:
+            pass
+
+    @staticmethod
+    def _parse_options(value):
+        if isinstance(value, dict):
+            return dict(value)
+        text = str(value or "").strip()
+        if not text:
+            return {}
+        if text.startswith("{"):
+            try:
+                data = json.loads(text)
+                return data if isinstance(data, dict) else {}
+            except ValueError:
+                return {}
+        options = {}
+        for part in text.split("&"):
+            if "=" in part:
+                key, _, val = part.partition("=")
+                options[key.strip()] = val.strip()
+        return options
+
+    def _apply_options(self, options):
+        if not isinstance(options, dict):
+            return
+        for key in ("base_url",):
+            if key in options:
+                value = str(options[key]).strip()
+                if value:
+                    self.config[key] = value
+        if "timeout" in options:
+            self.config["timeout"] = TgdramaHttpClient._positive_int(options["timeout"], 12, 3, 60)
+        if "db_path" in options:
+            self.config["db_path"] = str(options["db_path"] or "").strip()
+        if "page_size" in options:
+            self.config["page_size"] = TgdramaHttpClient._positive_int(options["page_size"], 30, 1, 100)
+        if not str(self.config.get("base_url") or "").startswith("http"):
+            self.config["base_url"] = DEFAULT_CONFIG["base_url"]
+        self.config["base_url"] = str(self.config["base_url"]).rstrip("/")
+        self.client = TgdramaHttpClient(self.config)
+
+    def _chats(self):
+        try:
+            return _as_list(self.client.chats())
+        except Exception:
+            return []
+
+    @staticmethod
+    def _full_tg_id(bare_id):
+        try:
+            return -(1000000000000 + int(bare_id))
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _fallback_rows():
+        rows = []
+        for bare_id, title, username in FALLBACK_CHANNELS:
+            full_id = Spider._full_tg_id(bare_id)
+            if full_id is None:
+                continue
+            rows.append({
+                "id": None,
+                "tg_chat_id": full_id,
+                "name": title,
+                "username": username,
+                "type": "channel",
+                "enabled": 0,
+                "syncing": 0,
+                "message_count": 0,
+                "source_count": 0,
+                "_fallback": True,
+            })
+        return rows
+
+    @staticmethod
+    def _fallback_row(tg_chat_id):
+        try:
+            target = int(str(tg_chat_id).strip())
+        except (TypeError, ValueError):
+            return None
+        for row in Spider._fallback_rows():
+            if row["tg_chat_id"] == target:
+                return row
+        return None
+
+    def _resolve_channels(self):
+        chats = self._chats()
+        for chat in chats:
+            if isinstance(chat, dict) and _is_enabled(chat.get("enabled")):
+                return chats, False
+        if not self._refresh_tried:
+            self._refresh_tried = True
+            try:
+                self.client.refresh_chats()
+            except Exception:
+                pass
+            chats = self._chats()
+            for chat in chats:
+                if isinstance(chat, dict) and _is_enabled(chat.get("enabled")):
+                    return chats, False
+        return self._fallback_rows(), True
+
+    def _classes(self):
+        classes = []
+        chats, is_fallback = self._resolve_channels()
+        for chat in chats:
+            if not isinstance(chat, dict):
+                continue
+            if is_fallback:
+                classes.append({
+                    "type_id": "chantg:%s" % chat["tg_chat_id"],
+                    "type_name": str(chat.get("name") or chat.get("tg_chat_id")),
+                    "type_flag": "1",
+                    "land": 1,
+                    "ratio": 1.78,
+                })
+                continue
+            if not _is_enabled(chat.get("enabled")):
+                continue
+            chat_id = chat.get("id")
+            if chat_id is None:
+                continue
+            classes.append({
+                "type_id": "chan:%s" % chat_id,
+                "type_name": str(chat.get("name") or chat.get("tg_chat_id") or chat_id),
+                "type_flag": "1",
+                "land": 1,
+                "ratio": 1.78,
+            })
+        classes.extend([
+            {"type_id": "favorites", "type_name": "我的收藏", "type_flag": "1", "land": 1, "ratio": 1.78},
+            {"type_id": "history", "type_name": "观看历史", "type_flag": "1", "land": 1, "ratio": 1.78},
+            {"type_id": "channels", "type_name": "频道管理", "type_flag": "1", "land": 1, "ratio": 1.78},
+        ])
+        return classes
+
+    def _filters(self):
+        group = {"key": "tag", "name": "标签", "init": "", "value": [{"n": "全部", "v": ""}]}
+        try:
+            for name, count in _parse_tags(self.client.tags()):
+                label = "%s(%s)" % (name, count) if count > 0 else name
+                group["value"].append({"n": label, "v": name})
+        except Exception:
+            pass
+        return {"all": [group], "": [group]}
 
     def homeContent(self, filter=False):
-        tags = _parse_tags(_http_json('/api/tags'))
-        return {'class': [{'type_id': tid, 'type_name': name} for tid, name in tags], 'filters': {}}
+        return {"class": self._classes(), "filters": self._filters()}
 
     def homeVideoContent(self):
-        items = _parse_shows(_http_json('/api/shows', {'page': 1}))
-        return {'list': items, 'page': 1, 'pagecount': 0, 'total': 0}
+        try:
+            data = self.client.shows(1)
+        except TgdramaError:
+            return {"list": [], "page": 1, "pagecount": 1, "total": 0}
+        items = [TgdramaMapper.show_vod(raw, self.config["base_url"])
+                 for raw in _as_list(data)]
+        total = 0
+        if isinstance(data, dict):
+            try:
+                total = int(data.get("total") or len(items))
+            except (TypeError, ValueError):
+                total = len(items)
+        return {"list": items, "page": 1, "pagecount": 1, "total": total}
+
+    def _page_result(self, items, page, limit=30, total=None):
+        total = len(items) if total is None else max(int(total), 0)
+        limit = max(int(limit), 1)
+        pagecount = max(page, (total + limit - 1) // limit) if total else page
+        return {"list": items, "page": page, "pagecount": pagecount, "limit": limit, "total": total}
+
+    def _show_chat_ids(self, show_id):
+        cached = self._show_chats.get(show_id)
+        if cached is not None:
+            return cached
+        ids = set()
+        try:
+            detail = self.client.show_detail(show_id)
+            episodes = detail.get("episodes") or []
+            if episodes:
+                lines = self.client.episodes_lines(episodes[0].get("id")).get("lines") or []
+                for line in lines:
+                    try:
+                        ids.add(int(line.get("chat_id")))
+                    except (TypeError, ValueError):
+                        continue
+        except TgdramaError:
+            pass
+        self._show_chats[show_id] = ids
+        return ids
+
+    def _db_path(self):
+        configured = str(self.config.get("db_path") or "").strip()
+        if configured:
+            return configured
+        env = os.environ.get("YS_TGDRAMA_DB", "").strip()
+        if env:
+            return env
+        try:
+            from com.chaquo.python import Python
+            root = Python.getPlatform().getApplication().getFilesDir().getAbsolutePath()
+            return os.path.normpath(os.path.join(root, "..", "app_flutter", "tgdrama", "tgdrama.db"))
+        except Exception:
+            return ""
+
+    def _channel_shows_from_db(self, chat_id, page, limit):
+        db = self._db_path()
+        if not db or not os.path.isfile(db):
+            return None
+        try:
+            import sqlite3
+            conn = sqlite3.connect("file:%s?mode=ro" % db, uri=True)
+            try:
+                cur = conn.execute(
+                    "SELECT sh.id, sh.name, sh.cover_path, sh.intro, sh.updated_at, "
+                    "(SELECT COUNT(DISTINCT e.episode_no) FROM episodes e "
+                    " JOIN sources s ON s.episode_id=e.id "
+                    " WHERE e.show_id=sh.id AND e.episode_no>=1) AS ep_count, "
+                    "(SELECT COALESCE(MAX(e.episode_no),0) FROM episodes e "
+                    " JOIN sources s ON s.episode_id=e.id "
+                    " WHERE e.show_id=sh.id AND e.episode_no>=1) AS ep_latest "
+                    "FROM shows sh "
+                    "WHERE EXISTS (SELECT 1 FROM episodes e JOIN sources s ON s.episode_id=e.id "
+                    " WHERE e.show_id=sh.id AND s.chat_id=?) "
+                    "ORDER BY sh.updated_at DESC LIMIT ? OFFSET ?",
+                    (int(chat_id), int(limit), (page - 1) * int(limit)))
+                rows = cur.fetchall()
+                cur2 = conn.execute(
+                    "SELECT COUNT(DISTINCT e.show_id) FROM episodes e "
+                    "JOIN sources s ON s.episode_id=e.id WHERE s.chat_id=?",
+                    (int(chat_id),))
+                total = int((cur2.fetchone() or (0,))[0])
+            finally:
+                conn.close()
+            items = []
+            for sid, name, cover, intro, _updated, ep_count, ep_latest in rows:
+                items.append(TgdramaMapper.show_vod({
+                    "id": sid, "name": name, "cover_path": cover or "",
+                    "intro": intro or "", "ep_count": ep_count, "ep_latest": ep_latest,
+                }, self.config["base_url"]))
+            return self._page_result(items, page, limit, total)
+        except Exception:
+            return None
+
+    def _channel_page(self, tg_chat_id, page):
+        try:
+            target = int(str(tg_chat_id).strip())
+        except (TypeError, ValueError):
+            return self._page_result([], page)
+        limit = self.config["page_size"]
+        db_result = self._channel_shows_from_db(target, page, limit)
+        if db_result is not None:
+            return db_result
+        cap = self.config["channel_scan_max"]
+        matched = []
+        scanned = 0
+        p = 1
+        while len(matched) < page * limit and scanned < cap:
+            try:
+                data = self.client.shows(p)
+            except TgdramaError:
+                break
+            batch = _as_list(data)
+            if not batch:
+                break
+            try:
+                total = int(data.get("total") or 0) if isinstance(data, dict) else 0
+            except (TypeError, ValueError):
+                total = 0
+            for raw in batch:
+                if scanned >= cap:
+                    break
+                scanned += 1
+                show_id = raw.get("id")
+                if show_id is None:
+                    continue
+                if target in self._show_chat_ids(show_id):
+                    matched.append(raw)
+            if total and scanned >= total:
+                break
+            p += 1
+        start = (page - 1) * limit
+        items = [TgdramaMapper.show_vod(raw, self.config["base_url"])
+                 for raw in matched[start:start + limit]]
+        return self._page_result(items, page, limit, len(matched))
+
+    def _local_chat_id(self, tg_chat_id):
+        try:
+            full = int(str(tg_chat_id).strip())
+        except (TypeError, ValueError):
+            return None
+        if full < -1000000000000:
+            candidates = [full, -full - 1000000000000]
+        elif full > 0:
+            candidates = [full, -(1000000000000 + full)]
+        else:
+            candidates = [full]
+        db = self._db_path()
+        if db and os.path.isfile(db):
+            try:
+                import sqlite3
+                conn = sqlite3.connect("file:%s?mode=ro" % db, uri=True)
+                try:
+                    for value in candidates:
+                        row = conn.execute(
+                            "SELECT id FROM chats WHERE tg_chat_id=?", (value,)).fetchone()
+                        if row:
+                            return int(row[0])
+                finally:
+                    conn.close()
+            except Exception:
+                pass
+        for chat in self._chats():
+            if not isinstance(chat, dict):
+                continue
+            try:
+                if int(chat.get("tg_chat_id")) in candidates:
+                    return int(chat.get("id"))
+            except (TypeError, ValueError):
+                continue
+        return None
+
+    def _not_synced_page(self, page=1):
+        card = TgdramaMapper.info_vod(
+            "该频道尚未同步",
+            TgdramaMapper.pack("info", {"key": "not_synced"}),
+            "去频道管理页查看同步状态",
+        )
+        return self._page_result([card], page, 1, 1)
+
+    def _channel_page_by_tg(self, tg_chat_id, page):
+        local_id = self._local_chat_id(tg_chat_id)
+        if local_id is None:
+            return self._not_synced_page(page)
+        for chat in self._chats():
+            if not isinstance(chat, dict):
+                continue
+            try:
+                if int(chat.get("id")) != local_id:
+                    continue
+            except (TypeError, ValueError):
+                continue
+            if not _is_enabled(chat.get("enabled")):
+                return self._not_synced_page(page)
+            break
+        return self._channel_page(local_id, page)
 
     def categoryContent(self, tid, pg, filter=False, extend=None):
-        tid = _norm_id(tid)
-        pg = _norm_pg(pg)
-        if pg < 1:
-            pg = 1
-        params = {'page': pg}
-        if tid and tid != 'all':
-            params['tag'] = tid
-        items = _parse_shows(_http_json('/api/shows', params))
-        return {'list': items, 'page': pg, 'pagecount': 0, 'total': 0}
+        page = TgdramaHttpClient._positive_int(pg, 1, 1, 9999)
+        options = self._parse_options(extend)
+        ref = TgdramaMapper.unpack(tid)
+        if ref and ref["kind"] == "show":
+            return self.detailContent(tid)
+        if tid == "channels":
+            return self._channels_page()
+        if tid == "history":
+            try:
+                data = self.client.history(100)
+            except TgdramaError:
+                return self._page_result([], 1)
+            items = [TgdramaMapper.history_vod(raw, self.config["base_url"])
+                     for raw in _as_list(data)]
+            return self._page_result(items, 1, max(len(items), 1), len(items))
+        if isinstance(tid, str) and tid.startswith("chantg:"):
+            return self._channel_page_by_tg(tid.split(":", 1)[1], page)
+        if isinstance(tid, str) and tid.startswith("chan:"):
+            return self._channel_page(tid.split(":", 1)[1], page)
+        favorite = tid == "favorites"
+        tag = "" if favorite else str(options.get("tag") or "")
+        try:
+            data = self.client.shows(page, tag=tag, favorite=favorite)
+        except TgdramaError:
+            return self._page_result([], page)
+        items = [TgdramaMapper.show_vod(raw, self.config["base_url"])
+                 for raw in _as_list(data)]
+        limit = self.config["page_size"]
+        total = len(items)
+        if isinstance(data, dict):
+            try:
+                total = int(data.get("total") or len(items))
+            except (TypeError, ValueError):
+                total = len(items)
+            try:
+                limit = int(data.get("page_size") or limit)
+            except (TypeError, ValueError):
+                pass
+        return self._page_result(items, page, limit, total)
 
-    def detailContent(self, ids):
-        vid = _norm_id(ids)
-        d = _parse_detail(_http_json('/api/shows/' + urllib.parse.quote(vid)), vid)
-        if d is None:
-            raise Exception('show has no episodes')
-        play_url = '#'.join('%s$tgdrama:%s' % (title, ep_id) for _, ep_id, title in d['episodes'])
-        return {'list': [{
-            'vod_id': vid,
-            'vod_name': d['vod_name'] or ('剧集 ' + vid),
-            'vod_pic': d['vod_pic'],
-            'vod_actor': '',
-            'vod_remarks': '',
-            'vod_year': '',
-            'vod_area': '',
-            'vod_content': d['vod_content'],
-            'type_name': d['type_name'],
-            'vod_play_from': 'TG影视库',
-            'vod_play_url': play_url,
+    def _channels_page(self):
+        items = [TgdramaMapper.info_vod(
+            "登录与同步在设置 → Telegram 登录里做",
+            TgdramaMapper.pack("info", {"key": "login"}),
+            "频道由插件自动发现，新频道默认启用",
+        )]
+        chats, is_fallback = self._resolve_channels()
+        for chat in chats:
+            if not isinstance(chat, dict):
+                continue
+            if is_fallback:
+                items.append(TgdramaMapper.info_vod(
+                    "⬜ %s" % (chat.get("name") or chat.get("tg_chat_id")),
+                    TgdramaMapper.pack("channel", {"id": "tg:%s" % chat["tg_chat_id"]}),
+                    "未同步 · 去频道管理页查看同步状态",
+                ))
+                continue
+            chat_id = chat.get("id")
+            if chat_id is None:
+                continue
+            enabled = _is_enabled(chat.get("enabled"))
+            syncing = bool(chat.get("syncing"))
+            meta = ["频道" if chat.get("type") == "channel" else "群组"]
+            if chat.get("message_count"):
+                meta.append("消息 %s" % chat.get("message_count"))
+            if chat.get("source_count"):
+                meta.append("视频 %s" % chat.get("source_count"))
+            meta.append("同步中…" if syncing else ("已启用" if enabled else "未采集"))
+            items.append(TgdramaMapper.info_vod(
+                "%s %s" % ("✅" if enabled else "⬜", chat.get("name") or chat.get("tg_chat_id") or chat_id),
+                TgdramaMapper.pack("channel", {"id": chat_id}),
+                " · ".join(meta),
+            ))
+        if not chats:
+            items.append(TgdramaMapper.info_vod(
+                "还没有频道",
+                TgdramaMapper.pack("info", {"key": "empty"}),
+                "登录 Telegram 后等插件自动发现频道",
+            ))
+        return self._page_result(items, 1, max(len(items), 1), len(items))
+
+    def _channel_info_detail(self, chat_id):
+        text = str(chat_id or "").strip()
+        if text.startswith("tg:"):
+            row = self._fallback_row(text.split(":", 1)[1])
+            if row is None:
+                return {"list": []}
+            lines = ["类型：频道", "状态：尚未同步"]
+            if row.get("username"):
+                lines.append("用户名：@%s" % row.get("username"))
+            lines.append("这个频道还没同步到本地库，里面暂时没有剧。")
+            lines.append("插件同步完成后，点分类里的频道名就能看该频道的剧。")
+            return {"list": [{
+                "vod_id": TgdramaMapper.pack("channel", {"id": text}),
+                "vod_name": str(row.get("name") or row.get("tg_chat_id")),
+                "vod_pic": "",
+                "vod_remarks": "尚未同步",
+                "vod_year": "",
+                "vod_area": "",
+                "vod_actor": "",
+                "vod_director": "",
+                "vod_content": "\n".join(lines),
+                "vod_play_from": "",
+                "vod_play_url": "",
+            }]}
+        target = None
+        try:
+            target = int(text)
+        except (TypeError, ValueError):
+            return {"list": []}
+        for chat in self._chats():
+            if not isinstance(chat, dict):
+                continue
+            try:
+                if int(chat.get("id")) != target:
+                    continue
+            except (TypeError, ValueError):
+                continue
+            enabled = _is_enabled(chat.get("enabled"))
+            syncing = bool(chat.get("syncing"))
+            lines = [
+                "类型：%s" % ("频道" if chat.get("type") == "channel" else "群组"),
+                "状态：%s" % ("同步中…" if syncing else ("已启用" if enabled else "未采集")),
+            ]
+            if chat.get("username"):
+                lines.append("用户名：@%s" % chat.get("username"))
+            if chat.get("message_count"):
+                lines.append("消息：%s" % chat.get("message_count"))
+            if chat.get("source_count"):
+                lines.append("视频：%s" % chat.get("source_count"))
+            lines.append("点分类里的频道名看该频道的剧；启用与同步由插件自动处理，新频道默认启用。")
+            return {"list": [{
+                "vod_id": TgdramaMapper.pack("channel", {"id": target}),
+                "vod_name": str(chat.get("name") or chat.get("tg_chat_id") or target),
+                "vod_pic": "",
+                "vod_remarks": "已启用" if enabled else "未采集",
+                "vod_year": "",
+                "vod_area": "",
+                "vod_actor": "",
+                "vod_director": "",
+                "vod_content": "\n".join(lines),
+                "vod_play_from": "",
+                "vod_play_url": "",
+            }]}
+        return {"list": []}
+
+    def _info_detail(self, key):
+        if key == "not_synced":
+            content = "这个频道还没同步到本地库，里面暂时没有剧。\n插件同步完成后，点分类里的频道名就能看该频道的剧；同步状态去频道管理页查看。"
+            title = "该频道尚未同步"
+        elif key == "login":
+            content = "登录在设置 → Telegram 登录里做（扫码或手机号）。\n频道由插件自动发现，新频道默认启用；同步在插件后台进行。"
+            title = "登录与同步"
+        elif key == "error":
+            content = "读取频道失败，请确认插件服务已启动且已登录。"
+            title = "读取频道失败"
+        else:
+            content = "登录 Telegram 后等插件自动发现频道。"
+            title = "还没有频道"
+        return {"list": [{
+            "vod_id": TgdramaMapper.pack("info", {"key": key}),
+            "vod_name": title,
+            "vod_pic": "",
+            "vod_remarks": "",
+            "vod_year": "",
+            "vod_area": "",
+            "vod_actor": "",
+            "vod_director": "",
+            "vod_content": content,
+            "vod_play_from": "",
+            "vod_play_url": "",
         }]}
 
+    def detailContent(self, ids):
+        if isinstance(ids, (list, tuple)):
+            ids = ids[0] if ids else ""
+        vid = str(ids or "").split(",", 1)[0]
+        ref = TgdramaMapper.unpack(vid)
+        try:
+            if ref:
+                if ref["kind"] in ("ep", "episode"):
+                    return self._detail_by_episode(ref["data"])
+                if ref["kind"] == "channel":
+                    return self._channel_info_detail(ref["data"].get("id"))
+                if ref["kind"] == "info":
+                    return self._info_detail(str(ref["data"].get("key") or ""))
+                show_id = ref["data"].get("id")
+                if not show_id:
+                    return {"list": []}
+                data = self.client.show_detail(show_id)
+                built = self._build_detail(data, None)
+                return {"list": [built] if built else []}
+            text = vid.strip()
+            if text.isdigit():
+                data = self.client.show_detail(text)
+                built = self._build_detail(data, None)
+                return {"list": [built] if built else []}
+            return {"list": []}
+        except TgdramaError:
+            return {"list": []}
+
+    def _detail_by_episode(self, data):
+        episode_id = data.get("id")
+        show_id = data.get("show")
+        if not episode_id:
+            return {"list": []}
+        lines = self.client.episodes_lines(episode_id)
+        show = lines.get("show") or {}
+        if not show_id:
+            show_id = show.get("id")
+        if not show_id:
+            return {"list": []}
+        detail = self._build_detail(self.client.show_detail(show_id), episode_id)
+        return {"list": [detail] if detail else []}
+
+    def _build_detail(self, data, focus_episode=None):
+        if not isinstance(data, dict):
+            return None
+        show = data.get("show") or {}
+        if not isinstance(show, dict):
+            show = {}
+        if not show and ("name" in data or "episodes" in data):
+            show = data
+        episodes = data.get("episodes") or []
+        base = self.config["base_url"]
+        cover = str(show.get("cover_path") or "")
+        names = []
+        tokens = []
+        try:
+            sorted_eps = sorted(episodes, key=lambda item: int(item.get("episode_no") or 0))
+        except (TypeError, ValueError):
+            sorted_eps = list(episodes)
+        try:
+            numbers = [int(item.get("episode_no") or 0) for item in sorted_eps]
+        except (TypeError, ValueError):
+            numbers = []
+        dense = bool(numbers) and numbers == list(range(1, len(numbers) + 1))
+        for index, episode in enumerate(sorted_eps, start=1):
+            if not isinstance(episode, dict):
+                continue
+            episode_id = episode.get("id")
+            if not episode_id:
+                continue
+            try:
+                raw_no = int(episode.get("episode_no") or 0)
+            except (TypeError, ValueError):
+                raw_no = 0
+            if dense:
+                label = TgdramaMapper.label(episode.get("title") or ("第%d集" % raw_no))
+            else:
+                label = "第%d集" % index
+                if raw_no and raw_no != index:
+                    label += "(原%s)" % raw_no
+            if focus_episode and episode_id == focus_episode:
+                label = "▶ " + label
+            names.append("%s$%s" % (label, TgdramaMapper.pack("ep", {"id": episode_id})))
+            tokens.append(episode)
+        if not names:
+            return None
+        progress = data.get("progress") or []
+        if progress:
+            first = progress[0] if isinstance(progress[0], dict) else {}
+            try:
+                pct = float(first.get("progress") or 0) * 100
+            except (TypeError, ValueError):
+                pct = 0
+            remark = "上次看到 第%s集 %.0f%%" % (first.get("episode_no") or "?", pct)
+        else:
+            try:
+                ep_latest = int(show.get("ep_latest") or 0)
+            except (TypeError, ValueError):
+                ep_latest = 0
+            remark = "更新至%d集" % ep_latest if ep_latest else "共%d集" % len(tokens)
+        return {
+            "vod_id": TgdramaMapper.pack("show", {"id": show.get("id")}),
+            "vod_name": TgdramaMapper.text(show.get("name"), "未命名短剧"),
+            "vod_pic": base + "/api/covers/%s" % show.get("id") if cover else "",
+            "vod_remarks": remark,
+            "vod_year": "",
+            "vod_area": "",
+            "vod_actor": "",
+            "vod_director": "",
+            "vod_content": TgdramaMapper.text(show.get("intro")),
+            "vod_play_from": "TG影视库",
+            "vod_play_url": "#".join(names),
+        }
+
     def searchContent(self, key, quick=False, pg=1):
-        pg = _norm_pg(pg)
-        if pg < 1:
-            pg = 1
-        items = _parse_shows(_http_json('/api/search', {'q': str(key).strip()}))
-        return {'list': items, 'page': pg, 'pagecount': 0, 'total': 0}
+        keyword = str(key or "").strip()
+        if not keyword:
+            return self._page_result([], 1)
+        try:
+            data = self.client.search(keyword)
+        except TgdramaError:
+            return self._page_result([], 1)
+        items = [TgdramaMapper.show_vod(raw, self.config["base_url"])
+                 for raw in _as_list(data)]
+        return self._page_result(items, 1, max(len(items), 50), len(items))
 
     def playerContent(self, flag, id, vipFlags=None):
-        raw = str(id or '')
-        if '$' in raw:
-            raw = raw.split('$', 1)[1]
-        if raw.startswith('tgdrama:'):
-            raw = raw.split(':', 1)[1].strip()
-        if raw.startswith('http'):
-            return {'parse': 0, 'playUrl': raw, 'url': raw, 'header': {}}
-        if not raw:
-            return {'parse': 0, 'playUrl': '', 'url': '', 'header': {}}
-        url = BASE + '/api/episodes/' + urllib.parse.quote(raw) + '/hls/index.m3u8'
-        return {'parse': 0, 'playUrl': url, 'url': url, 'header': {}}
+        raw = str(id or "")
+        if "$" in raw:
+            raw = raw.split("$", 1)[1]
+        ref = TgdramaMapper.unpack(raw)
+        episode_id = None
+        if ref and ref["kind"] == "ep":
+            episode_id = ref["data"].get("id")
+        elif raw.startswith("tgdrama:"):
+            rest = raw.split(":", 1)[1].strip()
+            if rest.isdigit():
+                episode_id = rest
+        if not episode_id:
+            return {"parse": 0, "playUrl": "", "url": "", "header": {}}
+        try:
+            lines = self.client.episodes_lines(episode_id)
+        except TgdramaError as error:
+            return {"parse": 0, "playUrl": "", "url": "", "header": {}, "msg": str(error)}
+        groups = [line for line in (lines.get("lines") or []) if line.get("segments")]
+        if not groups:
+            url = self.client.episode_stream_url(episode_id)
+            return {"parse": 0, "playUrl": url, "url": url, "header": {}}
+        segments = groups[0].get("segments") or []
+        url = ""
+        if len(segments) > 1 and self.client.hls_playable(episode_id):
+            url = self.client.hls_index_url(episode_id)
+        if not url:
+            first = segments[0]
+            url = self.client.segment_stream_url(first.get("id"))
+        try:
+            duration = 0.0
+            if segments:
+                duration = float(segments[0].get("duration") or 0)
+            self.client.save_history(episode_id, 0.0, duration)
+        except TgdramaError:
+            pass
+        return {
+            "parse": 0,
+            "playUrl": url,
+            "url": url,
+            "header": {},
+            "msg": "第%s集 · %s" % (
+                lines.get("episode", {}).get("episode_no", "?"),
+                groups[0].get("chat_name") or "TG直连",
+            ),
+        }
 
-    def localProxy(self, param):
-        return [404, 'text/plain', b'', {}]
+    def action(self, action=None, params=None):
+        name = ""
+        value = {}
+        if isinstance(action, dict):
+            name = str(action.get("action") or "")
+            value = action.get("value") or {}
+        elif isinstance(action, str):
+            text = action.strip()
+            if text.startswith("{"):
+                try:
+                    data = json.loads(text)
+                    name = str(data.get("action") or "")
+                    value = data.get("value") or {}
+                except ValueError:
+                    name = text
+            else:
+                name = text
+        if isinstance(params, dict):
+            value = params
+        if isinstance(value, dict) and isinstance(value.get("menu"), str):
+            try:
+                inner = json.loads(value["menu"])
+            except ValueError:
+                inner = None
+            if isinstance(inner, dict) and inner.get("action"):
+                name = inner.get("action") or name
+                value = inner.get("value") or {}
+        try:
+            if name == "tg_chats_sync":
+                tg_chat_id = (value or {}).get("tg_chat_id")
+                if tg_chat_id is None:
+                    return {"toast": "缺少频道 ID"}
+                self.client.sync_chats(tg_chat_id)
+                return {"toast": "已提交同步，稍后自动刷新"}
+            if name == "tg_chat_set":
+                values = value if isinstance(value, dict) else {}
+                tg_chat_id = values.get("tg_chat_id")
+                if not tg_chat_id:
+                    return {"toast": "缺少频道 ID"}
+                want = str(values.get("enabled")).lower() in ("1", "true", "yes", "on")
+                self.client.toggle_chat(tg_chat_id, want)
+                return {"toast": "已启用，正在后台同步…" if want else "已停用，不再采集新消息"}
+            if name == "tg_cache_clear":
+                self.client.clear_cache()
+                self._show_chats = {}
+                return {"toast": "视频缓存已清空"}
+            if name in ("tg_login", "tg_login_status", "tg_password", "tg_login_refresh"):
+                return {"toast": "请到设置 → Telegram 登录里操作"}
+            return {"toast": "未知操作"}
+        except (TgdramaError, OSError, ValueError) as error:
+            return {"toast": "操作失败：%s" % error}
 
     def isVideoFormat(self, url):
-        return False
+        text = str(url or "").lower()
+        if not text:
+            return False
+        return any(k in text for k in ("/api/stream/", "/api/episodes/", ".m3u8", ".mp4"))
 
     def manualVideoCheck(self):
         return True
 
-    def action(self, action, params=None):
-        return {'code': 0, 'msg': 'ok'}
+    def localProxy(self, param=None):
+        return [404, "text/plain", b"", {}]
