@@ -10,6 +10,8 @@ class FakeTgdramaService extends TgdramaService {
   String? errorOverride;
   bool authorized = false;
   bool needPassword = false;
+  bool qrStarted = false;
+  String? submittedPassword;
   String logTail = '';
   int? exitCode;
   int authStatusCalls = 0;
@@ -34,11 +36,24 @@ class FakeTgdramaService extends TgdramaService {
       needPassword: needPassword,
     );
   }
+
+  @override
+  Future<void> startQrLogin() async {
+    qrStarted = true;
+  }
+
+  @override
+  String get qrImageUrl => 'http://127.0.0.1:5278/api/auth/qr.png';
+
+  @override
+  Future<void> submitPassword(String password) async {
+    submittedPassword = password;
+  }
 }
 
 class FakePhoneLoginService extends TgdramaPhoneLoginService {
   bool available = false;
-  String reason = '手机号登录暂不可用：缺少 Telegram API 凭证';
+  String reason = '手机号登录暂不可用：缺少 Telegram API 凭证，请先用扫码登录';
   int sendCodeCalls = 0;
   int verifyCodeCalls = 0;
   String? lastCode;
@@ -101,13 +116,13 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('未登录时只显示手机号登录区，扫码区已撤掉', (tester) async {
+  testWidgets('未登录时显示状态与两种登录区，手机号不可用原因原样显示', (tester) async {
     await pumpPage(tester);
 
     expect(find.text('未登录'), findsOneWidget);
-    expect(find.text('扫码登录'), findsNothing);
-    expect(find.text('开始扫码'), findsNothing);
+    expect(find.text('扫码登录'), findsOneWidget);
     expect(find.text('手机号登录'), findsOneWidget);
+    expect(find.text('开始扫码'), findsOneWidget);
     expect(find.text('发送验证码'), findsOneWidget);
     expect(find.text(fakePhone.reason), findsOneWidget);
     expect(find.byKey(const ValueKey('tgdrama_code_field')), findsNothing);
@@ -131,6 +146,93 @@ void main() {
 
     expect(find.text('进程日志（最后几行）：'), findsOneWidget);
     expect(find.text('fatal: config.yaml not found'), findsOneWidget);
+  });
+
+  testWidgets('扫码流程：点开始扫码弹窗出二维码，轮询成功关弹窗显示登录成功', (tester) async {
+    await pumpPage(tester);
+
+    await tester.tap(find.text('开始扫码'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(fakeService.qrStarted, isTrue);
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(find.byType(Image), findsOneWidget);
+    expect(find.text('等待扫码…（最多 5 分钟）'), findsOneWidget);
+
+    fakeService.authorized = true;
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(find.text('登录成功'), findsOneWidget);
+    expect(find.text('已登录'), findsOneWidget);
+  });
+
+  testWidgets('扫码二步验证：轮询到 needPassword 弹密码框，提交后继续轮询', (tester) async {
+    fakeService.needPassword = true;
+    await pumpPage(tester);
+
+    await tester.tap(find.text('开始扫码'));
+    await tester.pump();
+    await tester.pump();
+
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+
+    expect(find.text('二步验证'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const ValueKey('tgdrama_password_field')),
+      'pw123',
+    );
+    await tester.tap(find.text('提交'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(fakeService.submittedPassword, 'pw123');
+    expect(find.text('二步验证'), findsNothing);
+
+    fakeService.needPassword = false;
+    fakeService.authorized = true;
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(find.text('登录成功'), findsOneWidget);
+  });
+
+  testWidgets('扫码密码框点取消：两层弹窗都关、停轮询、回登录页状态', (tester) async {
+    fakeService.needPassword = true;
+    await pumpPage(tester);
+
+    await tester.tap(find.text('开始扫码'));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+
+    expect(find.text('二步验证'), findsOneWidget);
+    await tester.tap(
+      find.descendant(
+        of: find.ancestor(
+          of: find.text('二步验证'),
+          matching: find.byType(AlertDialog),
+        ),
+        matching: find.text('取消'),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('二步验证'), findsNothing);
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(find.text('开始扫码'), findsOneWidget);
+    final callsAfterCancel = fakeService.authStatusCalls;
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pump();
+    expect(fakeService.authStatusCalls, callsAfterCancel);
   });
 
   testWidgets('手机号区点发送时服务不可用，页内原样显示中文原因', (tester) async {

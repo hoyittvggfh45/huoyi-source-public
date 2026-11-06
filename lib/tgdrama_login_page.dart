@@ -30,12 +30,25 @@ class _TgdramaLoginPageState extends State<TgdramaLoginPage> {
   String? _statusError;
   String _serviceLog = '';
 
+  bool _qrActive = false;
+  bool _qrBusy = false;
+  String? _qrError;
+  int _qrTimestamp = 0;
+  Timer? _pollTimer;
+  int _pollCount = 0;
   bool _passwordDialogOpen = false;
+  bool _qrDialogOpen = false;
+  bool _qrRegenerating = false;
+  bool _qrSuspendedForPassword = false;
+  StateSetter? _qrDialogRefresh;
 
   PhoneLoginAvailability? _phoneAvailability;
   bool _phoneBusy = false;
   String? _phoneMessage;
   bool _codeSent = false;
+
+  static const _pollInterval = Duration(seconds: 2);
+  static const _maxPolls = 150;
 
   @override
   void initState() {
@@ -46,6 +59,13 @@ class _TgdramaLoginPageState extends State<TgdramaLoginPage> {
 
   @override
   void dispose() {
+    _stopPolling();
+    if (_qrDialogOpen) {
+      _qrDialogOpen = false;
+      try {
+        Navigator.of(context).maybePop();
+      } catch (_) {}
+    }
     _phoneController.dispose();
     super.dispose();
   }
@@ -83,7 +103,185 @@ class _TgdramaLoginPageState extends State<TgdramaLoginPage> {
     setState(() => _phoneAvailability = availability);
   }
 
-  Future<void> _showPasswordDialog({String? phoneCode}) async {
+  void _stopPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = null;
+  }
+
+  Future<void> _startQr() async {
+    setState(() {
+      _qrBusy = true;
+      _qrError = null;
+      _loginSuccess = false;
+    });
+    try {
+      await _service.startQrLogin();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _qrBusy = false;
+        _qrError = _plainError(e);
+      });
+      return;
+    }
+    if (!mounted) return;
+    setState(() {
+      _qrBusy = false;
+      _qrActive = true;
+      _qrTimestamp = DateTime.now().millisecondsSinceEpoch;
+      _pollCount = 0;
+    });
+    _showQrDialog();
+    _startPolling();
+  }
+
+  void _startPolling() {
+    _stopPolling();
+    _pollTimer = Timer.periodic(_pollInterval, (_) => _pollOnce());
+  }
+
+  void _refreshQrDialog() {
+    _qrDialogRefresh?.call(() {});
+  }
+
+  Future<void> _showQrDialog() async {
+    if (_qrDialogOpen) return;
+    _qrDialogOpen = true;
+    _qrRegenerating = false;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          _qrDialogRefresh = setDialogState;
+          return AlertDialog(
+            title: const Text('扫码登录'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Image.network(
+                  '${_service.qrImageUrl}?t=$_qrTimestamp',
+                  width: 260,
+                  height: 260,
+                  errorBuilder: (context, error, stackTrace) => const SizedBox(
+                    width: 260,
+                    height: 260,
+                    child: Center(child: Text('二维码加载失败，请点“重新生成”重试')),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text('打开手机 Telegram，扫一扫上面的二维码。'),
+                const SizedBox(height: 4),
+                const Text('等待扫码…（最多 5 分钟）'),
+                if (_qrError != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    _qrError!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('取消'),
+              ),
+              FilledButton(
+                onPressed: _qrBusy
+                    ? null
+                    : () {
+                        _qrRegenerating = true;
+                        Navigator.of(dialogContext).pop();
+                        _startQr();
+                      },
+                child: const Text('重新生成'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    _qrDialogRefresh = null;
+    _qrDialogOpen = false;
+    if (_qrRegenerating) {
+      _qrRegenerating = false;
+      return;
+    }
+    if (_qrSuspendedForPassword) {
+      _qrSuspendedForPassword = false;
+      return;
+    }
+    if (_qrActive) _cancelQr();
+  }
+
+  void _closeQrDialog() {
+    if (!_qrDialogOpen) return;
+    _qrDialogOpen = false;
+    try {
+      Navigator.of(context).pop();
+    } catch (_) {}
+  }
+
+  Future<void> _pollOnce() async {
+    if (!mounted || !_qrActive) return;
+    _pollCount++;
+    if (_pollCount > _maxPolls) {
+      _stopPolling();
+      if (!mounted) return;
+      setState(() {
+        _qrActive = false;
+        _qrError = '扫码已超时（5 分钟），请点“重新生成”再扫一次';
+      });
+      _refreshQrDialog();
+      return;
+    }
+    TgdramaAuthStatus status;
+    try {
+      status = await _service.authStatus();
+    } catch (e) {
+      _stopPolling();
+      if (!mounted) return;
+      setState(() {
+        _qrActive = false;
+        _qrError = '轮询登录状态出错：${_plainError(e)}';
+      });
+      _refreshQrDialog();
+      return;
+    }
+    if (!mounted || !_qrActive) return;
+    if (status.authorized) {
+      _stopPolling();
+      setState(() {
+        _qrActive = false;
+        _authorized = true;
+        _loginSuccess = true;
+        _qrError = null;
+      });
+      if (!_passwordDialogOpen) _closeQrDialog();
+      return;
+    }
+    if (status.needPassword && !_passwordDialogOpen) {
+      _qrSuspendedForPassword = true;
+      _closeQrDialog();
+      _showPasswordDialog(forQr: true);
+    }
+  }
+
+  void _cancelQr() {
+    _stopPolling();
+    setState(() {
+      _qrActive = false;
+      _qrError = null;
+    });
+  }
+
+  Future<void> _showPasswordDialog({
+    required bool forQr,
+    String? phoneCode,
+  }) async {
     if (_passwordDialogOpen) return;
     _passwordDialogOpen = true;
     final controller = TextEditingController();
@@ -116,6 +314,7 @@ class _TgdramaLoginPageState extends State<TgdramaLoginPage> {
                       _submitPasswordFromDialog(
                         dialogContext,
                         controller.text,
+                        forQr: forQr,
                         phoneCode: phoneCode,
                         setDialogState: setDialogState,
                         setError: (value) => dialogError = value,
@@ -137,7 +336,10 @@ class _TgdramaLoginPageState extends State<TgdramaLoginPage> {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(false),
+                onPressed: () {
+                  if (forQr) _cancelQr();
+                  Navigator.of(dialogContext).pop(false);
+                },
                 child: const Text('取消'),
               ),
               FilledButton(
@@ -146,6 +348,7 @@ class _TgdramaLoginPageState extends State<TgdramaLoginPage> {
                     : () => _submitPasswordFromDialog(
                         dialogContext,
                         controller.text,
+                        forQr: forQr,
                         phoneCode: phoneCode,
                         setDialogState: setDialogState,
                         setError: (value) => dialogError = value,
@@ -158,7 +361,11 @@ class _TgdramaLoginPageState extends State<TgdramaLoginPage> {
         ),
       );
       if (submitted == true && mounted) {
-        await _refreshStatus();
+        if (forQr) {
+          if (_qrActive) _startPolling();
+        } else {
+          await _refreshStatus();
+        }
       }
     } finally {
       _passwordDialogOpen = false;
@@ -169,6 +376,7 @@ class _TgdramaLoginPageState extends State<TgdramaLoginPage> {
   Future<void> _submitPasswordFromDialog(
     BuildContext dialogContext,
     String password, {
+    required bool forQr,
     String? phoneCode,
     required void Function(void Function()) setDialogState,
     required void Function(String value) setError,
@@ -183,11 +391,15 @@ class _TgdramaLoginPageState extends State<TgdramaLoginPage> {
       setError('');
     });
     try {
-      await _phoneLogin.verifyCode(
-        phone: _phoneController.text,
-        code: phoneCode ?? '',
-        password: password,
-      );
+      if (forQr) {
+        await _service.submitPassword(password);
+      } else {
+        await _phoneLogin.verifyCode(
+          phone: _phoneController.text,
+          code: phoneCode ?? '',
+          password: password,
+        );
+      }
     } catch (e) {
       if (!dialogContext.mounted) return;
       setDialogState(() {
@@ -326,7 +538,7 @@ class _TgdramaLoginPageState extends State<TgdramaLoginPage> {
       if (!dialogContext.mounted) return;
       if (_looksLikePasswordNeeded(message)) {
         Navigator.of(dialogContext).pop();
-        await _showPasswordDialog(phoneCode: code);
+        await _showPasswordDialog(forQr: false, phoneCode: code);
         return;
       }
       setDialogState(() {
@@ -367,6 +579,8 @@ class _TgdramaLoginPageState extends State<TgdramaLoginPage> {
         children: [
           _buildStatusCard(context),
           const SizedBox(height: 16),
+          _buildQrSection(context),
+          const SizedBox(height: 16),
           _buildPhoneSection(context),
         ],
       ),
@@ -392,7 +606,7 @@ class _TgdramaLoginPageState extends State<TgdramaLoginPage> {
       icon = Icons.check_circle;
     } else {
       title = '未登录';
-      subtitle = '请用下面的手机号登录';
+      subtitle = '请用下面的扫码或手机号登录';
       icon = Icons.account_circle;
     }
     return Card(
@@ -436,6 +650,49 @@ class _TgdramaLoginPageState extends State<TgdramaLoginPage> {
             if (_loginSuccess) ...[
               const SizedBox(height: 4),
               Text('登录成功', style: TextStyle(color: theme.colorScheme.primary)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQrSection(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('扫码登录', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            const Text('点“开始扫码”，弹窗出二维码，用手机 Telegram 扫一扫。'),
+            const SizedBox(height: 12),
+            if (_qrActive) ...[
+              const Text('正在等待扫码…'),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  OutlinedButton(
+                    onPressed: _showQrDialog,
+                    child: const Text('查看二维码'),
+                  ),
+                  const SizedBox(width: 12),
+                  OutlinedButton(onPressed: _cancelQr, child: const Text('取消')),
+                ],
+              ),
+            ] else ...[
+              FilledButton(
+                onPressed: _qrBusy ? null : _startQr,
+                child: Text(_qrBusy ? '正在开始…' : '开始扫码'),
+              ),
+            ],
+            if (_qrError != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                _qrError!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
             ],
           ],
         ),

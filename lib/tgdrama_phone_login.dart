@@ -175,14 +175,14 @@ class TgdramaPhoneLoginService {
     if (!await helper.exists()) {
       return const PhoneLoginAvailability(
         available: false,
-        reason: '手机号登录暂不可用：登录助手未就绪（tgphone 未安装）',
+        reason: '手机号登录暂不可用：登录助手未就绪（tgphone 未安装），请先用扫码登录',
       );
     }
     final config = File(await _configPath());
     if (!await config.exists()) {
       return const PhoneLoginAvailability(
         available: false,
-        reason: '手机号登录暂不可用：插件配置文件不存在，缺少 Telegram API 凭证',
+        reason: '手机号登录暂不可用：插件配置文件不存在，缺少 Telegram API 凭证，请先用扫码登录',
       );
     }
     final creds = await _readTelegramCredentials(config);
@@ -193,7 +193,7 @@ class TgdramaPhoneLoginService {
       return const PhoneLoginAvailability(
         available: false,
         reason:
-            '手机号登录暂不可用：缺少 Telegram API 凭证（config.yaml 里没有 api_id/api_hash）',
+            '手机号登录暂不可用：缺少 Telegram API 凭证（config.yaml 里没有 api_id/api_hash），请先用扫码登录',
       );
     }
     return const PhoneLoginAvailability(available: true, reason: '可用');
