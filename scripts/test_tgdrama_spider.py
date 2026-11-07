@@ -600,7 +600,7 @@ class TgdramaSpiderTest(unittest.TestCase):
         self.assertEqual(stub.refresh_calls, 2)
         spider.homeContent(True)
         self.assertEqual(stub.refresh_calls, 3)
-        spider._last_chats_refresh = 0.0
+        spider._last_chats_refresh = None
         spider.homeContent(False)
         self.assertEqual(stub.refresh_calls, 4)
 

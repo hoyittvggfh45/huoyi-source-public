@@ -400,7 +400,7 @@ class Spider(BaseSpider):
         self.config = deepcopy(DEFAULT_CONFIG)
         self.client = TgdramaHttpClient(self.config)
         self._show_chats = {}
-        self._last_chats_refresh = 0.0
+        self._last_chats_refresh = None
         self._home_calls = 0
         self._sync_triggered = set()
 
@@ -506,7 +506,7 @@ class Spider(BaseSpider):
 
     def _maybe_refresh_chats(self, force=False):
         now = time.monotonic()
-        if not force and now - self._last_chats_refresh < 300.0:
+        if not force and self._last_chats_refresh is not None and now - self._last_chats_refresh < 300.0:
             return False
         self._last_chats_refresh = now
         try:
