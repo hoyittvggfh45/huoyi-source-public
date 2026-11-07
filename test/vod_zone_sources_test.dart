@@ -1,4 +1,5 @@
 import 'package:duanju_app/models.dart';
+import 'package:duanju_app/zakatv_builtin.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -71,6 +72,17 @@ void main() {
         origin: SourceSite.originBuiltin,
       );
       expect(isVodZoneSource(site), isFalse);
+    });
+    test('黄果/黄豆 jar 站登记在短剧区', () {
+      final byKey = {
+        for (final site in zakatvBuiltinSites) site.key: site,
+      };
+      expect(byKey['ZakaHgdj']?.section, SourceSite.sectionDrama);
+      expect(byKey['ZakaHddj']?.section, SourceSite.sectionDrama);
+      expect(byKey['ZakaHgdj']?.className,
+          'com.github.catvod.spider.ZakaHgdjAmns');
+      expect(byKey['ZakaHddj']?.className,
+          'com.github.catvod.spider.ZakaHddjAmns');
     });
   });
 }

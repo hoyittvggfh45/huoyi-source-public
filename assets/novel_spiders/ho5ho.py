@@ -71,7 +71,7 @@ def _get(url):
         'Referer': BASE + '/',
     })
     try:
-        with urllib.request.urlopen(req, timeout=30) as r:
+        with urllib.request.urlopen(req, timeout=60) as r:
             return r.read().decode('utf-8', 'ignore')
     except Exception:
         return ''
@@ -147,7 +147,7 @@ def _norm_extend(extend):
 
 class Spider(BaseSpider):
     def getName(self):
-        return 'Ho5ho'
+        return '🔞Ho5ho'
 
     def getDependence(self):
         return []

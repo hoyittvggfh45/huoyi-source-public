@@ -16,7 +16,7 @@ except Exception:
     requests = None
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
-SITE_NAME = "H有声小说"
+SITE_NAME = "🔞H有声小说"
 SITE_KEY = "hysxs"
 HOSTS = [
     "62.hysxs.work",

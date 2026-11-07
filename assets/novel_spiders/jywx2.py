@@ -136,7 +136,7 @@ def _home_items():
 
 class Spider(BaseSpider):
     def getName(self):
-        return 'jywx2'
+        return '🔞jywx2'
 
     def getDependence(self):
         return []

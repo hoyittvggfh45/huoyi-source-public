@@ -309,7 +309,7 @@ def _empty_detail(vod_id):
 class Spider(BaseSpider):
 
     def getName(self):
-        return 'AVHWA'
+        return '🔞AVHWA'
 
     def getDependence(self):
         return []

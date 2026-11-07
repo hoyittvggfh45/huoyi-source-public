@@ -7,7 +7,6 @@ import 'core_bridge.dart';
 import 'live_http.dart';
 import 'live_models.dart';
 import 'live_parser.dart';
-import 'live_platform_api.dart';
 import 'live_sources.dart';
 
 class LiveRepository {
@@ -50,7 +49,6 @@ class LiveRepository {
     final token = _generation;
     final result = switch (source.protocol) {
       LiveProtocol.pingtai => await _pingtaiPlatforms(source),
-      LiveProtocol.platform => livePlatformCategories(source.id),
       LiveProtocol.list => const [LivePlatform(id: 'all', name: '全部频道')],
     };
     if (result.isEmpty) throw AppFailure('该直播源没有可用分类');
@@ -76,7 +74,6 @@ class LiveRepository {
     }
     final result = switch (source.protocol) {
       LiveProtocol.pingtai => await _pingtaiChannels(source, platform),
-      LiveProtocol.platform => await _platformChannels(source, platform, page),
       LiveProtocol.list => await _listChannels(source),
     };
     if (result.isEmpty) throw AppFailure('该分类暂时没有频道');
@@ -86,45 +83,11 @@ class LiveRepository {
 
   Future<LivePlayback> playback(LiveSource source, LiveChannel channel) async {
     switch (source.protocol) {
-      case LiveProtocol.platform:
-        final request = livePlaybackRequestUrl(source.id, channel);
-        if (request.isEmpty) throw AppFailure('该频道没有可用线路');
-        final body = await _http.get(request, headers: source.headers);
-        final urls = liveParsePlaybackUrls(source.id, body);
-        if (urls.isEmpty) throw AppFailure('该频道暂时无法播放');
-        return LivePlayback(url: urls.first, headers: source.headers);
       case LiveProtocol.pingtai:
       case LiveProtocol.list:
         if (channel.urls.isEmpty) throw AppFailure('该频道没有可用线路');
         return LivePlayback(url: channel.urls.first, headers: channel.headers);
     }
-  }
-
-  Future<List<LiveChannel>> _platformChannels(
-    LiveSource source,
-    LivePlatform platform,
-    int page,
-  ) async {
-    final perFetch = liveRoomsPagesPerFetch(source.id);
-    final first = (page - 1) * perFetch + 1;
-    final channels = <LiveChannel>[];
-    final seen = <String>{};
-    for (var index = 0; index < perFetch; index++) {
-      final text = await _http.get(
-        liveRoomsUrl(source.id, platform.id, first + index),
-        headers: source.headers,
-      );
-      for (final channel in liveParseRooms(
-        source.id,
-        platform,
-        text,
-        firstNumber: channels.length + 1,
-      )) {
-        final identity = channel.token.isEmpty ? channel.key : channel.token;
-        if (seen.add(identity)) channels.add(channel);
-      }
-    }
-    return channels;
   }
 
   /// 合并同一面板的所有镜像：各镜像共享内容但分类子集不同，取并集后去重，

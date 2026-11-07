@@ -75,7 +75,7 @@ class LiveParser {
       final json = _parseJson(normalized, source);
       if (json != null && !json.isEmpty) return json;
     }
-    if (!_genre.hasMatch(normalized) && _m3uHeader.hasMatch(normalized)) {
+    if (_m3uHeader.hasMatch(normalized)) {
       return _parseM3u(normalized, source, defaultGroup);
     }
     return _parseText(normalized, source, defaultGroup);
@@ -174,8 +174,9 @@ class LiveParser {
         continue;
       }
       if (raw.startsWith('#EXTINF:')) {
-        final name = _afterComma(raw);
-        if (name.isEmpty || _isMetaChannel(name)) {
+        var name = _afterComma(raw);
+        if (name.isEmpty) name = '未命名频道';
+        if (_isMetaChannel(name)) {
           pending = null;
           continue;
         }

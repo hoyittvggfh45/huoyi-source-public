@@ -360,7 +360,7 @@ def _empty_detail(vod_id):
 class Spider(BaseSpider):
 
     def getName(self):
-        return 'A色TV'
+        return '🔞A色TV'
 
     def getDependence(self):
         return []

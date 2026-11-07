@@ -52,7 +52,7 @@ def _fetch(path):
         API + path,
         headers={'User-Agent': UA, 'Accept': 'application/json', 'Referer': SITE + '/'},
     )
-    with urllib.request.urlopen(req, timeout=30) as resp:
+    with urllib.request.urlopen(req, timeout=60) as resp:
         return resp.read().decode('utf-8', 'ignore')
 
 
@@ -96,7 +96,7 @@ class Spider(BaseSpider):
         self._server = None
 
     def getName(self):
-        return 'modu18'
+        return '🔞modu18'
 
     def getDependence(self):
         return []

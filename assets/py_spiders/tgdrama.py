@@ -1,7 +1,6 @@
 import base64
 import http.client
 import json
-import os
 import ssl
 import time
 import urllib.parse
@@ -22,11 +21,10 @@ DEFAULT_CONFIG = {
     "timeout": 12,
     "page_size": 30,
     "channel_scan_max": 200,
-    "db_path": "",
 }
 
 
-FALLBACK_CHANNELS = (
+HARDCODED_CHANNELS = (
     (2753266064, "日本精品av|中文字幕|Jav", "jav_all"),
     (2698059227, "日本AV|母子乱伦|巨乳调教💯", "JableTVB"),
     (3523242707, "AI成人短剧/黄果短剧/黄豆魔改短剧", "craimgd"),
@@ -80,6 +78,20 @@ FALLBACK_CHANNELS = (
     (2038170041, "全网精选资源🔞", "xianyu44"),
     (2401842508, "海角社区|偷情乱伦精选", "haijiaojingxuan"),
 )
+
+
+EXT_CHANNELS = (
+    ("超清AV", "cctv_av"),
+    ("那些极品姐姐", "zfjp1024"),
+    ("麻豆 girl", "madougirl"),
+    ("黄果漫剧", "hgmanju"),
+    ("海角 AV", "hjgc0"),
+    ("无码 91", "wmav91"),
+    ("收藏 AV", "shoucangav"),
+)
+
+
+IN_ACCOUNT = ("zfjp1024", "hgmanju", "wmav91", "shoucangav")
 
 
 class TgdramaError(Exception):
@@ -457,8 +469,6 @@ class Spider(BaseSpider):
                     self.config[key] = value
         if "timeout" in options:
             self.config["timeout"] = TgdramaHttpClient._positive_int(options["timeout"], 12, 3, 60)
-        if "db_path" in options:
-            self.config["db_path"] = str(options["db_path"] or "").strip()
         if "page_size" in options:
             self.config["page_size"] = TgdramaHttpClient._positive_int(options["page_size"], 30, 1, 100)
         if not str(self.config.get("base_url") or "").startswith("http"):
@@ -480,36 +490,84 @@ class Spider(BaseSpider):
             return None
 
     @staticmethod
-    def _fallback_rows():
+    def _hardcoded_dict(bare_id, title, username):
+        full_id = Spider._full_tg_id(bare_id)
+        if full_id is None:
+            return None
+        return {
+            "id": None,
+            "tg_chat_id": full_id,
+            "name": title,
+            "username": username,
+            "type": "channel",
+            "enabled": 0,
+            "syncing": 0,
+            "message_count": 0,
+            "source_count": 0,
+            "_hardcoded": True,
+        }
+
+    @staticmethod
+    def _hardcoded_rows():
         rows = []
-        for bare_id, title, username in FALLBACK_CHANNELS:
-            full_id = Spider._full_tg_id(bare_id)
-            if full_id is None:
-                continue
-            rows.append({
-                "id": None,
-                "tg_chat_id": full_id,
-                "name": title,
-                "username": username,
-                "type": "channel",
-                "enabled": 0,
-                "syncing": 0,
-                "message_count": 0,
-                "source_count": 0,
-                "_fallback": True,
-            })
+        for bare_id, title, username in HARDCODED_CHANNELS:
+            row = Spider._hardcoded_dict(bare_id, title, username)
+            if row is not None:
+                rows.append(row)
         return rows
 
     @staticmethod
-    def _fallback_row(tg_chat_id):
-        try:
-            target = int(str(tg_chat_id).strip())
-        except (TypeError, ValueError):
+    def _hardcoded_row(tid):
+        if tid is None:
             return None
-        for row in Spider._fallback_rows():
-            if row["tg_chat_id"] == target:
-                return row
+        want = str(tid).strip()
+        if not want:
+            return None
+        lower = want.lower()
+        for bare_id, title, username in HARDCODED_CHANNELS:
+            if (username and username.lower() == lower) or str(bare_id) == want:
+                return Spider._hardcoded_dict(bare_id, title, username)
         return None
+
+    def _find_chat(self, username):
+        if username is None:
+            return None
+        want = str(username).strip().lower()
+        if not want:
+            return None
+        for chat in self._chats():
+            if not isinstance(chat, dict):
+                continue
+            name = str(chat.get("username") or "").strip()
+            if name and name.lower() == want:
+                return chat
+        return None
+
+    def _find_chat_by_hardcoded(self, hard):
+        if not isinstance(hard, dict):
+            return None
+        username = str(hard.get("username") or "").strip()
+        if username:
+            chat = self._find_chat(username)
+            if chat is not None:
+                return chat
+        target = hard.get("tg_chat_id")
+        for chat in self._chats():
+            if not isinstance(chat, dict):
+                continue
+            try:
+                if int(chat.get("tg_chat_id")) == int(target):
+                    return chat
+            except (TypeError, ValueError):
+                continue
+        return None
+
+    @staticmethod
+    def _ext_display(username):
+        for name, user in EXT_CHANNELS:
+            if user == username:
+                return name
+        return username
 
     def _maybe_refresh_chats(self, force=False):
         now = time.monotonic()
@@ -521,45 +579,60 @@ class Spider(BaseSpider):
         except Exception:
             return False
 
-    def _resolve_channels(self):
-        chats = self._chats()
-        for chat in chats:
-            if isinstance(chat, dict) and _is_enabled(chat.get("enabled")):
-                return chats, False
-        if self._maybe_refresh_chats():
-            chats = self._chats()
-            for chat in chats:
-                if isinstance(chat, dict) and _is_enabled(chat.get("enabled")):
-                    return chats, False
-        return self._fallback_rows(), True
+    @staticmethod
+    def _add_class(classes, tid, name):
+        classes.append({
+            "type_id": tid,
+            "type_name": name or tid,
+            "type_flag": "1",
+            "land": 1,
+            "ratio": 1.78,
+        })
 
-    def _classes(self):
+    def _hardcoded_classes(self, classes):
+        seen = set()
+        for bare_id, title, username in HARDCODED_CHANNELS:
+            tid = username if username else str(bare_id)
+            self._add_class(classes, tid, title)
+            seen.add(username.lower())
+        for name, username in EXT_CHANNELS:
+            if username.lower() not in seen:
+                self._add_class(classes, username, name)
+
+    def _classes(self, service_up):
         classes = []
-        chats, is_fallback = self._resolve_channels()
-        for chat in chats:
-            if not isinstance(chat, dict):
-                continue
-            if is_fallback:
-                classes.append({
-                    "type_id": "chantg:%s" % chat["tg_chat_id"],
-                    "type_name": str(chat.get("name") or chat.get("tg_chat_id")),
-                    "type_flag": "1",
-                    "land": 1,
-                    "ratio": 1.78,
-                })
-                continue
-            if not _is_enabled(chat.get("enabled")):
-                continue
-            chat_id = chat.get("id")
-            if chat_id is None:
-                continue
-            classes.append({
-                "type_id": "chan:%s" % chat_id,
-                "type_name": str(chat.get("name") or chat.get("tg_chat_id") or chat_id),
-                "type_flag": "1",
-                "land": 1,
-                "ratio": 1.78,
-            })
+        if service_up:
+            chats = self._chats()
+            if not chats:
+                self._hardcoded_classes(classes)
+            else:
+                ext_users = {user.lower() for _name, user in EXT_CHANNELS}
+                enabled_users = set()
+                for chat in chats:
+                    if not isinstance(chat, dict):
+                        continue
+                    if not _is_enabled(chat.get("enabled")):
+                        continue
+                    username = str(chat.get("username") or "").strip()
+                    if username:
+                        enabled_users.add(username.lower())
+                for name, username in EXT_CHANNELS:
+                    if username.lower() in enabled_users:
+                        self._add_class(classes, username, name)
+                for chat in chats:
+                    if not isinstance(chat, dict):
+                        continue
+                    if not _is_enabled(chat.get("enabled")):
+                        continue
+                    username = str(chat.get("username") or "").strip()
+                    if not username or username.lower() in ext_users:
+                        continue
+                    self._add_class(classes, username, str(chat.get("name") or username))
+                for name, username in EXT_CHANNELS:
+                    if username.lower() not in enabled_users:
+                        self._add_class(classes, username, name)
+        else:
+            self._hardcoded_classes(classes)
         classes.extend([
             {"type_id": "favorites", "type_name": "我的收藏", "type_flag": "1", "land": 1, "ratio": 1.78},
             {"type_id": "history", "type_name": "观看历史", "type_flag": "1", "land": 1, "ratio": 1.78},
@@ -580,7 +653,16 @@ class Spider(BaseSpider):
     def homeContent(self, filter=False):
         self._maybe_refresh_chats(force=bool(filter) and self._home_calls > 0)
         self._home_calls += 1
-        return {"class": self._classes(), "filters": self._filters()}
+        up = self._service_up()
+        result = {"class": self._classes(up), "filters": self._filters()}
+        if up:
+            try:
+                result.update(self.homeVideoContent())
+            except Exception:
+                result.update({"list": [], "page": 1, "pagecount": 1, "total": 0})
+        else:
+            result.update({"list": [self._service_down_card()], "page": 1, "pagecount": 1, "total": 1})
+        return result
 
     def homeVideoContent(self):
         try:
@@ -623,68 +705,40 @@ class Spider(BaseSpider):
         self._show_chats[show_id] = ids
         return ids
 
-    def _db_path(self):
-        configured = str(self.config.get("db_path") or "").strip()
-        if configured:
-            return configured
-        env = os.environ.get("YS_TGDRAMA_DB", "").strip()
-        if env:
-            return env
-        try:
-            from com.chaquo.python import Python
-            root = Python.getPlatform().getApplication().getFilesDir().getAbsolutePath()
-            return os.path.normpath(os.path.join(root, "..", "app_flutter", "tgdrama", "tgdrama.db"))
-        except Exception:
-            return ""
+    def _service_down_card(self):
+        return TgdramaMapper.info_vod(
+            "TG影视库服务未启动",
+            TgdramaMapper.pack("info", {"key": "service_down"}),
+            "先打开一次 TG影视库启动服务",
+        )
 
-    def _channel_shows_from_db(self, chat_id, page, limit):
-        db = self._db_path()
-        if not db or not os.path.isfile(db):
-            return None
-        try:
-            import sqlite3
-            conn = sqlite3.connect("file:%s?mode=ro" % db, uri=True)
-            try:
-                cur = conn.execute(
-                    "SELECT sh.id, sh.name, sh.cover_path, sh.intro, sh.updated_at, "
-                    "(SELECT COUNT(DISTINCT e.episode_no) FROM episodes e "
-                    " JOIN sources s ON s.episode_id=e.id "
-                    " WHERE e.show_id=sh.id AND e.episode_no>=1) AS ep_count, "
-                    "(SELECT COALESCE(MAX(e.episode_no),0) FROM episodes e "
-                    " JOIN sources s ON s.episode_id=e.id "
-                    " WHERE e.show_id=sh.id AND e.episode_no>=1) AS ep_latest "
-                    "FROM shows sh "
-                    "WHERE EXISTS (SELECT 1 FROM episodes e JOIN sources s ON s.episode_id=e.id "
-                    " WHERE e.show_id=sh.id AND s.chat_id=?) "
-                    "ORDER BY sh.updated_at DESC LIMIT ? OFFSET ?",
-                    (int(chat_id), int(limit), (page - 1) * int(limit)))
-                rows = cur.fetchall()
-                cur2 = conn.execute(
-                    "SELECT COUNT(DISTINCT e.show_id) FROM episodes e "
-                    "JOIN sources s ON s.episode_id=e.id WHERE s.chat_id=?",
-                    (int(chat_id),))
-                total = int((cur2.fetchone() or (0,))[0])
-            finally:
-                conn.close()
-            items = []
-            for sid, name, cover, intro, _updated, ep_count, ep_latest in rows:
-                items.append(TgdramaMapper.show_vod({
-                    "id": sid, "name": name, "cover_path": cover or "",
-                    "intro": intro or "", "ep_count": ep_count, "ep_latest": ep_latest,
-                }, self.config["base_url"]))
-            return self._page_result(items, page, limit, total)
-        except Exception:
-            return None
+    def _not_in_account_card(self, username):
+        return TgdramaMapper.info_vod(
+            "该频道不在当前账号里",
+            TgdramaMapper.pack("info", {"key": "not_in_account:" + username}),
+            "频道 @" + username,
+        )
 
-    def _channel_page(self, tg_chat_id, page):
+    def _not_enabled_card(self, username):
+        return TgdramaMapper.info_vod(
+            "该频道未启用采集",
+            TgdramaMapper.pack("info", {"key": "not_enabled:" + username}),
+            "频道 @" + username,
+        )
+
+    def _empty_channel_card(self, username):
+        return TgdramaMapper.info_vod(
+            "该频道暂无已同步视频",
+            TgdramaMapper.pack("info", {"key": "empty_channel:" + username}),
+            "频道 @" + username,
+        )
+
+    def _channel_page_by_id(self, chat_id, page):
         try:
-            target = int(str(tg_chat_id).strip())
+            target = int(str(chat_id).strip())
         except (TypeError, ValueError):
             return self._page_result([], page)
         limit = self.config["page_size"]
-        db_result = self._channel_shows_from_db(target, page, limit)
-        if db_result is not None:
-            return db_result
         cap = self.config["channel_scan_max"]
         matched = []
         scanned = 0
@@ -718,50 +772,6 @@ class Spider(BaseSpider):
                  for raw in matched[start:start + limit]]
         return self._page_result(items, page, limit, len(matched))
 
-    def _local_chat_id(self, tg_chat_id):
-        try:
-            full = int(str(tg_chat_id).strip())
-        except (TypeError, ValueError):
-            return None
-        if full < -1000000000000:
-            candidates = [full, -full - 1000000000000]
-        elif full > 0:
-            candidates = [full, -(1000000000000 + full)]
-        else:
-            candidates = [full]
-        db = self._db_path()
-        if db and os.path.isfile(db):
-            try:
-                import sqlite3
-                conn = sqlite3.connect("file:%s?mode=ro" % db, uri=True)
-                try:
-                    for value in candidates:
-                        row = conn.execute(
-                            "SELECT id FROM chats WHERE tg_chat_id=?", (value,)).fetchone()
-                        if row:
-                            return int(row[0])
-                finally:
-                    conn.close()
-            except Exception:
-                pass
-        for chat in self._chats():
-            if not isinstance(chat, dict):
-                continue
-            try:
-                if int(chat.get("tg_chat_id")) in candidates:
-                    return int(chat.get("id"))
-            except (TypeError, ValueError):
-                continue
-        return None
-
-    def _not_synced_page(self, page=1):
-        card = TgdramaMapper.info_vod(
-            "该频道尚未同步",
-            TgdramaMapper.pack("info", {"key": "not_synced"}),
-            "去频道管理页查看同步状态",
-        )
-        return self._page_result([card], page, 1, 1)
-
     def _service_up(self):
         probe = getattr(self.client, "service_up", None)
         if probe is None:
@@ -778,12 +788,7 @@ class Spider(BaseSpider):
         except Exception:
             status = {}
         if isinstance(status, dict) and not status and not self._service_up():
-            card = TgdramaMapper.info_vod(
-                "TG影视库服务未启动",
-                TgdramaMapper.pack("info", {"key": "service_down"}),
-                "先打开一次 TG影视库启动服务",
-            )
-            return self._page_result([card], page, 1, 1)
+            return self._page_result([self._service_down_card()], page, 1, 1)
         if isinstance(status, dict) and status.get("active"):
             done = status.get("done") or 0
             total = status.get("total") or 0
@@ -818,27 +823,29 @@ class Spider(BaseSpider):
         except Exception:
             pass
 
-    def _channel_page_by_tg(self, tg_chat_id, page):
-        local_id = self._local_chat_id(tg_chat_id)
-        if local_id is None:
-            self._trigger_sync(tg_chat_id)
-            return self._syncing_page(page)
-        for chat in self._chats():
-            if not isinstance(chat, dict):
-                continue
-            try:
-                if int(chat.get("id")) != local_id:
-                    continue
-            except (TypeError, ValueError):
-                continue
-            if not _is_enabled(chat.get("enabled")):
-                self._trigger_sync(tg_chat_id)
-                return self._syncing_page(page)
-            break
-        result = self._channel_page(local_id, page)
-        if not result.get("list"):
-            self._trigger_sync(tg_chat_id)
-            return self._syncing_page(page)
+    def _channel_page_by_name(self, tid, page):
+        username = str(tid or "").strip()
+        if not self._service_up():
+            return self._page_result([self._service_down_card()], page, 1, 1)
+        chat = self._find_chat(username)
+        if chat is None:
+            hard = self._hardcoded_row(username)
+            if hard is not None:
+                self._trigger_sync(hard["tg_chat_id"])
+                chat = self._find_chat_by_hardcoded(hard)
+                if chat is None:
+                    return self._syncing_page(page)
+            else:
+                return self._page_result([self._not_in_account_card(username)], page, 1, 1)
+        if not _is_enabled(chat.get("enabled")):
+            return self._page_result([self._not_enabled_card(username)], page, 1, 1)
+        try:
+            chat_id = int(chat.get("id"))
+        except (TypeError, ValueError):
+            return self._page_result([self._not_enabled_card(username)], page, 1, 1)
+        result = self._channel_page_by_id(chat_id, page)
+        if not result.get("list") and not result.get("total"):
+            return self._page_result([self._empty_channel_card(username)], page, 1, 1)
         return result
 
     def categoryContent(self, tid, pg, filter=False, extend=None):
@@ -857,10 +864,8 @@ class Spider(BaseSpider):
             items = [TgdramaMapper.history_vod(raw, self.config["base_url"])
                      for raw in _as_list(data)]
             return self._page_result(items, 1, max(len(items), 1), len(items))
-        if isinstance(tid, str) and tid.startswith("chantg:"):
-            return self._channel_page_by_tg(tid.split(":", 1)[1], page)
-        if isinstance(tid, str) and tid.startswith("chan:"):
-            return self._channel_page(tid.split(":", 1)[1], page)
+        if isinstance(tid, str) and tid.strip() not in ("", "all", "favorites", "history", "channels"):
+            return self._channel_page_by_name(tid, page)
         favorite = tid == "favorites"
         tag = "" if favorite else str(options.get("tag") or "")
         try:
@@ -888,47 +893,88 @@ class Spider(BaseSpider):
             TgdramaMapper.pack("info", {"key": "login"}),
             "频道由插件自动发现，新频道默认启用",
         )]
-        chats, is_fallback = self._resolve_channels()
-        for chat in chats:
-            if not isinstance(chat, dict):
-                continue
-            if is_fallback:
+        chats = self._chats()
+        if chats:
+            for chat in chats:
+                if not isinstance(chat, dict):
+                    continue
+                chat_id = chat.get("id")
+                if chat_id is None:
+                    continue
+                enabled = _is_enabled(chat.get("enabled"))
+                syncing = bool(chat.get("syncing"))
+                meta = ["频道" if chat.get("type") == "channel" else "群组"]
+                if chat.get("message_count"):
+                    meta.append("消息 %s" % chat.get("message_count"))
+                if chat.get("source_count"):
+                    meta.append("视频 %s" % chat.get("source_count"))
+                meta.append("同步中…" if syncing else ("已启用" if enabled else "未采集"))
+                username = str(chat.get("username") or "").strip()
+                pack_id = username if username else "tg:%s" % chat.get("tg_chat_id")
                 items.append(TgdramaMapper.info_vod(
-                    "⬜ %s" % (chat.get("name") or chat.get("tg_chat_id")),
-                    TgdramaMapper.pack("channel", {"id": "tg:%s" % chat["tg_chat_id"]}),
+                    "%s %s" % ("✅" if enabled else "⬜", chat.get("name") or chat.get("tg_chat_id") or chat_id),
+                    TgdramaMapper.pack("channel", {"id": pack_id}),
+                    " · ".join(meta),
+                ))
+        else:
+            for bare_id, title, username in HARDCODED_CHANNELS:
+                pack_id = username if username else str(bare_id)
+                items.append(TgdramaMapper.info_vod(
+                    "⬜ %s" % title,
+                    TgdramaMapper.pack("channel", {"id": pack_id}),
                     "未同步 · 去频道管理页查看同步状态",
                 ))
-                continue
-            chat_id = chat.get("id")
-            if chat_id is None:
-                continue
-            enabled = _is_enabled(chat.get("enabled"))
-            syncing = bool(chat.get("syncing"))
-            meta = ["频道" if chat.get("type") == "channel" else "群组"]
-            if chat.get("message_count"):
-                meta.append("消息 %s" % chat.get("message_count"))
-            if chat.get("source_count"):
-                meta.append("视频 %s" % chat.get("source_count"))
-            meta.append("同步中…" if syncing else ("已启用" if enabled else "未采集"))
-            items.append(TgdramaMapper.info_vod(
-                "%s %s" % ("✅" if enabled else "⬜", chat.get("name") or chat.get("tg_chat_id") or chat_id),
-                TgdramaMapper.pack("channel", {"id": chat_id}),
-                " · ".join(meta),
-            ))
-        if not chats:
-            items.append(TgdramaMapper.info_vod(
-                "还没有频道",
-                TgdramaMapper.pack("info", {"key": "empty"}),
-                "登录 Telegram 后等插件自动发现频道",
-            ))
         return self._page_result(items, 1, max(len(items), 1), len(items))
 
     def _channel_info_detail(self, chat_id):
         text = str(chat_id or "").strip()
-        if text.startswith("tg:"):
-            row = self._fallback_row(text.split(":", 1)[1])
-            if row is None:
-                return {"list": []}
+        chat = self._find_chat(text) if text else None
+        if chat is None and text.startswith("tg:"):
+            try:
+                target = int(text.split(":", 1)[1])
+            except (TypeError, ValueError):
+                target = None
+            if target is not None:
+                for item in self._chats():
+                    if not isinstance(item, dict):
+                        continue
+                    try:
+                        if int(item.get("tg_chat_id")) == target:
+                            chat = item
+                            break
+                    except (TypeError, ValueError):
+                        continue
+        if chat is not None:
+            enabled = _is_enabled(chat.get("enabled"))
+            syncing = bool(chat.get("syncing"))
+            lines = [
+                "类型：%s" % ("频道" if chat.get("type") == "channel" else "群组"),
+                "状态：%s" % ("同步中…" if syncing else ("已启用" if enabled else "未采集")),
+            ]
+            if chat.get("username"):
+                lines.append("用户名：@%s" % chat.get("username"))
+            if chat.get("message_count"):
+                lines.append("消息：%s" % chat.get("message_count"))
+            if chat.get("source_count"):
+                lines.append("视频：%s" % chat.get("source_count"))
+            lines.append("点分类里的频道名看该频道的剧；启用与同步由插件自动处理，新频道默认启用。")
+            username = str(chat.get("username") or "").strip()
+            pack_id = username if username else text
+            return {"list": [{
+                "vod_id": TgdramaMapper.pack("channel", {"id": pack_id}),
+                "vod_name": str(chat.get("name") or chat.get("tg_chat_id") or text),
+                "vod_pic": "",
+                "vod_remarks": "已启用" if enabled else "未采集",
+                "vod_year": "",
+                "vod_area": "",
+                "vod_actor": "",
+                "vod_director": "",
+                "vod_content": "\n".join(lines),
+                "vod_play_from": "",
+                "vod_play_url": "",
+            }]}
+        row = self._hardcoded_row(text)
+        if row is not None:
             lines = ["类型：频道", "状态：尚未同步"]
             if row.get("username"):
                 lines.append("用户名：@%s" % row.get("username"))
@@ -947,45 +993,6 @@ class Spider(BaseSpider):
                 "vod_play_from": "",
                 "vod_play_url": "",
             }]}
-        target = None
-        try:
-            target = int(text)
-        except (TypeError, ValueError):
-            return {"list": []}
-        for chat in self._chats():
-            if not isinstance(chat, dict):
-                continue
-            try:
-                if int(chat.get("id")) != target:
-                    continue
-            except (TypeError, ValueError):
-                continue
-            enabled = _is_enabled(chat.get("enabled"))
-            syncing = bool(chat.get("syncing"))
-            lines = [
-                "类型：%s" % ("频道" if chat.get("type") == "channel" else "群组"),
-                "状态：%s" % ("同步中…" if syncing else ("已启用" if enabled else "未采集")),
-            ]
-            if chat.get("username"):
-                lines.append("用户名：@%s" % chat.get("username"))
-            if chat.get("message_count"):
-                lines.append("消息：%s" % chat.get("message_count"))
-            if chat.get("source_count"):
-                lines.append("视频：%s" % chat.get("source_count"))
-            lines.append("点分类里的频道名看该频道的剧；启用与同步由插件自动处理，新频道默认启用。")
-            return {"list": [{
-                "vod_id": TgdramaMapper.pack("channel", {"id": target}),
-                "vod_name": str(chat.get("name") or chat.get("tg_chat_id") or target),
-                "vod_pic": "",
-                "vod_remarks": "已启用" if enabled else "未采集",
-                "vod_year": "",
-                "vod_area": "",
-                "vod_actor": "",
-                "vod_director": "",
-                "vod_content": "\n".join(lines),
-                "vod_play_from": "",
-                "vod_play_url": "",
-            }]}
         return {"list": []}
 
     def _info_detail(self, key):
@@ -995,9 +1002,35 @@ class Spider(BaseSpider):
         elif key == "service_down":
             content = "TG影视库本地服务（127.0.0.1:5278）没有启动，本频道取数走插件本地服务。\n先打开一次 TG影视库启动服务，再进本频道。\n如果 TG影视库也打不开，去设置 → Telegram 登录里看登录状态。"
             title = "TG影视库服务未启动"
-        elif key == "not_synced":
-            content = "这个频道还没同步到本地库，里面暂时没有剧。\n插件同步完成后，点分类里的频道名就能看该频道的剧；同步状态去频道管理页查看。"
-            title = "该频道尚未同步"
+        elif key.startswith("not_in_account:"):
+            username = key.split(":", 1)[1]
+            name = self._ext_display(username)
+            names = "、".join(self._ext_display(user) for user in IN_ACCOUNT)
+            content = (
+                "频道 @%s（%s）不在当前 Telegram 账号的频道列表里，插件里没有它的数据。\n"
+                "在当前账号里的频道：%s。\n"
+                "想看这个频道，先在 Telegram 里关注它，等插件同步后再进。"
+                % (username, name, names)
+            )
+            title = "该频道不在当前账号里"
+        elif key.startswith("not_enabled:"):
+            username = key.split(":", 1)[1]
+            name = self._ext_display(username)
+            content = (
+                "频道 @%s（%s）已在当前账号里，但插件里是停用状态，不采集新消息。\n"
+                "去 TG影视库的频道管理页启用它，等同步完成后再进。"
+                % (username, name)
+            )
+            title = "该频道未启用采集"
+        elif key.startswith("empty_channel:"):
+            username = key.split(":", 1)[1]
+            name = self._ext_display(username)
+            content = (
+                "频道 @%s（%s）已在账号里，插件还没同步到视频。\n"
+                "先打开一次 TG影视库，等同步完成后再进。"
+                % (username, name)
+            )
+            title = "该频道暂无已同步视频"
         elif key == "login":
             content = "登录在设置 → Telegram 登录里做（扫码或手机号）。\n频道由插件自动发现，新频道默认启用；同步在插件后台进行。"
             title = "登录与同步"

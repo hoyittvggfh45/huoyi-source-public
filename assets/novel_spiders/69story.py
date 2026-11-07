@@ -89,7 +89,7 @@ def _parse_list(page):
 class Spider(BaseSpider):
 
     def getName(self):
-        return '69story'
+        return '🔞69story'
 
     def getDependence(self):
         return []

@@ -1,7 +1,13 @@
+import http.client
 import json
 import urllib.parse
 import urllib.request
 import uuid
+
+try:
+    import requests
+except Exception:
+    requests = None
 
 try:
     from base.spider import BaseSpider
@@ -51,20 +57,56 @@ class Spider(BaseSpider):
     def destroy(self):
         pass
 
+    def _fetch(self, req):
+        if requests is not None:
+            last = None
+            for _ in range(3):
+                try:
+                    resp = requests.request(
+                        req.get_method(),
+                        req.full_url,
+                        data=req.data,
+                        headers=dict(req.header_items()),
+                        timeout=15,
+                    )
+                    resp.raise_for_status()
+                    return resp.json()
+                except Exception as e:
+                    last = e
+            raise last
+        last = None
+        for _ in range(3):
+            try:
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    try:
+                        raw = resp.read()
+                    except http.client.IncompleteRead as e:
+                        raw = e.partial
+                    return json.loads(raw.decode("utf-8", "ignore"))
+            except http.client.IncompleteRead as e:
+                if e.partial:
+                    try:
+                        return json.loads(e.partial.decode("utf-8", "ignore"))
+                    except Exception:
+                        last = e
+                else:
+                    last = e
+            except Exception as e:
+                last = e
+        raise last
+
     def _get(self, path, params=None):
         url = self.host + path
         if params:
             url += "?" + urllib.parse.urlencode(params)
         req = urllib.request.Request(url, headers=self.headers, method="GET")
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            return json.loads(resp.read().decode("utf-8", "ignore"))
+        return self._fetch(req)
 
     def _post(self, path, data):
         url = self.host + path
         body = json.dumps(data).encode("utf-8")
         req = urllib.request.Request(url, data=body, headers=self.headers, method="POST")
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            return json.loads(resp.read().decode("utf-8", "ignore"))
+        return self._fetch(req)
 
     def homeContent(self, filter=False):
         classes = []

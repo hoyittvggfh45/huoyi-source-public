@@ -121,6 +121,13 @@ class SourceSite {
     'aisxpc',
     'danai',
     'dj69',
+    'dj91',
+    'djwo',
+    'duanjuone',
+    'ficeforand',
+    'aipornx',
+    'aiyinhang',
+    'sexaix',
   }.contains(id);
   bool get pagedSearch =>
       isVideoSection ||
@@ -149,6 +156,13 @@ class SourceSite {
     'aisxpc',
     'danai',
     'dj69',
+    'dj91',
+    'djwo',
+    'duanjuone',
+    'ficeforand',
+    'aipornx',
+    'aiyinhang',
+    'sexaix',
   }.contains(id);
   bool get searchSuggestions => id == 'hongguo';
   String get groupId => switch (id) {
@@ -299,13 +313,6 @@ class SourceSite {
       'aipornx · 槽位 yaguo',
       section: sectionVideo,
       slotId: 'yaguo',
-    ),
-    SourceSite(
-      'v_51xz',
-      '51XZ',
-      '51xz · 槽位 maoguo',
-      section: sectionVideo,
-      slotId: 'maoguo',
     ),
     SourceSite(
       'v_haijiao_fanguo',

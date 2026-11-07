@@ -153,7 +153,7 @@ def _norm_pg(pg):
 
 class Spider(BaseSpider):
     def getName(self):
-        return '顶级AI色库'
+        return '🔞顶级AI色库'
 
     def getDependence(self):
         return []

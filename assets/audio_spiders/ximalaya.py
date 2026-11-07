@@ -72,7 +72,6 @@ def _dur(sec):
 
 
 def _pick_url(t):
-    """从一条曲目记录里挑最可用的音源地址（VIP 集同样带这些字段）"""
     for k in ("playUrl64", "playUrl32", "playPathAacv224", "playPathAacv164", "playPathHq"):
         v = t.get(k)
         if v and str(v).startswith("http"):
@@ -81,7 +80,6 @@ def _pick_url(t):
 
 
 def _as_dict(extend):
-    """播放器传过来的 extend 可能是 dict / JSON 字符串 / 空，统一成 dict"""
     if isinstance(extend, dict):
         return extend
     if isinstance(extend, str) and extend.strip():
@@ -170,7 +168,6 @@ class Spider(BaseSpider):
         return json.loads(opener(req, timeout=ttl or self.timeout).read().decode("utf-8", "ignore"))
 
     def _walk_meta(self, nodes, depth, types, tags):
-        """把 metadata 树摊平：第 2 层当分类，第 3 层以下的叶子当题材"""
         for n in nodes or []:
             if not isinstance(n, dict):
                 continue
@@ -287,7 +284,7 @@ class Spider(BaseSpider):
         except Exception:
             pg = 1
         items = self._feed(tid, pg, 30, sort, meta)
-        if not items and meta:  # 组合太细没结果时，退回只用分类名
+        if not items and meta:
             items = self._feed(tid, pg, 30, sort, cat)
         return {"page": pg, "pagecount": 999 if items else pg,
                 "limit": 30, "total": 999 * 30, "list": items}
@@ -350,14 +347,6 @@ class Spider(BaseSpider):
         return (tr.get("list") or []), (tr.get("maxPageId") or 1)
 
     def _page_tracks(self, aid, page, size=None):
-        """mobile 端专辑曲目。
-
-        实测（2026-10）：同 size 下 device=android/ios/ting_tv 返回的鉴权结果一致，
-        是否下发 playUrl 由服务端按集判定（isAuthorized）。
-        专辑里免费开放的集 isAuthorized=true → 带 sign 的完整音源；
-        会员专属集 isAuthorized=false → playUrl 全空，只标 sampleDuration=90。
-        这里仍按 ios → android 兜一圈，万一某个入口抽风还能顶上。
-        """
         size = size or self.per_page
         devs = []
         hint = self._dev.get(str(aid))
@@ -379,7 +368,6 @@ class Spider(BaseSpider):
         return best if best else (None, 0)
 
     def _tracks(self, aid, limit=None):
-        """全量拉曲目（每页 200，翻到 maxPageId），limit=0 表示全部"""
         cap = self.max_tracks if limit is None else limit
         out = []
         page = 1
@@ -407,7 +395,6 @@ class Spider(BaseSpider):
         return out
 
     def _url_at(self, aid, idx, tid):
-        """按集序定位所在页，重新取一次地址（签名会过期，播放时必须实时取）"""
         if idx is not None and idx >= 0:
             page = idx // self.per_page + 1
             lst, _ = self._page_tracks(aid, page)
@@ -433,7 +420,6 @@ class Spider(BaseSpider):
         return None
 
     def _alt_album(self, title, self_id):
-        """VIP 专辑的备用线路：找站内同书、且真正免费的另一个专辑"""
         kw = self._clean_kw(title)
         if not kw:
             return None
@@ -451,7 +437,7 @@ class Spider(BaseSpider):
                 continue
             at = str(a.get("title") or "")
             pos = at.find(head)
-            if pos < 0 or pos > 8:   # 主书名得靠前，防"某某作者新作"蹭词
+            if pos < 0 or pos > 8:
                 continue
             tried += 1
             if tried > 4:
@@ -463,7 +449,6 @@ class Spider(BaseSpider):
         return None
 
     def _join(self, tracks, aid):
-        """单线路全量；集数特别多时按 split 拆线路，避免 play_url 过长"""
         def one(group):
             segs = []
             for i, t in enumerate(group):
@@ -523,7 +508,6 @@ class Spider(BaseSpider):
         return {"list": [vod]}
 
     def _web_free_url(self, tid):
-        """免费集走 web 播放接口（VIP 集这里一般返回空）"""
         try:
             d = self._get("%s/revision/play/tracks?trackIds=%s" % (HOST, tid), ttl=8)
             arr = (d.get("data") or {}).get("tracksForAudioPlay") or []
@@ -541,7 +525,6 @@ class Spider(BaseSpider):
         return " ".join(parts[:2])[:16]
 
     def _free_alt(self, title):
-        """最后兜底：站内找同名免费音频"""
         kw = self._clean_kw(title)
         if not kw:
             return None

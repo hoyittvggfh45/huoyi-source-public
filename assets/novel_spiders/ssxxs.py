@@ -1,6 +1,7 @@
 import html as _html
 import json
 import re
+import time
 
 try:
     from base.spider import BaseSpider
@@ -41,17 +42,21 @@ CAT_IDS = {tid for tid, _name in CATEGORIES}
 
 def _fetch(url):
     headers = {"User-Agent": UA, "Referer": REFERER}
+    start = time.monotonic()
     if requests is not None:
         try:
-            r = requests.get(url, headers=headers, timeout=15)
+            r = requests.get(url, headers=headers, timeout=60)
             if r.status_code == 200:
                 return r.text
         except Exception:
             pass
     if _urlreq is not None:
         try:
+            left = 65 - (time.monotonic() - start)
+            if left < 5:
+                return None
             req = _urlreq.Request(url, headers=headers, method="GET")
-            with _urlreq.urlopen(req, timeout=15) as resp:
+            with _urlreq.urlopen(req, timeout=left) as resp:
                 return resp.read().decode("utf-8", "ignore")
         except Exception:
             return None
@@ -119,7 +124,7 @@ def _norm_id(value):
 
 class Spider(BaseSpider):
     def getName(self):
-        return "Ssxxs"
+        return "🔞Ssxxs"
 
     def getDependence(self):
         return []

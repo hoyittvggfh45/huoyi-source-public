@@ -1,7 +1,4 @@
-import 'dart:convert';
-
 import 'package:flutter/services.dart';
-import 'package:path_provider/path_provider.dart';
 
 import 'import_file_store.dart';
 import 'models.dart';
@@ -256,6 +253,175 @@ class BuiltinPySites {
     importType: 'py',
   );
 
+  static const dj91SiteId = 'dj91';
+  static const dj91AssetPath = 'assets/py_spiders/dj91.py';
+  static const dj91FileId = 'builtin_dj91';
+
+  static const dj91Site = SourceSite(
+    dj91SiteId,
+    '🔞91短剧',
+    '内置 py · dj91',
+    section: SourceSite.sectionDrama,
+    origin: SourceSite.originBuiltin,
+    importType: 'py',
+  );
+
+  static const djwoSiteId = 'djwo';
+  static const djwoAssetPath = 'assets/py_spiders/djwo.py';
+  static const djwoFileId = 'builtin_djwo';
+
+  static const djwoSite = SourceSite(
+    djwoSiteId,
+    '🔞短剧窝',
+    '内置 py · djwo',
+    section: SourceSite.sectionDrama,
+    origin: SourceSite.originBuiltin,
+    importType: 'py',
+  );
+
+  static const duanjuoneSiteId = 'duanjuone';
+  static const duanjuoneAssetPath = 'assets/py_spiders/duanjuone.py';
+  static const duanjuoneFileId = 'builtin_duanjuone';
+
+  static const duanjuoneSite = SourceSite(
+    duanjuoneSiteId,
+    '🔞短剧one',
+    '内置 py · duanjuone',
+    section: SourceSite.sectionDrama,
+    origin: SourceSite.originBuiltin,
+    importType: 'py',
+  );
+
+  static const ficeforandSiteId = 'ficeforand';
+  static const ficeforandAssetPath = 'assets/py_spiders/ficeforand.py';
+  static const ficeforandFileId = 'builtin_ficeforand';
+
+  static const ficeforandSite = SourceSite(
+    ficeforandSiteId,
+    '🔞AI小视频·ficeforand',
+    '内置 py · ficeforand',
+    section: SourceSite.sectionDrama,
+    origin: SourceSite.originBuiltin,
+    importType: 'py',
+  );
+
+  static const aipornxSiteId = 'aipornx';
+  static const aipornxAssetPath = 'assets/py_spiders/aipornx.py';
+  static const aipornxFileId = 'builtin_aipornx';
+
+  static const aipornxSite = SourceSite(
+    aipornxSiteId,
+    '🔞AiPorn',
+    '内置 py · aipornx',
+    section: SourceSite.sectionDrama,
+    origin: SourceSite.originBuiltin,
+    importType: 'py',
+  );
+
+  static const aiyinhangSiteId = 'aiyinhang';
+  static const aiyinhangAssetPath = 'assets/py_spiders/aiyinhang.py';
+  static const aiyinhangFileId = 'builtin_aiyinhang';
+
+  static const aiyinhangSite = SourceSite(
+    aiyinhangSiteId,
+    '🔞AI淫航',
+    '内置 py · aiyinhang',
+    section: SourceSite.sectionDrama,
+    origin: SourceSite.originBuiltin,
+    importType: 'py',
+  );
+
+  static const xojavSiteId = 'xojav';
+  static const xojavAssetPath = 'assets/py_spiders/xojav.py';
+  static const xojavFileId = 'builtin_xojav';
+
+  static const xojavSite = SourceSite(
+    xojavSiteId,
+    '🔞XOJAV',
+    '内置 py · xojav',
+    section: SourceSite.sectionVideo,
+    origin: SourceSite.originBuiltin,
+    importType: 'py',
+  );
+
+  static const porncgwSiteId = 'porncgw';
+  static const porncgwAssetPath = 'assets/py_spiders/porncgw.py';
+  static const porncgwFileId = 'builtin_porncgw';
+
+  static const porncgwSite = SourceSite(
+    porncgwSiteId,
+    '🔞Porn吃瓜网',
+    '内置 py · porncgw',
+    section: SourceSite.sectionVideo,
+    origin: SourceSite.originBuiltin,
+    importType: 'py',
+  );
+
+  static const kankuxSiteId = 'kankux';
+  static const kankuxAssetPath = 'assets/py_spiders/kankux.py';
+  static const kankuxFileId = 'builtin_kankux';
+
+  static const kankuxSite = SourceSite(
+    kankuxSiteId,
+    '🔞看裤X',
+    '内置 py · kankux',
+    section: SourceSite.sectionVideo,
+    origin: SourceSite.originBuiltin,
+    importType: 'py',
+  );
+
+  static const guohnsqjSiteId = 'guohnsqj';
+  static const guohnsqjAssetPath = 'assets/py_spiders/guohnsqj.py';
+  static const guohnsqjFileId = 'builtin_guohnsqj';
+
+  static const guohnsqjSite = SourceSite(
+    guohnsqjSiteId,
+    '🔞欲望乐园',
+    '内置 py · guohnsqj',
+    section: SourceSite.sectionVideo,
+    origin: SourceSite.originBuiltin,
+    importType: 'py',
+  );
+
+  static const xz51SiteId = '51xz';
+  static const xz51AssetPath = 'assets/py_spiders/51xz.py';
+  static const xz51FileId = 'builtin_51xz';
+
+  static const xz51Site = SourceSite(
+    xz51SiteId,
+    '🔞51X',
+    '内置 py · 51xz',
+    section: SourceSite.sectionVideo,
+    origin: SourceSite.originBuiltin,
+    importType: 'py',
+  );
+
+  static const sexaixSiteId = 'sexaix';
+  static const sexaixAssetPath = 'assets/py_spiders/sexaix.py';
+  static const sexaixFileId = 'builtin_sexaix';
+
+  static const sexaixSite = SourceSite(
+    sexaixSiteId,
+    '🔞幻影AI',
+    '内置 py · sexaix',
+    section: SourceSite.sectionDrama,
+    origin: SourceSite.originBuiltin,
+    importType: 'py',
+  );
+
+  static const qipaospSiteId = 'qipaosp';
+  static const qipaospAssetPath = 'assets/py_spiders/qipaosp.py';
+  static const qipaospFileId = 'builtin_qipaosp';
+
+  static const qipaospSite = SourceSite(
+    qipaospSiteId,
+    '🔞气泡视频',
+    '内置 py · qipaosp',
+    section: SourceSite.sectionVideo,
+    origin: SourceSite.originBuiltin,
+    importType: 'py',
+  );
+
   static Future<bool> register() async {
     try {
       final bytes = await rootBundle.load(hmavAssetPath);
@@ -284,6 +450,19 @@ class BuiltinPySites {
       await _registerDanai();
       await _registerDingjiaseku();
       await _registerDj69();
+      await _registerDj91();
+      await _registerDjwo();
+      await _registerDuanjuone();
+      await _registerFiceforand();
+      await _registerAipornx();
+      await _registerAiyinhang();
+      await _registerXojav();
+      await _registerPorncgw();
+      await _registerKankux();
+      await _registerGuohnsqj();
+      await _register51xz();
+      await _registerSexaix();
+      await _registerQipaosp();
       return true;
     } catch (_) {
       return false;
@@ -299,20 +478,6 @@ class BuiltinPySites {
         bytes.buffer.asUint8List(),
       );
       var site = tgdramaSite;
-      try {
-        final supportDir = await getApplicationSupportDirectory();
-        site = SourceSite(
-          tgdramaSiteId,
-          'TG影视库',
-          '内置 py · tgdrama',
-          section: SourceSite.sectionVideo,
-          origin: SourceSite.originBuiltin,
-          importType: 'py',
-          importExt: jsonEncode({
-            'db_path': '${supportDir.path}/tgdrama/tgdrama.db',
-          }),
-        );
-      } catch (_) {}
       SourceSite.importedSites[tgdramaSiteId] = site;
       SourceSite.importedPyFiles[tgdramaSiteId] = fileName;
     } catch (_) {}
@@ -536,6 +701,175 @@ class BuiltinPySites {
       );
       SourceSite.importedSites[dj69SiteId] = dj69Site;
       SourceSite.importedPyFiles[dj69SiteId] = fileName;
+    } catch (_) {}
+  }
+
+  static Future<void> _registerDj91() async {
+    try {
+      final bytes = await rootBundle.load(dj91AssetPath);
+      final fileName = await ImportFileStore.save(
+        dj91FileId,
+        'py',
+        bytes.buffer.asUint8List(),
+      );
+      SourceSite.importedSites[dj91SiteId] = dj91Site;
+      SourceSite.importedPyFiles[dj91SiteId] = fileName;
+    } catch (_) {}
+  }
+
+  static Future<void> _registerDjwo() async {
+    try {
+      final bytes = await rootBundle.load(djwoAssetPath);
+      final fileName = await ImportFileStore.save(
+        djwoFileId,
+        'py',
+        bytes.buffer.asUint8List(),
+      );
+      SourceSite.importedSites[djwoSiteId] = djwoSite;
+      SourceSite.importedPyFiles[djwoSiteId] = fileName;
+    } catch (_) {}
+  }
+
+  static Future<void> _registerDuanjuone() async {
+    try {
+      final bytes = await rootBundle.load(duanjuoneAssetPath);
+      final fileName = await ImportFileStore.save(
+        duanjuoneFileId,
+        'py',
+        bytes.buffer.asUint8List(),
+      );
+      SourceSite.importedSites[duanjuoneSiteId] = duanjuoneSite;
+      SourceSite.importedPyFiles[duanjuoneSiteId] = fileName;
+    } catch (_) {}
+  }
+
+  static Future<void> _registerFiceforand() async {
+    try {
+      final bytes = await rootBundle.load(ficeforandAssetPath);
+      final fileName = await ImportFileStore.save(
+        ficeforandFileId,
+        'py',
+        bytes.buffer.asUint8List(),
+      );
+      SourceSite.importedSites[ficeforandSiteId] = ficeforandSite;
+      SourceSite.importedPyFiles[ficeforandSiteId] = fileName;
+    } catch (_) {}
+  }
+
+  static Future<void> _registerAipornx() async {
+    try {
+      final bytes = await rootBundle.load(aipornxAssetPath);
+      final fileName = await ImportFileStore.save(
+        aipornxFileId,
+        'py',
+        bytes.buffer.asUint8List(),
+      );
+      SourceSite.importedSites[aipornxSiteId] = aipornxSite;
+      SourceSite.importedPyFiles[aipornxSiteId] = fileName;
+    } catch (_) {}
+  }
+
+  static Future<void> _registerAiyinhang() async {
+    try {
+      final bytes = await rootBundle.load(aiyinhangAssetPath);
+      final fileName = await ImportFileStore.save(
+        aiyinhangFileId,
+        'py',
+        bytes.buffer.asUint8List(),
+      );
+      SourceSite.importedSites[aiyinhangSiteId] = aiyinhangSite;
+      SourceSite.importedPyFiles[aiyinhangSiteId] = fileName;
+    } catch (_) {}
+  }
+
+  static Future<void> _registerXojav() async {
+    try {
+      final bytes = await rootBundle.load(xojavAssetPath);
+      final fileName = await ImportFileStore.save(
+        xojavFileId,
+        'py',
+        bytes.buffer.asUint8List(),
+      );
+      SourceSite.importedSites[xojavSiteId] = xojavSite;
+      SourceSite.importedPyFiles[xojavSiteId] = fileName;
+    } catch (_) {}
+  }
+
+  static Future<void> _registerPorncgw() async {
+    try {
+      final bytes = await rootBundle.load(porncgwAssetPath);
+      final fileName = await ImportFileStore.save(
+        porncgwFileId,
+        'py',
+        bytes.buffer.asUint8List(),
+      );
+      SourceSite.importedSites[porncgwSiteId] = porncgwSite;
+      SourceSite.importedPyFiles[porncgwSiteId] = fileName;
+    } catch (_) {}
+  }
+
+  static Future<void> _registerKankux() async {
+    try {
+      final bytes = await rootBundle.load(kankuxAssetPath);
+      final fileName = await ImportFileStore.save(
+        kankuxFileId,
+        'py',
+        bytes.buffer.asUint8List(),
+      );
+      SourceSite.importedSites[kankuxSiteId] = kankuxSite;
+      SourceSite.importedPyFiles[kankuxSiteId] = fileName;
+    } catch (_) {}
+  }
+
+  static Future<void> _registerGuohnsqj() async {
+    try {
+      final bytes = await rootBundle.load(guohnsqjAssetPath);
+      final fileName = await ImportFileStore.save(
+        guohnsqjFileId,
+        'py',
+        bytes.buffer.asUint8List(),
+      );
+      SourceSite.importedSites[guohnsqjSiteId] = guohnsqjSite;
+      SourceSite.importedPyFiles[guohnsqjSiteId] = fileName;
+    } catch (_) {}
+  }
+
+  static Future<void> _register51xz() async {
+    try {
+      final bytes = await rootBundle.load(xz51AssetPath);
+      final fileName = await ImportFileStore.save(
+        xz51FileId,
+        'py',
+        bytes.buffer.asUint8List(),
+      );
+      SourceSite.importedSites[xz51SiteId] = xz51Site;
+      SourceSite.importedPyFiles[xz51SiteId] = fileName;
+    } catch (_) {}
+  }
+
+  static Future<void> _registerSexaix() async {
+    try {
+      final bytes = await rootBundle.load(sexaixAssetPath);
+      final fileName = await ImportFileStore.save(
+        sexaixFileId,
+        'py',
+        bytes.buffer.asUint8List(),
+      );
+      SourceSite.importedSites[sexaixSiteId] = sexaixSite;
+      SourceSite.importedPyFiles[sexaixSiteId] = fileName;
+    } catch (_) {}
+  }
+
+  static Future<void> _registerQipaosp() async {
+    try {
+      final bytes = await rootBundle.load(qipaospAssetPath);
+      final fileName = await ImportFileStore.save(
+        qipaospFileId,
+        'py',
+        bytes.buffer.asUint8List(),
+      );
+      SourceSite.importedSites[qipaospSiteId] = qipaospSite;
+      SourceSite.importedPyFiles[qipaospSiteId] = fileName;
     } catch (_) {}
   }
 }

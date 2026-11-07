@@ -100,7 +100,7 @@ def _chapter_images(cid):
 class Spider(BaseSpider):
 
     def getName(self):
-        return '55comics'
+        return '🔞55comics'
 
     def getDependence(self):
         return []

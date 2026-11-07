@@ -17,7 +17,7 @@ BASE = 'https://kmh001.com'
 UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 
 CATEGORIES = [
-    ('', '最新'),
+    ('all', '最新'),
     ('ongoing', '连载中'),
     ('complete', '已完结'),
 ]
@@ -107,7 +107,7 @@ def _parse_ssr_cards(page):
 class Spider(BaseSpider):
 
     def getName(self):
-        return 'kmh001'
+        return '🔞kmh001'
 
     def getDependence(self):
         return []
@@ -127,7 +127,8 @@ class Spider(BaseSpider):
     def categoryContent(self, tid, pg, filter=False, extend=None):
         tid = _norm_id(tid)
         pg = _norm_pg(pg)
-        items = _api_list(tid, pg)
+        status = '' if tid == 'all' else tid
+        items = _api_list(status, pg)
         return {'list': items, 'page': pg, 'pagecount': 0, 'total': 0}
 
     def detailContent(self, ids):

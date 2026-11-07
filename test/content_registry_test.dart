@@ -12,7 +12,7 @@ void main() {
       );
       expect(
         ContentRegistry.sourcesFor(ContentSection.audio).map((s) => s.name),
-        ['听书网', '喜马拉雅', '红果听书', '懒人听书', '听友听书', '听书'],
+        ['听书网', '喜马拉雅', '红果听书', '懒人听书', '听友听书', '飞卢听书'],
       );
     });
 
@@ -29,7 +29,7 @@ void main() {
       );
       expect(
         ContentRegistry.sourcesFor(ContentSection.audio).last.name,
-        '听书',
+        '飞卢听书',
       );
     });
 

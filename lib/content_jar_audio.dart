@@ -9,7 +9,7 @@ class JarAudioContentSource extends ContentSource {
   String get id => 'jar_tingshu';
 
   @override
-  String get name => '听书';
+  String get name => '飞卢听书';
 
   @override
   ContentSection get section => ContentSection.audio;
@@ -18,7 +18,7 @@ class JarAudioContentSource extends ContentSource {
     final spec = JarBridge.specFor(
       JarSiteSpec.siteIdFor(zakatvJarId, 'go_tingshu'),
     );
-    if (spec == null) throw AppFailure('听书源未就绪');
+    if (spec == null) throw AppFailure('飞卢听书源未就绪');
     return spec;
   }
 

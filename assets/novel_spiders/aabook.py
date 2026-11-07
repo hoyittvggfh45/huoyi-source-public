@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
+import concurrent.futures
 import gzip
 import http.cookiejar
 import json
 import re
 import sys
+import time
 import urllib.parse
 import urllib.request
 
@@ -17,7 +19,9 @@ except Exception:
 BASE = "https://aabook.net"
 MOBILE = BASE + "/m/"
 UA = "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
-TIMEOUT = 20
+TIMEOUT = 60
+DETAIL_WORKERS = 8
+DETAIL_MAX_PAGE = 40
 
 CATS = [
     ("chuanyue", "穿越"),
@@ -64,7 +68,7 @@ def _norm_extend(extend):
 class Spider(BaseSpider):
 
     def getName(self):
-        return "aabook"
+        return "🔞aabook"
 
     def getDependence(self):
         return []
@@ -85,10 +89,19 @@ class Spider(BaseSpider):
         if headers:
             head.update(headers)
         req = urllib.request.Request(url, headers=head)
-        try:
-            with self._opener.open(req, timeout=TIMEOUT) as resp:
-                raw = resp.read()
-        except Exception:
+        raw = b""
+        start = time.monotonic()
+        for _ in range(5):
+            try:
+                with self._opener.open(req, timeout=TIMEOUT) as resp:
+                    raw = resp.read()
+                if raw:
+                    break
+            except Exception:
+                pass
+            if time.monotonic() - start > 45:
+                break
+        if not raw:
             return ""
         try:
             if raw[:2] == b"\x1f\x8b":
@@ -96,6 +109,19 @@ class Spider(BaseSpider):
         except Exception:
             pass
         return raw.decode("utf-8", "ignore")
+
+    def _fetch_pages(self, urls):
+        results = [""] * len(urls)
+        if not urls:
+            return results
+        with concurrent.futures.ThreadPoolExecutor(max_workers=DETAIL_WORKERS) as ex:
+            futs = [ex.submit(self._fetch, u) for u in urls]
+            for i, fut in enumerate(futs):
+                try:
+                    results[i] = fut.result()
+                except Exception:
+                    results[i] = ""
+        return results
 
     def _list_from_category(self, tid, pg, extend=None):
         ext = _norm_extend(extend)
@@ -151,34 +177,61 @@ class Spider(BaseSpider):
             pg = 1
         return self._list_from_category(tid, pg, extend)
 
+    def _add_chapter_page(self, page, seen, chapters):
+        links = re.findall(r'href="(read-\d+\.html)"[^>]*>([^<]+)</a>', page)
+        fresh = 0
+        for href, name in links:
+            rid = re.search(r"(\d+)", href).group(1)
+            if rid in seen:
+                continue
+            seen.add(rid)
+            fresh += 1
+            clean = name.strip().replace("#", " ").replace("$", " ")
+            chapters.append("%s$%s" % (clean, rid))
+        return fresh
+
     def detailContent(self, ids):
         bid = ""
         if ids:
             raw = str(ids[0])
             found = re.search(r"(\d+)", raw)
             bid = found.group(1) if found else raw
-        book = self._fetch(MOBILE + "book-%s.html" % bid)
+        pair = self._fetch_pages([
+            MOBILE + "book-%s.html" % bid,
+            MOBILE + "chapter.php?p=1&id=%s&ob=asc" % bid])
+        book, first = pair[0], pair[1]
         title = re.search(r"<h2>([^<]+)</h2>", book)
         author = re.search(r"作者：([^<\s]+)", book)
         words = re.search(r"字数：(\d+)", book)
         status = re.search(r'<span class="status[^>]*>([^<]+)', book)
         chapters = []
         seen = set()
-        for p in range(1, 41):
-            page = self._fetch(
-                MOBILE + "chapter.php?p=%s&id=%s&ob=asc" % (p, bid))
-            links = re.findall(r'href="(read-\d+\.html)"[^>]*>([^<]+)</a>', page)
-            fresh = 0
-            for href, name in links:
-                rid = re.search(r"(\d+)", href).group(1)
-                if rid in seen:
-                    continue
-                seen.add(rid)
-                fresh += 1
-                clean = name.strip().replace("#", " ").replace("$", " ")
-                chapters.append("%s$%s" % (clean, rid))
-            if fresh == 0:
-                break
+        total = 0
+        opts = re.findall(r"chapter\.php\?p=(\d+)&id=%s&ob=asc" % bid, first)
+        if opts:
+            total = max(int(x) for x in opts)
+        if total > 1:
+            rest = self._fetch_pages(
+                [MOBILE + "chapter.php?p=%s&id=%s&ob=asc" % (n, bid)
+                 for n in range(2, total + 1)])
+            for page in [first] + rest:
+                if self._add_chapter_page(page, seen, chapters) == 0:
+                    break
+        else:
+            if self._add_chapter_page(first, seen, chapters) > 0:
+                p = 2
+                while p <= DETAIL_MAX_PAGE:
+                    batch = list(range(p, min(p + DETAIL_WORKERS, DETAIL_MAX_PAGE + 1)))
+                    pages = self._fetch_pages(
+                        [MOBILE + "chapter.php?p=%s&id=%s&ob=asc" % (n, bid) for n in batch])
+                    stop = False
+                    for page in pages:
+                        if self._add_chapter_page(page, seen, chapters) == 0:
+                            stop = True
+                            break
+                    if stop:
+                        break
+                    p += len(batch)
         remarks = ""
         if status:
             remarks = status.group(1).strip()

@@ -4,6 +4,7 @@ import binascii
 import bisect
 import hashlib
 import html as html_lib
+import http.client
 import http.cookiejar
 import json
 import lzma
@@ -21,6 +22,11 @@ from collections.abc import Mapping
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import parse_qs, quote, unquote, urlencode, urlparse
+
+try:
+    import requests as _requests
+except Exception:
+    _requests = None
 
 try:
     from base.spider import Spider as BaseSpider
@@ -726,16 +732,50 @@ def _toplevel_boxes(buf: bytes) -> list[tuple[int, int, bytes]]:
     return boxes
 
 
-def _http_request(url, headers=None, data=None, timeout=60):
+def _http_request(url, headers=None, data=None, timeout=60, binary=False):
+    if not binary and _requests is not None:
+        last_error = None
+        for _ in range(2):
+            try:
+                resp = _requests.request(
+                    "POST" if data is not None else "GET",
+                    url,
+                    headers=dict(headers or {}),
+                    data=data,
+                    timeout=timeout,
+                )
+                body = resp.content
+                if isinstance(body, str):
+                    body = body.encode("utf-8", "ignore")
+                return resp.status_code, dict(resp.headers or {}), body
+            except Exception as error:
+                last_error = error
+                continue
     req = urllib.request.Request(url, headers=dict(headers or {}), data=data)
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return resp.status, dict(resp.headers), resp.read()
-    except urllib.error.HTTPError as err:
+    last_error = None
+    for _ in range(3):
         try:
-            return err.code, dict(err.headers), err.read()
-        except Exception:
-            return err.code, {}, b""
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                try:
+                    body = resp.read()
+                except http.client.IncompleteRead as exc:
+                    body = exc.partial
+                    try:
+                        expected = int(resp.headers.get("Content-Length") or 0)
+                    except (TypeError, ValueError):
+                        expected = 0
+                    if expected and len(body) < expected:
+                        raise
+                return resp.status, dict(resp.headers), body
+        except urllib.error.HTTPError as err:
+            try:
+                return err.code, dict(err.headers), err.read()
+            except Exception:
+                return err.code, {}, b""
+        except Exception as error:
+            last_error = error
+            continue
+    raise last_error
 
 
 def _range_get(url: str, start: int, end: int) -> tuple[bytes, int]:
@@ -747,7 +787,7 @@ def _range_get(url: str, start: int, end: int) -> tuple[bytes, int]:
         if attempt:
             time.sleep(_RANGE_FETCH_BACKOFF_SECONDS * attempt)
         try:
-            status, resp_headers, body = _http_request(url, headers=headers, timeout=60)
+            status, resp_headers, body = _http_request(url, headers=headers, timeout=60, binary=True)
         except Exception as error:
             last_error = error
             continue

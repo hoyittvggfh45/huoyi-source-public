@@ -258,7 +258,7 @@ def _norm_pg(pg):
 class Spider(BaseSpider):
 
     def getName(self):
-        return 'ABJAV'
+        return '🔞ABJAV'
 
     def getDependence(self):
         return []

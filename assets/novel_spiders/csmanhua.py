@@ -115,7 +115,7 @@ def _detail_images(wid):
 class Spider(BaseSpider):
 
     def getName(self):
-        return 'csmanhua'
+        return '🔞csmanhua'
 
     def getDependence(self):
         return []

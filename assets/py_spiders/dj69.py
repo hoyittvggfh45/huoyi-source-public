@@ -213,7 +213,7 @@ def _norm_pg(pg):
 
 class Spider(BaseSpider):
     def getName(self):
-        return '69短剧'
+        return '🔞69短剧'
 
     def getDependence(self):
         return []

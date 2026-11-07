@@ -87,20 +87,23 @@ def main():
     check('build detail no episodes',
           spider.Spider()._build_detail({'show': {'id': 9, 'name': '空剧'}, 'episodes': []}, None) is None)
 
-    check('fallback count', len(spider.FALLBACK_CHANNELS) == 52)
-    check('fallback unique', len({row[0] for row in spider.FALLBACK_CHANNELS}) == 52)
-    check('fallback full id', spider.Spider._full_tg_id(2753266064) == -1002753266064)
-    row = spider.Spider._fallback_row(-1002753266064)
-    check('fallback row', row is not None and row['name'] == '日本精品av|中文字幕|Jav')
+    check('hardcoded count', len(spider.HARDCODED_CHANNELS) == 52)
+    check('hardcoded unique', len({row[0] for row in spider.HARDCODED_CHANNELS}) == 52)
+    check('hardcoded full id', spider.Spider._full_tg_id(2753266064) == -1002753266064)
+    row = spider.Spider._hardcoded_row('jav_all')
+    check('hardcoded row', row is not None and row['name'] == '日本精品av|中文字幕|Jav')
+    bare = spider.Spider._hardcoded_row('2753266064')
+    check('hardcoded row bare id', bare is not None and bare['name'] == '日本精品av|中文字幕|Jav')
 
     dead = spider.Spider()
-    dead.init(json.dumps({'base_url': 'http://127.0.0.1:9', 'db_path': '/nonexistent/x.db'}))
+    dead.init(json.dumps({'base_url': 'http://127.0.0.1:9'}))
     ids = [entry['type_id'] for entry in dead.homeContent(False)['class']]
-    check('offline fallback classes', sum(1 for item in ids if item.startswith('chantg:')) == 52)
-    check('offline fallback first', ids[0] == 'chantg:-1002753266064')
-    page = dead.categoryContent('chantg:-1002753266064', 1)
-    check('offline fallback page honest',
-          len(page['list']) == 1 and page['list'][0]['vod_name'] == '该频道尚未同步')
+    check('offline hardcoded classes', len(ids) == 58)
+    check('offline hardcoded first', ids[0] == 'jav_all')
+    check('offline hardcoded bare ids', '3761040325' in ids)
+    page = dead.categoryContent('jav_all', 1)
+    check('offline service down page honest',
+          len(page['list']) == 1 and page['list'][0]['vod_name'] == 'TG影视库服务未启动')
     play = dead.playerContent('TG影视库', ep_pack)
     check('player parse 0', play['parse'] == 0)
     check('player header is dict', isinstance(play['header'], dict))

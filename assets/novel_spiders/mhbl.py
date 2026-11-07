@@ -27,7 +27,7 @@ UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like 
 def _fetch(url):
     req = urllib.request.Request(url, headers={"User-Agent": UA, "Referer": BASE + "/"})
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(req, timeout=60) as resp:
             return resp.read().decode("utf-8", "ignore")
     except Exception:
         return ""
@@ -93,7 +93,7 @@ def _norm_id(value):
 
 class Spider(BaseSpider):
     def getName(self):
-        return "Mhbl"
+        return "🔞Mhbl"
 
     def getDependence(self):
         return []

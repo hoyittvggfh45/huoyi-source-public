@@ -113,7 +113,7 @@ def _page_count(path, page):
 class Spider(BaseSpider):
 
     def getName(self):
-        return '1000novel'
+        return '🔞1000novel'
 
     def getDependence(self):
         return []

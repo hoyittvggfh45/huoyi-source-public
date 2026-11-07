@@ -69,6 +69,11 @@ def _clean_text(raw):
 def _parse_list(page):
     items = []
     seen = set()
+    covers = {}
+    for cover, wid in re.findall(
+            r'data-setbg="([^"]+)"[^>]*onclick="location\.href=\'/manga/(\d+)\'',
+            page):
+        covers[wid] = cover
     for wid, title in re.findall(r'<a href="/manga/(\d+)"[^>]*>([^<]*)</a>', page):
         if wid in seen:
             continue
@@ -76,14 +81,14 @@ def _parse_list(page):
         name = _clean_text(title)
         if not name:
             continue
-        items.append({'vod_id': wid, 'vod_name': name, 'vod_pic': '', 'vod_remarks': ''})
+        items.append({'vod_id': wid, 'vod_name': name, 'vod_pic': covers.get(wid, ''), 'vod_remarks': ''})
     return items
 
 
 class Spider(BaseSpider):
 
     def getName(self):
-        return 'kxmanhua'
+        return '🔞kxmanhua'
 
     def getDependence(self):
         return []
@@ -118,6 +123,14 @@ class Spider(BaseSpider):
         m_title = re.search(r'<title>(.*?)</title>', page, flags=re.S)
         name = _clean_text(m_title.group(1)) if m_title else wid
         name = name.split('-免费看')[0].strip()
+        cover = ''
+        m_cover = re.search(r'anime__details__pic set-bg" data-setbg="([^"]+)"', page)
+        if m_cover:
+            cover = m_cover.group(1)
+        if not cover:
+            m_cover = re.search(r'data-setbg="([^"]+)"', page)
+            if m_cover:
+                cover = m_cover.group(1)
         numbered = []
         others = []
         seen = set()
@@ -140,7 +153,7 @@ class Spider(BaseSpider):
         return {'list': [{
             'vod_id': wid,
             'vod_name': name,
-            'vod_pic': '',
+            'vod_pic': cover,
             'vod_actor': '',
             'vod_remarks': '',
             'vod_content': '',

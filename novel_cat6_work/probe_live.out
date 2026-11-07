@@ -1,0 +1,17 @@
+nnhanman [all] OK n=18 first_name=我的in援團 first_pic=True first_id=comic/wo-de-i-n-yuan-tuan.html
+nnhanman [all] DETAIL name=我的in援團 pic=True play_from=漫画
+nnhanman [completed] OK n=18 first_name=民宿精營中 first_pic=True first_id=comic/min-xiu-jing-ying-zhong.html
+nnhanman [completed] DETAIL name=民宿精營中 pic=True play_from=漫画
+jywx2 [DCCCCD] OK n=20 first_name=纯情秘书变淫妇 first_pic=False first_id=qV4CCD
+jywx2 [DCCCCD] DETAIL name=纯情秘书变淫妇 pic=False play_from=小说
+jywx2 [uCCCCD] OK n=20 first_name=射在女副经理身体内 first_pic=False first_id=xkoCCD
+jywx2 [uCCCCD] DETAIL name=射在女副经理身体内 pic=False play_from=小说
+55comics [hanman] OK n=20 first_name=东京巫女的传说 first_pic=True first_id=120890
+55comics [hanman] DETAIL name=东京巫女的传说 pic=True play_from=漫画
+55comics [riman] OK n=20 first_name=赎罪营01-74外传 丁巴02 first_pic=True first_id=111892
+55comics [riman] DETAIL name=赎罪营01-74外传 丁巴02 pic=True play_from=漫画
+kxmanhua [0] OK n=24 first_name=[3D]奸魔再世 first_pic=False first_id=3915
+kxmanhua [0] DETAIL name=3D漫画[3D]奸魔再世 pic=False play_from=漫画
+kxmanhua [2] OK n=24 first_name=秘密教学 first_pic=False first_id=4015
+kxmanhua [2] DETAIL name=韩漫秘密教学 pic=False play_from=漫画
+DONE nnhanman jywx2 55comics kxmanhua

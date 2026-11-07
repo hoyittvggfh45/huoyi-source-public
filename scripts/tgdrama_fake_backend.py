@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS chats(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   tg_chat_id INTEGER UNIQUE,
   name TEXT,
+  username TEXT DEFAULT '',
   type TEXT,
   enabled INTEGER DEFAULT 0,
   message_count INTEGER DEFAULT 0,
@@ -241,9 +242,10 @@ class FakeSource(BaseSource):
         for chat in self.chats():
             row = query("SELECT id FROM chats WHERE tg_chat_id=?", (chat["tg_chat_id"],))
             if not row:
-                execute("INSERT INTO chats(tg_chat_id, name, type, enabled, message_count, updated_at) "
-                        "VALUES(?,?,?,?,?,?)",
-                        (chat["tg_chat_id"], chat["name"], chat["type"], chat["enabled"],
+                execute("INSERT INTO chats(tg_chat_id, name, username, type, enabled, message_count, updated_at) "
+                        "VALUES(?,?,?,?,?,?,?)",
+                        (chat["tg_chat_id"], chat["name"], chat.get("username") or "",
+                         chat["type"], chat["enabled"],
                          chat["message_count"], int(time.time())))
         chat_a = query("SELECT id FROM chats WHERE tg_chat_id=?", (-1001234567890,))["id"]
         for name, count in (("测试短剧·豪门千金", 3), ("测试短剧·闪婚首富", 3)):
@@ -266,9 +268,11 @@ class FakeSource(BaseSource):
 
     def chats(self):
         return [
-            {"id": 1, "tg_chat_id": -1001234567890, "name": "测试短剧频道A", "type": "channel",
+            {"id": 1, "tg_chat_id": -1001234567890, "name": "测试短剧频道A", "username": "fakeA",
+             "type": "channel",
              "enabled": 1, "message_count": 20, "source_count": 9, "syncing": 0},
-            {"id": 2, "tg_chat_id": -1009876543210, "name": "测试短剧频道B", "type": "channel",
+            {"id": 2, "tg_chat_id": -1009876543210, "name": "测试短剧频道B", "username": "fakeB",
+             "type": "channel",
              "enabled": 0, "message_count": 8, "source_count": 3, "syncing": 0},
         ]
 

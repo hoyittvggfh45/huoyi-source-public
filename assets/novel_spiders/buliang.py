@@ -1,5 +1,6 @@
 import json
 import re
+import time
 import urllib.parse
 import urllib.request
 
@@ -42,11 +43,18 @@ UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like 
 
 def _fetch(url):
     req = urllib.request.Request(url, headers={"User-Agent": UA, "Referer": BASE + "/"})
-    try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            return resp.read().decode("utf-8", "ignore")
-    except Exception:
-        return ""
+    start = time.monotonic()
+    for _ in range(5):
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                text = resp.read().decode("utf-8", "ignore")
+            if text:
+                return text
+        except Exception:
+            pass
+        if time.monotonic() - start > 45:
+            break
+    return ""
 
 
 def _clean(raw):
@@ -98,7 +106,7 @@ def _norm_id(value):
 
 class Spider(BaseSpider):
     def getName(self):
-        return "Buliang"
+        return "🔞Buliang"
 
     def getDependence(self):
         return []

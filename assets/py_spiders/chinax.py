@@ -237,7 +237,7 @@ def _empty_detail(vod_id):
 class Spider(BaseSpider):
 
     def getName(self):
-        return '中国X站'
+        return '🔞中国X站'
 
     def getDependence(self):
         return []
