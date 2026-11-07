@@ -258,12 +258,42 @@ class TgdramaSpiderTest(unittest.TestCase):
     def test_home_filters_tag_group(self):
         spider = make_spider()
         filters = spider.homeContent(False)["filters"]
-        for key in ("all", ""):
-            group = filters[key][0]
-            self.assertEqual(group["key"], "tag")
-            values = {item["v"]: item["n"] for item in group["value"]}
-            self.assertEqual(values.get(""), "全部")
-            self.assertEqual(values.get("测试"), "测试(2)")
+        self.assertEqual(set(filters.keys()), {"all"})
+        group = filters["all"][0]
+        self.assertEqual(group["key"], "tag")
+        values = {item["v"]: item["n"] for item in group["value"]}
+        self.assertNotIn("", values)
+        self.assertEqual(values.get("测试"), "测试(2)")
+
+    def test_syncing_card_service_down(self):
+        class DownStub:
+            def chats(self):
+                return []
+
+            def refresh_chats(self):
+                return False
+
+            def tags(self):
+                return []
+
+            def sync_chats(self, tg_chat_id=0):
+                raise Exception("service down")
+
+            def sync_status(self):
+                raise Exception("service down")
+
+            def service_up(self):
+                return False
+
+        spider = make_spider(db_path="/nonexistent/tgdrama.db")
+        spider.client = DownStub()
+        page = spider.categoryContent("chantg:-1002753266064", 1)
+        card = page["list"][0]
+        self.assertEqual(card["vod_name"], "TG影视库服务未启动")
+        self.assertEqual(card["vod_remarks"], "先打开一次 TG影视库启动服务")
+        detail = spider.detailContent([card["vod_id"]])["list"][0]
+        self.assertEqual(detail["vod_name"], "TG影视库服务未启动")
+        self.assertIn("127.0.0.1:5278", detail["vod_content"])
 
     def test_home_video(self):
         spider = make_spider()

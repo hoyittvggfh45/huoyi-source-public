@@ -234,6 +234,13 @@ class TgdramaHttpClient:
     def chats(self):
         return self._request("GET", "/api/chats")
 
+    def service_up(self):
+        try:
+            status, _headers, body = self._send("GET", self._url("/"))
+            return status == 200 and bool(body)
+        except Exception:
+            return False
+
     def sync_status(self):
         try:
             data = self._request("GET", "/api/sync/status")
@@ -561,14 +568,14 @@ class Spider(BaseSpider):
         return classes
 
     def _filters(self):
-        group = {"key": "tag", "name": "标签", "init": "", "value": [{"n": "全部", "v": ""}]}
+        group = {"key": "tag", "name": "标签", "init": "", "value": []}
         try:
             for name, count in _parse_tags(self.client.tags()):
                 label = "%s(%s)" % (name, count) if count > 0 else name
                 group["value"].append({"n": label, "v": name})
         except Exception:
             pass
-        return {"all": [group], "": [group]}
+        return {"all": [group]}
 
     def homeContent(self, filter=False):
         self._maybe_refresh_chats(force=bool(filter) and self._home_calls > 0)
@@ -755,12 +762,28 @@ class Spider(BaseSpider):
         )
         return self._page_result([card], page, 1, 1)
 
+    def _service_up(self):
+        probe = getattr(self.client, "service_up", None)
+        if probe is None:
+            return True
+        try:
+            return bool(probe())
+        except Exception:
+            return False
+
     def _syncing_page(self, page=1):
         remarks = "稍后下拉刷新"
         try:
             status = self.client.sync_status()
         except Exception:
             status = {}
+        if isinstance(status, dict) and not status and not self._service_up():
+            card = TgdramaMapper.info_vod(
+                "TG影视库服务未启动",
+                TgdramaMapper.pack("info", {"key": "service_down"}),
+                "先打开一次 TG影视库启动服务",
+            )
+            return self._page_result([card], page, 1, 1)
         if isinstance(status, dict) and status.get("active"):
             done = status.get("done") or 0
             total = status.get("total") or 0
@@ -969,6 +992,9 @@ class Spider(BaseSpider):
         if key == "syncing":
             content = "正在同步这个频道的视频，稍后再下拉刷新看看。\n同步状态去频道管理页查看。"
             title = "正在同步"
+        elif key == "service_down":
+            content = "TG影视库本地服务（127.0.0.1:5278）没有启动，本频道取数走插件本地服务。\n先打开一次 TG影视库启动服务，再进本频道。\n如果 TG影视库也打不开，去设置 → Telegram 登录里看登录状态。"
+            title = "TG影视库服务未启动"
         elif key == "not_synced":
             content = "这个频道还没同步到本地库，里面暂时没有剧。\n插件同步完成后，点分类里的频道名就能看该频道的剧；同步状态去频道管理页查看。"
             title = "该频道尚未同步"
