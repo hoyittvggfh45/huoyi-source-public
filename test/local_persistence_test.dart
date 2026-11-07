@@ -206,4 +206,30 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     },
   );
+
+  test('视频区按区记忆上次站点，重启后各区恢复自己的站', () async {
+    final (store, platform) = await create();
+    expect(store.zoneSource('drama'), '');
+    await store.setZoneSource('drama', 'hongguo');
+    await store.setZoneSource('vod', 'missav');
+    await store.setZoneSource('midnight', '__all__');
+    expect(store.zoneSource('drama'), 'hongguo');
+    expect(store.zoneSource('vod'), 'missav');
+    expect(store.zoneSource('midnight'), '__all__');
+
+    final restarted = await restart(platform);
+    expect(restarted.zoneSource('drama'), 'hongguo');
+    expect(restarted.zoneSource('vod'), 'missav');
+    expect(restarted.zoneSource('midnight'), '__all__');
+  });
+
+  test('视频区记忆写盘失败也不抛错', () async {
+    final (store, platform) = await create();
+    platform.failure = 'throw';
+    await store.setZoneSource('vod', 'missav');
+    expect(store.zoneSource('vod'), '');
+    platform.failure = '';
+    await store.setZoneSource('vod', 'missav');
+    expect(store.zoneSource('vod'), 'missav');
+  });
 }

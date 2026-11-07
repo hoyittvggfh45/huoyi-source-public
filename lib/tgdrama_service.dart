@@ -55,7 +55,7 @@ class TgdramaService with WidgetsBindingObserver {
 
   static const sessionAssetPath = 'assets/tgdrama_session.json';
 
-  static const binaryMd5 = 'e5dda7f96b4e2bdd052b1e652606feb5';
+  static const binaryMd5 = 'c27bc44cb21145c3d1e7ae0d1bf1edc3';
 
   static const _binaryDirName = 'tgdrama';
   static const _binaryFileName = 'tgdrama-android';

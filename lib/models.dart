@@ -113,6 +113,14 @@ class SourceSite {
     'faguo',
     'wuguo',
     'huangdou_yh',
+    'ai2026',
+    'ai4k',
+    'aidj',
+    'aiduanju',
+    'aimove',
+    'aisxpc',
+    'danai',
+    'dj69',
   }.contains(id);
   bool get pagedSearch =>
       isVideoSection ||
@@ -133,6 +141,14 @@ class SourceSite {
     'faguo',
     'wuguo',
     'huangdou_yh',
+    'ai2026',
+    'ai4k',
+    'aidj',
+    'aiduanju',
+    'aimove',
+    'aisxpc',
+    'danai',
+    'dj69',
   }.contains(id);
   bool get searchSuggestions => id == 'hongguo';
   String get groupId => switch (id) {

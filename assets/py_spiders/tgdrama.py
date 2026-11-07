@@ -234,6 +234,13 @@ class TgdramaHttpClient:
     def chats(self):
         return self._request("GET", "/api/chats")
 
+    def sync_status(self):
+        try:
+            data = self._request("GET", "/api/sync/status")
+        except (TgdramaError, OSError, ValueError):
+            return {}
+        return data if isinstance(data, dict) else {}
+
     def refresh_chats(self):
         try:
             self._request("POST", "/api/chats/refresh")
@@ -393,7 +400,8 @@ class Spider(BaseSpider):
         self.config = deepcopy(DEFAULT_CONFIG)
         self.client = TgdramaHttpClient(self.config)
         self._show_chats = {}
-        self._refresh_tried = False
+        self._last_chats_refresh = 0.0
+        self._home_calls = 0
         self._sync_triggered = set()
 
     def getName(self):
@@ -496,17 +504,22 @@ class Spider(BaseSpider):
                 return row
         return None
 
+    def _maybe_refresh_chats(self, force=False):
+        now = time.monotonic()
+        if not force and now - self._last_chats_refresh < 300.0:
+            return False
+        self._last_chats_refresh = now
+        try:
+            return bool(self.client.refresh_chats())
+        except Exception:
+            return False
+
     def _resolve_channels(self):
         chats = self._chats()
         for chat in chats:
             if isinstance(chat, dict) and _is_enabled(chat.get("enabled")):
                 return chats, False
-        if not self._refresh_tried:
-            self._refresh_tried = True
-            try:
-                self.client.refresh_chats()
-            except Exception:
-                pass
+        if self._maybe_refresh_chats():
             chats = self._chats()
             for chat in chats:
                 if isinstance(chat, dict) and _is_enabled(chat.get("enabled")):
@@ -558,6 +571,8 @@ class Spider(BaseSpider):
         return {"all": [group], "": [group]}
 
     def homeContent(self, filter=False):
+        self._maybe_refresh_chats(force=bool(filter) and self._home_calls > 0)
+        self._home_calls += 1
         return {"class": self._classes(), "filters": self._filters()}
 
     def homeVideoContent(self):
@@ -741,10 +756,29 @@ class Spider(BaseSpider):
         return self._page_result([card], page, 1, 1)
 
     def _syncing_page(self, page=1):
+        remarks = "稍后下拉刷新"
+        try:
+            status = self.client.sync_status()
+        except Exception:
+            status = {}
+        if isinstance(status, dict) and status.get("active"):
+            done = status.get("done") or 0
+            total = status.get("total") or 0
+            current = status.get("current") or ""
+            shows = status.get("shows") or 0
+            if total > 0:
+                remarks = "正在同步第 %s/%s 个频道" % (done + 1, total)
+                if current:
+                    remarks += "（当前：%s）" % current
+                remarks += "，已入库 %s 部视频，稍后下拉刷新" % shows
+            else:
+                remarks = "正在同步，已入库 %s 部视频，稍后下拉刷新" % shows
+        elif isinstance(status, dict) and status:
+            remarks = "同步已完成，这个频道暂无视频，稍后再来看看"
         card = TgdramaMapper.info_vod(
             "正在同步",
             TgdramaMapper.pack("info", {"key": "syncing"}),
-            "稍后下拉刷新",
+            remarks,
         )
         return self._page_result([card], page, 1, 1)
 

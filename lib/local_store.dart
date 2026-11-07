@@ -714,6 +714,46 @@ class LocalStore extends ChangeNotifier {
     });
   }
 
+  /// 视频区按区记忆的上次站点：'__all__' 表示全部站源模式，其余为站源 id。
+  static const zoneSourceAll = '__all__';
+
+  Map<String, String> _zoneSources() {
+    try {
+      final raw = _string(_key('zoneSources'));
+      if (raw == null || raw.isEmpty) return {};
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return {};
+      return {
+        for (final entry in decoded.entries)
+          if (entry.key is String && entry.value is String)
+            entry.key as String: entry.value as String,
+      };
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// 读某视频区（drama/vod/midnight）上次选中的站，'' 表示没记过。
+  /// 只读不回落；回落由调用方按当前区可见源做（站不存在或被门禁藏起时落默认站）。
+  String zoneSource(String zone) {
+    if (locked) return '';
+    return _zoneSources()[zone] ?? '';
+  }
+
+  /// 切换视频区站点时立即记盘。尽力而为：写盘失败不抛错、不影响切站本身。
+  Future<void> setZoneSource(String zone, String source) {
+    final epoch = _epoch;
+    return _queue(() async {
+      try {
+        if (locked || epoch != _epoch) return;
+        final values = _zoneSources();
+        values[zone] = source;
+        await _commit({_key('zoneSources'): jsonEncode(values)});
+        _notify();
+      } catch (_) {}
+    });
+  }
+
   Future<void> rememberSearch(String text) {
     final query = text.trim();
     if (query.isEmpty || query.runes.length > 80) return Future.value();

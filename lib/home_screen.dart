@@ -12,6 +12,7 @@ import 'liquid_glass.dart';
 import 'app_drawer.dart';
 import 'midnight_zone.dart';
 import 'content_registry.dart';
+import 'content_zone_binding.dart';
 import 'content_zone_screen.dart';
 import 'content_models.dart';
 import 'player_picker.dart';
@@ -127,6 +128,9 @@ class _HomeScreenState extends State<HomeScreen> {
   String _currentVersion = '';
   String _catalogSection = SourceSite.sectionDrama;
   final _sectionSourceIds = <String, String>{};
+  HomeZone _sectionZone = HomeZone.drama;
+  final _lastZoneSource = <String, String>{};
+  late final ContentZoneBinding _contentBinding;
   final _sectionSnapshots = <String, _SectionSnapshot>{};
   final _sectionFetchedAt = <String, DateTime>{};
   List<Drama>? _visibleCache;
@@ -731,18 +735,24 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _changeSection(String section) {
-    if (_catalogSection == section) return;
+    final sameSection = _catalogSection == section;
+    if (sameSection && _sectionZone == _zone) return;
     _sectionSourceIds[_catalogSection] = _source.id;
     _pauseCatalog();
-    _saveSectionSnapshot();
-    final snapshot = _sectionSnapshots[section];
-    if (snapshot != null) {
-      _restoreSectionSnapshot(section, snapshot);
-      return;
+    if (!sameSection) {
+      _saveSectionSnapshot();
+      final snapshot = _sectionSnapshots[section];
+      if (snapshot != null) {
+        _restoreSectionSnapshot(section, snapshot);
+        _sectionZone = _zone;
+        return;
+      }
     }
-    final remembered = _sectionSourceIds[section];
+    final remembered = _rememberedForCurrentZone();
+    final sectionRemembered = _sectionSourceIds[section];
     setState(() {
       _catalogSection = section;
+      _sectionZone = _zone;
       _drillStack.clear();
       _catalogTags = const [];
       _catalogFilters = const [];
@@ -758,12 +768,24 @@ class _HomeScreenState extends State<HomeScreen> {
       _hasMore = true;
       _error = null;
       final candidates = _sectionSources;
-      if (candidates.isNotEmpty &&
-          !candidates.any((site) => site.id == _source.id)) {
-        _source =
-            candidates.where((site) => site.id == remembered).firstOrNull ??
-            candidates.first;
-        _allSources = false;
+      if (candidates.isNotEmpty) {
+        if (remembered != null) {
+          _source = remembered.site;
+          _allSources = remembered.allSources;
+        } else {
+          final site = sectionRemembered == null
+              ? null
+              : candidates
+                    .where((site) => site.id == sectionRemembered)
+                    .firstOrNull;
+          if (site != null) {
+            _source = site;
+            _allSources = false;
+          } else if (!candidates.any((site) => site.id == _source.id)) {
+            _source = candidates.first;
+            _allSources = false;
+          }
+        }
       }
     });
     if (_scroll.hasClients) _scroll.jumpTo(0);
@@ -894,15 +916,27 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _scroll.addListener(_onCatalogScroll);
+    _contentBinding = ContentZoneBinding(
+      readPersisted: (key) => widget.store.preferences.getString(key),
+      writePersisted: (key, value) {
+        unawaited(widget.store.preferences.setString(key, value));
+      },
+    );
     _source = SourceSite.byId(widget.store.source);
     _catalogSection = SourceSite.sectionDrama;
     _zone = HomeZone.drama;
-    if (_sectionSources.isNotEmpty &&
-        !_sectionSources.any((site) => site.id == _source.id)) {
-      _source = _sectionSources.first;
-      _sectionSourceIds[_catalogSection] = _source.id;
-    }
     _allSources = widget.store.catalogView.allSources;
+    if (_sectionSources.isNotEmpty) {
+      final remembered = _rememberedForCurrentZone();
+      if (remembered != null) {
+        _source = remembered.site;
+        _allSources = remembered.allSources;
+      } else if (!_sectionSources.any((site) => site.id == _source.id)) {
+        _source = _sectionSources.first;
+        _allSources = false;
+        _sectionSourceIds[_catalogSection] = _source.id;
+      }
+    }
     _browser = CatalogBrowser(widget.repository);
     _updater = LibraryUpdater(
       widget.repository,
@@ -1080,6 +1114,24 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// 当前视频区上次选中的站（跨重启记忆）：先读本会话刚记下的，
+  /// 再读落盘的；'__all__' 恢复全部站源模式，站源 id 恢复单站。
+  /// 记过但已不在本区可见源里（被删、被摘、被午夜门禁藏起）时返回 null，
+  /// 由调用方回落默认站；门禁只做减法，记忆不把藏起的站翻出来。
+  ({SourceSite site, bool allSources})? _rememberedForCurrentZone() {
+    final value =
+        _lastZoneSource[_zone.name] ?? widget.store.zoneSource(_zone.name);
+    if (value.isEmpty) return null;
+    final candidates = _sectionSources;
+    if (candidates.isEmpty) return null;
+    if (value == LocalStore.zoneSourceAll) {
+      return (site: candidates.first, allSources: _sourceGroups.length > 1);
+    }
+    final site = candidates.where((site) => site.id == value).firstOrNull;
+    if (site == null) return null;
+    return (site: site, allSources: false);
+  }
+
   void _changeSource(SourceSite source, {bool allSources = false}) {
     _debounce?.cancel();
     _search.clear();
@@ -1105,6 +1157,14 @@ class _HomeScreenState extends State<HomeScreen> {
       saveUserChange(
         context,
         () => widget.store.setCatalogSource(source.id, allSources: allSources),
+      ),
+    );
+    _lastZoneSource[_zone.name] =
+        allSources ? LocalStore.zoneSourceAll : source.id;
+    unawaited(
+      widget.store.setZoneSource(
+        _zone.name,
+        allSources ? LocalStore.zoneSourceAll : source.id,
       ),
     );
     if (_scroll.hasClients) {
@@ -2342,10 +2402,16 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
     if (_zone == HomeZone.audio) {
-      return const ContentZoneScreen(section: ContentSection.audio);
+      return ContentZoneScreen(
+        section: ContentSection.audio,
+        binding: _contentBinding,
+      );
     }
     if (_zone == HomeZone.novel) {
-      return const ContentZoneScreen(section: ContentSection.novel);
+      return ContentZoneScreen(
+        section: ContentSection.novel,
+        binding: _contentBinding,
+      );
     }
     if (_sectionSources.isEmpty) {
       return StatusPanel(

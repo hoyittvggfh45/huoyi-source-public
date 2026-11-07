@@ -54,6 +54,9 @@ class LocalSnapshot {
     // 观看统计（xigua 播放器移植新增，每用户），必须列入受管字段，
     // 否则记录播放进度会被 commit 判为「无效的本地配置字段」。
     'watchStats',
+    // 视频区按区记忆的上次站点（每用户），必须列入受管字段，
+    // 否则切站记盘会被 commit 判为「无效的本地配置字段」。
+    'zoneSources',
     'lanRecords',
     'lanSettings',
     'lanReceipts',
@@ -87,7 +90,7 @@ class LocalSnapshot {
       globalKeys.contains(key) ||
       libraryKeys.contains(key) ||
       RegExp(
-        r'^profile\.[a-zA-Z0-9_-]{1,64}\.(history|favorites|followStates|seriesCandidates|mediaHistory|source|hideVip|hiddenSites|playback|downloadPreferences|catalogView|recentSearches|watchStats|lanRecords|lanSettings|lanReceipts)$',
+        r'^profile\.[a-zA-Z0-9_-]{1,64}\.(history|favorites|followStates|seriesCandidates|mediaHistory|source|hideVip|hiddenSites|playback|downloadPreferences|catalogView|recentSearches|watchStats|zoneSources|lanRecords|lanSettings|lanReceipts)$',
       ).hasMatch(key);
 
   Map<String, Object> get values => Map.of(_values);

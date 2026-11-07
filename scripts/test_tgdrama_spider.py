@@ -156,19 +156,20 @@ def make_spider(db_path=None):
 class StubClient:
     def __init__(self, chats_sequence, refresh_error=False):
         self._seq = list(chats_sequence)
+        self._current = self._seq.pop(0) if self._seq else []
         self.refresh_calls = 0
         self.refresh_error = refresh_error
         self.sync_calls = []
 
     def chats(self):
-        if self._seq:
-            return self._seq.pop(0)
-        return []
+        return self._current
 
     def refresh_chats(self):
         self.refresh_calls += 1
         if self.refresh_error:
             raise Exception("refresh failed")
+        if self._seq:
+            self._current = self._seq.pop(0)
         return True
 
     def sync_chats(self, tg_chat_id=0):
@@ -582,8 +583,64 @@ class TgdramaSpiderTest(unittest.TestCase):
         original = spider.client.refresh_chats
         spider.client.refresh_chats = lambda: calls.append(1) or original()
         ids = [entry["type_id"] for entry in spider.homeContent(False)["class"]]
-        self.assertEqual(calls, [])
+        self.assertEqual(calls, [1])
         self.assertFalse(any(item.startswith("chantg:") for item in ids))
+        spider.homeContent(False)
+        self.assertEqual(calls, [1])
+
+    def test_home_refresh_throttle(self):
+        spider = make_spider(db_path="/nonexistent/tgdrama.db")
+        stub = StubClient([[], REAL_CHATS])
+        spider.client = stub
+        spider.homeContent(False)
+        self.assertEqual(stub.refresh_calls, 1)
+        spider.homeContent(False)
+        self.assertEqual(stub.refresh_calls, 1)
+        spider.homeContent(True)
+        self.assertEqual(stub.refresh_calls, 2)
+        spider.homeContent(True)
+        self.assertEqual(stub.refresh_calls, 3)
+        spider._last_chats_refresh = 0.0
+        spider.homeContent(False)
+        self.assertEqual(stub.refresh_calls, 4)
+
+    def test_syncing_card_shows_progress(self):
+        class ProgressStub:
+            def __init__(self):
+                self.status = {"active": True, "phase": "quick", "done": 2,
+                               "total": 5, "current": "测试频道", "shows": 7}
+                self.sync_calls = []
+
+            def chats(self):
+                return []
+
+            def refresh_chats(self):
+                return True
+
+            def tags(self):
+                return []
+
+            def sync_chats(self, tg_chat_id=0):
+                self.sync_calls.append(int(tg_chat_id))
+                return {"ok": True, "syncing": True}
+
+            def sync_status(self):
+                return self.status
+
+        spider = make_spider(db_path="/nonexistent/tgdrama.db")
+        stub = ProgressStub()
+        spider.client = stub
+        page = spider.categoryContent("chantg:-1002753266064", 1)
+        card = page["list"][0]
+        self.assertEqual(card["vod_name"], "正在同步")
+        self.assertIn("第 3/5 个频道", card["vod_remarks"])
+        self.assertIn("测试频道", card["vod_remarks"])
+        self.assertIn("7", card["vod_remarks"])
+        stub.status = {"active": False, "phase": "backfill", "done": 5,
+                       "total": 5, "current": "", "shows": 0}
+        spider._sync_triggered.clear()
+        page = spider.categoryContent("chantg:-1002753266064", 1)
+        self.assertIn("同步已完成", page["list"][0]["vod_remarks"])
 
     def test_refresh_http_contract(self):
         server = ThreadingHTTPServer(("127.0.0.1", 0), RecordingHandler)
