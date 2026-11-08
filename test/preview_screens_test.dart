@@ -7,7 +7,6 @@ import 'package:duanju_app/app_theme.dart';
 import 'package:duanju_app/content_source_screen.dart';
 import 'package:duanju_app/detail_screen.dart';
 import 'package:duanju_app/downloads_screen.dart';
-import 'package:duanju_app/drama_style_home.dart';
 import 'package:duanju_app/fullscreen_feed_screen.dart';
 import 'package:duanju_app/home_screen.dart';
 import 'package:duanju_app/live_playback.dart';
@@ -17,7 +16,6 @@ import 'package:duanju_app/live_screen.dart';
 import 'package:duanju_app/live_sources.dart';
 import 'package:duanju_app/live_store.dart';
 import 'package:duanju_app/local_store.dart';
-import 'package:duanju_app/models.dart';
 import 'package:duanju_app/player_screen.dart';
 import 'package:duanju_app/saved_library.dart';
 import 'package:duanju_app/settings_screen.dart';
@@ -279,39 +277,6 @@ void main() {
     print('preview landed: preview_feed_settings');
   });
 
-  testWidgets('preview drama home', (tester) async {
-    print('preview stage: home test entered');
-    final searchController = TextEditingController();
-    addTearDown(searchController.dispose);
-    await capturePreview(
-      tester,
-      DramaStyleHome(
-        dramas: [FixtureRepository.free, FixtureRepository.vip],
-        repository: FixtureRepository(),
-        onOpenDrama: (_) {},
-        onOpenFeed: () {},
-        onPickSource: () {},
-        sourceLabel: '合成数据',
-        feedEnabled: true,
-        categories: const [CatalogCategory.all, CatalogCategory('syn', '合成数据')],
-        selectedCategory: '',
-        onCategorySelected: (_) {},
-        searchController: searchController,
-        searchHint: '搜索短剧',
-        onSearchChanged: (_) {},
-        onSearchSubmitted: (_) {},
-        onFilterPressed: () {},
-        onRankingsPressed: () {},
-        onNewPressed: () {},
-        filtersActive: false,
-        newActive: false,
-        onMenuPressed: () {},
-        onSettingsPressed: () {},
-      ),
-      'preview_drama_home',
-    );
-  });
-
   testWidgets('preview live', (tester) async {
     final store = await previewStore({});
     final prefs = await SharedPreferences.getInstance();
@@ -388,19 +353,6 @@ void main() {
       tester,
       SettingsScreen(repository: FixtureRepository(), store: store),
       'preview_settings_ant',
-    );
-  });
-
-  testWidgets('preview settings drama', (tester) async {
-    dramaUiStyleNotifier.value = DramaUiStyle.drama;
-    addTearDown(() {
-      dramaUiStyleNotifier.value = DramaUiStyle.ant;
-    });
-    final store = await previewStore({});
-    await capturePreview(
-      tester,
-      SettingsScreen(repository: FixtureRepository(), store: store),
-      'preview_settings_drama',
     );
   });
 

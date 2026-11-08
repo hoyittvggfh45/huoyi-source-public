@@ -454,6 +454,73 @@ void main() {
   });
 
   group('内置 py 午夜站', () {
+    test('妇愁者联盟 站注册值：视频分区、内置来源、py 类型、🔞 名', () {
+      final site = BuiltinPySites.fuchouSite;
+      expect(site.id, 'fuchou');
+      expect(site.name, '🔞妇愁者联盟');
+      expect(site.section, SourceSite.sectionVideo);
+      expect(site.origin, SourceSite.originBuiltin);
+      expect(site.importType, 'py');
+      expect(BuiltinPySites.fuchouAssetPath, 'assets/py_spiders/fuchou.py');
+    });
+    test('妇愁者联盟 站进午夜区、不进点播区', () {
+      expect(isMidnightZoneSource(BuiltinPySites.fuchouSite), isTrue);
+      expect(isVodZoneSource(BuiltinPySites.fuchouSite), isFalse);
+    });
+  });
+
+  group('内置 py 午夜站', () {
+    test('黑桃短剧 站注册值：视频分区、内置来源、py 类型、🔞 名', () {
+      final site = BuiltinPySites.heitaoSite;
+      expect(site.id, 'heitao');
+      expect(site.name, '🔞黑桃短剧');
+      expect(site.section, SourceSite.sectionVideo);
+      expect(site.origin, SourceSite.originBuiltin);
+      expect(site.importType, 'py');
+      expect(BuiltinPySites.heitaoAssetPath, 'assets/py_spiders/heitao.py');
+    });
+    test('黑桃短剧 站进午夜区、不进点播区', () {
+      expect(isMidnightZoneSource(BuiltinPySites.heitaoSite), isTrue);
+      expect(isVodZoneSource(BuiltinPySites.heitaoSite), isFalse);
+    });
+  });
+
+  group('内置 py 短剧站', () {
+    test('金果短剧 站注册值：短剧分区、内置来源、py 类型、🔞 名', () {
+      final site = BuiltinPySites.jinguoSite;
+      expect(site.id, 'jinguo');
+      expect(site.name, '🔞金果短剧');
+      expect(site.section, SourceSite.sectionDrama);
+      expect(site.origin, SourceSite.originBuiltin);
+      expect(site.importType, 'py');
+      expect(BuiltinPySites.jinguoAssetPath, 'assets/py_spiders/jinguo.py');
+    });
+    test('金果短剧 站进短剧区、不进午夜区、不进点播区', () {
+      expect(BuiltinPySites.jinguoSite.isDramaSection, isTrue);
+      expect(isMidnightZoneSource(BuiltinPySites.jinguoSite), isFalse);
+      expect(isVodZoneSource(BuiltinPySites.jinguoSite), isFalse);
+      expect(BuiltinPySites.jinguoSite.onlineSearch, isTrue);
+      expect(BuiltinPySites.jinguoSite.pagedSearch, isTrue);
+    });
+    test('禁果短剧 站注册值：短剧分区、内置来源、py 类型、🔞 名', () {
+      final site = BuiltinPySites.jinguoJgSite;
+      expect(site.id, 'jinguo_jg');
+      expect(site.name, '🔞禁果短剧');
+      expect(site.section, SourceSite.sectionDrama);
+      expect(site.origin, SourceSite.originBuiltin);
+      expect(site.importType, 'py');
+      expect(BuiltinPySites.jinguoAssetPath, 'assets/py_spiders/jinguo.py');
+    });
+    test('禁果短剧 站进短剧区、不进午夜区、不进点播区', () {
+      expect(BuiltinPySites.jinguoJgSite.isDramaSection, isTrue);
+      expect(isMidnightZoneSource(BuiltinPySites.jinguoJgSite), isFalse);
+      expect(isVodZoneSource(BuiltinPySites.jinguoJgSite), isFalse);
+      expect(BuiltinPySites.jinguoJgSite.onlineSearch, isTrue);
+      expect(BuiltinPySites.jinguoJgSite.pagedSearch, isTrue);
+    });
+  });
+
+  group('内置 py 午夜站', () {
     test('顶级AI色库 站注册值：视频分区、内置来源、py 类型、🔞 名', () {
       final site = BuiltinPySites.dingjiasekuSite;
       expect(site.id, 'dingjiaseku');

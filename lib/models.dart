@@ -131,6 +131,8 @@ class SourceSite {
     'sexaix',
     'aiwu',
     'youzidj',
+    'jinguo',
+    'jinguo_jg',
   }.contains(id);
   bool get pagedSearch =>
       isVideoSection ||
@@ -169,6 +171,8 @@ class SourceSite {
     'sexaix',
     'aiwu',
     'youzidj',
+    'jinguo',
+    'jinguo_jg',
   }.contains(id);
   bool get searchSuggestions => id == 'hongguo';
   String get groupId => switch (id) {

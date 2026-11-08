@@ -35,10 +35,7 @@ import 'proxy_kernel_screen.dart';
 import 'rule_editor_screen.dart';
 import 'theme_settings_screen.dart';
 import 'tgdrama_login_page.dart';
-import 'drama_settings.dart';
 import 'hongguo_device_screen.dart';
-import 'ui_style.dart';
-import 'xigua/playback_settings_screen.dart';
 import 'app_layout.dart';
 import 'models.dart';
 import 'playback_launch_screen.dart';
@@ -183,128 +180,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: widget.store,
-    builder: (_, _) => ValueListenableBuilder<DramaUiStyle>(
-      valueListenable: dramaUiStyleNotifier,
-      builder: (_, style, _) {
-        final body = glassDesign(context)
-            ? _glassBody(style)
-            : _materialBody(style);
-        if (widget.embedded) return body;
-        return Scaffold(
-          appBar: AppBar(title: const Text('设置与备份')),
-          body: body,
-        );
-      },
-    ),
+    builder: (_, _) {
+      final body = glassDesign(context) ? _glassBody() : _materialBody();
+      if (widget.embedded) return body;
+      return Scaffold(
+        appBar: AppBar(title: const Text('设置与备份')),
+        body: body,
+      );
+    },
   );
 
-  bool _dramaEntryVisible(DramaSettingsTarget target) => switch (target) {
-    DramaSettingsTarget.sources => widget.repository.supportsSourceManagement,
-    _ => true,
-  };
-
-  VoidCallback _dramaEntryAction(
-    DramaSettingsTarget target,
-  ) => switch (target) {
-    DramaSettingsTarget.style => () => unawaited(chooseDramaUiStyle(context)),
-    DramaSettingsTarget.resource => () => Navigator.push(
-      context,
-      appPageRoute<void>(
-        builder: (_) => ResourceSettingsScreen(
-          repository: widget.repository,
-          store: widget.store,
-        ),
-      ),
-    ),
-    DramaSettingsTarget.sources => () => Navigator.push(
-      context,
-      appPageRoute<void>(
-        builder: (_) =>
-            SourcesScreen(repository: widget.repository, store: widget.store),
-      ),
-    ),
-    DramaSettingsTarget.playback => () => Navigator.push(
-      context,
-      appPageRoute<void>(
-        builder: (_) => PlaybackSettingsScreen(store: widget.store),
-      ),
-    ),
-    DramaSettingsTarget.playerChoice => () => Navigator.push(
-      context,
-      appPageRoute<void>(
-        builder: (_) => PlayerPickerScreen(store: widget.store),
-      ),
-    ),
-    DramaSettingsTarget.deviceProfile => () => Navigator.push(
-      context,
-      appPageRoute<void>(
-        builder: (_) => HongguoDeviceScreen(repository: widget.repository),
-      ),
-    ),
-    DramaSettingsTarget.lanSync => () => openLanSync(context),
-    DramaSettingsTarget.follow => () => _openSavedLibrary(history: false),
-    DramaSettingsTarget.history => () => _openSavedLibrary(history: true),
-    _ => () {},
-  };
-
-  IconData _dramaEntryIcon(DramaSettingsTarget target) => switch (target) {
-    DramaSettingsTarget.style => Icons.style_outlined,
-    DramaSettingsTarget.resource => Icons.settings_ethernet_rounded,
-    DramaSettingsTarget.sources => Icons.dns_outlined,
-    DramaSettingsTarget.playback => Icons.play_circle_outline,
-    DramaSettingsTarget.playerChoice => Icons.video_settings_outlined,
-    DramaSettingsTarget.deviceProfile => Icons.badge_outlined,
-    DramaSettingsTarget.videoEnhancement => Icons.auto_fix_high_outlined,
-    DramaSettingsTarget.lanSync => Icons.devices_rounded,
-    DramaSettingsTarget.follow => Icons.bookmark_outline,
-    DramaSettingsTarget.history => Icons.history_outlined,
-    DramaSettingsTarget.coverCache => Icons.image_outlined,
-    DramaSettingsTarget.watchStats => Icons.bar_chart_outlined,
-    DramaSettingsTarget.reservation => Icons.alarm_add_outlined,
-    DramaSettingsTarget.tvSettings => Icons.tv_outlined,
-  };
-
-  List<Widget> _materialDramaSections() {
-    final widgets = <Widget>[];
-    for (final section in dramaStyleSettingsSections()) {
-      final entries = section.availableEntries
-          .where((entry) => _dramaEntryVisible(entry.target))
-          .toList();
-      if (entries.isEmpty) continue;
-      widgets.add(
-        Padding(
-          padding: const EdgeInsets.fromLTRB(4, 20, 4, 4),
-          child: Text(
-            section.title,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ),
-      );
-      for (final entry in entries) {
-        widgets.add(
-          ListTile(
-            leading: Icon(_dramaEntryIcon(entry.target)),
-            title: Text(entry.title),
-            subtitle: Text(entry.subtitle),
-            trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: _dramaEntryAction(entry.target),
-          ),
-        );
-      }
-    }
-    return widgets;
-  }
-
-  Widget _materialBody(DramaUiStyle style) => Center(
+  Widget _materialBody() => Center(
     child: ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 720),
       child: ListView(
         key: const ValueKey('settings-list'),
         padding: const EdgeInsets.all(16),
         children: [
-          if (style == DramaUiStyle.drama) ..._materialDramaSections(),
           ListTile(
             key: const ValueKey('lan-settings'),
             leading: const Icon(Icons.devices_rounded),
@@ -326,21 +218,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
           ),
-          if (style != DramaUiStyle.drama)
-            ListTile(
-              key: const ValueKey('hongguo-device-entry'),
-              leading: const Icon(Icons.badge_outlined),
-              title: const Text('设备注册档案'),
-              subtitle: const Text('红果设备身份与注册状态'),
-              trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: () => Navigator.push(
-                context,
-                appPageRoute<void>(
-                  builder: (_) =>
-                      HongguoDeviceScreen(repository: widget.repository),
-                ),
+          ListTile(
+            key: const ValueKey('hongguo-device-entry'),
+            leading: const Icon(Icons.badge_outlined),
+            title: const Text('设备注册档案'),
+            subtitle: const Text('红果设备身份与注册状态'),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => Navigator.push(
+              context,
+              appPageRoute<void>(
+                builder: (_) =>
+                    HongguoDeviceScreen(repository: widget.repository),
               ),
             ),
+          ),
           if (widget.repository.supportsSourceManagement)
             ListTile(
               leading: const Icon(Icons.dns_outlined),
@@ -493,17 +384,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: _chooseDisplayMode,
           ),
-          if (style != DramaUiStyle.drama)
-            ListTile(
-              leading: const Icon(Icons.style_outlined),
-              title: const Text('短剧区风格'),
-              subtitle: ValueListenableBuilder<DramaUiStyle>(
-                valueListenable: dramaUiStyleNotifier,
-                builder: (context, style, _) => Text(style.label),
-              ),
-              trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: () => unawaited(chooseDramaUiStyle(context)),
-            ),
           ListTile(
             leading: const Icon(Icons.people_outline),
             title: const Text('用户管理'),
@@ -710,25 +590,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  List<Widget> _glassDramaSection(DramaSettingsSection section, Color color) {
-    final rows = <Widget>[];
-    for (final entry in section.availableEntries) {
-      if (!_dramaEntryVisible(entry.target)) continue;
-      rows.add(
-        _glassRow(
-          icon: _dramaEntryIcon(entry.target),
-          color: color,
-          title: entry.title,
-          detail: entry.subtitle,
-          onTap: _dramaEntryAction(entry.target),
-        ),
-      );
-    }
-    if (rows.isEmpty) return [];
-    return [_glassSection(section.title, rows)];
-  }
-
-  Widget _glassBody(DramaUiStyle style) {
+  Widget _glassBody() {
     final store = widget.store;
     return ListView(
       key: const ValueKey('settings-list'),
@@ -739,26 +601,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         32 + MediaQuery.paddingOf(context).bottom,
       ),
       children: [
-        _glassSection('短剧区', [
-          _glassRow(
-            icon: Icons.style_outlined,
-            color: const Color(0xFFAF52DE),
-            title: '短剧区风格',
-            detail: style.label,
-            onTap: () => unawaited(chooseDramaUiStyle(context)),
-          ),
-        ]),
-        if (style == DramaUiStyle.drama)
-          for (final section in dramaStyleSettingsSections())
-            if (section.title != '短剧区')
-              ..._glassDramaSection(section, switch (section.title) {
-                '资源' => const Color(0xFF5E5CE6),
-                '播放' => const Color(0xFF64D2FF),
-                '红果' => const Color(0xFFFF765F),
-                '同步' => const Color(0xFF30D158),
-                '数据' => const Color(0xFFFF9F0A),
-                _ => const Color(0xFF8E8E93),
-              }),
         _glassSection('通用', [
           _glassRow(
             key: const ValueKey('lan-settings'),
@@ -933,16 +775,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
             detail: AppTheme.label(store.themeMode),
             onTap: () => _push(ThemeSettingsScreen(store: widget.store)),
           ),
-          if (style != DramaUiStyle.drama)
-            _glassRow(
-              key: const ValueKey('hongguo-device-entry'),
-              icon: LucideIcons.badge,
-              color: const Color(0xFFFF765F),
-              title: '设备注册档案',
-              detail: '红果设备身份与注册状态',
-              onTap: () =>
-                  _push(HongguoDeviceScreen(repository: widget.repository)),
-            ),
+          _glassRow(
+            key: const ValueKey('hongguo-device-entry'),
+            icon: LucideIcons.badge,
+            color: const Color(0xFFFF765F),
+            title: '设备注册档案',
+            detail: '红果设备身份与注册状态',
+            onTap: () =>
+                _push(HongguoDeviceScreen(repository: widget.repository)),
+          ),
           _glassRow(
             icon: LucideIcons.monitor,
             color: const Color(0xFF5E5CE6),

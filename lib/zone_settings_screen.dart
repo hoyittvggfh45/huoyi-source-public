@@ -9,7 +9,6 @@ import 'local_store.dart';
 import 'parse_settings_screen.dart';
 import 'player_picker.dart';
 import 'settings_screen.dart';
-import 'ui_style.dart';
 import 'xigua/playback_settings_screen.dart';
 
 class ZoneSettingsScreen extends StatelessWidget {
@@ -65,18 +64,6 @@ class ZoneSettingsScreen extends StatelessWidget {
     final entries = <Widget>[];
     switch (zone) {
       case HomeZone.drama:
-        entries.add(
-          ListTile(
-            leading: const Icon(Icons.style_outlined),
-            title: const Text('短剧区风格'),
-            subtitle: ValueListenableBuilder<DramaUiStyle>(
-              valueListenable: dramaUiStyleNotifier,
-              builder: (context, style, _) => Text(style.label),
-            ),
-            trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: () => chooseDramaUiStyle(context),
-          ),
-        );
       case HomeZone.vod:
       case HomeZone.midnight:
         break;

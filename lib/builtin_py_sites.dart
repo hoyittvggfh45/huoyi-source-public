@@ -500,6 +500,57 @@ class BuiltinPySites {
     importType: 'py',
   );
 
+  static const fuchouSiteId = 'fuchou';
+  static const fuchouAssetPath = 'assets/py_spiders/fuchou.py';
+  static const fuchouFileId = 'builtin_fuchou';
+
+  static const fuchouSite = SourceSite(
+    fuchouSiteId,
+    '🔞妇愁者联盟',
+    '内置 py · fuchou',
+    section: SourceSite.sectionVideo,
+    origin: SourceSite.originBuiltin,
+    importType: 'py',
+  );
+
+  static const heitaoSiteId = 'heitao';
+  static const heitaoAssetPath = 'assets/py_spiders/heitao.py';
+  static const heitaoFileId = 'builtin_heitao';
+
+  static const heitaoSite = SourceSite(
+    heitaoSiteId,
+    '🔞黑桃短剧',
+    '内置 py · heitao',
+    section: SourceSite.sectionVideo,
+    origin: SourceSite.originBuiltin,
+    importType: 'py',
+  );
+
+  static const jinguoSiteId = 'jinguo';
+  static const jinguoAssetPath = 'assets/py_spiders/jinguo.py';
+  static const jinguoFileId = 'builtin_jinguo';
+
+  static const jinguoSite = SourceSite(
+    jinguoSiteId,
+    '🔞金果短剧',
+    '内置 py · jinguo',
+    section: SourceSite.sectionDrama,
+    origin: SourceSite.originBuiltin,
+    importType: 'py',
+  );
+
+  static const jinguoJgSiteId = 'jinguo_jg';
+  static const jinguoJgFileId = 'builtin_jinguo_jg';
+
+  static const jinguoJgSite = SourceSite(
+    jinguoJgSiteId,
+    '🔞禁果短剧',
+    '内置 py · jinguo',
+    section: SourceSite.sectionDrama,
+    origin: SourceSite.originBuiltin,
+    importType: 'py',
+  );
+
   static Future<bool> register() async {
     try {
       final bytes = await rootBundle.load(hmavAssetPath);
@@ -547,6 +598,10 @@ class BuiltinPySites {
       await _registerQipaosp();
       await _registerYouzidj();
       await _registerTanhuavip14();
+      await _registerFuchou();
+      await _registerHeitao();
+      await _registerJinguo();
+      await _registerJinguoJg();
       return true;
     } catch (_) {
       return false;
@@ -1032,6 +1087,58 @@ class BuiltinPySites {
       );
       SourceSite.importedSites[tanhuavip14SiteId] = tanhuavip14Site;
       SourceSite.importedPyFiles[tanhuavip14SiteId] = fileName;
+    } catch (_) {}
+  }
+
+  static Future<void> _registerFuchou() async {
+    try {
+      final bytes = await rootBundle.load(fuchouAssetPath);
+      final fileName = await ImportFileStore.save(
+        fuchouFileId,
+        'py',
+        bytes.buffer.asUint8List(),
+      );
+      SourceSite.importedSites[fuchouSiteId] = fuchouSite;
+      SourceSite.importedPyFiles[fuchouSiteId] = fileName;
+    } catch (_) {}
+  }
+
+  static Future<void> _registerHeitao() async {
+    try {
+      final bytes = await rootBundle.load(heitaoAssetPath);
+      final fileName = await ImportFileStore.save(
+        heitaoFileId,
+        'py',
+        bytes.buffer.asUint8List(),
+      );
+      SourceSite.importedSites[heitaoSiteId] = heitaoSite;
+      SourceSite.importedPyFiles[heitaoSiteId] = fileName;
+    } catch (_) {}
+  }
+
+  static Future<void> _registerJinguo() async {
+    try {
+      final bytes = await rootBundle.load(jinguoAssetPath);
+      final fileName = await ImportFileStore.save(
+        jinguoFileId,
+        'py',
+        bytes.buffer.asUint8List(),
+      );
+      SourceSite.importedSites[jinguoSiteId] = jinguoSite;
+      SourceSite.importedPyFiles[jinguoSiteId] = fileName;
+    } catch (_) {}
+  }
+
+  static Future<void> _registerJinguoJg() async {
+    try {
+      final bytes = await rootBundle.load(jinguoAssetPath);
+      final fileName = await ImportFileStore.save(
+        jinguoJgFileId,
+        'py',
+        bytes.buffer.asUint8List(),
+      );
+      SourceSite.importedSites[jinguoJgSiteId] = jinguoJgSite;
+      SourceSite.importedPyFiles[jinguoJgSiteId] = fileName;
     } catch (_) {}
   }
 }

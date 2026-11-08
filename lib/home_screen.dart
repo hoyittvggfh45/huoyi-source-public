@@ -40,7 +40,6 @@ import 'detail_screen.dart';
 import 'folder_catalog_screen.dart';
 import 'global_search_page.dart';
 import 'fullscreen_feed_screen.dart';
-import 'drama_style_home.dart';
 import 'hongguo_drama_home.dart';
 import 'import_file_store.dart';
 
@@ -167,7 +166,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Timer? _cacheRefreshTimer;
   bool _refreshingUpdatedCache = false;
   bool _selectionMode = false;
-  DramaUiStyle _dramaStyle = DramaUiStyle.ant;
   bool _showRecommendations = false;
   bool _catalogLoadScheduled = false;
   bool _openingPlayback = false;
@@ -959,22 +957,11 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     unawaited(_loadMidnightActivated());
     unawaited(_loadCurrentVersion());
-    _dramaStyle = dramaUiStyleNotifier.value;
-    dramaUiStyleNotifier.addListener(_syncDramaStyle);
     unawaited(ensureDramaUiStyleLoaded());
-  }
-
-  void _syncDramaStyle() {
-    if (!mounted) return;
-    final style = dramaUiStyleNotifier.value;
-    if (_dramaStyle != style) {
-      setState(() => _dramaStyle = style);
-    }
   }
 
   @override
   void dispose() {
-    dramaUiStyleNotifier.removeListener(_syncDramaStyle);
     _updater.removeListener(_updateChanged);
     _updater.dispose();
     _liveRepository.dispose();
@@ -1426,15 +1413,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
-  }
-
-  void _onDramaNavSelected(int index) {
-    switch (index) {
-      case 1:
-        _openSaved(history: false);
-      case 2:
-        _openSaved(history: true);
-    }
   }
 
   void _toggleNewSort() {
@@ -2003,101 +1981,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   onOpenSaved: _openSaved,
                   onSettingsPressed: _openZoneSettings,
                 ),
-              ),
-            );
-          }
-          if (_dramaStyle == DramaUiStyle.fullscreen) {
-            if (_visible.isEmpty) {
-              return Scaffold(
-                key: _scaffoldKey,
-                drawer: _drawer(),
-                extendBody: glass,
-                body: const SafeArea(
-                  child: StatusPanel(title: '暂无可播短剧', message: '可以换个站源或刷新后重试。'),
-                ),
-              );
-            }
-            return Scaffold(
-              key: _scaffoldKey,
-              drawer: _drawer(),
-              extendBody: glass,
-              body: SafeArea(
-                top: false,
-                bottom: !glass,
-                child: FullscreenFeedScreen(
-                  key: ValueKey('fullscreen-body-${_group.id}'),
-                  dramas: List.of(_visible),
-                  repository: widget.repository,
-                  store: widget.store,
-                  onMenuPressed: _openDrawer,
-                  categories: _categories,
-                  selectedCategory: _category,
-                  onCategorySelected: _changeCategory,
-                ),
-              ),
-            );
-          }
-          if (_dramaStyle == DramaUiStyle.drama) {
-            return Scaffold(
-              key: _scaffoldKey,
-              drawer: _drawer(),
-              extendBody: glass,
-              body: SafeArea(
-                bottom: !glass,
-                child: DramaStyleHome(
-                  dramas: List.of(_visible),
-                  repository: widget.repository,
-                  onOpenDrama: _openDrama,
-                  onOpenFeed: _openFullscreenFeed,
-                  onPickSource: () => unawaited(_pickSource()),
-                  sourceLabel: '${_group.name} (${_group.sources.length})',
-                  feedEnabled: _visible.isNotEmpty,
-                  categories: _categories,
-                  selectedCategory: _category,
-                  onCategorySelected: _changeCategory,
-                  searchController: _search,
-                  searchHint: _searchHint,
-                  onSearchChanged: _searchChanged,
-                  onSearchSubmitted: _submitSearch,
-                  onFilterPressed: () => unawaited(_chooseCatalogView()),
-                  onRankingsPressed: _openRankings,
-                  onNewPressed: _toggleNewSort,
-                  filtersActive:
-                      widget.store.catalogView.sort != CatalogSort.source ||
-                      widget.store.catalogView.release.isNotEmpty,
-                  newActive: widget.store.catalogView.sort == CatalogSort.date,
-                  onMenuPressed: _openDrawer,
-                  onSettingsPressed: _openZoneSettings,
-                  badgeOf: (drama) {
-                    if (drama.isFolder) {
-                      return drama.isTagFolder ? '标签' : '文件夹';
-                    }
-                    final following = widget.store.following(drama.id);
-                    if (following == null) return null;
-                    return '${following.status.label}${following.hasUpdates ? ' · ${following.updateLabel}' : ''}';
-                  },
-                ),
-              ),
-              bottomNavigationBar: NavigationBar(
-                selectedIndex: 0,
-                onDestinationSelected: _onDramaNavSelected,
-                destinations: const [
-                  NavigationDestination(
-                    icon: Icon(Icons.explore_outlined),
-                    selectedIcon: Icon(Icons.explore),
-                    label: '发现',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.bookmark_outline),
-                    selectedIcon: Icon(Icons.bookmark),
-                    label: '追剧',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.history_outlined),
-                    selectedIcon: Icon(Icons.history),
-                    label: '最近观看',
-                  ),
-                ],
               ),
             );
           }
