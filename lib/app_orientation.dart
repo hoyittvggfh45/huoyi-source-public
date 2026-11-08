@@ -115,20 +115,28 @@ class AppOrientationController {
       if (defaultTargetPlatform == TargetPlatform.android &&
           (force || _nativeTelevision != television)) {
         try {
-          await AppDevice.channel.invokeMethod<void>('setTelevisionMode', {
-            'enabled': television,
-          });
+          await AppDevice.channel
+              .invokeMethod<void>('setTelevisionMode', {
+                'enabled': television,
+              })
+              .timeout(const Duration(seconds: 2));
           _nativeTelevision = television;
         } on MissingPluginException {
           _nativeTelevision = null;
-        }
+        } on TimeoutException {}
       }
       if (_disposed || television != _television) return;
       final preferred = television
           ? orientations(television: true)
           : _playbackOrientations;
       if (force || !listEquals(preferred, _appliedOrientations)) {
-        await SystemChrome.setPreferredOrientations(preferred);
+        try {
+          await SystemChrome.setPreferredOrientations(
+            preferred,
+          ).timeout(const Duration(seconds: 2));
+        } on TimeoutException {
+          return;
+        }
         if (!_disposed) _appliedOrientations = preferred;
       }
     });

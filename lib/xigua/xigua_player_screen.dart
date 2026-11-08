@@ -1822,7 +1822,7 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
                 fullscreen: fullscreen,
                 aspectRatio: _aspectRatio,
               ),
-            ));
+            )).timeout(const Duration(seconds: 2));
       }
     } catch (_) {
       if (mounted && !_closed) {
@@ -2189,20 +2189,23 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
     unawaited(widget.repository.release(_session));
     unawaited(_loader.close().catchError((Object _) {}));
     unawaited(
-      _operations.catchError((Object _) {}).then((_) async {
-        if (_surfaceOutput &&
-            !_surfaceFailed &&
-            _videoSurfaceMounted &&
-            !_videoSurfaceReleaseSignaled) {
-          await _videoSurfaceRelease.future
-              .timeout(const Duration(milliseconds: 600))
-              .catchError((Object _) {});
-        }
-        await _interactions.pendingRates.catchError((Object _) {});
-        await enhancementClosed.catchError((Object _) {});
-        await _pictureQuality.dispose().catchError((Object _) {});
-        await _player.dispose();
-      }),
+      _operations
+          .catchError((Object _) {})
+          .timeout(const Duration(seconds: 1), onTimeout: () {})
+          .then((_) async {
+            if (_surfaceOutput &&
+                !_surfaceFailed &&
+                _videoSurfaceMounted &&
+                !_videoSurfaceReleaseSignaled) {
+              await _videoSurfaceRelease.future
+                  .timeout(const Duration(milliseconds: 600))
+                  .catchError((Object _) {});
+            }
+            await _interactions.pendingRates.catchError((Object _) {});
+            await enhancementClosed.catchError((Object _) {});
+            await _pictureQuality.dispose().catchError((Object _) {});
+            await _player.dispose();
+          }),
     );
     if (Platform.isWindows) {
       unawaited(windowManager.setFullScreen(false));

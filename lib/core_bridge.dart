@@ -402,18 +402,23 @@ class NativeRepository extends AppRepository {
   }
 
   Future<bool> _tdlibFallback() async {
-    bool tdlibReady = false;
-    try {
-      tdlibReady = (await TdlibService.instance.authState()).isReady;
-    } catch (_) {
-      return false;
-    }
+    final tdlibReady = await _isTdlibReady();
     if (!tdlibReady) return false;
-    if (TgdramaService.instance.isRunning) return false;
     try {
       return !await TgdramaService.instance.healthCheck();
     } catch (_) {
       return true;
+    }
+  }
+
+  Future<bool> _isTdlibReady() async {
+    try {
+      if ((await TdlibService.instance.authState()).isReady) return true;
+    } catch (_) {}
+    try {
+      return (await TdlibService.instance.init()).isReady;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -1492,6 +1497,16 @@ class NativeRepository extends AppRepository {
       return TdlibContent.instance.categories();
     }
     if (JarBridge.isJarSource(source)) {
+      if (source == 'ZakaTg') {
+        final spec = JarBridge.specFor(source);
+        if (spec == null) throw AppFailure('jar 站点未注册');
+        _authorize(source);
+        try {
+          return await JarBridge.categories(spec, force: force);
+        } on JarBridgeFailure catch (error) {
+          throw AppFailure(error.message);
+        }
+      }
       return _jarCall(
         source,
         (spec) => JarBridge.categories(spec, force: force),

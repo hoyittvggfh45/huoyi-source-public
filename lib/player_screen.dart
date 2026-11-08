@@ -2595,12 +2595,15 @@ class _PlayerScreenState extends State<PlayerScreen>
     unawaited(widget.repository.release(_session));
     unawaited(_loader.close().catchError((Object _) {}));
     unawaited(
-      _operations.catchError((Object _) {}).then((_) async {
-        await _interactions.pendingRates.catchError((Object _) {});
-        await enhancementClosed.catchError((Object _) {});
-        await _pictureQuality.dispose().catchError((Object _) {});
-        await _player.dispose();
-      }),
+      _operations
+          .catchError((Object _) {})
+          .timeout(const Duration(seconds: 1), onTimeout: () {})
+          .then((_) async {
+            await _interactions.pendingRates.catchError((Object _) {});
+            await enhancementClosed.catchError((Object _) {});
+            await _pictureQuality.dispose().catchError((Object _) {});
+            await _player.dispose();
+          }),
     );
     if (Platform.isWindows) {
       unawaited(windowManager.setFullScreen(false));

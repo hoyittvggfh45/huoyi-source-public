@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/services.dart' show rootBundle;
 
 import 'core_bridge.dart';
+import 'live_api.dart';
 import 'live_http.dart';
 import 'live_models.dart';
 import 'live_parser.dart';
@@ -50,6 +51,7 @@ class LiveRepository {
     final result = switch (source.protocol) {
       LiveProtocol.pingtai => await _pingtaiPlatforms(source),
       LiveProtocol.list => const [LivePlatform(id: 'all', name: '全部频道')],
+      LiveProtocol.api => await _apiPlatforms(source),
     };
     if (result.isEmpty) throw AppFailure('该直播源没有可用分类');
     if (token == _generation) _platforms[source.id] = result;
@@ -75,6 +77,7 @@ class LiveRepository {
     final result = switch (source.protocol) {
       LiveProtocol.pingtai => await _pingtaiChannels(source, platform),
       LiveProtocol.list => await _listChannels(source),
+      LiveProtocol.api => await _apiChannels(source, platform, page: page),
     };
     if (result.isEmpty) throw AppFailure('该分类暂时没有频道');
     _channels[cacheKey] = result;
@@ -87,7 +90,83 @@ class LiveRepository {
       case LiveProtocol.list:
         if (channel.urls.isEmpty) throw AppFailure('该频道没有可用线路');
         return LivePlayback(url: channel.urls.first, headers: channel.headers);
+      case LiveProtocol.api:
+        return _apiPlayback(source, channel);
     }
+  }
+
+  Future<List<LivePlatform>> _apiPlatforms(LiveSource source) async {
+    final spec = liveApiSpecById(source.id);
+    if (spec == null) throw AppFailure('该直播源暂未接入');
+    if (spec.platformsUrl.isEmpty) {
+      if (!spec.derivePlatformName) {
+        return [
+          LivePlatform(
+            id: spec.singlePlatformId,
+            name: spec.singlePlatformName,
+          ),
+        ];
+      }
+      final platform = LivePlatform(
+        id: spec.singlePlatformId,
+        name: spec.singlePlatformName,
+      );
+      final text = await _http.get(
+        spec.listUrlFor(platform, page: 1),
+        headers: spec.headers,
+      );
+      return [
+        LivePlatform(
+          id: spec.singlePlatformId,
+          name: deriveApiPlatformName(spec, text),
+          count: deriveApiPlatformCount(spec, text),
+        ),
+      ];
+    }
+    final text = await _http.get(spec.platformsUrl, headers: spec.headers);
+    final result = parseApiPlatforms(spec, text);
+    if (result.isEmpty) throw AppFailure('该直播源没有可用分类');
+    return result;
+  }
+
+  Future<List<LiveChannel>> _apiChannels(
+    LiveSource source,
+    LivePlatform platform, {
+    int page = 1,
+  }) async {
+    final spec = liveApiSpecById(source.id);
+    if (spec == null) throw AppFailure('该直播源暂未接入');
+    final text = await _http.get(
+      spec.listUrlFor(platform, page: page),
+      headers: spec.headers,
+    );
+    final result = parseApiChannels(spec, platform, text, source.id);
+    if (result.isEmpty) throw AppFailure('该分类暂时没有频道');
+    return result;
+  }
+
+  Future<LivePlayback> _apiPlayback(
+    LiveSource source,
+    LiveChannel channel,
+  ) async {
+    final spec = liveApiSpecById(source.id);
+    if (spec == null) throw AppFailure('该直播源暂未接入');
+    if (channel.urls.isNotEmpty) {
+      return LivePlayback(url: channel.urls.first, headers: channel.headers);
+    }
+    if (spec.playUrl.isEmpty || channel.token.isEmpty) {
+      throw AppFailure('该频道没有可用线路');
+    }
+    final text = await _http.get(
+      spec.playUrlFor(channel.token),
+      headers: spec.headers,
+    );
+    final url = parseApiPlayUrl(spec, text);
+    if (url == null || url.isEmpty) throw AppFailure('该频道暂时无法播放');
+    return LivePlayback(
+      url: url,
+      headers: {...channel.headers, ...spec.headers},
+    );
   }
 
   /// 合并同一面板的所有镜像：各镜像共享内容但分类子集不同，取并集后去重，

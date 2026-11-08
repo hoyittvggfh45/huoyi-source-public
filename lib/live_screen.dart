@@ -342,9 +342,15 @@ class _LiveScreenState extends State<LiveScreen> {
   List<LiveSource> get _sources => LiveSource.visible(widget.greenMode);
 
   /// 绿色模式下隐藏成人分类，收藏入口始终保留在最前。
+  /// 主流直播源的分类是分区/游戏名，不在白名单里，按源的
+  /// greenCategoryFilter 决定是否过滤；成人源与导入源保持默认过滤。
   List<LivePlatform> _visiblePlatforms(List<LivePlatform> platforms) => [
     for (final platform in platforms)
-      if (!LiveSource.hidesCategory(platform.name, greenMode: widget.greenMode))
+      if (_source?.greenCategoryFilter != true ||
+          !LiveSource.hidesCategory(
+            platform.name,
+            greenMode: widget.greenMode,
+          ))
         platform,
   ];
 

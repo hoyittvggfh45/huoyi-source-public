@@ -1,4 +1,4 @@
-enum LiveProtocol { pingtai, list }
+enum LiveProtocol { pingtai, list, api }
 
 class LiveSource {
   const LiveSource({
@@ -15,6 +15,8 @@ class LiveSource {
     this.adult = false,
     this.builtin = true,
     this.enabled = true,
+    this.paginated = false,
+    this.greenCategoryFilter = true,
   });
 
   final String id;
@@ -42,7 +44,11 @@ class LiveSource {
   final bool enabled;
 
   /// 是否支持按页续载。整类一次返回的源不参与滚动加载。
-  bool get paginated => false;
+  final bool paginated;
+
+  /// 绿色模式下是否按白名单过滤分类。主流直播源的分类是分区/游戏名，
+  /// 不在白名单里，设为 false 才能正常显示；成人源与导入源保持默认 true。
+  final bool greenCategoryFilter;
 
   static const values = <LiveSource>[
     LiveSource(
@@ -82,6 +88,99 @@ class LiveSource {
       protocol: LiveProtocol.list,
       endpoints: ['asset://assets/live/user_m3u.m3u'],
       adult: true,
+    ),
+    LiveSource(
+      id: 'bilibili',
+      name: '哔哩哔哩',
+      description: 'B站直播 · 分区房间 · 列表已验活',
+      protocol: LiveProtocol.api,
+      greenCategoryFilter: false,
+      paginated: true,
+    ),
+    LiveSource(
+      id: 'huya',
+      name: '虎牙',
+      description: '虎牙直播 · 热门房间 · 列表已验活',
+      protocol: LiveProtocol.api,
+      greenCategoryFilter: false,
+      paginated: true,
+    ),
+    LiveSource(
+      id: 'pandalive',
+      name: 'PandaLive',
+      description: '韩国 PandaLive · 在播房间 · 列表已验活，播放待接',
+      protocol: LiveProtocol.api,
+      greenCategoryFilter: false,
+    ),
+    LiveSource(
+      id: 'sakuralive',
+      name: 'SakuraLive',
+      description: 'SakuraLive · 在线主播 · 列表已验活，播放待接',
+      protocol: LiveProtocol.api,
+      greenCategoryFilter: false,
+    ),
+    LiveSource(
+      id: 'm3u_douyin',
+      name: '抖音直播',
+      description: '445569.xyz 聚合 m3u · 抖音在播',
+      protocol: LiveProtocol.list,
+      endpoints: ['https://douyin.445569.xyz/live.m3u'],
+      group: '抖音直播',
+      greenCategoryFilter: false,
+    ),
+    LiveSource(
+      id: 'm3u_douyu',
+      name: '斗鱼直播',
+      description: '445569.xyz 聚合 m3u · 斗鱼在播',
+      protocol: LiveProtocol.list,
+      endpoints: ['https://douyu.445569.xyz/live.m3u'],
+      group: '斗鱼直播',
+      greenCategoryFilter: false,
+    ),
+    LiveSource(
+      id: 'm3u_huya',
+      name: '虎牙直播',
+      description: '445569.xyz 聚合 m3u · 虎牙在播',
+      protocol: LiveProtocol.list,
+      endpoints: ['https://huya.445569.xyz/live.m3u'],
+      group: '虎牙直播',
+      greenCategoryFilter: false,
+    ),
+    LiveSource(
+      id: 'm3u_kugou',
+      name: '酷狗直播',
+      description: '445569.xyz 聚合 m3u · 酷狗在播',
+      protocol: LiveProtocol.list,
+      endpoints: ['https://kugou.445569.xyz/live.m3u'],
+      group: '酷狗直播',
+      greenCategoryFilter: false,
+    ),
+    LiveSource(
+      id: 'm3u_tiktok',
+      name: 'TikTok直播',
+      description: '445569.xyz 聚合 m3u · TikTok 在播',
+      protocol: LiveProtocol.list,
+      endpoints: ['https://tiktok.445569.xyz/live.m3u'],
+      group: 'TikTok直播',
+      greenCategoryFilter: false,
+    ),
+    LiveSource(
+      id: 'm3u_twitch',
+      name: 'Twitch直播',
+      description: '445569.xyz 聚合 m3u · Twitch 在播',
+      protocol: LiveProtocol.list,
+      endpoints: ['https://twitch.445569.xyz/live.m3u'],
+      group: 'Twitch直播',
+      greenCategoryFilter: false,
+    ),
+    LiveSource(
+      id: 'm3u_yy',
+      name: 'YY直播',
+      description: '445569.xyz 聚合 m3u · YY 在播',
+      protocol: LiveProtocol.list,
+      endpoints: ['https://yy.445569.xyz/live.m3u'],
+      group: 'YY直播',
+      greenCategoryFilter: false,
     ),
   ];
 
@@ -143,5 +242,7 @@ class LiveSource {
     adult: adult,
     builtin: builtin,
     enabled: enabled ?? this.enabled,
+    paginated: paginated,
+    greenCategoryFilter: greenCategoryFilter,
   );
 }
