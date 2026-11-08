@@ -7,12 +7,14 @@ class ZakatvBuiltinSite {
     this.className,
     this.ext, {
     this.section = SourceSite.sectionVideo,
+    this.audioOnly = false,
   });
   final String key;
   final String name;
   final String className;
   final String ext;
   final String section;
+  final bool audioOnly;
 }
 
 const String zakatvJarAsset = 'assets/jars/zakatv.jar';
@@ -27,7 +29,7 @@ const List<ZakatvBuiltinSite> zakatvBuiltinSites = [
   ZakatvBuiltinSite('ZakaHuangguo', '🔞黄果', 'com.github.catvod.spider.ZakaHuangguoAmns', ''),
   ZakatvBuiltinSite('ZakaHl365', '🔞黑料不打烊', 'com.github.catvod.spider.ZakaHl365Amns', ''),
   ZakatvBuiltinSite('ZakaLnkl', '🔞lnkl', 'com.github.catvod.spider.ZakaLnklAmns', ''),
-  ZakatvBuiltinSite('ZakaHuangdou', '🔞黄豆短剧', 'com.github.catvod.spider.ZakaHuangdouAmns', ''),
+  ZakatvBuiltinSite('ZakaHuangdou', '🔞黄豆短剧', 'com.github.catvod.spider.ZakaHuangdouAmns', '', section: SourceSite.sectionDrama),
   ZakatvBuiltinSite('ZakaSex8', '🔞sex8┃视频', 'com.github.catvod.spider.ZakaSex8Amns', ''),
   ZakatvBuiltinSite('ZakaHgdjV', '🔞黄果短剧┃视频', 'com.github.catvod.spider.ZakaHgdjVAmns', ''),
   ZakatvBuiltinSite('ZakaKm2', '🔞新快猫', 'com.github.catvod.spider.ZakaKm2Amns', ''),
@@ -171,5 +173,5 @@ const List<ZakatvBuiltinSite> zakatvBuiltinSites = [
   ZakatvBuiltinSite('hgkpz', '🔞黄瓜┃黄瓜看片', 'com.github.catvod.spider.ZakaHgkpzAmns', ''),
   ZakatvBuiltinSite('Wukong', '🔞悟空传媒', 'com.github.catvod.spider.Wukong', ''),
   ZakatvBuiltinSite('Chengren91', '🔞91成人', 'com.github.catvod.spider.Chengren91', ''),
-  ZakatvBuiltinSite('go_tingshu', '飞卢听书', 'com.github.catvod.spider.TingShu', '{}'),
+  ZakatvBuiltinSite('go_tingshu', '飞卢听书', 'com.github.catvod.spider.TingShu', '{}', audioOnly: true),
 ];

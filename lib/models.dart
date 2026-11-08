@@ -124,10 +124,13 @@ class SourceSite {
     'dj91',
     'djwo',
     'duanjuone',
+    'aihi',
     'ficeforand',
     'aipornx',
     'aiyinhang',
     'sexaix',
+    'aiwu',
+    'youzidj',
   }.contains(id);
   bool get pagedSearch =>
       isVideoSection ||
@@ -159,10 +162,13 @@ class SourceSite {
     'dj91',
     'djwo',
     'duanjuone',
+    'aihi',
     'ficeforand',
     'aipornx',
     'aiyinhang',
     'sexaix',
+    'aiwu',
+    'youzidj',
   }.contains(id);
   bool get searchSuggestions => id == 'hongguo';
   String get groupId => switch (id) {
@@ -723,7 +729,7 @@ class SourceSite {
     a123,
     hanxiaoquan,
     guipian,
-    SourceSite('huangdou', '黄豆', '精选短剧', section: sectionDrama),
+    SourceSite('huangdou', 'whos识图', '识图', section: sectionDrama),
     SourceSite('huangju', '剧果', '热门 · 最新 · 分类短剧', section: sectionDrama),
     SourceSite('yeguo', '野果', '分类短剧 · 在线搜索', section: sectionDrama),
     dsd,
@@ -747,7 +753,7 @@ class SourceSite {
     a123,
     hanxiaoquan,
     guipian,
-    SourceSite('huangdou', '黄豆', '精选短剧', section: sectionDrama),
+    SourceSite('huangdou', 'whos识图', '识图', section: sectionDrama),
     SourceSite('huangju', '剧果', '热门 · 最新 · 分类短剧', section: sectionDrama),
     SourceSite('yeguo', '野果', '分类短剧 · 在线搜索', section: sectionDrama),
     dsd,
@@ -808,7 +814,7 @@ class SourceSite {
 
   /// 从未配置过「源显示列表」时默认隐藏的内置站源。
   /// 默认可见集 = 红果、韩小圈、鬼片、A123、爱看机器人，
-  /// 其余内置源（黄豆、剧果、野果、帝果、黄果视频、黄果 AI、黄果旧版、
+  /// 其余内置源（whos识图、剧果、野果、帝果、黄果视频、黄果 AI、黄果旧版、
   /// 芽果、猫果、饭果、观果、河果、星果、花果、牛果、网果、发果、伍果）默认隐藏。
   static const defaultHiddenSiteIds = <String>{
     'huangdou',

@@ -64,7 +64,7 @@ var sourceNames = []struct {
 	{"a123", "A123"},
 	{"hanxiaoquan", "韩小圈"},
 	{"guipian", "鬼片"},
-	{"huangdou", "黄豆"},
+	{"huangdou", "whos识图"},
 	{"huangju", "剧果"},
 	{"yeguo", "野果"},
 	{"dsd", "帝果"},

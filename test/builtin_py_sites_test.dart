@@ -227,6 +227,38 @@ void main() {
       expect(BuiltinPySites.duanjuoneSite.onlineSearch, isTrue);
       expect(BuiltinPySites.duanjuoneSite.pagedSearch, isTrue);
     });
+    test('柚子短剧 站注册值：短剧分区、内置来源、py 类型、🔞 名', () {
+      final site = BuiltinPySites.youzidjSite;
+      expect(site.id, 'youzidj');
+      expect(site.name, '🔞柚子短剧');
+      expect(site.section, SourceSite.sectionDrama);
+      expect(site.origin, SourceSite.originBuiltin);
+      expect(site.importType, 'py');
+      expect(BuiltinPySites.youzidjAssetPath, 'assets/py_spiders/youzidj.py');
+    });
+    test('柚子短剧 站进短剧区、不进午夜区、不进点播区', () {
+      expect(BuiltinPySites.youzidjSite.isDramaSection, isTrue);
+      expect(isMidnightZoneSource(BuiltinPySites.youzidjSite), isFalse);
+      expect(isVodZoneSource(BuiltinPySites.youzidjSite), isFalse);
+      expect(BuiltinPySites.youzidjSite.onlineSearch, isTrue);
+      expect(BuiltinPySites.youzidjSite.pagedSearch, isTrue);
+    });
+    test('AIHI 站注册值：短剧分区、内置来源、py 类型、🔞 名', () {
+      final site = BuiltinPySites.aihiSite;
+      expect(site.id, 'aihi');
+      expect(site.name, '🔞AIHI');
+      expect(site.section, SourceSite.sectionDrama);
+      expect(site.origin, SourceSite.originBuiltin);
+      expect(site.importType, 'py');
+      expect(BuiltinPySites.aihiAssetPath, 'assets/py_spiders/aihi.py');
+    });
+    test('AIHI 站进短剧区、不进午夜区、不进点播区', () {
+      expect(BuiltinPySites.aihiSite.isDramaSection, isTrue);
+      expect(isMidnightZoneSource(BuiltinPySites.aihiSite), isFalse);
+      expect(isVodZoneSource(BuiltinPySites.aihiSite), isFalse);
+      expect(BuiltinPySites.aihiSite.onlineSearch, isTrue);
+      expect(BuiltinPySites.aihiSite.pagedSearch, isTrue);
+    });
     test('AI小视频·ficeforand 站注册值：短剧分区、内置来源、py 类型、🔞 名', () {
       final site = BuiltinPySites.ficeforandSite;
       expect(site.id, 'ficeforand');
@@ -390,6 +422,38 @@ void main() {
   });
 
   group('内置 py 午夜站', () {
+    test('中国X站精选 站注册值：视频分区、内置来源、py 类型、🔞 名', () {
+      final site = BuiltinPySites.chinaxselecla08Site;
+      expect(site.id, 'chinaxselecla08');
+      expect(site.name, '🔞中国X站精选');
+      expect(site.section, SourceSite.sectionVideo);
+      expect(site.origin, SourceSite.originBuiltin);
+      expect(site.importType, 'py');
+      expect(BuiltinPySites.chinaxselecla08AssetPath, 'assets/py_spiders/chinaxselecla08.py');
+    });
+    test('中国X站精选 站进午夜区、不进点播区', () {
+      expect(isMidnightZoneSource(BuiltinPySites.chinaxselecla08Site), isTrue);
+      expect(isVodZoneSource(BuiltinPySites.chinaxselecla08Site), isFalse);
+    });
+  });
+
+  group('内置 py 午夜站', () {
+    test('探花AV 站注册值：视频分区、内置来源、py 类型、🔞 名', () {
+      final site = BuiltinPySites.tanhuavip14Site;
+      expect(site.id, 'tanhuavip14');
+      expect(site.name, '🔞探花AV');
+      expect(site.section, SourceSite.sectionVideo);
+      expect(site.origin, SourceSite.originBuiltin);
+      expect(site.importType, 'py');
+      expect(BuiltinPySites.tanhuavip14AssetPath, 'assets/py_spiders/tanhuavip14.py');
+    });
+    test('探花AV 站进午夜区、不进点播区', () {
+      expect(isMidnightZoneSource(BuiltinPySites.tanhuavip14Site), isTrue);
+      expect(isVodZoneSource(BuiltinPySites.tanhuavip14Site), isFalse);
+    });
+  });
+
+  group('内置 py 午夜站', () {
     test('顶级AI色库 站注册值：视频分区、内置来源、py 类型、🔞 名', () {
       final site = BuiltinPySites.dingjiasekuSite;
       expect(site.id, 'dingjiaseku');
@@ -501,6 +565,22 @@ void main() {
     test('气泡视频站进午夜区、不进点播区', () {
       expect(isMidnightZoneSource(BuiltinPySites.qipaospSite), isTrue);
       expect(isVodZoneSource(BuiltinPySites.qipaospSite), isFalse);
+    });
+  });
+
+  group('内置 py 午夜站', () {
+    test('X红颜 站注册值：视频分区、内置来源、py 类型、🔞 名', () {
+      final site = BuiltinPySites.xhongyanSite;
+      expect(site.id, 'xhongyan');
+      expect(site.name, '🔞X红颜');
+      expect(site.section, SourceSite.sectionVideo);
+      expect(site.origin, SourceSite.originBuiltin);
+      expect(site.importType, 'py');
+      expect(BuiltinPySites.xhongyanAssetPath, 'assets/py_spiders/xhongyan.py');
+    });
+    test('X红颜 站进午夜区、不进点播区', () {
+      expect(isMidnightZoneSource(BuiltinPySites.xhongyanSite), isTrue);
+      expect(isVodZoneSource(BuiltinPySites.xhongyanSite), isFalse);
     });
   });
 }

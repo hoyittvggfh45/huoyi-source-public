@@ -206,8 +206,9 @@ class JarImport {
     );
   }
 
-  static void _registerBuiltin(StandaloneJarSite site) {
+  static void _registerBuiltin(StandaloneJarSite site, {bool audioOnly = false}) {
     JarBridge.register(site.spec);
+    if (audioOnly) return;
     SourceSite.importedSites[site.siteId] = SourceSite(
       site.siteId,
       site.name,
@@ -251,7 +252,7 @@ class JarImport {
           section: builtin.section,
         );
         _builtinSites[site.siteId] = site;
-        _registerBuiltin(site);
+        _registerBuiltin(site, audioOnly: builtin.audioOnly);
       }
       _builtinRegistered = true;
       return true;

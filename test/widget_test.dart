@@ -31,7 +31,7 @@ void main() {
       if (allSourcesEnabled) {
         await tester.tap(find.byKey(const ValueKey('source-switch')));
         await tester.pumpAndSettle();
-        await tester.tap(find.text('黄豆'));
+        await tester.tap(find.text('whos识图'));
         await tester.pumpAndSettle();
         expect(find.text('会员测试剧'), findsNothing);
         expect(find.byTooltip('VIP：隐藏'), findsOneWidget);

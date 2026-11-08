@@ -96,6 +96,61 @@ def _http_get(url, timeout=25):
     return ''
 
 
+def _http_post_json(url, referer, timeout=45):
+    import json as _json
+    body = _json.dumps({}).encode('utf-8')
+    h = {'User-Agent': UA, 'Referer': referer, 'Content-Type': 'application/json'}
+    for _ in range(2):
+        if _HAS_REQ:
+            try:
+                r = requests.post(url, data=body, headers=h, timeout=timeout)
+                if r.status_code == 200 and r.text:
+                    return r.text
+            except Exception:
+                pass
+        try:
+            req = urllib.request.Request(url, data=body, headers=h, method='POST')
+            with urllib.request.urlopen(req, timeout=timeout, context=_ctx()) as resp:
+                data = resp.read()
+                enc = (resp.headers.get('Content-Encoding') or '').lower()
+                if enc == 'gzip' or data[:2] == b'\x1f\x8b':
+                    try:
+                        data = gzip.decompress(data)
+                    except Exception:
+                        pass
+                return data.decode('utf-8', 'replace')
+        except Exception:
+            pass
+        time.sleep(1)
+    return ''
+
+
+def _playback(kind, num, ep, referer):
+    import json as _json
+    if kind == 'drama' and ep:
+        url = '%s/api/videos/%s/episodes/%s/playback' % (BASE, num, ep)
+    else:
+        url = '%s/api/videos/%s/playback' % (BASE, num)
+    try:
+        data = _json.loads(_http_post_json(url, referer))
+    except Exception:
+        return '', {}
+    if not isinstance(data, dict) or data.get('status') != 1:
+        return '', {}
+    payload = data.get('data') or {}
+    if not isinstance(payload, dict):
+        return '', {}
+    streams = payload.get('streams') or {}
+    m3u8 = streams.get('main') or streams.get('preview') or ''
+    header = {'User-Agent': UA, 'Referer': referer}
+    cdn = payload.get('cdn') or {}
+    if cdn.get('m3u8Enabled') and cdn.get('authKey') and cdn.get('authValue'):
+        header[cdn['authKey']] = cdn['authValue']
+    if cdn.get('app'):
+        header['x-cdn-app'] = str(cdn['app'])
+    return _unescape(m3u8), header
+
+
 def _unescape(s):
     return (s or '').replace('\\u0026', '&').replace('\\/', '/').replace('&amp;', '&').replace('&quot;', '"').replace('&#39;', "'").replace('&lt;', '<').replace('&gt;', '>')
 
@@ -277,6 +332,17 @@ class Spider(BaseSpider):
         header = {'User-Agent': UA, 'Referer': BASE}
         if raw.startswith('http'):
             return {'parse': 0, 'playUrl': raw, 'url': raw, 'header': header}
+        m = re.match(r'(video|drama)/(\d+)(?:/(\d+))?$', raw.strip('/'))
+        if m:
+            kind = m.group(1)
+            num = m.group(2)
+            ep = m.group(3) or ''
+            if kind == 'drama' and not ep:
+                return {'parse': 0, 'playUrl': '', 'url': '', 'header': header}
+            referer = BASE + '/' + raw.strip('/') + '/'
+            m3u8, hdr = _playback(kind, num, ep, referer)
+            if m3u8:
+                return {'parse': 0, 'playUrl': m3u8, 'url': m3u8, 'header': hdr}
         html = _http_get(BASE + '/' + raw.lstrip('/'))
         m3u8 = ''
         m = re.search(r'"videoSrc":"([^"]+)"', html or '')

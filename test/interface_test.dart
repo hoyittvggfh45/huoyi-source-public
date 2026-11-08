@@ -119,7 +119,7 @@ void main() {
       }
       return;
     }
-    await select('黄豆');
+    await select('whos识图');
     expect(find.byTooltip('VIP：显示'), findsOneWidget);
     await tester.tap(find.byTooltip('VIP：显示'));
     await tester.pumpAndSettle();

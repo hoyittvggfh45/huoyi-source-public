@@ -223,7 +223,7 @@ const (
 // name from the core.
 var dartSlotNames = map[string]string{
 	"hongguo": "红果", "ikanbot": "爱看机器人", "a123": "A123",
-	"hanxiaoquan": "韩小圈", "guipian": "鬼片", "huangdou": "黄豆",
+	"hanxiaoquan": "韩小圈", "guipian": "鬼片", "huangdou": "whos识图",
 	"huangju": "剧果", "yeguo": "野果", "dsd": "帝果",
 	"huangguo-video": "黄果视频", "huangguoai": "黄果 AI",
 	"cloudfront": "黄果旧版", "yaguo": "芽果", "maoguo": "猫果",
