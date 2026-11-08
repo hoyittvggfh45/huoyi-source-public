@@ -23,6 +23,7 @@ import 'py_lazy_fetch.dart';
 import 'tgdrama_service.dart';
 import 'tdlib_content.dart';
 import 'tdlib_route.dart';
+import 'tdlib_service.dart';
 import 'py_contract.dart';
 import 'background_downloads.dart';
 import 'local_store.dart';
@@ -396,7 +397,24 @@ class NativeRepository extends AppRepository {
 
   Future<bool> _useTdlib(String source) async {
     if (source != BuiltinPySites.tgdramaSiteId) return false;
-    return TdlibRoute.isTdlib;
+    if (await TdlibRoute.isTdlib) return true;
+    return _tdlibFallback();
+  }
+
+  Future<bool> _tdlibFallback() async {
+    bool tdlibReady = false;
+    try {
+      tdlibReady = (await TdlibService.instance.authState()).isReady;
+    } catch (_) {
+      return false;
+    }
+    if (!tdlibReady) return false;
+    if (TgdramaService.instance.isRunning) return false;
+    try {
+      return !await TgdramaService.instance.healthCheck();
+    } catch (_) {
+      return true;
+    }
   }
 
   Future<void> _ensureTgdramaService(String source) async {
