@@ -17,13 +17,8 @@ import 'jar_youtube_takeover.dart';
 import 'danmaku_models.dart';
 import 'hongguo_comment.dart';
 import 'import_file_store.dart';
-import 'builtin_py_sites.dart';
 import 'py_bridge.dart';
 import 'py_lazy_fetch.dart';
-import 'tgdrama_service.dart';
-import 'tdlib_content.dart';
-import 'tdlib_route.dart';
-import 'tdlib_service.dart';
 import 'py_contract.dart';
 import 'background_downloads.dart';
 import 'local_store.dart';
@@ -395,51 +390,10 @@ class NativeRepository extends AppRepository {
     }
   }
 
-  Future<bool> _useTdlib(String source) async {
-    if (source != BuiltinPySites.tgdramaSiteId) return false;
-    if (await TdlibRoute.isTdlib) return true;
-    return _tdlibFallback();
-  }
-
-  Future<bool> _tdlibFallback() async {
-    final tdlibReady = await _isTdlibReady();
-    if (!tdlibReady) return false;
-    try {
-      return !await TgdramaService.instance.healthCheck();
-    } catch (_) {
-      return true;
-    }
-  }
-
-  Future<bool> _isTdlibReady() async {
-    try {
-      if ((await TdlibService.instance.authState()).isReady) return true;
-    } catch (_) {}
-    try {
-      return (await TdlibService.instance.init()).isReady;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  Future<void> _ensureTgdramaService(String source) async {
-    if (source != BuiltinPySites.tgdramaSiteId && source != 'ZakaTg') return;
-    final ok = await TgdramaService.instance.ensureRunning();
-    if (!ok) {
-      final reason = TgdramaService.instance.lastError;
-      throw AppFailure(
-        reason == null || reason.isEmpty
-            ? 'TG影视库本地服务未启动，请先到设置里登录 Telegram'
-            : 'TG影视库本地服务未启动：$reason，请先到设置里登录 Telegram',
-      );
-    }
-  }
-
   Future<Map<String, dynamic>> _pyCall(
     String source,
     Map<String, dynamic> request,
   ) async {
-    await _ensureTgdramaService(source);
     _authorize(source);
     final path = await _pySpiderPath(source);
     final ext = SourceSite.importedSites[source]?.importExt ?? '';
@@ -455,7 +409,6 @@ class NativeRepository extends AppRepository {
     String source,
     Map<String, dynamic> request,
   ) async {
-    await _ensureTgdramaService(source);
     _authorize(source);
     final path = await _pySpiderPath(source);
     final ext = SourceSite.importedSites[source]?.importExt ?? '';
@@ -677,10 +630,6 @@ class NativeRepository extends AppRepository {
     String flag,
     String playId,
   ) async {
-    if (await _useTdlib(source)) {
-      _authorize(source);
-      return TdlibContent.instance.resolvePlan(flag, playId);
-    }
     final result = await _pyCall(source, {
       'action': 'resolve',
       'flag': flag,
@@ -1442,7 +1391,6 @@ class NativeRepository extends AppRepository {
   ) async {
     final spec = JarBridge.specFor(source);
     if (spec == null) throw AppFailure('jar 站点未注册');
-    await _ensureTgdramaService(source);
     _authorize(source);
     try {
       return await run(spec);
@@ -1492,21 +1440,7 @@ class NativeRepository extends AppRepository {
       _authorize(source);
       return categories(haijiaoGo, force: force);
     }
-    if (await _useTdlib(source)) {
-      _authorize(source);
-      return TdlibContent.instance.categories();
-    }
     if (JarBridge.isJarSource(source)) {
-      if (source == 'ZakaTg') {
-        final spec = JarBridge.specFor(source);
-        if (spec == null) throw AppFailure('jar 站点未注册');
-        _authorize(source);
-        try {
-          return await JarBridge.categories(spec, force: force);
-        } on JarBridgeFailure catch (error) {
-          throw AppFailure(error.message);
-        }
-      }
       return _jarCall(
         source,
         (spec) => JarBridge.categories(spec, force: force),
@@ -1550,15 +1484,6 @@ class NativeRepository extends AppRepository {
         category: category,
         force: force,
         filters: filters,
-      );
-    }
-    if (await _useTdlib(source)) {
-      _authorize(source);
-      return TdlibContent.instance.catalog(
-        category: category,
-        page: page,
-        query: query,
-        force: force,
       );
     }
     if (JarBridge.isJarSource(source)) {
@@ -1812,10 +1737,6 @@ class NativeRepository extends AppRepository {
     }
     if (JarBridge.isJarSource(drama.source)) {
       return _jarCall(drama.source, (spec) => JarBridge.detail(spec, drama));
-    }
-    if (await _useTdlib(drama.source)) {
-      _authorize(drama.source);
-      return TdlibContent.instance.detail(drama);
     }
     if (isPySource(drama.source)) {
       final vodId = drama.sourceId.isNotEmpty

@@ -47,7 +47,6 @@ void main() {
     required ValueChanged<HomeZone> onZoneSelected,
     required ValueChanged<AppDrawerTool> onTool,
     required ValueChanged<bool> onMinorProtectionChanged,
-    required VoidCallback onVersionDoubleTap,
   }) async {
     tester.view.physicalSize = const Size(800, 2000);
     tester.view.devicePixelRatio = 1.0;
@@ -64,7 +63,6 @@ void main() {
             onWatchRoom: () {},
             onTool: onTool,
             onMinorProtectionChanged: onMinorProtectionChanged,
-            onVersionDoubleTap: onVersionDoubleTap,
           ),
         ),
       ),
@@ -82,13 +80,12 @@ void main() {
       onZoneSelected: zones.add,
       onTool: (_) {},
       onMinorProtectionChanged: (_) {},
-      onVersionDoubleTap: () {},
     );
     expect(find.text('短剧'), findsOneWidget);
     expect(find.text('点播'), findsOneWidget);
     expect(find.text('直播'), findsOneWidget);
     expect(find.text('听书'), findsOneWidget);
-    expect(find.text('午夜区'), findsNothing);
+    expect(find.text('午夜'), findsNothing);
     expect(find.text('未成年保护'), findsNothing);
     expect(find.text('站源管理'), findsOneWidget);
     expect(find.text('软件更新'), findsOneWidget);
@@ -102,7 +99,6 @@ void main() {
   ) async {
     final zones = <HomeZone>[];
     var minorProtection = false;
-    var versionDoubleTaps = 0;
     final tools = <AppDrawerTool>[];
     await pumpDrawer(
       tester,
@@ -110,12 +106,11 @@ void main() {
       onZoneSelected: zones.add,
       onTool: tools.add,
       onMinorProtectionChanged: (value) => minorProtection = value,
-      onVersionDoubleTap: () => versionDoubleTaps++,
     );
-    expect(find.text('午夜区'), findsOneWidget);
+    expect(find.text('午夜'), findsOneWidget);
     expect(find.text('未成年保护'), findsOneWidget);
-    await tester.ensureVisible(find.text('午夜区'));
-    await tester.tap(find.text('午夜区'));
+    await tester.ensureVisible(find.text('午夜'));
+    await tester.tap(find.text('午夜'));
     expect(zones, [HomeZone.midnight]);
     await tester.ensureVisible(find.text('未成年保护'));
     await tester.tap(find.text('未成年保护'));
@@ -123,16 +118,6 @@ void main() {
     await tester.ensureVisible(find.text('软件更新'));
     await tester.tap(find.text('软件更新'));
     await tester.pump(const Duration(milliseconds: 400));
-    expect(tools, [AppDrawerTool.appUpdate]);
-    expect(versionDoubleTaps, 0);
-    final center = tester.getCenter(find.text('软件更新'));
-    final first = await tester.startGesture(center);
-    await first.up();
-    await tester.pump(const Duration(milliseconds: 50));
-    final second = await tester.startGesture(center);
-    await second.up();
-    await tester.pump(const Duration(milliseconds: 400));
-    expect(versionDoubleTaps, 1);
     expect(tools, [AppDrawerTool.appUpdate]);
   });
 }

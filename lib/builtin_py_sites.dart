@@ -19,19 +19,6 @@ class BuiltinPySites {
     importType: 'py',
   );
 
-  static const tgdramaSiteId = 'tgdrama';
-  static const tgdramaAssetPath = 'assets/py_spiders/tgdrama.py';
-  static const tgdramaFileId = 'builtin_tgdrama';
-
-  static const tgdramaSite = SourceSite(
-    tgdramaSiteId,
-    'TG影视库',
-    '内置 py · tgdrama',
-    section: SourceSite.sectionVideo,
-    origin: SourceSite.originBuiltin,
-    importType: 'py',
-  );
-
   static const abjavSiteId = 'abjav';
   static const abjavAssetPath = 'assets/py_spiders/abjav.py';
   static const abjavFileId = 'builtin_abjav';
@@ -561,7 +548,6 @@ class BuiltinPySites {
       );
       SourceSite.importedSites[hmavSiteId] = hmavSite;
       SourceSite.importedPyFiles[hmavSiteId] = fileName;
-      await _registerTgdrama();
       await _registerAbjav();
       await _registerAi2026();
       await _registerAi4k();
@@ -606,20 +592,6 @@ class BuiltinPySites {
     } catch (_) {
       return false;
     }
-  }
-
-  static Future<void> _registerTgdrama() async {
-    try {
-      final bytes = await rootBundle.load(tgdramaAssetPath);
-      final fileName = await ImportFileStore.save(
-        tgdramaFileId,
-        'py',
-        bytes.buffer.asUint8List(),
-      );
-      var site = tgdramaSite;
-      SourceSite.importedSites[tgdramaSiteId] = site;
-      SourceSite.importedPyFiles[tgdramaSiteId] = fileName;
-    } catch (_) {}
   }
 
   static Future<void> _registerAbjav() async {

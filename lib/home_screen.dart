@@ -8,6 +8,9 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'app_layout.dart';
 import 'back_history.dart';
+import 'downloads_screen.dart';
+import 'theme_settings_screen.dart';
+import 'xigua/playback_settings_screen.dart';
 import 'liquid_glass.dart';
 import 'app_drawer.dart';
 import 'midnight_zone.dart';
@@ -1373,7 +1376,6 @@ class _HomeScreenState extends State<HomeScreen> {
     onWatchRoom: _onWatchRoom,
     onTool: _onTool,
     onMinorProtectionChanged: _onMinorProtectionChanged,
-    onVersionDoubleTap: _onVersionDoubleTap,
   );
 
   void _openZoneSettings() {
@@ -1520,6 +1522,14 @@ class _HomeScreenState extends State<HomeScreen> {
         _pushTool(ProxyKernelScreen(repository: widget.repository));
       case AppDrawerTool.ruleEditor:
         _pushTool(RuleEditorScreen(repository: widget.repository));
+      case AppDrawerTool.playbackSettings:
+        _pushTool(PlaybackSettingsScreen(store: widget.store));
+      case AppDrawerTool.downloads:
+        _pushTool(
+          DownloadsScreen(repository: widget.repository, store: widget.store),
+        );
+      case AppDrawerTool.theme:
+        _pushTool(ThemeSettingsScreen(store: widget.store));
     }
   }
 
@@ -1540,10 +1550,6 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_zone == HomeZone.midnight) {
       _applyZoneChange(HomeZone.drama);
     }
-  }
-
-  Future<void> _onVersionDoubleTap() async {
-    await activateMidnightAndExit();
   }
 
   Future<void> _loadMidnightActivated() async {

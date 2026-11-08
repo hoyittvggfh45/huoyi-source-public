@@ -95,20 +95,9 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-      - name: Prepare TG pre-seeded session
-        run: |
-          if [ -n "$TG_SESSION_JSON_B64" ]; then
-            printf '%s' "$TG_SESSION_JSON_B64" | base64 -d > assets/tgdrama_session.json
-          else
-            printf '{}' > assets/tgdrama_session.json
-          fi
-        env:
-          TG_SESSION_JSON_B64: ${{ secrets.TG_SESSION_JSON_B64 }}
       - run: python scripts/build_android.py ${{ matrix.arguments }} --abi arm64-v8a
         env:
           JIANHUANG_AUTH_KEY: ${{ secrets.JIANHUANG_AUTH_KEY }}
-          TG_API_ID: ${{ secrets.TG_API_ID }}
-          TG_API_HASH: ${{ secrets.TG_API_HASH }}
       - name: Remove signing files
         if: always()
         run: python scripts/configure_signing.py --clean
@@ -147,20 +136,9 @@ jobs:
         run: |
           python3 scripts/prepare_ios_python.py
           python3 scripts/prepare_ios_python.py --check
-      - name: Prepare TG pre-seeded session
-        run: |
-          if [ -n "$TG_SESSION_JSON_B64" ]; then
-            printf '%s' "$TG_SESSION_JSON_B64" | base64 -d > assets/tgdrama_session.json
-          else
-            printf '{}' > assets/tgdrama_session.json
-          fi
-        env:
-          TG_SESSION_JSON_B64: ${{ secrets.TG_SESSION_JSON_B64 }}
       - run: python3 scripts/build_ios.py --all-sources
         env:
           JIANHUANG_AUTH_KEY: ${{ secrets.JIANHUANG_AUTH_KEY }}
-          TG_API_ID: ${{ secrets.TG_API_ID }}
-          TG_API_HASH: ${{ secrets.TG_API_HASH }}
       - name: Verify iOS Python runtime in IPA
         run: python3 scripts/check_ios_py_runtime.py
       - uses: actions/upload-artifact@v4

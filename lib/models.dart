@@ -502,7 +502,7 @@ class SourceSite {
     SourceSite('v_sihu', '四虎', '4hu.tv', section: sectionVideo, slotId: 'sihu'),
     SourceSite(
       'v_tg',
-      'TG频道',
+      '🔞tg频道',
       'tg.i-c-a.su 网关',
       section: sectionVideo,
       slotId: 'tg',
