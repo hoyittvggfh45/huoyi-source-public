@@ -21,6 +21,24 @@ class CoverFixtureRepository extends FixtureRepository {
   }
 }
 
+class ProxyCoverRepository extends FixtureRepository {
+  final seenCovers = <String>[];
+
+  @override
+  Future<String> cover(Drama drama, {bool force = false}) async {
+    seenCovers.add(drama.cover);
+    return File('test/fixtures/cover.png').absolute.path;
+  }
+}
+
+const proxyCoverDrama = Drama(
+  id: 'hghub:12',
+  source: 'hghub',
+  title: '代理封面测试',
+  episodes: 1,
+  cover: 'proxy://do=py&siteKey=hghub&u=https%3A%2F%2Fexample.com%2Fcover.jpg',
+);
+
 void main() {
   testWidgets('failed cover can retry and render a decoded local file', (
     tester,
@@ -64,6 +82,56 @@ void main() {
     await tester.pumpWidget(widget);
     await tester.pumpAndSettle();
     expect(repository.attempts, [false, true]);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('proxy cover goes through repository cover and renders a file',
+      (tester) async {
+    final repository = ProxyCoverRepository();
+    final widget = MaterialApp(
+      home: SizedBox(
+        width: 100,
+        height: 150,
+        child: DramaCover(drama: proxyCoverDrama, repository: repository),
+      ),
+    );
+    await tester.pumpWidget(widget);
+    await tester.pumpAndSettle();
+    expect(
+      repository.seenCovers,
+      ['proxy://do=py&siteKey=hghub&u=https%3A%2F%2Fexample.com%2Fcover.jpg'],
+    );
+    expect(find.byType(Image), findsOneWidget);
+    final image = tester.widget<Image>(find.byType(Image));
+    final provider = image.image as ResizeImage;
+    expect(provider.imageProvider, isA<FileImage>());
+    expect(tester.widget<RawImage>(find.byType(RawImage)).image, isNotNull);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('proxy cover renders through cached cover image', (tester) async {
+    final repository = ProxyCoverRepository();
+    final widget = MaterialApp(
+      home: SizedBox(
+        width: 100,
+        height: 150,
+        child: CachedCoverImage(
+          drama: proxyCoverDrama,
+          repository: repository,
+          placeholder: const SizedBox(),
+        ),
+      ),
+    );
+    await tester.pumpWidget(widget);
+    await tester.pumpAndSettle();
+    expect(
+      repository.seenCovers,
+      ['proxy://do=py&siteKey=hghub&u=https%3A%2F%2Fexample.com%2Fcover.jpg'],
+    );
+    expect(find.byType(Image), findsOneWidget);
+    final image = tester.widget<Image>(find.byType(Image));
+    final provider = image.image as ResizeImage;
+    expect(provider.imageProvider, isA<FileImage>());
     expect(tester.takeException(), isNull);
   });
 }

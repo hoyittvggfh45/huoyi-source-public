@@ -549,13 +549,17 @@ class _FullscreenFeedScreenState extends State<FullscreenFeedScreen>
                           if (drama.cover.isNotEmpty)
                             ClipRRect(
                               borderRadius: BorderRadius.circular(6),
-                              child: Image.network(
-                                drama.cover,
+                              child: SizedBox(
                                 width: 48,
                                 height: 64,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, _, _) =>
-                                    const SizedBox(width: 48, height: 64),
+                                child: CachedCoverImage(
+                                  drama: drama,
+                                  repository: widget.repository,
+                                  placeholder: const SizedBox(
+                                    width: 48,
+                                    height: 64,
+                                  ),
+                                ),
                               ),
                             ),
                           const SizedBox(width: 12),
@@ -908,10 +912,10 @@ class _FullscreenFeedScreenState extends State<FullscreenFeedScreen>
         ),
       );
     }
-    return Image.network(
-      drama.cover,
-      fit: BoxFit.cover,
-      errorBuilder: (_, _, _) => ColoredBox(
+    return CachedCoverImage(
+      drama: drama,
+      repository: widget.repository,
+      placeholder: ColoredBox(
         color: Colors.black,
         child: Center(
           child: Padding(

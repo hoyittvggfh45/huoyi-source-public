@@ -9,6 +9,7 @@ import 'local_store.dart';
 import 'models.dart';
 import 'novel_reader_page.dart';
 import 'novel_source_store.dart';
+import 'widgets.dart';
 
 class GlobalSearchPage extends StatefulWidget {
   const GlobalSearchPage({
@@ -334,17 +335,13 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
         children: [
           AspectRatio(
             aspectRatio: 3 / 4,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: drama.cover.isNotEmpty
-                  ? Image.network(
-                      drama.cover,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) =>
-                          _coverFallback(colors, drama.title),
-                    )
-                  : _coverFallback(colors, drama.title),
-            ),
+            child: drama.cover.isNotEmpty
+                ? DramaCover(
+                    drama: drama,
+                    repository: widget.repository,
+                    radius: 12,
+                  )
+                : _coverFallback(colors, drama.title),
           ),
           const SizedBox(height: 6),
           Text(
