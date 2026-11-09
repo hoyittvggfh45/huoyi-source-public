@@ -18,11 +18,13 @@ class MiniAppBuiltinResult {
     required this.installed,
     required this.skipped,
     required this.failed,
+    this.unavailable = const [],
   });
 
   final List<String> installed;
   final List<String> skipped;
   final List<MiniAppBuiltinFailure> failed;
+  final List<String> unavailable;
 
   bool get hasFailures => failed.isNotEmpty;
 }
@@ -30,6 +32,8 @@ class MiniAppBuiltinResult {
 class MiniAppBuiltin {
   static const String marketAsset = 'assets/miniapps/builtin/market.json';
   static const String seededKey = 'huoyi_miniapp_builtin_seeded_v1';
+  static const String seededAppIdsKey =
+      'huoyi_miniapp_builtin_seeded_ids_v1';
 
   static Future<MiniAppBuiltinResult> ensureSeeded(
     MiniAppStore store, {
@@ -51,41 +55,45 @@ class MiniAppBuiltin {
         failed: [],
       );
     }
-    if (preferences.getBool(seededKey) == true) {
-      return MiniAppBuiltinResult(
-        installed: const [],
-        skipped: items.map((item) => item.appId).toList(),
-        failed: const [],
-      );
-    }
+    final seededIds =
+        preferences.getStringList(seededAppIdsKey) ?? const <String>[];
+    final seeded = seededIds.toSet();
     final installed = <String>[];
     final skipped = <String>[];
     final failed = <MiniAppBuiltinFailure>[];
+    final unavailable = <String>[];
     for (final item in items) {
+      if (seeded.contains(item.appId)) {
+        skipped.add(item.appId);
+        continue;
+      }
       final existing = await store.installedDir(item.appId);
       if (existing != null) {
         skipped.add(item.appId);
         continue;
       }
+      List<int> bytes;
+      try {
+        final raw = await load(
+          item.url.endsWith('.json')
+              ? 'assets/miniapps/builtin/${item.appId}.manifest.json'
+              : 'assets/miniapps/builtin/${item.appId}.zip',
+        );
+        bytes = raw.buffer.asUint8List(raw.offsetInBytes, raw.lengthInBytes);
+      } catch (_) {
+        unavailable.add(item.appId);
+        continue;
+      }
       try {
         if (item.url.endsWith('.json')) {
-          final raw = await load(
-            'assets/miniapps/builtin/${item.appId}.manifest.json',
-          );
-          final manifest = await store.installFromManifestJson(
-            utf8.decode(
-              raw.buffer.asUint8List(raw.offsetInBytes, raw.lengthInBytes),
-            ),
-          );
-          installed.add(manifest.appId);
+          await store.installFromManifestJson(utf8.decode(bytes));
         } else {
-          final raw = await load('assets/miniapps/builtin/${item.appId}.zip');
-          final manifest = await store.installFromZipBytes(
-            raw.buffer.asUint8List(raw.offsetInBytes, raw.lengthInBytes),
+          await store.installFromZipBytes(
+            bytes,
             expectedMd5: item.md5,
           );
-          installed.add(manifest.appId);
         }
+        installed.add(item.appId);
       } catch (error) {
         failed.add(
           MiniAppBuiltinFailure(appId: item.appId, reason: error.toString()),
@@ -94,11 +102,17 @@ class MiniAppBuiltin {
     }
     if (items.isNotEmpty && failed.isEmpty) {
       await preferences.setBool(seededKey, true);
+      final nextSeeded = <String>{...seeded, ...installed, ...skipped};
+      await preferences.setStringList(
+        seededAppIdsKey,
+        nextSeeded.toList(),
+      );
     }
     return MiniAppBuiltinResult(
       installed: installed,
       skipped: skipped,
       failed: failed,
+      unavailable: unavailable,
     );
   }
 }

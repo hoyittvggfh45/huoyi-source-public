@@ -113,6 +113,12 @@ class MiniAppStore {
     if (manifest == null || !manifest.isValid) {
       throw const FormatException('文件夹里没有合法的 manifest.json');
     }
+    if (_isLocalEntry(manifest.entry)) {
+      final entryFile = File(p.join(source.path, manifest.entry));
+      if (!await entryFile.exists()) {
+        throw FormatException('文件夹里没有入口文件：${manifest.entry}');
+      }
+    }
     final base = await root;
     final target = Directory(p.join(base.path, manifest.appId));
     final staging = Directory(
@@ -142,6 +148,15 @@ class MiniAppStore {
       p.join(target.path, 'manifest.json'),
     ).writeAsString(manifestJson);
     return manifest;
+  }
+
+  bool _isLocalEntry(String entry) {
+    if (entry.isEmpty) return false;
+    if (entry.startsWith('http://') || entry.startsWith('https://')) {
+      return false;
+    }
+    if (entry.startsWith('/')) return false;
+    return true;
   }
 
   Future<MiniAppManifest> _installArchive(Archive archive) async {
@@ -178,6 +193,13 @@ class MiniAppStore {
       final target = File(targetPath);
       await target.parent.create(recursive: true);
       await target.writeAsBytes(entry.content as List<int>);
+    }
+    if (_isLocalEntry(manifest.entry)) {
+      final entryFile = File(p.join(staging.path, manifest.entry));
+      if (!await entryFile.exists()) {
+        await staging.delete(recursive: true);
+        throw FormatException('安装包里没有入口文件：${manifest.entry}');
+      }
     }
     final target = Directory(p.join(base.path, manifest.appId));
     return _promote(staging, target, manifest);

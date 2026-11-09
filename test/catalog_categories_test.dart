@@ -7,6 +7,7 @@ import 'package:duanju_app/local_store.dart';
 import 'package:duanju_app/main.dart';
 import 'package:duanju_app/models.dart';
 import 'package:duanju_app/ranking_models.dart';
+import 'package:duanju_app/rankings_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -238,10 +239,19 @@ void main() {
     'rankings are separate from categories and preserve upstream rank numbers',
     (tester) async {
       final repository = CategoryRepository();
-      await mount(tester, repository);
+      final store = await mount(tester, repository);
       await tester.tap(find.text('剧场'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('排行榜'));
+      expect(find.text('排行榜'), findsNothing);
+      Navigator.of(tester.element(find.text('剧场'))).push(
+        MaterialPageRoute<void>(
+          builder: (_) => RankingsScreen(
+            repository: repository,
+            store: store,
+            initialGroup: 'hongguo',
+          ),
+        ),
+      );
       await tester.pumpAndSettle();
       expect(repository.rankRequests, ['hongguo-hot|1|true']);
       expect(find.text('总热播榜'), findsOneWidget);
@@ -259,6 +269,8 @@ void main() {
         findsNothing,
       );
       expect(repository.categoryRequests, ['hongguo||1']);
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
     },
   );

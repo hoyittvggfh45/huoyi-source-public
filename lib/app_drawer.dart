@@ -121,6 +121,44 @@ class AppDrawer extends StatelessWidget {
     );
   }
 
+  Widget _actionTab({
+    required BuildContext context,
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: colors.onSurface),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: colors.onSurface,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _toolTile({
     required BuildContext context,
     required IconData icon,
@@ -278,6 +316,12 @@ class AppDrawer extends StatelessWidget {
                         icon: Icons.menu_book_rounded,
                         label: '阅读',
                       ),
+                      _actionTab(
+                        context: context,
+                        icon: Icons.apps_rounded,
+                        label: '小程序',
+                        onTap: () => onTool(AppDrawerTool.miniApp),
+                      ),
                     ],
                   ),
                 ),
@@ -338,13 +382,6 @@ class AppDrawer extends StatelessWidget {
                 label: '影视下载',
                 subtitle: '管理已下载影片并离线观看',
                 onTap: () => onTool(AppDrawerTool.downloads),
-              ),
-              _toolTile(
-                context: context,
-                icon: Icons.apps_rounded,
-                label: '小程序',
-                subtitle: '小程序市场与已安装',
-                onTap: () => onTool(AppDrawerTool.miniApp),
               ),
               _toolTile(
                 context: context,

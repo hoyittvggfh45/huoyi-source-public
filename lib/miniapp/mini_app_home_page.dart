@@ -290,6 +290,35 @@ class _MiniAppHomePageState extends State<MiniAppHomePage>
         appBar: AppBar(
           title: const Text('小程序'),
           actions: [
+            PopupMenuButton<int>(
+              icon: const Icon(Icons.add),
+              tooltip: '导入',
+              enabled: !_busy,
+              onSelected: (value) {
+                switch (value) {
+                  case 0:
+                    _installFromZip();
+                  case 1:
+                    _installFromFolder();
+                  case 2:
+                    _installFromLink();
+                }
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem<int>(
+                  value: 0,
+                  child: Text('导入 zip 包'),
+                ),
+                PopupMenuItem<int>(
+                  value: 1,
+                  child: Text('导入文件夹'),
+                ),
+                PopupMenuItem<int>(
+                  value: 2,
+                  child: Text('从链接安装'),
+                ),
+              ],
+            ),
             IconButton(
               icon: const Icon(Icons.settings_outlined),
               tooltip: '小程序设置',
@@ -316,64 +345,49 @@ class _MiniAppHomePageState extends State<MiniAppHomePage>
   }
 
   Widget _installedTab() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            FilledButton.icon(
-              onPressed: _busy ? null : _installFromZip,
-              icon: const Icon(Icons.archive_outlined),
-              label: const Text('导入 zip 包'),
-            ),
-            OutlinedButton.icon(
-              onPressed: _busy ? null : _installFromFolder,
-              icon: const Icon(Icons.folder_open_outlined),
-              label: const Text('导入文件夹'),
-            ),
-            OutlinedButton.icon(
-              onPressed: _busy ? null : _installFromLink,
-              icon: const Icon(Icons.link_rounded),
-              label: const Text('从链接安装'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        if (_busy) const LinearProgressIndicator(),
-        if (_installed.isEmpty)
+    if (_installed.isEmpty) {
+      return ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          if (_busy) const LinearProgressIndicator(),
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 32),
             child: Center(child: Text('还没有安装小程序')),
-          )
-        else
-          for (final manifest in _installed)
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.apps_rounded),
-                title: Text(manifest.name),
-                subtitle: Text(
-                  '${manifest.appId}${manifest.version.isEmpty ? '' : ' · ${manifest.version}'}',
-                ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.play_arrow_rounded),
-                      tooltip: '打开',
-                      onPressed: () => _openApp(manifest),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline_rounded),
-                      tooltip: '删除',
-                      onPressed: () => _deleteApp(manifest),
-                    ),
-                  ],
-                ),
-                onTap: () => _openApp(manifest),
-              ),
+          ),
+        ],
+      );
+    }
+    return Column(
+      children: [
+        if (_busy)
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: LinearProgressIndicator(),
+          ),
+        Expanded(
+          child: GridView.builder(
+            padding: const EdgeInsets.all(16),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 4,
+              mainAxisSpacing: 16,
+              crossAxisSpacing: 8,
+              childAspectRatio: 0.72,
             ),
+            itemCount: _installed.length,
+            itemBuilder: (context, index) {
+              final manifest = _installed[index];
+              return MiniAppIconTile(
+                name: manifest.name,
+                appId: manifest.appId,
+                status: manifest.version.isEmpty
+                    ? ''
+                    : 'v${manifest.version}',
+                onTap: () => _openApp(manifest),
+                onDelete: () => _deleteApp(manifest),
+              );
+            },
+          ),
+        ),
       ],
     );
   }
@@ -425,44 +439,156 @@ class _MiniAppHomePageState extends State<MiniAppHomePage>
     }
     return RefreshIndicator(
       onRefresh: _loadMarket,
-      child: ListView.builder(
+      child: GridView.builder(
         padding: const EdgeInsets.all(16),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 4,
+          mainAxisSpacing: 16,
+          crossAxisSpacing: 8,
+          childAspectRatio: 0.72,
+        ),
         itemCount: _market.length,
         itemBuilder: (context, index) {
           final item = _market[index];
           final installed = _installed.any((e) => e.appId == item.appId);
           final installing = _installing.contains(item.appId);
-          return Card(
-            child: ListTile(
-              leading: const Icon(Icons.apps_rounded),
-              title: Text(item.name),
-              subtitle: Text(
-                [
-                  if (item.version.isNotEmpty) item.version,
-                  if (item.author.isNotEmpty) item.author,
-                  if (item.description.isNotEmpty) item.description,
-                ].join(' · '),
-              ),
-              isThreeLine: item.description.isNotEmpty,
-              trailing: installed
-                  ? FilledButton(
-                      onPressed: () {
-                        final manifest = _installed
-                            .where((e) => e.appId == item.appId)
-                            .firstOrNull;
-                        if (manifest != null) _openApp(manifest);
-                      },
-                      child: const Text('打开'),
-                    )
-                  : FilledButton(
-                      onPressed: installing
-                          ? null
-                          : () => _installMarketItem(item),
-                      child: Text(installing ? '安装中…' : '安装'),
-                    ),
-            ),
+          return MiniAppIconTile(
+            name: item.name,
+            appId: item.appId,
+            status: installed
+                ? '已安装'
+                : installing
+                    ? '安装中…'
+                    : '安装',
+            onTap: installed
+                ? () {
+                    final manifest = _installed
+                        .where((e) => e.appId == item.appId)
+                        .firstOrNull;
+                    if (manifest != null) _openApp(manifest);
+                  }
+                : installing
+                    ? null
+                    : () => _installMarketItem(item),
           );
         },
+      ),
+    );
+  }
+}
+
+class MiniAppIconTile extends StatelessWidget {
+  const MiniAppIconTile({
+    super.key,
+    required this.name,
+    required this.appId,
+    this.status = '',
+    this.onTap,
+    this.onDelete,
+  });
+
+  final String name;
+  final String appId;
+  final String status;
+  final VoidCallback? onTap;
+  final VoidCallback? onDelete;
+
+  static const List<Color> _palette = [
+    Color(0xFF7C4DFF),
+    Color(0xFF673AB7),
+    Color(0xFF3F51B5),
+    Color(0xFF009688),
+    Color(0xFF43A047),
+    Color(0xFFFB8C00),
+    Color(0xFFE91E63),
+    Color(0xFF1E88E5),
+  ];
+
+  static Color tileColor(String seed) {
+    var hash = 0;
+    for (final unit in seed.codeUnits) {
+      hash = (hash * 31 + unit) & 0x7fffffff;
+    }
+    return _palette[hash % _palette.length];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final label = name.isEmpty ? appId : name;
+    final firstChar = label.isEmpty
+        ? '?'
+        : String.fromCharCode(label.runes.first);
+    return InkWell(
+      onTap: onTap,
+      onLongPress: onDelete,
+      borderRadius: BorderRadius.circular(12),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: tileColor(appId),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  firstChar,
+                  style: const TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              if (onDelete != null)
+                Positioned(
+                  right: -6,
+                  top: -6,
+                  child: GestureDetector(
+                    onTap: onDelete,
+                    child: Container(
+                      width: 22,
+                      height: 22,
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                      ),
+                      alignment: Alignment.center,
+                      child: const Icon(
+                        Icons.close_rounded,
+                        size: 14,
+                        color: Colors.black54,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 12),
+          ),
+          if (status.isNotEmpty)
+            Text(
+              status,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 11,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+        ],
       ),
     );
   }

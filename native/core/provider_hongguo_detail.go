@@ -48,6 +48,12 @@ func (downloader *Downloader) hongguoAppDetail(ctx context.Context, seriesID str
 	client.pending[seriesID] = pending
 	client.mu.Unlock()
 	result, err := downloader.hongguoAppRequest(ctx, http.MethodPost, "/novel/player/video_detail/v1/", nil, map[string]any{"series_id": seriesID})
+	if err != nil && ctx.Err() == nil && hongguoDeviceSuspectError(err) {
+		tried := false
+		if downloader.rotateHongguoDeviceOnSuspectError(ctx, err, &tried) {
+			result, err = downloader.hongguoAppRequest(ctx, http.MethodPost, "/novel/player/video_detail/v1/", nil, map[string]any{"series_id": seriesID})
+		}
+	}
 	var entry hongguoDetailEntry
 	if err == nil {
 		entry, err = parseHongguoAppDetail(result, seriesID)

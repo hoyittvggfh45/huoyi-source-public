@@ -185,6 +185,17 @@ const hongguoPlayerSuspendWindow = 60 * time.Second
 // errors.Is 区分空 body 与其他失败。
 var errHongguoAppEmptyBody = errors.New("红果 App 接口未返回有效数据")
 
+func hongguoAppPathUsesALine(path string) bool {
+	switch {
+	case strings.HasPrefix(path, "/reading/bookapi/bookmall/tab/"),
+		strings.HasPrefix(path, "/reading/distribution/category/landpage/"),
+		strings.HasPrefix(path, "/novel/player/video_detail/"),
+		strings.HasPrefix(path, "/reading/bookapi/search/"):
+		return true
+	}
+	return false
+}
+
 func (downloader *Downloader) hongguoAppRequest(ctx context.Context, method, path string, extra url.Values, payload any) (map[string]any, error) {
 	return downloader.hongguoAppRequestInternal(ctx, method, path, extra, payload, false)
 }
@@ -201,6 +212,8 @@ func (downloader *Downloader) hongguoAppRequestInternal(ctx context.Context, met
 	client.mu.Unlock()
 	if override, ok := ctx.Value(hongguoBaseURLOverrideKey{}).(string); ok && override != "" {
 		base = override
+	} else if hongguoAppPathUsesALine(path) {
+		base = hongguoOverseaAppBaseURL
 	}
 	query := hongguoAppQuery(deviceID, installID)
 	for key, values := range extra {

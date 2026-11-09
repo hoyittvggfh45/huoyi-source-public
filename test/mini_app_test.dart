@@ -233,6 +233,38 @@ void main() {
       );
     });
 
+    test('rejects a zip without its entry file', () async {
+      final store = MiniAppStore(rootOverride: temp);
+      final manifest = utf8.encode(jsonEncode({
+        'appId': 'com.example.noentry',
+        'name': '无入口',
+        'entry': 'index.html',
+      }));
+      final archive = Archive()
+        ..addFile(ArchiveFile('manifest.json', manifest.length, manifest));
+      final bytes = ZipEncoder().encode(archive);
+      await expectLater(
+        store.installFromZipBytes(bytes),
+        throwsA(isA<FormatException>()),
+      );
+      expect(await store.listInstalled(), isEmpty);
+    });
+
+    test('rejects a zip whose entry is a remote url without a local file',
+        () async {
+      final store = MiniAppStore(rootOverride: temp);
+      final manifest = utf8.encode(jsonEncode({
+        'appId': 'com.example.remote',
+        'name': '远程入口',
+        'entry': 'https://example.com/index.html',
+      }));
+      final archive = Archive()
+        ..addFile(ArchiveFile('manifest.json', manifest.length, manifest));
+      final bytes = ZipEncoder().encode(archive);
+      final installed = await store.installFromZipBytes(bytes);
+      expect(installed.appId, 'com.example.remote');
+    });
+
     test('md5 mismatch is rejected', () async {
       final store = MiniAppStore(rootOverride: temp);
       final bytes = ZipEncoder().encode(demoArchive());
@@ -266,6 +298,31 @@ void main() {
       final manifest = await store.installFromDirectory(source);
       expect(manifest.appId, 'com.example.folder');
       expect((await store.listInstalled()).length, 1);
+    });
+
+    test('rejects a folder without its entry file', () async {
+      final sourceRoot =
+          await Directory.systemTemp.createTemp('miniapp_source_');
+      addTearDown(() async {
+        if (await sourceRoot.exists()) {
+          await sourceRoot.delete(recursive: true);
+        }
+      });
+      final source = Directory('${sourceRoot.path}/source');
+      await source.create(recursive: true);
+      await File('${source.path}/manifest.json').writeAsString(
+        jsonEncode({
+          'appId': 'com.example.folder-noentry',
+          'name': '文件夹无入口',
+          'entry': 'index.html',
+        }),
+      );
+      final store = MiniAppStore(rootOverride: temp);
+      await expectLater(
+        store.installFromDirectory(source),
+        throwsA(isA<FormatException>()),
+      );
+      expect(await store.listInstalled(), isEmpty);
     });
   });
 

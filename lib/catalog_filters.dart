@@ -18,6 +18,7 @@ class CatalogFilters extends StatefulWidget {
     this.remoteAutofocus = false,
     this.onExitUp,
     this.onExitDown,
+    this.underlineTabs = false,
   });
 
   final List<CatalogCategory> categories;
@@ -30,6 +31,7 @@ class CatalogFilters extends StatefulWidget {
   final bool remoteAutofocus;
   final VoidCallback? onExitUp;
   final VoidCallback? onExitDown;
+  final bool underlineTabs;
 
   @override
   State<CatalogFilters> createState() => _CatalogFiltersState();
@@ -43,6 +45,38 @@ class _CatalogFiltersState extends State<CatalogFilters> {
       (entry) => entry.id == widget.category,
     );
     return index < 0 ? 0 : index;
+  }
+
+  Widget _tab(BuildContext context, CatalogCategory entry) {
+    final selected = entry.id == widget.category;
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(right: 20),
+      child: InkWell(
+        key: ValueKey('category-${entry.id}'),
+        onTap: () => widget.onCategory(entry.id),
+        child: Container(
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: selected ? colors.primary : Colors.transparent,
+                width: 2,
+              ),
+            ),
+          ),
+          child: Text(
+            entry.name,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+              color: selected ? colors.primary : colors.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -93,6 +127,22 @@ class _CatalogFiltersState extends State<CatalogFilters> {
                         ),
                       );
                     },
+                  )
+                : widget.underlineTabs
+                ? SingleChildScrollView(
+                    key: const ValueKey('catalog-categories'),
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (final entry in widget.categories)
+                          KeyedSubtree(
+                            key: _anchors.putIfAbsent(entry.id, GlobalKey.new),
+                            child: _tab(context, entry),
+                          ),
+                      ],
+                    ),
                   )
                 : SingleChildScrollView(
                     key: const ValueKey('catalog-categories'),

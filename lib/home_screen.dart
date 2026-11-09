@@ -35,9 +35,7 @@ import 'compact_chip.dart';
 import 'tv_filter_bar.dart';
 import 'catalog_browser.dart';
 import 'catalog_sort.dart';
-import 'catalog_sort_sheet.dart';
 import 'recommendations_screen.dart';
-import 'rankings_screen.dart';
 import 'detail_screen.dart';
 import 'folder_catalog_screen.dart';
 import 'global_search_page.dart';
@@ -822,21 +820,6 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!_searchVisible && hadQuery) _searchChanged('');
   }
 
-  void _openRankings() {
-    _pauseCatalog();
-    Navigator.push<void>(
-      context,
-      appPageRoute(
-        builder: (_) => RankingsScreen(
-          repository: widget.repository,
-          store: widget.store,
-          initialGroup: _group.id,
-          sourceIds: _zone == HomeZone.drama ? null : _visibleSourceIds.toSet(),
-        ),
-      ),
-    );
-  }
-
   Future<void> _manageSources() async {
     _pauseCatalog();
     await Navigator.push<void>(
@@ -1214,17 +1197,6 @@ class _HomeScreenState extends State<HomeScreen> {
       _load();
     } else {
       setState(() {});
-    }
-  }
-
-  Future<void> _chooseCatalogView() async {
-    final selected = await chooseCatalogView(context, widget.store.catalogView);
-    if (selected != null && mounted) {
-      await saveUserChange(
-        context,
-        () => widget.store.setCatalogView(selected),
-      );
-      if (mounted && _scroll.hasClients) _scroll.jumpTo(0);
     }
   }
 
@@ -1768,9 +1740,6 @@ class _HomeScreenState extends State<HomeScreen> {
       color: colors.onSurface,
     );
     final catalog = _isCatalogZone && !_selectionMode;
-    final customView =
-        widget.store.catalogView.sort != CatalogSort.source ||
-        widget.store.catalogView.release.isNotEmpty;
     final updating = _group.sources.any((source) => _updater.busy(source.id));
     final Widget title;
     if (_selectionMode) {
@@ -1852,19 +1821,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 if (!_showRecommendations)
                   GlassGroupItem(
-                    icon: LucideIcons.arrowUpDown,
-                    tooltip: '排序与筛选 · ${widget.store.catalogView.sort.label}',
-                    highlighted: customView,
-                    onPressed: _chooseCatalogView,
+                    key: const ValueKey('open-history'),
+                    icon: LucideIcons.history,
+                    tooltip: '最近观看',
+                    onPressed: () => _openSaved(history: true),
                   ),
-                GlassGroupItem(
-                  key: const ValueKey('open-rankings'),
-                  icon: LucideIcons.trophy,
-                  tooltip: '榜单',
-                  onPressed: widget.store.visibleSources.isEmpty
-                      ? null
-                      : _openRankings,
-                ),
                 if (_zone == HomeZone.drama)
                   GlassGroupItem(
                     key: const ValueKey('open-fullscreen-feed'),
@@ -1881,6 +1842,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   highlighted: _searchVisible,
                   onPressed: _toggleSearch,
                 ),
+                if (!_showRecommendations)
+                  GlassGroupItem(
+                    key: const ValueKey('open-favorites'),
+                    icon: LucideIcons.star,
+                    tooltip: '我的追剧',
+                    onPressed: () => _openSaved(history: false),
+                  ),
                 if (!_showRecommendations && !updating)
                   GlassGroupItem(
                     icon: LucideIcons.rotateCw,
@@ -1893,15 +1861,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(width: 8),
           ],
-          if (!AppLayout.isTelevision(context) &&
-              (_isCatalogZone || _zone == HomeZone.live) &&
-              (_zone != HomeZone.drama || wide))
-            GlassIconButton(
-              key: const ValueKey('open-settings'),
-              icon: LucideIcons.settings,
-              tooltip: '设置',
-              onPressed: _openSettings,
-            ),
         ],
         const SizedBox(width: 16),
       ],
@@ -1946,12 +1905,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   onSearchChanged: _searchChanged,
                   onSearchSubmitted: _submitSearch,
                   onMenuPressed: _openDrawer,
-                  onFilterPressed: () => unawaited(_chooseCatalogView()),
-                  onRankingsPressed: _openRankings,
                   onNewPressed: _toggleNewSort,
-                  filtersActive:
-                      widget.store.catalogView.sort != CatalogSort.source ||
-                      widget.store.catalogView.release.isNotEmpty,
                   newActive: widget.store.catalogView.sort == CatalogSort.date,
                   onOpenSaved: _openSaved,
                   onSettingsPressed: _openSettings,
@@ -2023,25 +1977,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       if (_isCatalogZone) ...[
                         if (!_showRecommendations)
                           IconButton(
-                            tooltip:
-                                '排序与筛选 · ${widget.store.catalogView.sort.label}',
-                            onPressed: _chooseCatalogView,
-                            color:
-                                widget.store.catalogView.sort !=
-                                        CatalogSort.source ||
-                                    widget.store.catalogView.release.isNotEmpty
-                                ? Theme.of(context).colorScheme.primary
-                                : null,
-                            icon: const Icon(Icons.sort_rounded),
+                            key: const ValueKey('open-history'),
+                            tooltip: '最近观看',
+                            onPressed: () => _openSaved(history: true),
+                            icon: const Icon(Icons.history_rounded),
                           ),
-                        IconButton(
-                          key: const ValueKey('open-rankings'),
-                          tooltip: '榜单',
-                          onPressed: widget.store.visibleSources.isEmpty
-                              ? null
-                              : _openRankings,
-                          icon: const Icon(Icons.leaderboard_outlined),
-                        ),
                         if (_zone == HomeZone.drama)
                           IconButton(
                             key: const ValueKey('open-fullscreen-feed'),
@@ -2050,14 +1990,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ? null
                                 : _openFullscreenFeed,
                             icon: const Icon(Icons.play_arrow_rounded),
-                          ),
-                        if ((_isCatalogZone || _zone == HomeZone.live) &&
-                            !television)
-                          IconButton(
-                            key: const ValueKey('open-settings'),
-                            tooltip: '设置',
-                            icon: const Icon(Icons.settings_outlined),
-                            onPressed: _openSettings,
                           ),
                         IconButton(
                           key: const ValueKey('toggle-search'),
@@ -2069,6 +2001,13 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           onPressed: _toggleSearch,
                         ),
+                        if (!_showRecommendations)
+                          IconButton(
+                            key: const ValueKey('open-favorites'),
+                            tooltip: '我的追剧',
+                            onPressed: () => _openSaved(history: false),
+                            icon: const Icon(Icons.star_border_rounded),
+                          ),
                       ],
                       if (_isCatalogZone &&
                           !_showRecommendations &&
@@ -2429,6 +2368,7 @@ class _HomeScreenState extends State<HomeScreen> {
           error: _categoriesError,
           onCategory: _changeCategory,
           onRetry: () => _loadCategories(force: true),
+          underlineTabs: true,
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -2700,6 +2640,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   gridDelegate: dramaGridDelegate(
                                     context,
                                     constraints.maxWidth - 2 * padding,
+                                    fixedColumns: 3,
                                   ),
                                   delegate: SliverChildBuilderDelegate(
                                     (_, index) => _catalogTile(items[index]),

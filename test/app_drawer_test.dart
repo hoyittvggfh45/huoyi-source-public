@@ -63,6 +63,25 @@ void main() {
     expect(room, 1);
   });
 
+  testWidgets('miniapp tab opens the mini app module without switching zones', (
+    tester,
+  ) async {
+    final zones = <HomeZone>[];
+    final tools = <AppDrawerTool>[];
+    await pumpDrawer(
+      tester,
+      zones: zones,
+      tools: tools,
+      onWatchRoom: () {},
+    );
+    expect(find.text('小程序'), findsOneWidget);
+    expect(find.byIcon(Icons.apps_rounded), findsOneWidget);
+    await tester.ensureVisible(find.text('小程序'));
+    await tester.tap(find.text('小程序'));
+    expect(tools, [AppDrawerTool.miniApp]);
+    expect(zones, isEmpty);
+  });
+
   testWidgets('drawer tool tiles map to their tools', (tester) async {
     final tools = <AppDrawerTool>[];
     await pumpDrawer(tester, zones: [], tools: tools, onWatchRoom: () {});

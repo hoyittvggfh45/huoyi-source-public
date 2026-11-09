@@ -644,8 +644,13 @@ class StatusPanel extends StatelessWidget {
   );
 }
 
-SliverGridDelegate dramaGridDelegate(BuildContext context, double width) {
-  final columns = width < 600 ? 3 : (width / 180).floor().clamp(4, 9);
+SliverGridDelegate dramaGridDelegate(
+  BuildContext context,
+  double width, {
+  int? fixedColumns,
+}) {
+  final columns =
+      fixedColumns ?? (width < 600 ? 3 : (width / 180).floor().clamp(4, 9));
   final spacing = width < 600 ? 10.0 : 18.0;
   final tileWidth = (width - (columns - 1) * spacing) / columns;
   return SliverGridDelegateWithFixedCrossAxisCount(

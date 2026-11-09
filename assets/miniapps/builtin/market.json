@@ -23,7 +23,7 @@
       "description": "把 danmu_api 作为 Node 服务跑在宿主内嵌 node 里（worker_threads），兼容弹弹play 接口。装完把播放器的弹幕 API 填成 miniapp://com.logvar.danmu.node 即可。与 WebView 版（com.logvar.danmu）的差别：服务跑在真 node 里、权限只要 node 和 ui（主页复制地址用）；当前版本配置写在包内，改配置要重新打包。基于 huangxd-/danmu_api（AGPL-3.0），源码指引见包内 SOURCE.md。需要支持 Node 服务的宿主版本"
     },
     {
-      "appId": "com.leospring.emby",
+      "appId": "com.ant.emby",
       "name": "影视库",
       "version": "1.0.3",
       "versionCode": 4,

@@ -94,6 +94,7 @@ func (downloader *Downloader) fetchHongguoAppCatalogCategory(ctx context.Context
 	seen := map[string]int{}
 	var dramas []Drama
 	var failures []error
+	rotationTried := false
 	for round := 0; round < roundLimit; round++ {
 		active := false
 		for index, genre := range genres {
@@ -151,7 +152,11 @@ func (downloader *Downloader) fetchHongguoAppCatalogCategory(ctx context.Context
 				}
 				reportLibraryProgress(ctx, sourceHongguo, items, nil, false)
 				var backoff *requestBackoff
-				if attempt > 0 || !retryable || errors.As(err, &backoff) || ctx.Err() != nil {
+				if attempt > 0 || errors.As(err, &backoff) || ctx.Err() != nil {
+					break
+				}
+				rotated := downloader.rotateHongguoDeviceOnSuspectError(ctx, err, &rotationTried)
+				if !retryable && !rotated {
 					break
 				}
 				payload["session_id"] = ""

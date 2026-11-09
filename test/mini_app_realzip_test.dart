@@ -42,7 +42,7 @@ void main() {
     test('installs the bundled emby zip under its in-zip app id', () async {
       final store = MiniAppStore(rootOverride: temp);
       final bytes = await loadAssetBytes(
-        'assets/miniapps/builtin/com.leospring.emby.zip',
+        'assets/miniapps/builtin/com.ant.emby.zip',
       );
       final manifest = await store.installFromZipBytes(bytes);
       expect(manifest.appId, 'com.ant.emby');

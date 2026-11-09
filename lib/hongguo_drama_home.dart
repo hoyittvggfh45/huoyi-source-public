@@ -38,10 +38,7 @@ class HongguoDramaHome extends StatefulWidget {
     required this.onSearchChanged,
     required this.onSearchSubmitted,
     required this.onMenuPressed,
-    required this.onFilterPressed,
-    required this.onRankingsPressed,
     required this.onNewPressed,
-    required this.filtersActive,
     required this.newActive,
     required this.onOpenSaved,
     this.onSettingsPressed,
@@ -63,10 +60,7 @@ class HongguoDramaHome extends StatefulWidget {
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<String> onSearchSubmitted;
   final VoidCallback onMenuPressed;
-  final VoidCallback onFilterPressed;
-  final VoidCallback onRankingsPressed;
   final VoidCallback onNewPressed;
-  final bool filtersActive;
   final bool newActive;
   final void Function({required bool history}) onOpenSaved;
   final VoidCallback? onSettingsPressed;
@@ -87,6 +81,7 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
   bool _didRandomStart = false;
   bool _synopsisExpanded = false;
   late final PageController _pages;
+  final _searchFocus = FocusNode();
   final RoomPlayerHandle _player = RoomPlayerHandle();
   late final HongguoPreloadWindow _preloadWindow = HongguoPreloadWindow(
     widget.repository,
@@ -270,6 +265,7 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
       );
     }
     _pages.dispose();
+    _searchFocus.dispose();
     _player.dispose();
     _preloadWindow.dispose();
     if (_playbackServiceHeld) {
@@ -1176,9 +1172,94 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
         slivers: [
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+              child: Row(
+                children: [
+                  IconButton(
+                    key: const ValueKey('theater-menu'),
+                    tooltip: '区域',
+                    onPressed: widget.onMenuPressed,
+                    icon: const Icon(Icons.menu),
+                  ),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: widget.onPickSource,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .secondaryContainer,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                _siteName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSecondaryContainer,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.expand_more_rounded,
+                              size: 16,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSecondaryContainer,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    key: const ValueKey('theater-new'),
+                    tooltip: '新剧',
+                    onPressed: widget.onNewPressed,
+                    color: widget.newActive
+                        ? Theme.of(context).colorScheme.primary
+                        : null,
+                    icon: const Icon(Icons.new_releases_outlined),
+                  ),
+                  IconButton(
+                    key: const ValueKey('theater-history'),
+                    tooltip: '最近观看',
+                    onPressed: () => widget.onOpenSaved(history: true),
+                    icon: const Icon(Icons.history_rounded),
+                  ),
+                  IconButton(
+                    key: const ValueKey('theater-search'),
+                    tooltip: '搜索',
+                    onPressed: _searchFocus.requestFocus,
+                    icon: const Icon(Icons.search_rounded),
+                  ),
+                  IconButton(
+                    key: const ValueKey('theater-favorites'),
+                    tooltip: '我的追剧',
+                    onPressed: () => widget.onOpenSaved(history: false),
+                    icon: const Icon(Icons.star_border_rounded),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
               child: TextField(
                 controller: widget.searchController,
+                focusNode: _searchFocus,
                 decoration: InputDecoration(
                   hintText: widget.searchHint,
                   prefixIcon: const Icon(Icons.search),
@@ -1188,84 +1269,6 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
                 ),
                 onChanged: widget.onSearchChanged,
                 onSubmitted: widget.onSearchSubmitted,
-              ),
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  _theaterAction(
-                    context,
-                    label: '区域',
-                    icon: Icons.menu,
-                    active: false,
-                    onPressed: widget.onMenuPressed,
-                  ),
-                  const SizedBox(width: 8),
-                  GestureDetector(
-                    onTap: widget.onPickSource,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .secondaryContainer,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            _siteName,
-                            style: TextStyle(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSecondaryContainer,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Icon(
-                            Icons.expand_more_rounded,
-                            size: 16,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSecondaryContainer,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  _theaterAction(
-                    context,
-                    label: '筛选',
-                    icon: Icons.filter_list,
-                    active: widget.filtersActive,
-                    onPressed: widget.onFilterPressed,
-                  ),
-                  const SizedBox(width: 8),
-                  _theaterAction(
-                    context,
-                    label: '排行榜',
-                    icon: Icons.leaderboard_outlined,
-                    active: false,
-                    onPressed: widget.onRankingsPressed,
-                  ),
-                  const SizedBox(width: 8),
-                  _theaterAction(
-                    context,
-                    label: '新剧',
-                    icon: Icons.new_releases_outlined,
-                    active: widget.newActive,
-                    onPressed: widget.onNewPressed,
-                  ),
-                ],
               ),
             ),
           ),
@@ -1298,31 +1301,59 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
               child: ListView(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
-                children: widget.categories
-                    .map(
-                      (category) => Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: ChoiceChip(
-                          label: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(category.name),
-                              if (category.isFolder) ...[
-                                const SizedBox(width: 4),
-                                const Icon(Icons.folder_open, size: 14),
-                              ],
-                            ],
+                children: widget.categories.map((category) {
+                  final selected =
+                      widget.selectedCategory ==
+                      (category.isFolder ? category.drillId : category.id);
+                  final colors = Theme.of(context).colorScheme;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: InkWell(
+                      onTap: () => _onTheaterCategoryTap(category),
+                      child: Container(
+                        alignment: Alignment.center,
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(
+                          border: Border(
+                            bottom: BorderSide(
+                              color: selected
+                                  ? colors.primary
+                                  : Colors.transparent,
+                              width: 2,
+                            ),
                           ),
-                          selected: widget.selectedCategory ==
-                              (category.isFolder
-                                  ? category.drillId
-                                  : category.id),
-                          onSelected: (_) =>
-                              _onTheaterCategoryTap(category),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              category.name,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: selected
+                                    ? FontWeight.w700
+                                    : FontWeight.w400,
+                                color: selected
+                                    ? colors.primary
+                                    : colors.onSurfaceVariant,
+                              ),
+                            ),
+                            if (category.isFolder) ...[
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.folder_open,
+                                size: 14,
+                                color: selected
+                                    ? colors.primary
+                                    : colors.onSurfaceVariant,
+                              ),
+                            ],
+                          ],
                         ),
                       ),
-                    )
-                    .toList(),
+                    ),
+                  );
+                }).toList(),
               ),
             ),
           ),
@@ -1448,26 +1479,6 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _theaterAction(
-    BuildContext context, {
-    required String label,
-    required IconData icon,
-    required bool active,
-    required VoidCallback onPressed,
-  }) {
-    return FilledButton.tonalIcon(
-      onPressed: onPressed,
-      icon: Icon(icon),
-      label: Text(label),
-      style: active
-          ? FilledButton.styleFrom(
-              backgroundColor:
-                  Theme.of(context).colorScheme.primaryContainer,
-            )
-          : null,
     );
   }
 

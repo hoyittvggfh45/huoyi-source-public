@@ -62,10 +62,6 @@ func (downloader *Downloader) resolveHongguoAppMediaLine(ctx context.Context, vi
 	} else if ctx.Err() != nil {
 		return providerMedia{}, ctx.Err()
 	}
-	payload := map[string]any{
-		"video_id": videoID, "content_type": 1,
-		"biz_param": map[string]any{"need_all_video_definition": true, "video_platform": 3},
-	}
 	var lastErr error
 	for attempt := 0; attempt <= hongguoDeviceRotations; attempt++ {
 		if attempt > 0 {
@@ -73,7 +69,7 @@ func (downloader *Downloader) resolveHongguoAppMediaLine(ctx context.Context, vi
 				return providerMedia{}, err
 			}
 		}
-		result, err := downloader.hongguoAppRequestInternal(ctx, http.MethodPost, "/novel/player/video_model/v1/", nil, payload, true)
+		media, err := downloader.resolveHongguoVideoModel(ctx, videoID)
 		if err != nil {
 			if errors.Is(err, errHongguoAppEmptyBody) {
 				downloader.markHongguoDeviceLimited()
@@ -81,6 +77,32 @@ func (downloader *Downloader) resolveHongguoAppMediaLine(ctx context.Context, vi
 				continue
 			}
 			return providerMedia{}, err
+		}
+		downloader.clearHongguoDeviceLimited()
+		return media, nil
+	}
+	if lastErr != nil {
+		return providerMedia{}, lastErr
+	}
+	return providerMedia{}, errHongguoAppEmptyBody
+}
+
+var hongguoVideoModelContentTypes = []int{1, 1001}
+
+func (downloader *Downloader) resolveHongguoVideoModel(ctx context.Context, videoID string) (providerMedia, error) {
+	var lastErr error
+	for _, contentType := range hongguoVideoModelContentTypes {
+		payload := map[string]any{
+			"video_id": videoID, "content_type": contentType,
+			"biz_param": map[string]any{"need_all_video_definition": true, "video_platform": 3},
+		}
+		result, err := downloader.hongguoAppRequestInternal(ctx, http.MethodPost, "/novel/player/video_model/v1/", nil, payload, true)
+		if err != nil {
+			if ctx.Err() != nil {
+				return providerMedia{}, ctx.Err()
+			}
+			lastErr = err
+			continue
 		}
 		data := nestedMap(result, "data")
 		model, err := hongguoVideoModelValue(data["video_model"])
@@ -99,7 +121,6 @@ func (downloader *Downloader) resolveHongguoAppMediaLine(ctx context.Context, vi
 		hongguoAttachKeySeed(model, data)
 		downloader.hongguoMergeFallbackAPI(ctx, model)
 		if len(model) == 0 {
-			downloader.markHongguoDeviceLimited()
 			lastErr = errHongguoAppEmptyBody
 			continue
 		}

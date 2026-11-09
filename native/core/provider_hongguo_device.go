@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -43,6 +44,31 @@ func (downloader *Downloader) ensureHongguoDevice(ctx context.Context, rejected 
 	client.deviceLimited = false
 	client.mu.Unlock()
 	return nil
+}
+
+func hongguoDeviceSuspectError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, errHongguoAppEmptyBody) {
+		return true
+	}
+	return strings.HasPrefix(err.Error(), "红果 App 接口 HTTP 4")
+}
+
+func (downloader *Downloader) rotateHongguoDeviceOnSuspectError(ctx context.Context, err error, tried *bool) bool {
+	if *tried || ctx.Err() != nil || !hongguoDeviceSuspectError(err) {
+		return false
+	}
+	*tried = true
+	if errors.Is(err, errHongguoAppEmptyBody) {
+		downloader.markHongguoDeviceLimited()
+	}
+	current := downloader.hongguoDeviceID()
+	if current == "" {
+		return false
+	}
+	return downloader.ensureHongguoDevice(ctx, current) == nil
 }
 
 func truncateHongguoDeviceID(id string) string {
