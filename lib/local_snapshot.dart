@@ -64,7 +64,6 @@ class LocalSnapshot {
   static const globalKeys = {
     'profiles',
     'activeProfile',
-    'displayMode',
     'themeMode',
     'themeModeStyle',
     'themeStyle',

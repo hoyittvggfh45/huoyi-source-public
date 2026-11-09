@@ -17,7 +17,6 @@ void main() {
           key: scaffoldKey,
           drawer: AppDrawer(
             zone: HomeZone.drama,
-            midnightActivated: false,
             currentVersion: '1.0.4+46',
             onZoneSelected: (_) {},
             onWatchRoom: () {},
@@ -39,15 +38,15 @@ void main() {
     for (final label in [
       '短剧',
       '点播',
+      '午夜',
       '直播',
       '听书',
       '阅读',
       '一起看房间',
       '站源管理',
-      '内容源管理',
+      '配置源切换',
       '播放设置',
       '播放器选择',
-      '电视直播',
       '影视下载',
       '外观主题',
       '代理内核',
@@ -61,8 +60,7 @@ void main() {
     ]) {
       expect(find.text(label), findsOneWidget);
     }
-    expect(find.text('午夜'), findsNothing);
-    expect(find.text('未成年保护'), findsNothing);
+    expect(find.text('未成年保护'), findsOneWidget);
     expect(find.text('© 2026 红蚁TV'), findsOneWidget);
     expect(find.byType(Card), findsNWidgets(2));
   });

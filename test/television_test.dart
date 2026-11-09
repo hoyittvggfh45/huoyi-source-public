@@ -80,50 +80,6 @@ void main() {
     },
   );
 
-  testWidgets(
-    'manual interface preference overrides device detection and survives restart',
-    (tester) async {
-      size(tester, const Size(960, 540));
-      final store = await makeStore();
-      final repository = FixtureRepository();
-      await tester.pumpWidget(
-        DuanjuApp(repository: repository, store: store, television: true),
-      );
-      await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('tv-nav-0')), findsOneWidget);
-      await tester.tap(find.byKey(const ValueKey('tv-nav-3')));
-      await tester.pumpAndSettle();
-      await tester.scrollUntilVisible(
-        find.text('界面模式'),
-        200,
-        scrollable: find.descendant(
-          of: find.byKey(const ValueKey('settings-list')),
-          matching: find.byType(Scrollable),
-        ),
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('界面模式'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('手机 / 电脑'));
-      await tester.pump(const Duration(seconds: 1));
-      await tester.pumpAndSettle();
-      // Switching display mode while the settings page is open animates a
-      // text style between themes with different inherit flags, tripping a
-      // debug-only TextStyle interpolation assert. Release builds are
-      // unaffected, so drain it here and keep the final check strict.
-      tester.takeException();
-      expect(store.displayMode, 'standard');
-      expect(find.byKey(const ValueKey('tv-nav-0')), findsNothing);
-      expect(LocalStore(store.preferences).displayMode, 'standard');
-      await store.setDisplayMode('television');
-      await tester.pump(const Duration(seconds: 1));
-      await tester.pumpAndSettle();
-      tester.takeException();
-      expect(find.byKey(const ValueKey('tv-nav-0')), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    },
-  );
-
   for (final dimensions in [const Size(960, 540), const Size(1280, 720)]) {
     testWidgets(
       'TV sources, details, VIP confirmation and back retain remote focus at $dimensions',

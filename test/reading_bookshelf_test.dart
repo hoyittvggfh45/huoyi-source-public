@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:duanju_app/content_models.dart';
-import 'package:duanju_app/midnight_zone.dart';
 import 'package:duanju_app/nonvideo_content.dart';
 import 'package:duanju_app/novel_reader_page.dart';
 import 'package:duanju_app/reading_bookshelf.dart';
@@ -152,15 +151,12 @@ void main() {
     expect(entry.started, isTrue);
   });
 
-  test('midnight gate hides adult entries only when inactive', () {
+  test('visibleShelfEntries returns all entries', () {
     final entries = [
       _entry(sourceName: '🔞成人源'),
       _entry(sourceId: 'plain', sourceName: '普通源', bookId: 'b9'),
     ];
-    expect(visibleShelfEntries(entries, true).length, 2);
-    final hidden = visibleShelfEntries(entries, false);
-    expect(hidden.length, 1);
-    expect(hidden.single.sourceId, 'plain');
+    expect(visibleShelfEntries(entries).length, 2);
   });
 
   testWidgets('bookshelf lists progress and source', (tester) async {
@@ -180,11 +176,10 @@ void main() {
     expect(find.text('Fake'), findsNWidgets(2));
   });
 
-  testWidgets('bookshelf hides adult entries when midnight inactive', (
+  testWidgets('bookshelf lists adult entries', (
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({
-      midnightActivatedKey: false,
       'readingBookshelf': _shelfJson([
         _entry(sourceName: '🔞成人源', title: 'Adult Book'),
         _entry(bookId: 'b2', title: 'Book Two'),
@@ -194,9 +189,8 @@ void main() {
       const MaterialApp(home: ReadingBookshelfScreen(sources: [])),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Adult Book'), findsNothing);
+    expect(find.text('Adult Book'), findsOneWidget);
     expect(find.text('Book Two'), findsOneWidget);
-    expect(find.text('有 1 本书因午夜门禁隐藏'), findsOneWidget);
   });
 
   testWidgets('bookshelf delete removes entry', (tester) async {

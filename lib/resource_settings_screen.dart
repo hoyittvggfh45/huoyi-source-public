@@ -1,81 +1,10 @@
 import 'package:flutter/material.dart';
 
 import 'core_bridge.dart';
-import 'download_preferences.dart';
 import 'local_store.dart';
 import 'remote_widgets.dart';
 import 'resource_settings.dart';
 import 'widgets.dart';
-
-class DownloadPreferencesScreen extends StatelessWidget {
-  const DownloadPreferencesScreen({super.key, required this.store});
-  final LocalStore store;
-  @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-    animation: store,
-    builder: (context, _) {
-      final preferences = store.downloadPreferences;
-      return Scaffold(
-        appBar: AppBar(title: const Text('下载偏好')),
-        body: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 680),
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                ListTile(
-                  title: const Text('默认画质'),
-                  subtitle: const Text('指定画质不可用时，使用源站提供的可用版本。'),
-                ),
-                DropdownButtonFormField<int>(
-                  initialValue: preferences.quality,
-                  decoration: const InputDecoration(labelText: '下载画质'),
-                  items: [
-                    for (final value in DownloadPreferences.qualities)
-                      DropdownMenuItem(
-                        value: value,
-                        child: Text(value == 0 ? '自动 · 优先高清' : '${value}P'),
-                      ),
-                  ],
-                  onChanged: !store.canDownload
-                      ? null
-                      : (value) {
-                          if (value != null) {
-                            saveUserChange(
-                              context,
-                              () => store.setDownloadPreferences(
-                                preferences.copyWith(quality: value),
-                              ),
-                            );
-                          }
-                        },
-                ),
-                const SizedBox(height: 12),
-                SwitchListTile.adaptive(
-                  value: preferences.includeVip,
-                  title: const Text('默认包含 VIP 集'),
-                  subtitle: const Text('VIP 集可能仅提供试看内容；下载前仍可调整选择。'),
-                  onChanged: !store.canDownload
-                      ? null
-                      : (value) => saveUserChange(
-                          context,
-                          () => store.setDownloadPreferences(
-                            preferences.copyWith(includeVip: value),
-                          ),
-                        ),
-                ),
-                const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Text('偏好保存在当前用户中，应用于下载选集、批量下载和更新本剧。'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    },
-  );
-}
 
 class ResourceSettingsScreen extends StatefulWidget {
   const ResourceSettingsScreen({
@@ -94,8 +23,8 @@ class _ResourceSettingsScreenState extends State<ResourceSettingsScreen> {
   late final int _epoch = widget.store.profileEpoch;
   ResourceSettings? _settings;
   String _mode = 'auto';
-  int _catalog = 3, _interval = 250, _downloads = 2;
-  bool _folders = false, _busy = false, _showProxy = false;
+  int _catalog = 3, _interval = 250;
+  bool _busy = false, _showProxy = false;
   String? _error;
   bool get _allowed =>
       widget.store.profileEpoch == _epoch &&
@@ -125,8 +54,6 @@ class _ResourceSettingsScreenState extends State<ResourceSettingsScreen> {
         _proxy.text = settings.proxyUrl;
         _catalog = settings.catalogConcurrency;
         _interval = settings.catalogIntervalMs;
-        _downloads = settings.downloadConcurrency;
-        _folders = settings.downloadBySource;
         _error = null;
       });
     } catch (error) {
@@ -136,6 +63,8 @@ class _ResourceSettingsScreenState extends State<ResourceSettingsScreen> {
 
   Future<void> _save() async {
     if (_busy || !_allowed) return;
+    final current = _settings;
+    if (current == null) return;
     setState(() {
       _busy = true;
       _error = null;
@@ -147,8 +76,8 @@ class _ResourceSettingsScreenState extends State<ResourceSettingsScreen> {
           proxyUrl: _proxy.text.trim(),
           catalogConcurrency: _catalog,
           catalogIntervalMs: _interval,
-          downloadConcurrency: _downloads,
-          downloadBySource: _folders,
+          downloadConcurrency: current.downloadConcurrency,
+          downloadBySource: current.downloadBySource,
         ),
       );
       if (!mounted || !_allowed) return;
@@ -269,7 +198,6 @@ class _ResourceSettingsScreenState extends State<ResourceSettingsScreen> {
                         : (value) => setState(() => _interval = value.round()),
                   ),
                   const SizedBox(height: 16),
-                  const SizedBox(height: 12),
                   if (_error != null)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 12),

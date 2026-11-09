@@ -5,7 +5,7 @@ import 'package:duanju_app/local_snapshot.dart';
 import 'package:duanju_app/local_store.dart';
 import 'package:duanju_app/models.dart';
 import 'package:duanju_app/playback_preferences.dart';
-import 'package:duanju_app/profiles_screen.dart';
+import 'package:duanju_app/config_recovery_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -14,12 +14,16 @@ import 'package:shared_preferences_platform_interface/shared_preferences_platfor
 class FailingPreferences extends InMemorySharedPreferencesStore {
   FailingPreferences(super.data) : super.withData();
   String failure = '';
+  bool failRestore = false;
   int snapshots = 0;
 
   @override
   Future<bool> setValue(String valueType, String key, Object value) async {
     if (key.endsWith(LocalSnapshot.storageKey)) {
       snapshots++;
+      if (failRestore && snapshots > 1) {
+        throw StateError('synthetic restore failure');
+      }
       if (failure == 'false') return false;
       if (failure == 'throw') throw StateError('synthetic write failure');
       if (failure == 'after') {
@@ -172,37 +176,62 @@ void main() {
     ]),
   ]) {
     test(
-      'damaged profiles remain locked without replacing raw data: $records',
+      'damaged profiles fall back to default admin without replacing raw data: $records',
       () async {
         final (store, platform) = await create({
           'profiles': records,
           'favorites': jsonEncode([drama.toJson()]),
         });
-        expect(store.configurationError, isNotNull);
-        expect(store.locked, isTrue);
-        expect(store.profile.admin, isFalse);
-        expect(store.canDownload, isFalse);
-        expect(store.favorites, isEmpty);
-        expect(store.sources, isEmpty);
-        await expectLater(store.switchProfile('default'), throwsStateError);
+        expect(store.configurationError, isNull);
+        expect(store.locked, isFalse);
+        expect(store.profile.admin, isTrue);
+        expect(store.profile.name, '管理员');
+        expect(store.favorites.length, 1);
         expect(platform.snapshots, 0);
+        await store.switchProfile('default');
         final restored = await restart(platform);
-        expect(restored.configurationError, isNotNull);
+        expect(restored.configurationError, isNull);
+        expect(restored.locked, isFalse);
+        expect(restored.profile.admin, isTrue);
         expect(restored.preferences.get('profiles'), records);
       },
     );
   }
 
   testWidgets(
-    'damaged profile screen offers recovery without an unlocked administrator',
+    'locked store offers recovery without user management',
     (tester) async {
-      final (store, _) = await create({'profiles': 'bad'});
+      final (store, platform) = await create({
+        'localSnapshot.v1': jsonEncode({
+          'version': 1,
+          'values': {
+            'profiles': jsonEncode([
+              const LocalProfile(id: 'default', name: '管理员', admin: true)
+                  .toJson(),
+            ]),
+          },
+        }),
+      });
+      expect(store.locked, isFalse);
+      platform.failure = 'after';
+      platform.failRestore = true;
+      await expectLater(
+        store.toggleFavorite(drama),
+        throwsA(isA<SnapshotRecoveryRequired>()),
+      );
+      expect(store.locked, isTrue);
+      expect(store.configurationError, isNotNull);
       await tester.pumpWidget(
-        MaterialApp(home: ProfilesScreen(store: store, locked: true)),
+        MaterialApp(home: ConfigRecoveryScreen(store: store)),
       );
       expect(find.text('重新读取配置'), findsOneWidget);
       expect(find.text('添加用户'), findsNothing);
       expect(find.text('管理员 · 全部权限'), findsNothing);
+      platform.failure = '';
+      platform.failRestore = false;
+      await tester.tap(find.text('重新读取配置'));
+      await tester.pumpAndSettle();
+      expect(store.locked, isFalse);
       await tester.pumpWidget(const SizedBox.shrink());
     },
   );

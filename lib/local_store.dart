@@ -627,11 +627,6 @@ class LocalStore extends ChangeNotifier {
 
   bool get hideVip =>
       _configurationError == null ? _bool(_key('hideVip')) ?? true : true;
-  String get displayMode {
-    final value = _configurationError == null ? _string('displayMode') : null;
-    return {'auto', 'television', 'standard'}.contains(value) ? value! : 'auto';
-  }
-
   String get themeMode {
     final value = _configurationError == null ? _string('themeMode') : null;
     return {'light', 'dark', 'system'}.contains(value) ? value! : 'system';
@@ -734,7 +729,7 @@ class LocalStore extends ChangeNotifier {
   }
 
   /// 读某视频区（drama/vod/midnight）上次选中的站，'' 表示没记过。
-  /// 只读不回落；回落由调用方按当前区可见源做（站不存在或被门禁藏起时落默认站）。
+  /// 只读不回落；回落由调用方按当前区可见源做（站不存在时落默认站）。
   String zoneSource(String zone) {
     if (locked) return '';
     return _zoneSources()[zone] ?? '';
@@ -880,10 +875,6 @@ class LocalStore extends ChangeNotifier {
     return _setting(_key('source'), value);
   }
 
-  Future<void> setDisplayMode(String value) =>
-      {'auto', 'television', 'standard'}.contains(value)
-      ? _setting('displayMode', value)
-      : Future.value();
   String get player {
     final value = _string('player') ?? 'guo';
     return {'guo', 'xigua'}.contains(value) ? value : 'guo';
@@ -1484,13 +1475,14 @@ class LocalStore extends ChangeNotifier {
         ? _string('profiles')
         : null;
     final previousId = _current;
-    final previousLocked = locked;
     await preferences.reload();
     _initialize();
-    if (_configurationError == null &&
-        previousProfiles == _string('profiles') &&
-        previousId == _current) {
-      _locked = previousLocked;
+    if (_configurationError == null) {
+      _locked = false;
+      if (previousProfiles != _string('profiles') ||
+          previousId != _current) {
+        _epoch++;
+      }
     } else {
       _epoch++;
     }

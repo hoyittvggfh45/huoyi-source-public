@@ -455,6 +455,9 @@ func sixGodBranch2(iv uint32, khronos uint32, querySm3, bodyMd5Bytes, tsBytes []
 }
 
 func sixGodHashF13(querySm3, bodyMd5Bytes, tsBytes []byte, khronos uint32) ([]byte, error) {
+	if err := sixGodTables(); err != nil {
+		return nil, err
+	}
 	iv := sixGodGetIv(0x20230928, querySm3)
 	iv = sixGodGetIv(iv, bodyMd5Bytes)
 	iv = sixGodGetIv(iv, tsBytes)

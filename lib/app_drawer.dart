@@ -19,6 +19,7 @@ enum AppDrawerTool {
   playbackSettings,
   downloads,
   theme,
+  miniApp,
 }
 
 class SiteSourceBox extends StatelessWidget {
@@ -66,7 +67,6 @@ class AppDrawer extends StatelessWidget {
   const AppDrawer({
     super.key,
     required this.zone,
-    required this.midnightActivated,
     required this.currentVersion,
     required this.onZoneSelected,
     required this.onWatchRoom,
@@ -75,7 +75,6 @@ class AppDrawer extends StatelessWidget {
   });
 
   final HomeZone zone;
-  final bool midnightActivated;
   final String currentVersion;
   final ValueChanged<HomeZone> onZoneSelected;
   final VoidCallback onWatchRoom;
@@ -85,28 +84,37 @@ class AppDrawer extends StatelessWidget {
   Widget _zoneTab({
     required BuildContext context,
     required HomeZone tabZone,
+    required IconData icon,
     required String label,
   }) {
     final colors = Theme.of(context).colorScheme;
     final selected = zone == tabZone;
+    final labelColor = selected ? colors.onPrimary : colors.onSurface;
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: InkWell(
         onTap: () => onZoneSelected(tabZone),
         borderRadius: BorderRadius.circular(20),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
           decoration: BoxDecoration(
             color: selected ? colors.primary : Colors.transparent,
             borderRadius: BorderRadius.circular(20),
           ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-              color: selected ? colors.onPrimary : colors.onSurface,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: labelColor),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: labelColor,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -196,6 +204,10 @@ class AppDrawer extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (versionText.isNotEmpty) ...[
+                  Text(versionText),
+                  const SizedBox(height: 4),
+                ],
                 Row(
                   children: [
                     ClipOval(
@@ -220,16 +232,12 @@ class AppDrawer extends StatelessWidget {
                               fontWeight: FontWeight.w800,
                             ),
                           ),
-                          if (versionText.isNotEmpty) ...[
-                            const SizedBox(height: 4),
-                            Text(versionText),
-                          ],
                         ],
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
@@ -237,32 +245,37 @@ class AppDrawer extends StatelessWidget {
                       _zoneTab(
                         context: context,
                         tabZone: HomeZone.drama,
+                        icon: Icons.movie_rounded,
                         label: '短剧',
                       ),
                       _zoneTab(
                         context: context,
                         tabZone: HomeZone.vod,
+                        icon: Icons.video_library_rounded,
                         label: '点播',
                       ),
-                      if (midnightActivated)
-                        _zoneTab(
-                          context: context,
-                          tabZone: HomeZone.midnight,
-                          label: '午夜',
-                        ),
+                      _zoneTab(
+                        context: context,
+                        tabZone: HomeZone.midnight,
+                        icon: Icons.nightlight_rounded,
+                        label: '午夜',
+                      ),
                       _zoneTab(
                         context: context,
                         tabZone: HomeZone.live,
+                        icon: Icons.live_tv_rounded,
                         label: '直播',
                       ),
                       _zoneTab(
                         context: context,
                         tabZone: HomeZone.audio,
+                        icon: Icons.headphones_rounded,
                         label: '听书',
                       ),
                       _zoneTab(
                         context: context,
                         tabZone: HomeZone.novel,
+                        icon: Icons.menu_book_rounded,
                         label: '阅读',
                       ),
                     ],
@@ -294,7 +307,7 @@ class AppDrawer extends StatelessWidget {
               _toolTile(
                 context: context,
                 icon: Icons.dns_rounded,
-                label: '内容源管理',
+                label: '配置源切换',
                 subtitle: '远程配置与内容源',
                 onTap: () => onTool(AppDrawerTool.contentSources),
               ),
@@ -321,17 +334,17 @@ class AppDrawer extends StatelessWidget {
             rows: [
               _toolTile(
                 context: context,
-                icon: Icons.live_tv_rounded,
-                label: '电视直播',
-                subtitle: '频道与直播源',
-                onTap: () => onZoneSelected(HomeZone.live),
-              ),
-              _toolTile(
-                context: context,
                 icon: Icons.download_rounded,
                 label: '影视下载',
                 subtitle: '管理已下载影片并离线观看',
                 onTap: () => onTool(AppDrawerTool.downloads),
+              ),
+              _toolTile(
+                context: context,
+                icon: Icons.apps_rounded,
+                label: '小程序',
+                subtitle: '小程序市场与已安装',
+                onTap: () => onTool(AppDrawerTool.miniApp),
               ),
               _toolTile(
                 context: context,
@@ -370,7 +383,7 @@ class AppDrawer extends StatelessWidget {
               ),
               _toolTile(
                 context: context,
-                icon: Icons.download_rounded,
+                icon: Icons.library_add_outlined,
                 label: '导入中心',
                 subtitle: 'TVBox 远程配置与 jar 直导入，分组共存',
                 onTap: () => onTool(AppDrawerTool.importCenter),
@@ -398,16 +411,13 @@ class AppDrawer extends StatelessWidget {
               ),
             ],
           ),
-          if (midnightActivated)
-            SwitchListTile(
-              secondary: const Icon(Icons.shield_rounded),
-              title: const Text('未成年保护'),
-              subtitle: const Text('开启后隐藏午夜区'),
-              value: false,
-              onChanged: (value) {
-                if (value) onMinorProtectionChanged(true);
-              },
-            ),
+          ListTile(
+            leading: const Icon(Icons.shield_rounded),
+            title: const Text('未成年保护'),
+            subtitle: const Text('点按后隐藏午夜区'),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => onMinorProtectionChanged(true),
+          ),
           const Divider(),
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 8, 16, 24),

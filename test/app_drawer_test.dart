@@ -7,7 +7,6 @@ void main() {
 
   Future<void> pumpDrawer(
     WidgetTester tester, {
-    bool midnightActivated = false,
     required List<HomeZone> zones,
     required List<AppDrawerTool> tools,
     required VoidCallback onWatchRoom,
@@ -21,7 +20,6 @@ void main() {
         home: Scaffold(
           body: AppDrawer(
             zone: HomeZone.drama,
-            midnightActivated: midnightActivated,
             currentVersion: '1.0.1',
             onZoneSelected: zones.add,
             onWatchRoom: onWatchRoom,
@@ -39,7 +37,6 @@ void main() {
     var room = 0;
     await pumpDrawer(
       tester,
-      midnightActivated: true,
       zones: zones,
       tools: [],
       onWatchRoom: () => room++,
@@ -50,6 +47,12 @@ void main() {
     expect(zones, [HomeZone.vod, HomeZone.midnight]);
     await tester.tap(find.text('直播'));
     expect(zones, [HomeZone.vod, HomeZone.midnight, HomeZone.live]);
+    expect(find.byIcon(Icons.movie_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.video_library_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.nightlight_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.live_tv_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.headphones_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.menu_book_rounded), findsOneWidget);
     await tester.ensureVisible(find.text('听书'));
     await tester.tap(find.text('听书'));
     expect(zones.last, HomeZone.audio);
@@ -65,7 +68,7 @@ void main() {
     await pumpDrawer(tester, zones: [], tools: tools, onWatchRoom: () {});
     const expected = {
       '站源管理': AppDrawerTool.sources,
-      '内容源管理': AppDrawerTool.contentSources,
+      '配置源切换': AppDrawerTool.contentSources,
       '播放设置': AppDrawerTool.playbackSettings,
       '播放器选择': AppDrawerTool.player,
       '影视下载': AppDrawerTool.downloads,
@@ -87,20 +90,9 @@ void main() {
     }
   });
 
-  testWidgets('drawer tv live row switches to the live zone', (
-    tester,
-  ) async {
-    final zones = <HomeZone>[];
-    await pumpDrawer(tester, zones: zones, tools: [], onWatchRoom: () {});
-    await tester.ensureVisible(find.text('电视直播'));
-    await tester.tap(find.text('电视直播'));
-    expect(zones, [HomeZone.live]);
-  });
-
   testWidgets('drawer sections are all expanded at once', (tester) async {
     await pumpDrawer(
       tester,
-      midnightActivated: true,
       zones: [],
       tools: [],
       onWatchRoom: () {},
@@ -152,21 +144,10 @@ void main() {
     expect(find.byKey(const ValueKey('drawer-site-box')), findsNothing);
   });
 
-  testWidgets('midnight tab follows activation', (tester) async {
-    await pumpDrawer(
-      tester,
-      midnightActivated: false,
-      zones: [],
-      tools: [],
-      onWatchRoom: () {},
-    );
-    expect(find.text('午夜'), findsNothing);
-    expect(find.text('未成年保护'), findsNothing);
-
+  testWidgets('midnight tab always visible', (tester) async {
     final zones = <HomeZone>[];
     await pumpDrawer(
       tester,
-      midnightActivated: true,
       zones: zones,
       tools: [],
       onWatchRoom: () {},

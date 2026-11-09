@@ -105,12 +105,9 @@ void main() {
     expect(await isAudioFavorite('tingshuwang', 'book1'), isFalse);
   });
 
-  test('adult sources hide without midnight activation', () async {
+  test('adult sources always listed', () async {
     final entries = [record(), record(sourceName: '🔞午夜听书', bookId: 'adult1')];
-    expect(visibleAudioRecords(entries, true).length, 2);
-    final visible = visibleAudioRecords(entries, false);
-    expect(visible.length, 1);
-    expect(visible.first.bookId, 'book1');
+    expect(visibleAudioRecords(entries).length, 2);
     final favorites = [
       const AudioFavoriteEntry(
         sourceId: 'x',
@@ -119,7 +116,6 @@ void main() {
         title: '成人书',
       ),
     ];
-    expect(visibleAudioFavorites(favorites, false), isEmpty);
-    expect(visibleAudioFavorites(favorites, true).length, 1);
+    expect(visibleAudioFavorites(favorites).length, 1);
   });
 }

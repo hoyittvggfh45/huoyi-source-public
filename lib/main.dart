@@ -24,7 +24,7 @@ import 'jar_bridge.dart';
 import 'builtin_py_sites.dart';
 import 'jar_import.dart';
 import 'local_store.dart';
-import 'profiles_screen.dart';
+import 'config_recovery_screen.dart';
 import 'package_smoke.dart';
 import 'lan_controller.dart';
 import 'player_picker.dart';
@@ -272,8 +272,7 @@ class DuanjuApp extends StatelessWidget {
       store?.themeMode ?? 'system',
     ),
     builder: (context, child) {
-      final mode = store?.displayMode ?? 'auto';
-      final tv = mode == 'television' || mode == 'auto' && television;
+      final tv = television;
       final theme = Theme.of(context);
       return AnnotatedRegion<SystemUiOverlayStyle>(
         value: AppTheme.systemBars(theme.brightness),
@@ -314,7 +313,7 @@ class DuanjuApp extends StatelessWidget {
     },
     home: store != null
         ? store!.locked
-              ? ProfilesScreen(store: store!, locked: true)
+              ? ConfigRecoveryScreen(store: store!)
               : ExternalPyImportListener(
                   store: store!,
                   repository: repository,

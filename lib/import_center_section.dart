@@ -6,7 +6,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import 'core_bridge.dart';
-import 'crack_config_section.dart';
 import 'import_center.dart';
 import 'import_file_store.dart';
 import 'imported_site_record.dart';
@@ -425,7 +424,6 @@ class _ImportCenterSectionState extends State<ImportCenterSection> {
             ),
         ],
         M3uImportSection(store: widget.store),
-        CrackConfigSection(repository: widget.repository),
       ],
     );
   }

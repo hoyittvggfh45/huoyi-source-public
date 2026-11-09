@@ -213,7 +213,7 @@ void main() {
 
   testWidgets('preview drama midnight', (tester) async {
     dramaUiStyleNotifier.value = DramaUiStyle.ant;
-    final store = await previewStore({'midnightActivated': true});
+    final store = await previewStore({});
     final key = await pumpPreview(
       tester,
       HomeScreen(repository: FixtureRepository(), store: store),
@@ -435,7 +435,6 @@ void main() {
         key: scaffoldKey,
         drawer: AppDrawer(
           zone: HomeZone.drama,
-          midnightActivated: true,
           currentVersion: '1.0.0',
           onZoneSelected: (_) {},
           onWatchRoom: () {},
@@ -479,7 +478,6 @@ void main() {
               key: scaffoldKey,
               drawer: AppDrawer(
                 zone: HomeZone.drama,
-                midnightActivated: true,
                 currentVersion: '1.0.0',
                 onZoneSelected: (_) {},
                       onWatchRoom: () {},

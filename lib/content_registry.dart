@@ -4,7 +4,6 @@ import 'content_jar_audio.dart';
 import 'content_lrts.dart';
 import 'content_models.dart';
 import 'content_py.dart';
-import 'midnight_zone.dart';
 
 class ContentRegistry {
   ContentRegistry._();
@@ -44,8 +43,6 @@ class ContentRegistry {
     ),
     JarAudioContentSource(),
   ];
-
-  static bool midnightActivated = false;
 
   static final List<ContentSource> _novelBuiltins = [
     PyContentSource(
@@ -204,19 +201,7 @@ class ContentRegistry {
   }
 
   static List<ContentSource> sourcesFor(ContentSection section) {
-    final base = _baseFor(section);
-    if (midnightActivated) return List.unmodifiable(base);
-    return List.unmodifiable([
-      for (final source in base)
-        if (!isAdultSourceName(source.name)) source,
-    ]);
-  }
-
-  static bool hasHiddenAdultSources(ContentSection section) {
-    if (midnightActivated) return false;
-    return _baseFor(
-      section,
-    ).any((source) => isAdultSourceName(source.name));
+    return List.unmodifiable(_baseFor(section));
   }
 
   static List<ContentSource> get allSources => List.unmodifiable(_sources);

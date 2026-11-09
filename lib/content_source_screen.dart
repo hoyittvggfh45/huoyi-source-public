@@ -228,7 +228,7 @@ class _ContentSourceScreenState extends State<ContentSourceScreen> {
       (sum, config) => sum + config.sites.length,
     );
     return Scaffold(
-      appBar: AppBar(title: const Text('内容源管理')),
+      appBar: AppBar(title: const Text('配置源切换')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [

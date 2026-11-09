@@ -305,6 +305,7 @@ class _SourcesScreenState extends State<SourcesScreen> {
           return aFirst.compareTo(bFirst);
         });
       final groups = sourceManageGroups(sources);
+      final colors = Theme.of(context).colorScheme;
       final viewPaddingBottom = MediaQuery.viewPaddingOf(context).bottom;
       final paddingBottom = MediaQuery.paddingOf(context).bottom;
       final bottomInset = viewPaddingBottom > paddingBottom
@@ -318,20 +319,24 @@ class _SourcesScreenState extends State<SourcesScreen> {
             child: RefreshIndicator(
               onRefresh: _refresh,
               child: ListView(
-                padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
+                padding: EdgeInsets.fromLTRB(16, 8, 16, 16 + bottomInset),
                 children: [
                   Card(
                     key: const ValueKey('source-visibility-entry'),
-                    margin: const EdgeInsets.only(bottom: 16),
+                    margin: const EdgeInsets.only(bottom: 12),
+                    elevation: 0,
+                    color: colors.surfaceContainerLow,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
                     clipBehavior: Clip.antiAlias,
-                    child: ListTile(
-                      leading: const Icon(Icons.visibility_outlined),
-                      title: const Text('源显示列表'),
-                      subtitle: Text(
-                        '控制在首页显示的站源（含内置站源）· 当前 '
-                        '${widget.store.visibleSources.length}/${widget.store.sources.length} 个可见',
-                      ),
-                      trailing: const Icon(Icons.chevron_right_rounded),
+                    child: _entryRow(
+                      icon: Icons.visibility_outlined,
+                      color: const Color(0xFF30B0C7),
+                      title: '源显示列表',
+                      subtitle:
+                          '控制在首页显示的站源（含内置站源）· 当前 '
+                          '${widget.store.visibleSources.length}/${widget.store.sources.length} 个可见',
                       onTap: () => Navigator.push<void>(
                         context,
                         appPageRoute<void>(
@@ -343,15 +348,18 @@ class _SourcesScreenState extends State<SourcesScreen> {
                   ),
                   Card(
                     key: const ValueKey('custom-sources-entry'),
-                    margin: const EdgeInsets.only(bottom: 16),
+                    margin: const EdgeInsets.only(bottom: 12),
+                    elevation: 0,
+                    color: colors.surfaceContainerLow,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
                     clipBehavior: Clip.antiAlias,
-                    child: ListTile(
-                      leading: const Icon(Icons.add_circle_outline),
-                      title: const Text('自定义源'),
-                      subtitle: const Text(
-                        '录入 MacCMS 站点地址或粘贴 XBPQ 爬虫规则，支持批量导入与导出',
-                      ),
-                      trailing: const Icon(Icons.chevron_right_rounded),
+                    child: _entryRow(
+                      icon: Icons.add_circle_outline,
+                      color: const Color(0xFFFF765F),
+                      title: '自定义源',
+                      subtitle: '录入 MacCMS 站点地址或粘贴 XBPQ 爬虫规则，支持批量导入与导出',
                       onTap: () => Navigator.push<void>(
                         context,
                         appPageRoute<void>(
@@ -363,59 +371,113 @@ class _SourcesScreenState extends State<SourcesScreen> {
                       ),
                     ),
                   ),
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 16),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
                     child: Text(
                       '各站源可分别更新和检测。更新会查找新剧、继续加载一页历史内容，并分批补齐资料；离开此页后任务继续。',
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
                     ),
                   ),
                   if (sources.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Text('当前用户没有可用站源'),
+                    Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.dns_outlined,
+                            size: 40,
+                            color: colors.onSurfaceVariant,
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            '当前用户没有可用站源',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: colors.onSurfaceVariant),
+                          ),
+                        ],
+                      ),
                     ),
                   if (groups.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
-                      child: Row(
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        alignment: WrapAlignment.spaceBetween,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
-                          TextButton.icon(
+                          TextButton(
                             key: const ValueKey('expand-all-source-groups'),
                             onPressed: () =>
                                 _setAllGroupsExpanded(groups, true),
-                            icon: const Icon(Icons.unfold_more_rounded),
-                            label: const Text('全部展开'),
+                            child: const Text('全部展开'),
                           ),
-                          TextButton.icon(
+                          TextButton(
                             key: const ValueKey('collapse-all-source-groups'),
                             onPressed: () =>
                                 _setAllGroupsExpanded(groups, false),
-                            icon: const Icon(Icons.unfold_less_rounded),
-                            label: const Text('全部折叠'),
+                            child: const Text('全部折叠'),
                           ),
-                          const Spacer(),
-                          Text('${sources.length} 个站源'),
+                          Text(
+                            '${sources.length} 个站源',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: colors.onSurfaceVariant),
+                          ),
                         ],
                       ),
                     ),
                   for (final group in groups)
                     Card(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      elevation: 0,
+                      color: colors.surfaceContainerLow,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
                       clipBehavior: Clip.antiAlias,
                       child: ExpansionTile(
                         key: ValueKey('source-group-${group.id}-$_expandEpoch'),
                         initiallyExpanded: _expandedGroups.contains(group.id),
                         onExpansionChanged: (expanded) =>
                             _setGroupExpanded(group.id, expanded),
-                        leading: Icon(_groupIcon(group)),
-                        title: Text(group.name),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        collapsedShape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+                        leading: _entryIcon(_groupIcon(group), null),
+                        title: Text(
+                          group.name,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w600),
+                        ),
                         subtitle: Text(
                           '${group.sources.length} 个站源 · ${group.sources.fold<int>(0, (count, source) => count + (_statuses[source.id]?.count ?? 0))} 部',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: colors.onSurfaceVariant),
                         ),
-                        childrenPadding: const EdgeInsets.all(8),
+                        childrenPadding: const EdgeInsets.fromLTRB(
+                          16,
+                          0,
+                          16,
+                          12,
+                        ),
                         children: _expandedGroups.contains(group.id)
                             ? [
-                                for (final source in group.sources)
-                                  _sourceCard(source),
+                                for (
+                                  var i = 0;
+                                  i < group.sources.length;
+                                  i++
+                                ) ...[
+                                  if (i > 0) const Divider(height: 1),
+                                  _sourceCard(group.sources[i]),
+                                ],
                               ]
                             : const [],
                       ),
@@ -429,6 +491,179 @@ class _SourcesScreenState extends State<SourcesScreen> {
     },
   );
 
+  Widget _entryRow({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 60),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: Row(
+            children: [
+              _entryIcon(icon, color, size: 36),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(Icons.chevron_right_rounded, color: colors.onSurfaceVariant),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _entryIcon(IconData icon, Color? color, {double size = 40}) {
+    final colors = Theme.of(context).colorScheme;
+    final background = color ?? colors.primaryContainer;
+    final foreground = color == null ? colors.onPrimaryContainer : Colors.white;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: SizedBox.square(
+        dimension: size,
+        child: Icon(icon, size: size == 36 ? 20 : 22, color: foreground),
+      ),
+    );
+  }
+
+  ({String label, Color dot, Color background, Color foreground}) _statusKind({
+    required bool busy,
+    required String error,
+    required SourceHealth? health,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    if (busy || health?.state == 'checking') {
+      return (
+        label: '进行中',
+        dot: colors.primary,
+        background: colors.primaryContainer,
+        foreground: colors.onPrimaryContainer,
+      );
+    }
+    if (error.isNotEmpty || health?.state == 'failed') {
+      return (
+        label: '失效',
+        dot: colors.error,
+        background: colors.errorContainer,
+        foreground: colors.onErrorContainer,
+      );
+    }
+    if (health?.state == 'ok') {
+      return (
+        label: '可用',
+        dot: colors.primary,
+        background: colors.primaryContainer,
+        foreground: colors.onPrimaryContainer,
+      );
+    }
+    if (health?.state == 'catalogOnly') {
+      return (
+        label: '目录正常',
+        dot: colors.secondary,
+        background: colors.secondaryContainer,
+        foreground: colors.onSecondaryContainer,
+      );
+    }
+    return (
+      label: '未检测',
+      dot: colors.onSurfaceVariant,
+      background: colors.surfaceContainerHigh,
+      foreground: colors.onSurfaceVariant,
+    );
+  }
+
+  Widget _statusChip({
+    required bool busy,
+    required String error,
+    required SourceHealth? health,
+  }) {
+    final kind = _statusKind(busy: busy, error: error, health: health);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: kind.background,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: kind.dot,
+                shape: BoxShape.circle,
+              ),
+              child: const SizedBox.square(dimension: 8),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              kind.label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: kind.foreground,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _countChip(int count) {
+    final colors = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        child: Text(
+          '$count 部',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: colors.onSurface,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _sourceCard(SourceSite source) {
     final status = _statuses[source.id];
     final pending = _pending.contains(source.id);
@@ -440,237 +675,337 @@ class _SourcesScreenState extends State<SourcesScreen> {
     final health = status?.health;
     final healthExpanded = _expandedHealth.contains(source.id);
     final colors = Theme.of(context).colorScheme;
-    return Card(
+    final kind = _statusKind(busy: busy, error: error, health: health);
+    return Padding(
       key: ValueKey('source-${source.id}'),
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.dns_outlined),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    source.name,
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: kind.dot,
+                  shape: BoxShape.circle,
                 ),
-                Text('${status?.count ?? 0} 部'),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text('最近更新：${sourceTimestamp(status?.updatedAt)}'),
-            if (status != null && status.count > 0)
-              Text(
-                '已加载至第 ${status.page} 页${status.hasMore ? ' · 可继续加载' : ' · 当前分页已加载完'}',
+                child: const SizedBox.square(dimension: 8),
               ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 10,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                FilledButton.icon(
-                  key: ValueKey('update-${source.id}'),
-                  onPressed: enabled ? () => _run(source, 'update') : null,
-                  icon: const Icon(Icons.sync_rounded),
-                  label: const Text('更新'),
-                ),
-                OutlinedButton.icon(
-                  key: ValueKey('check-${source.id}'),
-                  onPressed: enabled ? () => _run(source, 'check') : null,
-                  icon: const Icon(Icons.network_check),
-                  label: const Text('检测连接与播放'),
-                ),
-                if (status?.running == true)
-                  TextButton(
-                    onPressed: pending ? null : () => _run(source, 'cancel'),
-                    child: const Text('停止'),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  source.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
                   ),
-                PopupMenuButton<String>(
-                  tooltip: '${source.name}更多操作',
-                  enabled: enabled,
-                  onSelected: (operation) => _run(source, operation),
-                  itemBuilder: (_) => [
-                    PopupMenuItem(
-                      value: 'more',
-                      enabled: status?.hasMore ?? true,
-                      child: const Text('继续加载一页'),
-                    ),
-                    const PopupMenuItem(value: 'metadata', child: Text('补齐资料')),
-                    if (source.id == 'huangdou')
-                      PopupMenuItem(
-                        value: 'vipMetadata',
-                        enabled: (status?.unknownVip ?? 0) > 0,
-                        child: Text('补齐 VIP 资料（${status?.unknownVip ?? 0} 部）'),
-                      ),
-                    const PopupMenuItem(
-                      value: 'checkCatalog',
-                      child: Text('仅检测目录'),
-                    ),
-                  ],
                 ),
-              ],
-            ),
-            if (busy) ...[
-              const SizedBox(height: 12),
-              LinearProgressIndicator(
+              ),
+              const SizedBox(width: 8),
+              _countChip(status?.count ?? 0),
+              const SizedBox(width: 6),
+              _statusChip(busy: busy, error: error, health: health),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '最近更新：${sourceTimestamp(status?.updatedAt)}'
+            '${status != null && status.count > 0 ? ' · 已加载至第 ${status.page} 页${status.hasMore ? ' · 可继续加载' : ' · 当前分页已加载完'}' : ''}',
+            maxLines: 2,
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              FilledButton.icon(
+                key: ValueKey('update-${source.id}'),
+                onPressed: enabled ? () => _run(source, 'update') : null,
+                icon: const Icon(Icons.sync_rounded),
+                label: const Text('更新'),
+              ),
+              FilledButton.tonalIcon(
+                key: ValueKey('check-${source.id}'),
+                onPressed: enabled ? () => _run(source, 'check') : null,
+                icon: const Icon(Icons.network_check),
+                label: const Text('检测连接与播放'),
+              ),
+              if (status?.running == true)
+                TextButton(
+                  onPressed: pending ? null : () => _run(source, 'cancel'),
+                  child: const Text('停止'),
+                ),
+              PopupMenuButton<String>(
+                tooltip: '${source.name}更多操作',
+                enabled: enabled,
+                onSelected: (operation) => _run(source, operation),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 8,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('更多', style: TextStyle(color: colors.primary)),
+                      const SizedBox(width: 2),
+                      Icon(
+                        Icons.arrow_drop_down_rounded,
+                        size: 20,
+                        color: colors.primary,
+                      ),
+                    ],
+                  ),
+                ),
+                itemBuilder: (_) => [
+                  PopupMenuItem(
+                    value: 'more',
+                    enabled: status?.hasMore ?? true,
+                    child: const Text('继续加载一页'),
+                  ),
+                  const PopupMenuItem(value: 'metadata', child: Text('补齐资料')),
+                  if (source.id == 'huangdou')
+                    PopupMenuItem(
+                      value: 'vipMetadata',
+                      enabled: (status?.unknownVip ?? 0) > 0,
+                      child: Text('补齐 VIP 资料（${status?.unknownVip ?? 0} 部）'),
+                    ),
+                  const PopupMenuItem(
+                    value: 'checkCatalog',
+                    child: Text('仅检测目录'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          if (busy) ...[
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(
+                minHeight: 4,
+                backgroundColor: colors.surfaceContainerHighest,
                 value: status != null && status.total > 0
                     ? (status.completed / status.total).clamp(0, 1)
                     : null,
               ),
-              const SizedBox(height: 8),
-              Text(
-                '${status?.stage ?? '准备中'}${(status?.total ?? 0) > 0 ? ' · ${status!.completed}/${status.total}' : ''}',
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '${status?.stage ?? '准备中'}${(status?.total ?? 0) > 0 ? ' · ${status!.completed}/${status.total}' : ''}',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+            ),
+          ] else if (status != null && status.stage.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              '${status.stage}${status.added > 0 ? ' · 新增 ${status.added} 部' : ''}',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+            ),
+          ],
+          if (seconds > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                '请在 $seconds 秒后重试',
+                style: TextStyle(color: colors.error),
               ),
-            ] else if (status != null && status.stage.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(
-                '${status.stage}${status.added > 0 ? ' · 新增 ${status.added} 部' : ''}',
-              ),
-            ],
-            if (seconds > 0)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  '请在 $seconds 秒后重试',
-                  style: TextStyle(color: colors.error),
-                ),
-              ),
-            if (error.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: SelectableText(
-                  error,
-                  style: TextStyle(color: colors.error),
-                ),
-              ),
-            if (status != null && status.storageError.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      status.storageError,
+            ),
+          if (error.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.error_outline, size: 18, color: colors.error),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: SelectableText(
+                      error,
+                      maxLines: 2,
                       style: TextStyle(color: colors.error),
                     ),
-                    TextButton.icon(
-                      key: ValueKey('save-${source.id}'),
-                      onPressed:
-                          !busy && widget.repository.supportsSourceManagement
-                          ? () => _run(source, 'retrySave')
-                          : null,
-                      icon: const Icon(Icons.save_outlined),
-                      label: const Text('重试保存'),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            if (health != null) ...[
-              const Divider(height: 28),
-              Row(
+            ),
+          if (status != null && status.storageError.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Semantics(
-                      expanded: healthExpanded,
-                      child: Tooltip(
-                        message: healthExpanded ? '收起检测详情' : '展开检测详情',
-                        child: TextButton(
-                          key: ValueKey('health-toggle-${source.id}'),
-                          onPressed: () => setState(() {
-                            if (healthExpanded) {
-                              _expandedHealth.remove(source.id);
-                            } else {
-                              _expandedHealth.add(source.id);
-                            }
-                          }),
-                          style: TextButton.styleFrom(
-                            foregroundColor: colors.onSurface,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 4,
-                              vertical: 8,
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.error_outline, size: 18, color: colors.error),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          status.storageError,
+                          style: TextStyle(color: colors.error),
+                        ),
+                      ),
+                    ],
+                  ),
+                  TextButton.icon(
+                    key: ValueKey('save-${source.id}'),
+                    onPressed:
+                        !busy && widget.repository.supportsSourceManagement
+                        ? () => _run(source, 'retrySave')
+                        : null,
+                    icon: const Icon(Icons.save_outlined),
+                    label: const Text('重试保存'),
+                  ),
+                ],
+              ),
+            ),
+          if (health != null) ...[
+            const Divider(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: Semantics(
+                    expanded: healthExpanded,
+                    child: Tooltip(
+                      message: healthExpanded ? '收起检测详情' : '展开检测详情',
+                      child: TextButton(
+                        key: ValueKey('health-toggle-${source.id}'),
+                        onPressed: () => setState(() {
+                          if (healthExpanded) {
+                            _expandedHealth.remove(source.id);
+                          } else {
+                            _expandedHealth.add(source.id);
+                          }
+                        }),
+                        style: TextButton.styleFrom(
+                          foregroundColor: colors.onSurface,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 6,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: kind.dot,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const SizedBox.square(dimension: 8),
                             ),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(health.label),
-                                    Text(
-                                      sourceTimestamp(health.checkedAt),
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.bodySmall,
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                health.label,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.titleSmall
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                      color: health.state == 'failed'
+                                          ? colors.error
+                                          : colors.onSurface,
                                     ),
-                                  ],
-                                ),
                               ),
-                              const SizedBox(width: 8),
-                              Icon(
-                                healthExpanded
-                                    ? Icons.expand_less_rounded
-                                    : Icons.expand_more_rounded,
-                              ),
-                            ],
-                          ),
+                            ),
+                            const SizedBox(width: 8),
+                            Icon(
+                              healthExpanded
+                                  ? Icons.expand_less_rounded
+                                  : Icons.expand_more_rounded,
+                              color: colors.onSurfaceVariant,
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   ),
-                  IconButton(
-                    tooltip: '复制诊断信息',
-                    onPressed: () => _copy(source, status!),
-                    icon: const Icon(Icons.copy_rounded),
-                  ),
-                ],
-              ),
-              if (healthExpanded) ...[
-                if (health.sample.isNotEmpty) Text('检测剧集：${health.sample}'),
-                for (final step in health.steps)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 10),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(
-                          step.state == 'ok'
-                              ? Icons.check_circle_outline
-                              : Icons.error_outline,
-                          size: 20,
-                          color: step.state == 'ok'
-                              ? colors.primary
-                              : colors.error,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('${step.name}：${step.message}'),
-                              if (step.host.isNotEmpty || step.httpStatus > 0)
-                                Text(
-                                  '${step.host}${step.httpStatus > 0 ? ' · HTTP ${step.httpStatus}' : ''} · ${step.elapsedMs} ms',
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                ),
+                IconButton(
+                  tooltip: '复制诊断信息',
+                  visualDensity: VisualDensity.compact,
+                  iconSize: 20,
+                  onPressed: () => _copy(source, status!),
+                  icon: const Icon(Icons.copy_rounded),
+                ),
               ],
-            ] else ...[
-              const SizedBox(height: 12),
-              const Text('尚未检测连接'),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(left: 20, top: 2),
+              child: Text(
+                sourceTimestamp(health.checkedAt),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+              ),
+            ),
+            if (healthExpanded) ...[
+              if (health.sample.isNotEmpty) Text('检测剧集：${health.sample}'),
+              for (final step in health.steps)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        step.state == 'ok'
+                            ? Icons.check_circle_outline
+                            : Icons.error_outline,
+                        size: 18,
+                        color: step.state == 'ok'
+                            ? colors.primary
+                            : colors.error,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('${step.name}：${step.message}'),
+                            if (step.host.isNotEmpty || step.httpStatus > 0)
+                              Text(
+                                '${step.host}${step.httpStatus > 0 ? ' · HTTP ${step.httpStatus}' : ''} · ${step.elapsedMs} ms',
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: colors.onSurfaceVariant),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
             ],
+          ] else ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(
+                  Icons.info_outlined,
+                  size: 18,
+                  color: colors.onSurfaceVariant,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '尚未检测连接',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -706,26 +1041,52 @@ class _SourceVisibilityScreenState extends State<SourceVisibilityScreen> {
     builder: (context, _) {
       final sources = widget.store.sources;
       final hidden = widget.store.hiddenSites;
+      final colors = Theme.of(context).colorScheme;
       return Scaffold(
         appBar: AppBar(title: const Text('源显示列表')),
         body: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 720),
             child: ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
               children: [
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 12),
-                  child: Text('关闭的站源不会出现在首页站源分组与目录中；更新、检测与已缓存内容不受影响，随时可以重新开启。'),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 4, 4, 12),
+                  child: Text(
+                    '关闭的站源不会出现在首页站源分组与目录中；更新、检测与已缓存内容不受影响，随时可以重新开启。',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
                 ),
                 if (sources.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Text('当前用户没有可用站源'),
+                  Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.dns_outlined,
+                          size: 40,
+                          color: colors.onSurfaceVariant,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          '当前用户没有可用站源',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: colors.onSurfaceVariant),
+                        ),
+                      ],
+                    ),
                   ),
                 for (final group in SourceGroup.sectionGroups(sources))
                   Card(
                     margin: const EdgeInsets.only(bottom: 12),
+                    elevation: 0,
+                    color: colors.surfaceContainerLow,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    clipBehavior: Clip.antiAlias,
                     child: Column(
                       children: [
                         Padding(
@@ -735,9 +1096,8 @@ class _SourceVisibilityScreenState extends State<SourceVisibilityScreen> {
                               Expanded(
                                 child: Text(
                                   group.name,
-                                  style: Theme.of(
-                                    context,
-                                  ).textTheme.titleMedium,
+                                  style: Theme.of(context).textTheme.titleMedium
+                                      ?.copyWith(fontWeight: FontWeight.w600),
                                 ),
                               ),
                               if (group.isConfig)
@@ -747,13 +1107,36 @@ class _SourceVisibilityScreenState extends State<SourceVisibilityScreen> {
                         ),
                         for (final source in group.sources)
                           SwitchListTile(
-                            secondary: const Icon(Icons.dns_outlined),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                            ),
+                            secondary: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: colors.primaryContainer,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: SizedBox.square(
+                                dimension: 36,
+                                child: Icon(
+                                  Icons.dns_outlined,
+                                  size: 20,
+                                  color: colors.onPrimaryContainer,
+                                ),
+                              ),
+                            ),
                             title: Text(
                               group.id == 'huangguo' && group.sources.length > 1
                                   ? source.entryName
                                   : source.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            subtitle: Text(source.description),
+                            subtitle: Text(
+                              source.description,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(color: colors.onSurfaceVariant),
+                            ),
                             value: !hidden.contains(source.id),
                             onChanged: _pending.contains(source.id)
                                 ? null

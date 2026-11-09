@@ -194,7 +194,7 @@ void main() {
       expect(fallback.sourceFor(ContentSection.novel)?.id, 'fake_novel_a');
     });
 
-    test('成人源被午夜门禁藏起时回落默认源', () {
+    test('成人源不在可选源里时回落默认源', () {
       final store = <String, String>{
         'content_zone_source_novel': 'fake_novel_adult',
       };

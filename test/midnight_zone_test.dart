@@ -3,7 +3,6 @@ import 'package:duanju_app/midnight_zone.dart';
 import 'package:duanju_app/signature_check.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -25,15 +24,6 @@ void main() {
     expect(filterSourcesByAdult(names, (name) => name, null), names);
   });
 
-  test('midnight activation persists across loads', () async {
-    SharedPreferences.setMockInitialValues({});
-    expect(await loadMidnightActivated(), isFalse);
-    await saveMidnightActivated(true);
-    expect(await loadMidnightActivated(), isTrue);
-    await saveMidnightActivated(false);
-    expect(await loadMidnightActivated(), isFalse);
-  });
-
   test('signature verdict allows unknown and expected values only', () {
     expect(isSignatureAllowed(null), isTrue);
     expect(isSignatureAllowed(releaseSignatureSha256), isTrue);
@@ -43,7 +33,6 @@ void main() {
 
   Future<void> pumpDrawer(
     WidgetTester tester, {
-    required bool midnightActivated,
     required ValueChanged<HomeZone> onZoneSelected,
     required ValueChanged<AppDrawerTool> onTool,
     required ValueChanged<bool> onMinorProtectionChanged,
@@ -57,7 +46,6 @@ void main() {
         home: Scaffold(
           body: AppDrawer(
             zone: HomeZone.drama,
-            midnightActivated: midnightActivated,
             currentVersion: '1.4.25',
             onZoneSelected: onZoneSelected,
             onWatchRoom: () {},
@@ -70,31 +58,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('drawer hides midnight module and switch until activated', (
-    tester,
-  ) async {
-    final zones = <HomeZone>[];
-    await pumpDrawer(
-      tester,
-      midnightActivated: false,
-      onZoneSelected: zones.add,
-      onTool: (_) {},
-      onMinorProtectionChanged: (_) {},
-    );
-    expect(find.text('短剧'), findsOneWidget);
-    expect(find.text('点播'), findsOneWidget);
-    expect(find.text('直播'), findsOneWidget);
-    expect(find.text('听书'), findsOneWidget);
-    expect(find.text('午夜'), findsNothing);
-    expect(find.text('未成年保护'), findsNothing);
-    expect(find.text('站源管理'), findsOneWidget);
-    expect(find.text('软件更新'), findsOneWidget);
-    await tester.ensureVisible(find.text('听书'));
-    await tester.tap(find.text('听书'));
-    expect(zones, [HomeZone.audio]);
-  });
-
-  testWidgets('drawer shows midnight module and switch after activation', (
+  testWidgets('drawer always shows midnight module and switch', (
     tester,
   ) async {
     final zones = <HomeZone>[];
@@ -102,13 +66,18 @@ void main() {
     final tools = <AppDrawerTool>[];
     await pumpDrawer(
       tester,
-      midnightActivated: true,
       onZoneSelected: zones.add,
       onTool: tools.add,
       onMinorProtectionChanged: (value) => minorProtection = value,
     );
+    expect(find.text('短剧'), findsOneWidget);
+    expect(find.text('点播'), findsOneWidget);
+    expect(find.text('直播'), findsOneWidget);
+    expect(find.text('听书'), findsOneWidget);
     expect(find.text('午夜'), findsOneWidget);
     expect(find.text('未成年保护'), findsOneWidget);
+    expect(find.text('站源管理'), findsOneWidget);
+    expect(find.text('软件更新'), findsOneWidget);
     await tester.ensureVisible(find.text('午夜'));
     await tester.tap(find.text('午夜'));
     expect(zones, [HomeZone.midnight]);

@@ -13,8 +13,6 @@ import 'theme_settings_screen.dart';
 import 'xigua/playback_settings_screen.dart';
 import 'liquid_glass.dart';
 import 'app_drawer.dart';
-import 'midnight_zone.dart';
-import 'content_registry.dart';
 import 'content_zone_binding.dart';
 import 'content_zone_screen.dart';
 import 'content_models.dart';
@@ -27,6 +25,7 @@ import 'proxy_kernel_screen.dart';
 import 'lan_screen.dart';
 import 'clearance_bridge.dart';
 import 'rule_editor_screen.dart';
+import 'miniapp/mini_app_home_page.dart';
 
 import 'watchroom/room_screen.dart';
 import 'app_update.dart';
@@ -60,7 +59,6 @@ import 'local_store.dart';
 import 'models.dart';
 import 'remote_widgets.dart';
 import 'widgets.dart';
-import 'zone_settings_screen.dart';
 import 'vip_icon.dart';
 import 'search_input.dart';
 import 'source_picker_sheet.dart';
@@ -126,7 +124,6 @@ class _HomeScreenState extends State<HomeScreen> {
   HomeZone _zone = HomeZone.drama;
   final _zoneHistory = BackHistory<HomeZone>();
   final _scaffoldKey = GlobalKey<ScaffoldState>();
-  bool _midnightActivated = false;
   String _currentVersion = '';
   String _catalogSection = SourceSite.sectionDrama;
   final _sectionSourceIds = <String, String>{};
@@ -958,7 +955,6 @@ class _HomeScreenState extends State<HomeScreen> {
     } else {
       _loading = false;
     }
-    unawaited(_loadMidnightActivated());
     unawaited(_loadCurrentVersion());
     unawaited(ensureDramaUiStyleLoaded());
   }
@@ -1106,8 +1102,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// 当前视频区上次选中的站（跨重启记忆）：先读本会话刚记下的，
   /// 再读落盘的；'__all__' 恢复全部站源模式，站源 id 恢复单站。
-  /// 记过但已不在本区可见源里（被删、被摘、被午夜门禁藏起）时返回 null，
-  /// 由调用方回落默认站；门禁只做减法，记忆不把藏起的站翻出来。
+  /// 记过但已不在本区可见源里（被删、被摘）时返回 null，
+  /// 由调用方回落默认站。
   ({SourceSite site, bool allSources})? _rememberedForCurrentZone() {
     final value =
         _lastZoneSource[_zone.name] ?? widget.store.zoneSource(_zone.name);
@@ -1370,31 +1366,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   AppDrawer _drawer() => AppDrawer(
     zone: _zone,
-    midnightActivated: _midnightActivated,
     currentVersion: _currentVersion,
     onZoneSelected: _onZoneSelected,
     onWatchRoom: _onWatchRoom,
     onTool: _onTool,
     onMinorProtectionChanged: _onMinorProtectionChanged,
   );
-
-  void _openZoneSettings() {
-    if (_zone == HomeZone.drama ||
-        _zone == HomeZone.vod ||
-        _zone == HomeZone.midnight ||
-        _zone == HomeZone.live) {
-      _pushTool(
-        ZoneSettingsScreen(
-          repository: widget.repository,
-          store: widget.store,
-          zone: _zone,
-          onHideMidnight: () => unawaited(_onMinorProtectionChanged(true)),
-        ),
-      );
-    } else {
-      _openSettings();
-    }
-  }
 
   void _openSettings() {
     _pushTool(
@@ -1530,6 +1507,8 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       case AppDrawerTool.theme:
         _pushTool(ThemeSettingsScreen(store: widget.store));
+      case AppDrawerTool.miniApp:
+        _pushTool(const MiniAppHomePage());
     }
   }
 
@@ -1543,19 +1522,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _onMinorProtectionChanged(bool enabled) async {
     if (!enabled) return;
-    await saveMidnightActivated(false);
-    ContentRegistry.midnightActivated = false;
-    if (!mounted) return;
-    setState(() => _midnightActivated = false);
     if (_zone == HomeZone.midnight) {
       _applyZoneChange(HomeZone.drama);
     }
-  }
-
-  Future<void> _loadMidnightActivated() async {
-    final activated = await loadMidnightActivated();
-    ContentRegistry.midnightActivated = activated;
-    if (mounted) setState(() => _midnightActivated = activated);
   }
 
   Future<void> _loadCurrentVersion() async {
@@ -1931,7 +1900,7 @@ class _HomeScreenState extends State<HomeScreen> {
               key: const ValueKey('open-settings'),
               icon: LucideIcons.settings,
               tooltip: '设置',
-              onPressed: _openZoneSettings,
+              onPressed: _openSettings,
             ),
         ],
         const SizedBox(width: 16),
@@ -1985,7 +1954,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       widget.store.catalogView.release.isNotEmpty,
                   newActive: widget.store.catalogView.sort == CatalogSort.date,
                   onOpenSaved: _openSaved,
-                  onSettingsPressed: _openZoneSettings,
+                  onSettingsPressed: _openSettings,
                 ),
               ),
             );
@@ -2088,7 +2057,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             key: const ValueKey('open-settings'),
                             tooltip: '设置',
                             icon: const Icon(Icons.settings_outlined),
-                            onPressed: _openZoneSettings,
+                            onPressed: _openSettings,
                           ),
                         IconButton(
                           key: const ValueKey('toggle-search'),
@@ -2312,9 +2281,9 @@ class _HomeScreenState extends State<HomeScreen> {
             ? '暂无显示中的点播站源'
             : '暂无显示中的站源',
         message: widget.store.sources.isEmpty
-            ? '请联系管理员为当前用户开放站源。'
+            ? '暂无可用站源，请到站源管理中查看。'
             : _zone == HomeZone.vod
-            ? '点播站源请到内容源管理导入远程配置或 py 站。'
+            ? '点播站源请到配置源切换导入远程配置或 py 站。'
             : '所有站源已在「源显示列表」中关闭，请到站源管理中重新开启。',
       );
     }
