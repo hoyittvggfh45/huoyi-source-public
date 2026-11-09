@@ -1,6 +1,7 @@
 import base64
 import gzip
 import html as html_mod
+import http.client
 import json
 import re
 import sys
@@ -15,6 +16,13 @@ try:
     _HAS_CRYPTO = True
 except Exception:
     _HAS_CRYPTO = False
+
+try:
+    import requests as _requests
+    _HAS_REQUESTS = True
+except Exception:
+    _requests = None
+    _HAS_REQUESTS = False
 
 try:
     sys.path.append("..")
@@ -306,13 +314,139 @@ def _unb64u(s):
     return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
 
 
+def _proxy_for(url):
+    try:
+        from urllib.request import getproxies_environment, proxy_bypass_environment
+        proxies = getproxies_environment()
+    except Exception:
+        return None
+    parts = urllib.parse.urlsplit(url)
+    proxy = proxies.get(parts.scheme)
+    if not proxy:
+        return None
+    try:
+        if proxy_bypass_environment(parts.hostname or ""):
+            return None
+    except Exception:
+        pass
+    return proxy
+
+
+def _open_conn(url, timeout):
+    parts = urllib.parse.urlsplit(url)
+    host = parts.hostname or ""
+    port = parts.port or (443 if parts.scheme == "https" else 80)
+    proxy = _proxy_for(url)
+    if proxy:
+        import ssl
+        pp = urllib.parse.urlsplit(proxy)
+        if parts.scheme == "https":
+            conn = http.client.HTTPSConnection(pp.hostname or "", pp.port or 8080,
+                                               timeout=timeout,
+                                               context=ssl.create_default_context())
+        else:
+            conn = http.client.HTTPConnection(pp.hostname or "", pp.port or 8080, timeout=timeout)
+        theaders = None
+        if pp.username:
+            auth = base64.b64encode(("%s:%s" % (
+                urllib.parse.unquote(pp.username),
+                urllib.parse.unquote(pp.password or ""))).encode()).decode()
+            theaders = {"Proxy-Authorization": "Basic " + auth}
+        conn.set_tunnel(host, port, headers=theaders)
+        return conn
+    if parts.scheme == "https":
+        import ssl
+        return http.client.HTTPSConnection(host, port, timeout=timeout,
+                                           context=ssl.create_default_context())
+    return http.client.HTTPConnection(host, port, timeout=timeout)
+
+
+def _read_resp(conn, method, path, data, headers):
+    conn.request(method, path, body=data, headers=headers)
+    resp = conn.getresponse()
+    status = resp.status
+    rheaders = {k.lower(): v for k, v in resp.getheaders()}
+    try:
+        body = resp.read()
+    except http.client.IncompleteRead as e:
+        body = e.partial or b""
+    return status, rheaders, body
+
+
+def _http_once(method, url, data, headers, timeout):
+    if _HAS_REQUESTS:
+        try:
+            resp = _requests.request(method, url, data=data, headers=headers, timeout=timeout)
+            return resp.status_code, {k.lower(): v for k, v in resp.headers.items()}, resp.content
+        except Exception:
+            pass
+    parts = urllib.parse.urlsplit(url)
+    path = parts.path or "/"
+    if parts.query:
+        path += "?" + parts.query
+    conn = _open_conn(url, timeout)
+    try:
+        status, rheaders, body = _read_resp(conn, method, path, data, headers)
+        total = None
+        try:
+            total = int(rheaders.get("content-length") or 0) or None
+        except Exception:
+            total = None
+        enc = (rheaders.get("content-encoding") or "").lower()
+        if total is not None and len(body) < total and "gzip" not in enc:
+            for _ in range(2):
+                if len(body) >= total:
+                    break
+                h2 = dict(headers)
+                h2["Range"] = "bytes=%d-" % len(body)
+                h2["Accept-Encoding"] = "identity"
+                conn2 = _open_conn(url, timeout)
+                try:
+                    st2, _rh2, tail = _read_resp(conn2, method, path, data, h2)
+                    if st2 == 206 and tail:
+                        body += tail
+                except Exception:
+                    pass
+                finally:
+                    try:
+                        conn2.close()
+                    except Exception:
+                        pass
+        if "gzip" in enc:
+            try:
+                body = gzip.decompress(body)
+            except Exception:
+                return 0, rheaders, b""
+        return status, rheaders, body
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def _http_bytes(method, url, data=None, headers=None, timeout=TIMEOUT, tries=RETRY):
+    h = {"User-Agent": UA, "Accept-Encoding": "gzip", "Connection": "keep-alive"}
+    if headers:
+        h.update(headers)
+    for attempt in range(tries):
+        try:
+            status, _rh, body = _http_once(method, url, data, h, timeout)
+            if status in (200, 206) and body:
+                return body
+        except Exception:
+            pass
+        time.sleep(0.5 * (attempt + 1))
+    return b""
+
+
 def _post_json_raw(url, obj):
     data = json.dumps(obj).encode("utf-8")
-    req = urllib.request.Request(url, data=data, headers={
-        "User-Agent": UA, "Content-Type": "application/json",
-        "Accept": "application/json"})
-    with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
-        return json.loads(r.read().decode("utf-8", "ignore"))
+    raw = _http_bytes("POST", url, data=data, headers={
+        "Content-Type": "application/json", "Accept": "application/json"}, tries=3)
+    if not raw:
+        raise ValueError("empty post response")
+    return json.loads(raw.decode("utf-8", "ignore"))
 
 
 class _EncSession:
@@ -431,10 +565,8 @@ def _pic_proxy(url):
 
 
 def _fetch_bytes(url):
-    req = urllib.request.Request(url, headers={
-        "User-Agent": UA, "Referer": BASE + "/", "Accept": "image/*,*/*"})
-    with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
-        return r.read()
+    return _http_bytes("GET", url, headers={
+        "Accept": "image/*,*/*", "Referer": BASE + "/"})
 
 
 def _dec(raw):
@@ -543,20 +675,11 @@ class Spider(BaseSpider):
                 self.base = dom.rstrip("/")
 
     def http_get(self, url):
-        for attempt in range(RETRY):
-            try:
-                req = urllib.request.Request(url)
-                req.add_header("User-Agent", UA)
-                req.add_header("Accept", "application/json")
-                req.add_header("Referer", self.base + "/")
-                with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
-                    raw = r.read()
-                    if raw[:2] == b"\x1f\x8b":
-                        raw = gzip.decompress(raw)
-                    return _dec(raw)
-            except Exception:
-                time.sleep(0.5 * (attempt + 1))
-        return ""
+        raw = _http_bytes("GET", url, headers={
+            "Accept": "application/json", "Referer": self.base + "/"})
+        if not raw:
+            return ""
+        return _dec(raw)
 
     def api_get(self, path):
         text = self.http_get(self.base + path)
