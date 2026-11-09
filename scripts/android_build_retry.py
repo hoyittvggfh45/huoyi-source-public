@@ -8,13 +8,15 @@ import time
 
 
 def transient_download_failure(output):
+    if re.search(r'Server returned HTTP response code:\s*(?:408|429|5\d\d)\b', output, re.IGNORECASE):
+        return True
     failures = output.split('FAILURE: Build failed with an exception.')
     if len(failures) < 2:
         return False
     failure = failures[-1].split('* Try:', 1)[0]
     downloading = re.search(r'Could not (?:download|resolve|get resource|GET|HEAD)\b', failure, re.IGNORECASE)
     transient = re.search(
-        r'status code\s+(?:408|429|5\d\d)\b|(?:read|connect|connection) timed out|'
+        r'status code\s+(?:408|429|5\d\d)\b|HTTP response code:\s*(?:408|429|5\d\d)\b|(?:read|connect|connection) timed out|'
         r'connection reset|UnknownHostException|temporary failure in name resolution|'
         r'unexpected end of file from server', failure, re.IGNORECASE)
     return bool(downloading and transient)
