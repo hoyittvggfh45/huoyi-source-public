@@ -40,6 +40,7 @@ import 'package:duanju_app/playback_preloader.dart';
 import 'package:duanju_app/playback_recovery.dart';
 import 'package:duanju_app/playback_preferences.dart';
 import 'package:duanju_app/nonvideo_content.dart';
+import 'package:duanju_app/online_website.dart';
 import 'package:duanju_app/playback_sniffer.dart';
 import 'package:duanju_app/xigua/player_controls.dart';
 import 'package:duanju_app/network_speed.dart';
@@ -1448,6 +1449,41 @@ class _PlayerScreenState extends State<XiguaPlayerScreen>
         _ => '正在准备播放',
       };
     });
+    if (handoffPlan == null &&
+        widget.detail.drama.source == onlineWebsiteSourceId) {
+      final pageUrl =
+          widget.detail.episodes[index].raw['url'] as String? ?? '';
+      if (pageUrl.isEmpty) {
+        setState(() {
+          _loading = false;
+          _error = '在线网站缺少播放页地址';
+        });
+        return;
+      }
+      if (looksLikeDirectMedia(pageUrl)) {
+        await _play(
+          index,
+          position: position,
+          playWhenReady: playWhenReady,
+          handoffPlan: PlaybackPlan(url: pageUrl),
+        );
+        return;
+      }
+      _lastPageUrl = pageUrl;
+      unawaited(_player.stop().catchError((Object _) {}));
+      await _openSniffer(auto: true);
+      if (mounted &&
+          !_closed &&
+          _plan == null &&
+          _error == null &&
+          widget.detail.drama.source == onlineWebsiteSourceId) {
+        setState(() {
+          _loading = false;
+          _error = onlineWebsiteNoMediaMessage;
+        });
+      }
+      return;
+    }
     LanController.current?.detachPlayback(_lanIdentity);
     _lanIdentity = Object();
     _attachLanPlayback();

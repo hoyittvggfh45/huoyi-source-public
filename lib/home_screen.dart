@@ -66,6 +66,7 @@ import 'library_updater.dart';
 import 'live_repository.dart';
 import 'live_screen.dart';
 import 'live_store.dart';
+import 'online_website_pages.dart';
 
 bool shouldSilentRefreshOnRestore(DateTime? fetchedAt, DateTime now) {
   if (fetchedAt == null) return true;
@@ -1351,6 +1352,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _openOnlineWebsites() {
+    _pushTool(
+      OnlineWebsiteListPage(repository: widget.repository, store: widget.store),
+    );
+  }
+
   void _openSaved({required bool history}) {
     _pushTool(
       Scaffold(
@@ -1861,6 +1868,12 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(width: 8),
           ],
+          GlassIconButton(
+            key: const ValueKey('open-online-websites'),
+            icon: Icons.public_rounded,
+            tooltip: '在线网站',
+            onPressed: _openOnlineWebsites,
+          ),
         ],
         const SizedBox(width: 16),
       ],
@@ -2041,6 +2054,12 @@ class _HomeScreenState extends State<HomeScreen> {
                             '${_group.name} (${_group.sources.length})',
                           ),
                         ),
+                      IconButton(
+                        key: const ValueKey('open-online-websites'),
+                        tooltip: '在线网站',
+                        onPressed: _openOnlineWebsites,
+                        icon: const Icon(Icons.public_rounded),
+                      ),
                     ],
                     const SizedBox(width: 8),
                   ],

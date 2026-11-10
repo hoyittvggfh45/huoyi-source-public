@@ -30,6 +30,7 @@ import 'follow_state.dart';
 import 'local_store.dart';
 import 'models.dart';
 import 'nonvideo_content.dart';
+import 'online_website.dart';
 import 'playback_loader.dart';
 import 'playback_parse.dart';
 import 'playback_foreground.dart';
@@ -1443,6 +1444,30 @@ class _PlayerScreenState extends State<PlayerScreen>
       _nonVideo = null;
       _sniffFallbackTried = false;
     });
+    if (handoffPlan == null &&
+        widget.detail.drama.source == onlineWebsiteSourceId) {
+      final pageUrl = playEpisode.raw['url'] as String? ?? '';
+      if (pageUrl.isEmpty) {
+        setState(() {
+          _loading = false;
+          _error = '在线网站缺少播放页地址';
+        });
+        return;
+      }
+      if (looksLikeDirectMedia(pageUrl)) {
+        await _play(
+          index,
+          position: position,
+          playWhenReady: playWhenReady,
+          handoffPlan: PlaybackPlan(url: pageUrl),
+        );
+        return;
+      }
+      _lastPageUrl = pageUrl;
+      unawaited(_player.stop().catchError((Object _) {}));
+      _openSniffer();
+      return;
+    }
     if (widget.embedded && previousIndex != index) {
       widget.onEmbeddedIndexChanged?.call(index);
     }
@@ -2022,6 +2047,11 @@ class _PlayerScreenState extends State<PlayerScreen>
       _sniffEmbedded = false;
       _error = _sniffPreviousError;
       _sniffPreviousError = null;
+      if (_error == null &&
+          _plan == null &&
+          widget.detail.drama.source == onlineWebsiteSourceId) {
+        _error = onlineWebsiteNoMediaMessage;
+      }
     });
   }
 

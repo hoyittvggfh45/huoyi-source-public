@@ -9,6 +9,8 @@ import 'core_bridge.dart';
 import 'custom_sources_screen.dart';
 import 'local_store.dart';
 import 'models.dart';
+import 'online_website.dart';
+import 'online_website_pages.dart';
 import 'remote_widgets.dart';
 import 'source_status.dart';
 import 'widgets.dart';
@@ -135,6 +137,7 @@ class _SourcesScreenState extends State<SourcesScreen> {
   final _expandedHealth = <String>{};
   late Set<String> _expandedGroups;
   int _expandEpoch = 0;
+  int _onlineCount = 0;
   Timer? _timer;
   bool _polling = false;
   int _ticks = 0;
@@ -153,6 +156,7 @@ class _SourcesScreenState extends State<SourcesScreen> {
     }
     ensureTelevisionFocus(context);
     unawaited(_refresh());
+    unawaited(_loadOnlineCount());
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       _ticks++;
       if (_statuses.values.any((status) => status.retryAt != null)) {
@@ -170,6 +174,11 @@ class _SourcesScreenState extends State<SourcesScreen> {
   void dispose() {
     _timer?.cancel();
     super.dispose();
+  }
+
+  Future<void> _loadOnlineCount() async {
+    final sites = await OnlineWebsiteStore.load();
+    if (mounted) setState(() => _onlineCount = sites.length);
   }
 
   Future<void> _refresh() async {
@@ -369,6 +378,35 @@ class _SourcesScreenState extends State<SourcesScreen> {
                           ),
                         ),
                       ),
+                    ),
+                  ),
+                  Card(
+                    key: const ValueKey('online-websites-entry'),
+                    margin: const EdgeInsets.only(bottom: 12),
+                    elevation: 0,
+                    color: colors.surfaceContainerLow,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: _entryRow(
+                      icon: Icons.public_rounded,
+                      color: const Color(0xFF2E9E6B),
+                      title: '在线网站',
+                      subtitle:
+                          '输一个视频站网址，不用写蜘蛛就能看 · 当前 $_onlineCount 个',
+                      onTap: () async {
+                        await Navigator.push<void>(
+                          context,
+                          appPageRoute<void>(
+                            builder: (_) => OnlineWebsiteListPage(
+                              repository: widget.repository,
+                              store: widget.store,
+                            ),
+                          ),
+                        );
+                        if (mounted) unawaited(_loadOnlineCount());
+                      },
                     ),
                   ),
                   Padding(
