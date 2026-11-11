@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app_build.dart';
+import 'moyi_theme.dart';
 
 enum HomeZone { drama, vod, midnight, live, audio, novel }
 
@@ -98,7 +99,8 @@ class AppDrawer extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
           decoration: BoxDecoration(
-            color: selected ? colors.primary : Colors.transparent,
+            gradient: selected ? moyiPrimaryGradient : null,
+            color: selected ? null : Colors.transparent,
             borderRadius: BorderRadius.circular(20),
           ),
           child: Row(
@@ -229,16 +231,15 @@ class AppDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     final versionText = currentVersion.isEmpty ? '' : '当前版本 $currentVersion';
     return Drawer(
-      backgroundColor: colors.surfaceContainerLowest,
+      backgroundColor: Colors.transparent,
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
           DrawerHeader(
             margin: EdgeInsets.zero,
-            decoration: BoxDecoration(color: colors.primaryContainer),
+            decoration: const BoxDecoration(color: Colors.transparent),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

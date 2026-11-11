@@ -96,6 +96,7 @@ class _CustomHeadersScreenState extends State<CustomHeadersScreen> {
             ),
           ),
           SwitchListTile.adaptive(
+            activeTrackColor: Theme.of(context).colorScheme.tertiary,
             title: const Text('启用自定义请求头'),
             value: widget.store.customHeadersEnabled,
             onChanged: (value) async {

@@ -10,6 +10,7 @@ import 'core_bridge.dart';
 import 'novel_cover.dart';
 import 'novel_reader_page.dart';
 import 'reading_bookshelf.dart';
+import 'moyi_theme.dart';
 
 class ContentDetailScreen extends StatefulWidget {
   const ContentDetailScreen({
@@ -450,7 +451,7 @@ class _ContentDetailScreenState extends State<ContentDetailScreen> {
     final posMs = _position.inMilliseconds.toDouble().clamp(0.0, maxMs);
     return Material(
       elevation: 6,
-      color: Theme.of(context).scaffoldBackgroundColor,
+      color: moyiSheetFill,
       borderRadius: BorderRadius.circular(16),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),

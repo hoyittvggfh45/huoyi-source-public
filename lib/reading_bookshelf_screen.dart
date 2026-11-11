@@ -4,6 +4,7 @@ import 'content_models.dart';
 import 'novel_cover.dart';
 import 'novel_reader_page.dart';
 import 'reading_bookshelf.dart';
+import 'moyi_theme.dart';
 
 class ReadingBookshelfScreen extends StatefulWidget {
   const ReadingBookshelfScreen({super.key, required this.sources});
@@ -11,8 +12,7 @@ class ReadingBookshelfScreen extends StatefulWidget {
   final List<ContentSource> sources;
 
   @override
-  State<ReadingBookshelfScreen> createState() =>
-      _ReadingBookshelfScreenState();
+  State<ReadingBookshelfScreen> createState() => _ReadingBookshelfScreenState();
 }
 
 class _ReadingBookshelfScreenState extends State<ReadingBookshelfScreen>
@@ -78,9 +78,9 @@ class _ReadingBookshelfScreenState extends State<ReadingBookshelfScreen>
         .firstOrNull;
     if (source == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('该书的源已不在，请重新导入')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('该书的源已不在，请重新导入')));
       }
       return;
     }
@@ -126,52 +126,56 @@ class _ReadingBookshelfScreenState extends State<ReadingBookshelfScreen>
       child: InkWell(
         onTap: () => _open(entry),
         borderRadius: BorderRadius.circular(12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: _cover(entry, colors),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    entry.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _progress(entry),
-                    style: TextStyle(
-                      color: colors.onSurfaceVariant,
-                      fontSize: 12,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    entry.sourceName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: colors.onSurfaceVariant,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
+        child: Container(
+          decoration: moyiCardDecoration(radius: 12),
+          padding: const EdgeInsets.all(10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: _cover(entry, colors),
               ),
-            ),
-            IconButton(
-              key: ValueKey(removeKey),
-              tooltip: removeTooltip,
-              icon: const Icon(Icons.delete_outline),
-              onPressed: onRemove,
-            ),
-          ],
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      entry.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _progress(entry),
+                      style: TextStyle(
+                        color: colors.onSurfaceVariant,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      entry.sourceName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: colors.onSurfaceVariant,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                key: ValueKey(removeKey),
+                tooltip: removeTooltip,
+                icon: const Icon(Icons.delete_outline),
+                onPressed: onRemove,
+              ),
+            ],
+          ),
         ),
       ),
     );

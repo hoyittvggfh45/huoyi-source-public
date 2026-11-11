@@ -66,7 +66,9 @@ class GlassDialog extends StatelessWidget {
     final dark = Theme.of(context).brightness == Brightness.dark;
     return Dialog(
       elevation: 0,
-      backgroundColor: dark ? const Color(0xFF16171B) : const Color(0xFFF8F6F5),
+      backgroundColor:
+          Theme.of(context).dialogTheme.backgroundColor ??
+          (dark ? const Color(0xFF16171B) : const Color(0xFFF8F6F5)),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.all(Radius.circular(24)),
       ),

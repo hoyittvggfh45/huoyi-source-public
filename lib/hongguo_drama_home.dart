@@ -16,6 +16,7 @@ import 'playback_foreground.dart';
 import 'tvbox_player_bridge.dart';
 import 'watchroom/player.dart';
 import 'widgets.dart';
+import 'moyi_theme.dart';
 
 bool isHongguoDramaGroup(String groupId) => groupId == 'hongguo';
 
@@ -629,7 +630,7 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _tab == 0 ? Colors.black : null,
+      backgroundColor: Colors.transparent,
       body: switch (_tab) {
         1 => _theater(context),
         2 => _mine(context),
@@ -637,27 +638,18 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
       },
       bottomNavigationBar: Theme(
         data: Theme.of(context).copyWith(
-          colorScheme: _tab == 0
-              ? const ColorScheme.dark(
-                  primary: Colors.white,
-                  onPrimary: Colors.black,
-                  surface: Colors.black,
-                  onSurface: Colors.white,
-                  onSurfaceVariant: Colors.white70,
-                  secondary: Colors.white,
-                )
-              : const ColorScheme.light(
-                  primary: Colors.black,
-                  onPrimary: Colors.white,
-                  surface: Colors.transparent,
-                  onSurface: Colors.black,
-                  onSurfaceVariant: Colors.black54,
-                  secondary: Colors.black,
-                ),
+          colorScheme: const ColorScheme.dark(
+            primary: moyiPink,
+            onPrimary: Colors.white,
+            surface: moyiSheetFill,
+            onSurface: Colors.white,
+            onSurfaceVariant: moyiBodyOnDark,
+            secondary: moyiCyan,
+          ),
         ),
         child: NavigationBar(
-          backgroundColor: _tab == 0 ? Colors.black : Colors.transparent,
-          elevation: _tab == 0 ? 3 : 0,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
           indicatorColor: Colors.transparent,
           selectedIndex: _tab,
           onDestinationSelected: _selectTab,
@@ -665,33 +657,33 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
             NavigationDestination(
               icon: Icon(
                 Icons.home_outlined,
-                color: _tab == 0 ? Colors.white70 : Colors.black54,
+                color: Colors.white70,
               ),
               selectedIcon: Icon(
                 Icons.home,
-                color: _tab == 0 ? Colors.white : Colors.black,
+                color: Colors.white,
               ),
               label: '首页',
             ),
             NavigationDestination(
               icon: Icon(
                 Icons.theater_comedy_outlined,
-                color: _tab == 0 ? Colors.white70 : Colors.black54,
+                color: Colors.white70,
               ),
               selectedIcon: Icon(
                 Icons.theater_comedy,
-                color: _tab == 0 ? Colors.white : Colors.black,
+                color: Colors.white,
               ),
               label: '剧场',
             ),
             NavigationDestination(
               icon: Icon(
                 Icons.person_outline,
-                color: _tab == 0 ? Colors.white70 : Colors.black54,
+                color: Colors.white70,
               ),
               selectedIcon: Icon(
                 Icons.person,
-                color: _tab == 0 ? Colors.white : Colors.black,
+                color: Colors.white,
               ),
               label: '我的',
             ),
@@ -763,7 +755,7 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
                 height: 3,
                 decoration: BoxDecoration(
                   color: _channel == channel.key
-                      ? Colors.white
+                      ? moyiPink
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(2),
                 ),
@@ -1092,10 +1084,7 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
           child: Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: const Color(0xFF262626),
-              borderRadius: BorderRadius.circular(8),
-            ),
+            decoration: moyiCardDecoration(radius: 8),
             child: Row(
               children: [
                 const Icon(Icons.play_arrow, color: Colors.white),

@@ -377,6 +377,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               : '已关闭 · 只用普通请求',
         ),
         trailing: Switch.adaptive(
+          activeTrackColor: Theme.of(context).colorScheme.tertiary,
           value: widget.store.pythonCfDisguise,
           onChanged: (value) async {
             try {
@@ -403,6 +404,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               : '已关闭 · 只用普通请求',
         ),
         trailing: Switch.adaptive(
+          activeTrackColor: Theme.of(context).colorScheme.tertiary,
           value: widget.store.jarFingerprintEnabled,
           onChanged: (value) async {
             try {
@@ -435,6 +437,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
         trailing: Switch.adaptive(
+          activeTrackColor: Theme.of(context).colorScheme.tertiary,
           value: widget.store.customHeadersEnabled,
           onChanged: (value) async {
             try {
@@ -803,6 +806,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ? '已开启 · 按蜘蛛 UA 匹配浏览器'
             : '已关闭 · 只用普通请求',
         trailing: Switch.adaptive(
+          activeTrackColor: Theme.of(context).colorScheme.tertiary,
           value: store.pythonCfDisguise,
           onChanged: (value) async {
             try {
@@ -828,6 +832,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ? '已开启 · 按蜘蛛 UA 匹配浏览器'
             : '已关闭 · 只用普通请求',
         trailing: Switch.adaptive(
+          activeTrackColor: Theme.of(context).colorScheme.tertiary,
           value: store.jarFingerprintEnabled,
           onChanged: (value) async {
             try {
@@ -854,6 +859,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             : '已关闭',
         onTap: () => _push(CustomHeadersScreen(store: store)),
         trailing: Switch.adaptive(
+          activeTrackColor: Theme.of(context).colorScheme.tertiary,
           value: store.customHeadersEnabled,
           onChanged: (value) async {
             try {

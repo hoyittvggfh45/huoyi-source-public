@@ -9,6 +9,7 @@ import 'core_bridge.dart';
 import 'app_layout.dart';
 import 'liquid_glass.dart';
 import 'models.dart';
+import 'moyi_theme.dart';
 import 'remote_widgets.dart';
 
 Future<void> saveUserChange(
@@ -387,7 +388,10 @@ class DramaTile extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              DramaCover(drama: drama, repository: repository),
+              Container(
+                foregroundDecoration: moyiCardDecoration(radius: 14),
+                child: DramaCover(drama: drama, repository: repository),
+              ),
               if (topBadge != null && topBadge!.isNotEmpty)
                 Positioned(
                   left: 8,
@@ -482,6 +486,7 @@ class DramaTile extends StatelessWidget {
                 fontWeight: FontWeight.w600,
                 height: 1.3,
                 fontSize: 12,
+                color: Colors.white,
               ),
             ),
           ),
@@ -498,7 +503,7 @@ class DramaTile extends StatelessWidget {
               style: TextStyle(
                 fontSize: 12,
                 height: 1.3,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                color: moyiMutedOnDark,
               ),
             ),
           ),
@@ -515,7 +520,7 @@ class DramaTile extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12,
                   height: 1.3,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  color: moyiMutedOnDark,
                 ),
               ),
             ),

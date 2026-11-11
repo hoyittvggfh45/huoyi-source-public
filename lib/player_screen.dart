@@ -60,6 +60,7 @@ import 'video_enhancement.dart';
 import 'picture_quality_applier.dart';
 import 'video_output_size.dart';
 import 'windows_playback_tuning.dart';
+import 'moyi_theme.dart';
 
 class PlayerScreen extends StatefulWidget {
   const PlayerScreen({
@@ -211,7 +212,7 @@ class _PlayerScreenState extends State<PlayerScreen>
           right: 0,
           bottom: 0,
           child: Material(
-            color: const Color(0xFF1B1B1B),
+            color: moyiSheetFill,
             elevation: 8,
             child: SafeArea(
               top: false,
@@ -3541,7 +3542,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                   child: SafeArea(
                     bottom: false,
                     child: Material(
-                      color: const Color(0xE6322424),
+                      color: moyiSheetFill,
                       borderRadius: BorderRadius.circular(8),
                       child: Padding(
                         padding: const EdgeInsets.all(8),
@@ -4106,7 +4107,7 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   Widget _episodePanel({bool compact = false, VoidCallback? onClose}) {
     final panel = ColoredBox(
-      color: Theme.of(context).colorScheme.surface,
+      color: moyiSheetFill,
       child: PlayerEpisodeGrid(
         episodes: widget.detail.episodes,
         currentIndex: _index,

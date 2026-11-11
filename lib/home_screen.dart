@@ -54,6 +54,7 @@ import 'home_carousel.dart';
 import 'playback_launch_screen.dart';
 import 'playback_queue.dart';
 import 'local_store.dart';
+import 'moyi_theme.dart';
 import 'models.dart';
 import 'remote_widgets.dart';
 import 'widgets.dart';
@@ -1361,7 +1362,12 @@ class _HomeScreenState extends State<HomeScreen> {
   void _openSaved({required bool history}) {
     _pushTool(
       Scaffold(
-        appBar: AppBar(title: Text(history ? '最近观看' : '追剧')),
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          foregroundColor: Colors.white,
+          title: Text(history ? '最近观看' : '追剧'),
+        ),
         body: SavedLibrary(
           repository: widget.repository,
           store: widget.store,
@@ -1788,6 +1794,10 @@ class _HomeScreenState extends State<HomeScreen> {
       title = Text(_zoneTitle, style: largeTitle);
     }
     return AppBar(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      foregroundColor: Colors.white,
       toolbarHeight: 64,
       centerTitle: false,
       titleSpacing: 20,
@@ -1897,6 +1907,7 @@ class _HomeScreenState extends State<HomeScreen> {
           if (isHongguoDramaGroup(_group.id)) {
             return Scaffold(
               key: _scaffoldKey,
+              backgroundColor: Colors.transparent,
               drawer: _drawer(),
               extendBody: glass,
               body: SafeArea(
@@ -1929,11 +1940,16 @@ class _HomeScreenState extends State<HomeScreen> {
         }
         final scaffold = Scaffold(
           key: _scaffoldKey,
+          backgroundColor: Colors.transparent,
           drawer: _drawer(),
           extendBody: glass && !desktop,
           appBar: glass
               ? _glassAppBar()
               : AppBar(
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  scrolledUnderElevation: 0,
+                  foregroundColor: Colors.white,
                   toolbarHeight: television ? 64 : null,
                   titleSpacing: 12,
                   automaticallyImplyLeading: false,
@@ -1962,6 +1978,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
                                       fontWeight: FontWeight.w800,
+                                      color: Colors.white,
                                     ),
                                   ),
                                 ),
@@ -2120,10 +2137,23 @@ class _HomeScreenState extends State<HomeScreen> {
                   const VerticalDivider(width: 1),
                 ] else if (desktop) ...[
                   NavigationRail(
+                    backgroundColor: moyiSheetFill,
                     selectedIndex: _railIndex,
                     onDestinationSelected: _onRailSelected,
                     labelType: NavigationRailLabelType.all,
                     groupAlignment: -.8,
+                    selectedIconTheme: const IconThemeData(
+                      color: moyiPink,
+                    ),
+                    unselectedIconTheme: const IconThemeData(
+                      color: moyiMutedOnDark,
+                    ),
+                    selectedLabelTextStyle: const TextStyle(
+                      color: Colors.white,
+                    ),
+                    unselectedLabelTextStyle: const TextStyle(
+                      color: moyiMutedOnDark,
+                    ),
                     destinations: const [
                       NavigationRailDestination(
                         icon: Icon(Icons.movie_outlined),

@@ -20,6 +20,7 @@ import 'tvbox_player_bridge.dart';
 import 'video_enhancement_preferences.dart';
 import 'watchroom/player.dart';
 import 'widgets.dart';
+import 'moyi_theme.dart';
 
 String feedResumeKey(Drama drama) => '${drama.source}|${drama.id}';
 
@@ -535,7 +536,7 @@ class _FullscreenFeedScreenState extends State<FullscreenFeedScreen>
             builder: (sheetContext, scrollController) {
               return Container(
                 decoration: BoxDecoration(
-                  color: Theme.of(sheetContext).colorScheme.surface,
+                  color: moyiSheetFill,
                   borderRadius: const BorderRadius.vertical(
                     top: Radius.circular(16),
                   ),
@@ -940,13 +941,16 @@ class _FullscreenFeedScreenState extends State<FullscreenFeedScreen>
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: selected ? Colors.white : Colors.transparent,
-            border: Border.all(color: selected ? Colors.white : Colors.white54),
+            gradient: selected ? moyiSelectedGradient : null,
+            color: selected ? null : Colors.transparent,
+            border: Border.all(
+              color: selected ? moyiCyan : Colors.white54,
+            ),
             borderRadius: BorderRadius.circular(16),
           ),
           child: Text(
             label,
-            style: TextStyle(color: selected ? Colors.black : Colors.white),
+            style: const TextStyle(color: Colors.white),
           ),
         ),
       ),
@@ -988,13 +992,14 @@ class _FullscreenFeedScreenState extends State<FullscreenFeedScreen>
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: BoxDecoration(
-          color: enabled ? Colors.white : Colors.black54,
+          gradient: enabled ? moyiPrimaryGradient : null,
+          color: enabled ? null : Colors.black54,
           borderRadius: BorderRadius.circular(6),
         ),
         child: Text(
           '弹',
-          style: TextStyle(
-            color: enabled ? Colors.black : Colors.white,
+          style: const TextStyle(
+            color: Colors.white,
             fontWeight: FontWeight.w700,
           ),
         ),

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'core_bridge.dart';
 import 'models.dart';
+import 'moyi_theme.dart';
 
 class HongguoComment {
   const HongguoComment({
@@ -290,7 +291,7 @@ Future<HongguoCommentPage?> showHongguoComments(
   return showModalBottomSheet<HongguoCommentPage>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+    backgroundColor: moyiSheetFill,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
     ),

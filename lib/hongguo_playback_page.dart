@@ -14,6 +14,7 @@ import 'playback_preferences.dart';
 import 'tvbox_player_bridge.dart';
 import 'watchroom/player.dart';
 import 'widgets.dart';
+import 'moyi_theme.dart';
 
 class HongguoPlaybackPage extends StatefulWidget {
   const HongguoPlaybackPage({
@@ -270,7 +271,7 @@ class _HongguoPlaybackPageState extends State<HongguoPlaybackPage> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: moyiSheetFill,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -308,7 +309,7 @@ class _HongguoPlaybackPageState extends State<HongguoPlaybackPage> {
     final prefs = widget.store.playbackPreferences;
     final selected = await showModalBottomSheet<double>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: moyiSheetFill,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -321,7 +322,10 @@ class _HongguoPlaybackPageState extends State<HongguoPlaybackPage> {
               padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: Text(
                 '倍速',
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
             ),
             Padding(
@@ -358,7 +362,7 @@ class _HongguoPlaybackPageState extends State<HongguoPlaybackPage> {
     final favorite = widget.store.isFavorite(widget.drama.id);
     await showModalBottomSheet<void>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: moyiSheetFill,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -595,7 +599,7 @@ class _HongguoPlaybackPageState extends State<HongguoPlaybackPage> {
     final synopsis = detail?.drama.description ?? widget.drama.description;
     final status = _releaseStatusLabel();
     return Container(
-      color: const Color(0xFF1A1A1A),
+      color: moyiSheetFill,
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
         child: Column(
@@ -875,7 +879,7 @@ class _HongguoPlaybackPageState extends State<HongguoPlaybackPage> {
                         child: Container(
                           height: 3,
                           width: fill,
-                          color: Colors.white,
+                          color: moyiPink,
                         ),
                       ),
                       Positioned(
@@ -885,7 +889,7 @@ class _HongguoPlaybackPageState extends State<HongguoPlaybackPage> {
                           width: 10,
                           height: 10,
                           decoration: const BoxDecoration(
-                            color: Colors.white,
+                            color: moyiPink,
                             shape: BoxShape.circle,
                           ),
                         ),
@@ -969,7 +973,7 @@ class _EpisodeSheetState extends State<_EpisodeSheet> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.black26,
+                color: Colors.white24,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -1005,19 +1009,23 @@ class _EpisodeSheetState extends State<_EpisodeSheet> {
                                 style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
+                                  color: Colors.white,
                                 ),
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                            const Text(' >'),
+                            const Text(
+                              ' >',
+                              style: TextStyle(color: Colors.white),
+                            ),
                           ],
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         _seasonLine,
-                        style: const TextStyle(color: Colors.black54),
+                        style: const TextStyle(color: moyiMutedOnDark),
                       ),
                     ],
                   ),
@@ -1036,25 +1044,21 @@ class _EpisodeSheetState extends State<_EpisodeSheet> {
               _sheetTab(2, '系列剧'),
             ],
           ),
-          Container(height: 1, color: Colors.black12),
+          Container(height: 1, color: Colors.white12),
           Expanded(child: _tabBody()),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
             child: SizedBox(
               width: double.infinity,
-              child: FilledButton.icon(
+              child: MoyiGradientButton(
+                label: _favorite ? '已收藏' : '收藏',
+                icon: _favorite
+                    ? Icons.star_rounded
+                    : Icons.star_outline_rounded,
                 onPressed: () {
                   widget.onToggleFavorite();
                   setState(() => _favorite = !_favorite);
                 },
-                icon: Icon(
-                  _favorite ? Icons.star_rounded : Icons.star_outline_rounded,
-                ),
-                label: Text(_favorite ? '已收藏' : '收藏'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFFFF7A00),
-                  foregroundColor: Colors.white,
-                ),
               ),
             ),
           ),
@@ -1075,7 +1079,7 @@ class _EpisodeSheetState extends State<_EpisodeSheet> {
             style: TextStyle(
               fontSize: 15,
               fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-              color: selected ? Colors.black : Colors.black54,
+              color: selected ? Colors.white : moyiMutedOnDark,
             ),
           ),
           const SizedBox(height: 4),
@@ -1083,7 +1087,7 @@ class _EpisodeSheetState extends State<_EpisodeSheet> {
             width: 20,
             height: 3,
             decoration: BoxDecoration(
-              color: selected ? Colors.black : Colors.transparent,
+              color: selected ? moyiPink : Colors.transparent,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -1099,14 +1103,19 @@ class _EpisodeSheetState extends State<_EpisodeSheet> {
         padding: const EdgeInsets.all(16),
         child: Text(
           description.isEmpty ? '暂无简介' : description,
-          style: const TextStyle(height: 1.6),
+          style: const TextStyle(height: 1.6, color: moyiBodyOnDark),
         ),
       );
     }
     if (_tab == 2) {
       final related = widget.detail.related;
       if (related.isEmpty) {
-        return const Center(child: Text('暂无系列剧数据'));
+        return const Center(
+          child: Text(
+            '暂无系列剧数据',
+            style: TextStyle(color: Colors.white),
+          ),
+        );
       }
       return ListView.builder(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -1139,11 +1148,12 @@ class _EpisodeSheetState extends State<_EpisodeSheet> {
                       drama.title,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.white),
                     ),
                   ),
                   const Icon(
                     Icons.chevron_right_rounded,
-                    color: Colors.black38,
+                    color: moyiMutedOnDark,
                   ),
                 ],
               ),
@@ -1175,7 +1185,7 @@ class _EpisodeSheetState extends State<_EpisodeSheet> {
                       style: TextStyle(
                         fontWeight:
                             i == range ? FontWeight.bold : FontWeight.normal,
-                        color: i == range ? Colors.black : Colors.black45,
+                        color: i == range ? Colors.white : moyiMutedOnDark,
                       ),
                     ),
                   ),
@@ -1203,17 +1213,14 @@ class _EpisodeSheetState extends State<_EpisodeSheet> {
                     Container(
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: selected
-                            ? const Color(0xFFFFEDE3)
-                            : const Color(0xFFF5F5F5),
+                        gradient: selected ? moyiSelectedGradient : null,
+                        color: selected ? null : moyiDarkCardFill,
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
                         '${index + 1}',
                         style: TextStyle(
-                          color: selected
-                              ? const Color(0xFFFF7A00)
-                              : Colors.black87,
+                          color: Colors.white,
                           fontWeight:
                               selected ? FontWeight.bold : FontWeight.normal,
                         ),
@@ -1226,7 +1233,7 @@ class _EpisodeSheetState extends State<_EpisodeSheet> {
                         child: Icon(
                           Icons.bar_chart_rounded,
                           size: 12,
-                          color: Color(0xFFFF7A00),
+                          color: Colors.white,
                         ),
                       ),
                   ],

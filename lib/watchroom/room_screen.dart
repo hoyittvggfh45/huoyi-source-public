@@ -582,6 +582,7 @@ class _WatchRoomScreenState extends State<WatchRoomScreen>
                   if (!_room.isHost) ...[
                     const Text('自动跟随'),
                     Switch(
+                      activeTrackColor: Theme.of(context).colorScheme.tertiary,
                       value: _autoFollow,
                       onChanged: (value) => unawaited(_toggleAutoFollow(value)),
                     ),

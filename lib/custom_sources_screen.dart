@@ -616,6 +616,7 @@ class _CustomSourceEditorState extends State<_CustomSourceEditor> {
                     : (value) => setState(() => _kind = value ?? ''),
               ),
               SwitchListTile(
+                activeTrackColor: Theme.of(context).colorScheme.tertiary,
                 key: const ValueKey('custom-source-rule-toggle'),
                 contentPadding: EdgeInsets.zero,
                 title: const Text('XBPQ 爬虫规则'),
@@ -755,6 +756,7 @@ class _CustomSourceImportDialogState extends State<_CustomSourceImportDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SwitchListTile(
+              activeTrackColor: Theme.of(context).colorScheme.tertiary,
               contentPadding: EdgeInsets.zero,
               title: const Text('从网络地址导入'),
               subtitle: const Text(

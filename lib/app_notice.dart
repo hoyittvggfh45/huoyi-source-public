@@ -3,6 +3,8 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import 'moyi_theme.dart';
+
 /// 顶部悬浮玻璃气泡通知：浮在应用最上层，约 3 秒后自动滑出消失，
 /// 点击气泡可提前关闭；新通知到来时立即替换上一条。
 class AppNotice {
@@ -158,7 +160,7 @@ class _NoticeViewState extends State<_NoticeView>
                       filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
                       child: Material(
                         color: dark
-                            ? Colors.black.withValues(alpha: .78)
+                            ? moyiSheetFill.withValues(alpha: .92)
                             : Colors.white.withValues(alpha: .88),
                         borderRadius: BorderRadius.circular(24),
                         child: GestureDetector(

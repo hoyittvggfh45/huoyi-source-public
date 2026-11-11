@@ -7,6 +7,7 @@ import 'liquid_glass.dart';
 import 'local_store.dart';
 import 'models.dart';
 import 'widgets.dart';
+import 'moyi_theme.dart';
 
 Future<void> showDramaActions(
   BuildContext context, {
@@ -122,7 +123,7 @@ class DramaActionButton extends StatelessWidget {
           size: 30,
           blur: 0,
           color: Colors.white,
-          tint: Colors.black.withValues(alpha: .28),
+          tint: moyiPurpleDeep.withValues(alpha: .28),
           onPressed: onPressed,
         ),
       );
@@ -133,7 +134,7 @@ class DramaActionButton extends StatelessWidget {
       onPressed: onPressed,
       icon: const Icon(Icons.more_horiz_rounded, size: 20),
       style: IconButton.styleFrom(
-        backgroundColor: Colors.black.withValues(alpha: .64),
+        backgroundColor: moyiSheetFill.withValues(alpha: .85),
         foregroundColor: Colors.white,
         minimumSize: const Size(40, 40),
         padding: const EdgeInsets.all(8),

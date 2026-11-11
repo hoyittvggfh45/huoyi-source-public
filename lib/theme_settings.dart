@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'local_store.dart';
+import 'moyi_theme.dart';
 
 class ThemeOption {
   const ThemeOption(this.id, this.name);
@@ -18,6 +19,7 @@ const themeModeStyleOptions = [
 ];
 
 const themeStyleOptions = [
+  ThemeOption('moyi', '魔蚁深紫'),
   ThemeOption('neon', '霓虹暗夜'),
   ThemeOption('deep', '深邃'),
   ThemeOption('candy', '糖果活力'),
@@ -171,6 +173,73 @@ ThemeData applyThemePreferences(
   var filledButtonTheme = base.filledButtonTheme;
   var elevatedButtonTheme = base.elevatedButtonTheme;
   var outlinedButtonTheme = base.outlinedButtonTheme;
+  var listTileTheme = base.listTileTheme;
+  if (style == 'moyi') {
+    brightness = Brightness.dark;
+    scheme = scheme.copyWith(
+      brightness: Brightness.dark,
+      primary: moyiPink,
+      onPrimary: Colors.white,
+      primaryContainer: const Color(0xFF2A1247),
+      onPrimaryContainer: const Color(0xFFE8D6FF),
+      secondary: moyiCyan,
+      secondaryContainer: const Color(0xFF241338),
+      onSecondaryContainer: Colors.white,
+      tertiary: moyiGold,
+      surface: moyiSheetFill,
+      onSurface: Colors.white,
+      onSurfaceVariant: moyiBodyOnDark,
+      outline: moyiPurple.withValues(alpha: 0.55),
+      outlineVariant: moyiPurple.withValues(alpha: 0.35),
+      surfaceContainerLowest: const Color(0xFF0E0724),
+      surfaceContainerLow: const Color(0xFF150C26),
+      surfaceContainer: const Color(0xFF1A0F3C),
+      surfaceContainerHigh: const Color(0xFF241338),
+      surfaceContainerHighest: const Color(0xFF2A1745),
+      surfaceTint: Colors.transparent,
+    );
+    scaffold = Colors.transparent;
+    canvas = Colors.transparent;
+    textTheme = base.textTheme.apply(
+      bodyColor: Colors.white,
+      displayColor: Colors.white,
+    );
+    listTileTheme = base.listTileTheme.copyWith(
+      iconColor: Colors.white,
+      titleTextStyle: base.listTileTheme.titleTextStyle?.copyWith(
+        color: Colors.white,
+      ),
+      subtitleTextStyle: base.listTileTheme.subtitleTextStyle?.copyWith(
+        color: moyiBodyOnDark,
+      ),
+    );
+    cardTheme = cardTheme.copyWith(
+      color: moyiDarkCardFill,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: moyiPurple.withValues(alpha: 0.55), width: 1),
+      ),
+    );
+    dialogTheme = dialogTheme.copyWith(
+      backgroundColor: moyiSheetFill,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    );
+    bottomSheetTheme = bottomSheetTheme.copyWith(
+      backgroundColor: moyiSheetFill,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+    );
+    inputTheme = inputTheme.copyWith(
+      fillColor: Colors.white.withValues(alpha: 0.07),
+      hintStyle: const TextStyle(color: moyiMutedOnDark),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide.none,
+      ),
+    );
+  }
   double? radius;
   if (style == 'deep' || style == 'candy' || style == 'aurora') {
     radius = 20;
@@ -290,6 +359,7 @@ ThemeData applyThemePreferences(
     bottomSheetTheme: bottomSheetTheme,
     inputDecorationTheme: inputTheme,
     textTheme: textTheme,
+    listTileTheme: listTileTheme,
     filledButtonTheme: filledButtonTheme,
     elevatedButtonTheme: elevatedButtonTheme,
     outlinedButtonTheme: outlinedButtonTheme,
@@ -385,6 +455,16 @@ class _ThemeBackgroundWrapperState extends State<ThemeBackgroundWrapper> {
     final store = widget.store;
     final background = store?.themeBackground ?? 'theme';
     final scaffold = theme.scaffoldBackgroundColor;
+    if (store?.themeStyle == 'moyi' &&
+        (background != 'custom' || _image == null)) {
+      if (background == 'solid') {
+        return ColoredBox(color: moyiSheetFill, child: widget.child);
+      }
+      return DecoratedBox(
+        decoration: const BoxDecoration(gradient: moyiPageGradient),
+        child: widget.child,
+      );
+    }
     if (background == 'solid') {
       return ColoredBox(
         color: theme.colorScheme.primaryContainer,

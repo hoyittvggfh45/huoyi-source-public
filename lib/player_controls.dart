@@ -11,6 +11,7 @@ import 'player_core.dart';
 import 'player_interactions.dart';
 import 'widgets.dart';
 import 'video_enhancement.dart';
+import 'moyi_theme.dart';
 
 class PlayerControls extends StatefulWidget {
   const PlayerControls({
@@ -645,16 +646,15 @@ class _PlayerControlsState extends State<PlayerControls> {
     bool selected = false,
     double visualWidth = 36,
   }) {
-    final scheme = Theme.of(context).colorScheme;
     final enabled = onPressed != null;
     final foreground = selected
-        ? scheme.primary
+        ? moyiPink
         : Colors.white.withValues(alpha: enabled ? .92 : .36);
     final background = selected
-        ? scheme.primary.withValues(alpha: .20)
+        ? moyiPink.withValues(alpha: .20)
         : Colors.black.withValues(alpha: .22);
     final border = selected
-        ? scheme.primary.withValues(alpha: .62)
+        ? moyiPink.withValues(alpha: .62)
         : Colors.white.withValues(alpha: .08);
     final targetWidth = visualWidth < 40 ? 48.0 : visualWidth + 8;
     return Tooltip(
@@ -768,7 +768,7 @@ class _PlayerControlsState extends State<PlayerControls> {
               height: 1,
               fontWeight: FontWeight.w800,
               color: widget.danmakuEnabled
-                  ? Theme.of(context).colorScheme.primary
+                  ? moyiPink
                   : Colors.white.withValues(alpha: .86),
             ),
           ),
@@ -950,7 +950,7 @@ class _PlayerControlsState extends State<PlayerControls> {
                     bottom: widget.fullscreen ? 88 : 74,
                   ),
                   child: Material(
-                    color: Colors.black.withValues(alpha: .88),
+                    color: moyiSheetFill,
                     borderRadius: BorderRadius.circular(18),
                     child: SizedBox(
                       width: 62,
@@ -1079,7 +1079,7 @@ class _PlayerControlsState extends State<PlayerControls> {
             margin: const EdgeInsets.all(16),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
-              color: Colors.black87,
+              color: moyiSheetFill,
               borderRadius: BorderRadius.circular(10),
             ),
             child: Text(

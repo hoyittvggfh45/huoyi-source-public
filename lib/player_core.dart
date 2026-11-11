@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'moyi_theme.dart';
 
 enum PlayerCore {
   exo('exo', 'EXO', 'Media3', 'Android 原生硬解，TV 最流畅'),
@@ -76,9 +77,9 @@ class PlayerCoreBadge extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.45),
+            color: moyiSheetFill.withValues(alpha: 0.75),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+            border: Border.all(color: moyiPurple.withValues(alpha: 0.55)),
           ),
           child: Text(
             core.label,

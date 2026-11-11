@@ -122,6 +122,7 @@ class PlaybackSettingsScreen extends StatelessWidget {
                 ),
                 const Divider(height: 32),
                 SwitchListTile(
+                  activeTrackColor: Theme.of(context).colorScheme.tertiary,
                   value: preferences.autoAdvance,
                   title: const Text('自动连播'),
                   subtitle: const Text('当前集播完自动播放下一集。'),
@@ -135,6 +136,7 @@ class PlaybackSettingsScreen extends StatelessWidget {
                         ),
                 ),
                 SwitchListTile(
+                  activeTrackColor: Theme.of(context).colorScheme.tertiary,
                   value: preferences.preload,
                   title: const Text('预加载下一集'),
                   subtitle: const Text('后台提前缓冲下一集，加快切换速度，消耗更多流量。'),
@@ -148,6 +150,7 @@ class PlaybackSettingsScreen extends StatelessWidget {
                         ),
                 ),
                 SwitchListTile(
+                  activeTrackColor: Theme.of(context).colorScheme.tertiary,
                   value: preferences.danmaku,
                   title: const Text('显示弹幕'),
                   subtitle: const Text('打开视频时默认开启弹幕，播放中可随时开关。'),
@@ -163,6 +166,7 @@ class PlaybackSettingsScreen extends StatelessWidget {
                 if (Platform.isAndroid && !AppLayout.isTelevision(context)) ...[
                   const Divider(height: 32),
                   SwitchListTile(
+                    activeTrackColor: Theme.of(context).colorScheme.tertiary,
                     key: const ValueKey('auto-picture-in-picture'),
                     value: preferences.autoPictureInPicture,
                     title: const Text('回到桌面自动开启小窗'),

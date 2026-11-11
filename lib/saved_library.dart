@@ -8,6 +8,7 @@ import 'follow_state.dart';
 import 'ios_dialogs.dart';
 import 'local_store.dart';
 import 'models.dart';
+import 'moyi_theme.dart';
 import 'remote_widgets.dart';
 import 'widgets.dart';
 
@@ -184,6 +185,18 @@ class _SavedLibraryState extends State<SavedLibrary> {
                       label: Text(filter.$2),
                       selected: _filter == filter.$1,
                       onSelected: (_) => setState(() => _filter = filter.$1),
+                      backgroundColor: Colors.white.withValues(alpha: 0.07),
+                      selectedColor: moyiPink,
+                      side: BorderSide(
+                        color: moyiPurple.withValues(alpha: 0.55),
+                      ),
+                      labelStyle: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: _filter == filter.$1
+                            ? Colors.white
+                            : moyiMutedOnDark,
+                      ),
                     ),
                   ),
               ],

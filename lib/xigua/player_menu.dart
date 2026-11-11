@@ -255,6 +255,7 @@ class _PlayerMenuState extends State<PlayerMenu> {
           ),
         if (all && widget.showDanmaku) ...[
           SwitchListTile.adaptive(
+            activeTrackColor: Theme.of(context).colorScheme.tertiary,
             key: const ValueKey('player-danmaku-enabled'),
             contentPadding: EdgeInsets.zero,
             title: const Text('弹幕'),
@@ -279,6 +280,7 @@ class _PlayerMenuState extends State<PlayerMenu> {
         ],
         if (all) ...[
           SwitchListTile.adaptive(
+            activeTrackColor: Theme.of(context).colorScheme.tertiary,
             key: const ValueKey('player-preload-enabled'),
             contentPadding: EdgeInsets.zero,
             title: const Text('下一集预加载'),
@@ -294,6 +296,7 @@ class _PlayerMenuState extends State<PlayerMenu> {
           ),
           const SizedBox(height: 8),
           SwitchListTile.adaptive(
+            activeTrackColor: Theme.of(context).colorScheme.tertiary,
             key: const ValueKey('player-auto-advance'),
             contentPadding: EdgeInsets.zero,
             title: const Text('自动连播'),

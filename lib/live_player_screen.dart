@@ -19,6 +19,7 @@ import 'package:duanju_app/xigua/player_interactions.dart';
 import 'package:duanju_app/xigua/television_controls.dart';
 import 'widgets.dart';
 import 'sleep_timer.dart';
+import 'moyi_theme.dart';
 
 /// 直播全屏：复用点播播放器的控件层，保证与点播一致的观感与操作。
 class LivePlayerScreen extends StatefulWidget {
@@ -280,7 +281,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
     final index = await showModalBottomSheet<int>(
       context: context,
       showDragHandle: true,
-      backgroundColor: const Color(0xFF1B1B1F),
+      backgroundColor: moyiSheetFill,
       builder: (context) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -339,7 +340,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
     final index = await showModalBottomSheet<int>(
       context: context,
       showDragHandle: true,
-      backgroundColor: const Color(0xFF1B1B1F),
+      backgroundColor: moyiSheetFill,
       builder: (context) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,

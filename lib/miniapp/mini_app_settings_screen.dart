@@ -146,6 +146,7 @@ class _MiniAppSettingsScreenState extends State<MiniAppSettingsScreen> {
                       ),
                     ),
                     SwitchListTile(
+                      activeTrackColor: Theme.of(context).colorScheme.tertiary,
                       contentPadding: EdgeInsets.zero,
                       title: const Text('在线网站广告过滤'),
                       subtitle: const Text(
@@ -156,6 +157,7 @@ class _MiniAppSettingsScreenState extends State<MiniAppSettingsScreen> {
                           setState(() => _adFilter = value),
                     ),
                     SwitchListTile(
+                      activeTrackColor: Theme.of(context).colorScheme.tertiary,
                       contentPadding: EdgeInsets.zero,
                       title: const Text('混合合成模式（Android）'),
                       subtitle: Text(
@@ -168,6 +170,7 @@ class _MiniAppSettingsScreenState extends State<MiniAppSettingsScreen> {
                           setState(() => _hybridComposition = value),
                     ),
                     SwitchListTile(
+                      activeTrackColor: Theme.of(context).colorScheme.tertiary,
                       contentPadding: EdgeInsets.zero,
                       title: const Text('局域网共享'),
                       subtitle: const Text(

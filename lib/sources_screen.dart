@@ -334,9 +334,9 @@ class _SourcesScreenState extends State<SourcesScreen> {
                     key: const ValueKey('source-visibility-entry'),
                     margin: const EdgeInsets.only(bottom: 12),
                     elevation: 0,
-                    color: colors.surfaceContainerLow,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
+                      side: BorderSide(color: colors.outline),
                     ),
                     clipBehavior: Clip.antiAlias,
                     child: _entryRow(
@@ -359,9 +359,9 @@ class _SourcesScreenState extends State<SourcesScreen> {
                     key: const ValueKey('custom-sources-entry'),
                     margin: const EdgeInsets.only(bottom: 12),
                     elevation: 0,
-                    color: colors.surfaceContainerLow,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
+                      side: BorderSide(color: colors.outline),
                     ),
                     clipBehavior: Clip.antiAlias,
                     child: _entryRow(
@@ -384,9 +384,9 @@ class _SourcesScreenState extends State<SourcesScreen> {
                     key: const ValueKey('online-websites-entry'),
                     margin: const EdgeInsets.only(bottom: 12),
                     elevation: 0,
-                    color: colors.surfaceContainerLow,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
+                      side: BorderSide(color: colors.outline),
                     ),
                     clipBehavior: Clip.antiAlias,
                     child: _entryRow(
@@ -472,9 +472,9 @@ class _SourcesScreenState extends State<SourcesScreen> {
                     Card(
                       margin: const EdgeInsets.only(bottom: 12),
                       elevation: 0,
-                      color: colors.surfaceContainerLow,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(20),
+                        side: BorderSide(color: colors.outline),
                       ),
                       clipBehavior: Clip.antiAlias,
                       child: ExpansionTile(
@@ -1120,9 +1120,9 @@ class _SourceVisibilityScreenState extends State<SourceVisibilityScreen> {
                   Card(
                     margin: const EdgeInsets.only(bottom: 12),
                     elevation: 0,
-                    color: colors.surfaceContainerLow,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
+                      side: BorderSide(color: colors.outline),
                     ),
                     clipBehavior: Clip.antiAlias,
                     child: Column(
@@ -1145,6 +1145,7 @@ class _SourceVisibilityScreenState extends State<SourceVisibilityScreen> {
                         ),
                         for (final source in group.sources)
                           SwitchListTile(
+                            activeTrackColor: Theme.of(context).colorScheme.tertiary,
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 16,
                             ),

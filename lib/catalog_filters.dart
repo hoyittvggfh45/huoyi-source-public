@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'app_layout.dart';
 import 'compact_chip.dart';
 import 'models.dart';
+import 'moyi_theme.dart';
 import 'remote_widgets.dart';
 
 class CatalogFilters extends StatefulWidget {
@@ -71,7 +72,7 @@ class _CatalogFiltersState extends State<CatalogFilters> {
             style: TextStyle(
               fontSize: 14,
               fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
-              color: selected ? colors.primary : colors.onSurfaceVariant,
+              color: selected ? Colors.white : moyiMutedOnDark,
             ),
           ),
         ),
@@ -195,7 +196,6 @@ class CatalogFilterRows extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -214,7 +214,7 @@ class CatalogFilterRows extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 8,
                         fontWeight: FontWeight.w600,
-                        color: scheme.onSurfaceVariant,
+                        color: moyiMutedOnDark,
                       ),
                     ),
                   ),

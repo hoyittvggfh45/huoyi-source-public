@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'moyi_theme.dart';
+
 double compactChipHeight(BuildContext context) {
   return math.max(22, MediaQuery.textScalerOf(context).scale(10) + 12);
 }
@@ -32,9 +34,8 @@ class CompactFilterChip extends StatelessWidget {
           height: compactChipHeight(context),
           padding: const EdgeInsets.symmetric(horizontal: 10),
           decoration: BoxDecoration(
-            color: selected
-                ? const Color(0xFFC8E6C9)
-                : scheme.surfaceContainerHighest,
+            gradient: selected ? moyiSelectedGradient : null,
+            color: selected ? null : scheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(10),
           ),
           alignment: Alignment.center,

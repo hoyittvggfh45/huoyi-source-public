@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'core_bridge.dart';
 import 'models.dart';
+import 'moyi_theme.dart';
 import 'widgets.dart';
 
 /// 首页轮播选片口径：取目录第一页头部条目，优先有封面的
@@ -86,7 +87,6 @@ class _HomeCarouselState extends State<HomeCarousel> {
   Widget build(BuildContext context) {
     final items = widget.items;
     if (items.isEmpty) return const SizedBox.shrink();
-    final colors = Theme.of(context).colorScheme;
     return Column(
       key: const ValueKey('home-carousel'),
       mainAxisSize: MainAxisSize.min,
@@ -161,8 +161,8 @@ class _HomeCarouselState extends State<HomeCarousel> {
                   height: 6,
                   decoration: BoxDecoration(
                     color: i == _page
-                        ? colors.primary
-                        : colors.onSurfaceVariant.withValues(alpha: 0.4),
+                        ? moyiPink
+                        : moyiMutedOnDark.withValues(alpha: 0.5),
                     borderRadius: BorderRadius.circular(3),
                   ),
                 ),
@@ -185,10 +185,7 @@ class HomeCarouselSkeleton extends StatelessWidget {
       key: const ValueKey('home-carousel-skeleton'),
       aspectRatio: 16 / 9,
       child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: colors.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(14),
-        ),
+        decoration: moyiCardDecoration(radius: 14),
         child: Center(
           child: Icon(
             Icons.image_outlined,

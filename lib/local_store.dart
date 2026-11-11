@@ -903,13 +903,15 @@ class LocalStore extends ChangeNotifier {
 
   String get themeStyle {
     final value = _configurationError == null ? _string('themeStyle') : null;
-    return {'neon', 'deep', 'candy', 'paper', 'glass', 'aurora'}.contains(value)
+    return {'neon', 'deep', 'candy', 'paper', 'glass', 'aurora', 'moyi'}
+            .contains(value)
         ? value!
-        : '';
+        : 'moyi';
   }
 
   Future<void> setThemeStyle(String value) =>
-      {'neon', 'deep', 'candy', 'paper', 'glass', 'aurora', ''}.contains(value)
+      {'neon', 'deep', 'candy', 'paper', 'glass', 'aurora', 'moyi', ''}
+              .contains(value)
       ? _setting('themeStyle', value)
       : Future.value();
 

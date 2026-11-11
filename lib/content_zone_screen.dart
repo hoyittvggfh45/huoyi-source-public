@@ -8,6 +8,7 @@ import 'content_detail_screen.dart';
 import 'content_models.dart';
 import 'content_zone_binding.dart';
 import 'core_bridge.dart';
+import 'moyi_theme.dart';
 import 'novel_cover.dart';
 import 'novel_source_store.dart';
 import 'reading_bookshelf_screen.dart';
@@ -400,6 +401,7 @@ class _ContentZoneScreenState extends State<ContentZoneScreen> {
                         style: const TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
+                          color: Colors.white,
                         ),
                       ),
                       const SizedBox(width: 4),
@@ -505,7 +507,15 @@ class _ContentZoneScreenState extends State<ContentZoneScreen> {
                       },
                     )
                   : null,
-              border: const OutlineInputBorder(),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(
+                  color: moyiPurple.withValues(alpha: 0.55),
+                ),
+              ),
+              filled: true,
+              fillColor: Colors.white.withValues(alpha: 0.07),
+              hintStyle: const TextStyle(color: moyiMutedOnDark),
               isDense: true,
             ),
             onSubmitted: (_) => _submitSearch(),
@@ -545,6 +555,19 @@ class _ContentZoneScreenState extends State<ContentZoneScreen> {
                       label: Text(category.name),
                       selected: _query.isEmpty && category.id == _categoryId,
                       onSelected: (_) => _selectCategory(category),
+                      backgroundColor: Colors.white.withValues(alpha: 0.07),
+                      selectedColor: moyiPink,
+                      side: BorderSide(
+                        color: moyiPurple.withValues(alpha: 0.55),
+                      ),
+                      labelStyle: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color:
+                            _query.isEmpty && category.id == _categoryId
+                            ? Colors.white
+                            : moyiMutedOnDark,
+                      ),
                     ),
                   ),
               ],
@@ -617,15 +640,19 @@ class _ContentZoneScreenState extends State<ContentZoneScreen> {
         children: [
           AspectRatio(
             aspectRatio: 3 / 4,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: book.cover.isNotEmpty
-                  ? Image.network(
-                      book.cover,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => _coverFallback(colors, book),
-                    )
-                  : _coverFallback(colors, book),
+            child: Container(
+              foregroundDecoration: moyiCardDecoration(radius: 12),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: book.cover.isNotEmpty
+                    ? Image.network(
+                        book.cover,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) =>
+                            _coverFallback(colors, book),
+                      )
+                    : _coverFallback(colors, book),
+              ),
             ),
           ),
           const SizedBox(height: 6),
@@ -638,7 +665,7 @@ class _ContentZoneScreenState extends State<ContentZoneScreen> {
                   book.title,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 12),
+                  style: const TextStyle(fontSize: 12, color: Colors.white),
                 ),
               ),
             ],
@@ -648,7 +675,7 @@ class _ContentZoneScreenState extends State<ContentZoneScreen> {
               book.remarks,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant),
+              style: TextStyle(fontSize: 12, color: moyiMutedOnDark),
             ),
         ],
       ),

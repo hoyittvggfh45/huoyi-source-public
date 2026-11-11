@@ -151,6 +151,7 @@ class _OnlineWebsiteListPageState extends State<OnlineWebsiteListPage> {
                 ),
                 const SizedBox(height: 8),
                 SwitchListTile(
+                  activeTrackColor: Theme.of(context).colorScheme.tertiary,
                   contentPadding: EdgeInsets.zero,
                   title: const Text('自动模式'),
                   subtitle: const Text('自动识别列表、详情和选集'),
@@ -158,6 +159,7 @@ class _OnlineWebsiteListPageState extends State<OnlineWebsiteListPage> {
                   onChanged: (value) => setDialogState(() => autoMode = value),
                 ),
                 SwitchListTile(
+                  activeTrackColor: Theme.of(context).colorScheme.tertiary,
                   contentPadding: EdgeInsets.zero,
                   title: const Text('纯净化'),
                   subtitle: const Text('打开网页时拦截广告地址'),

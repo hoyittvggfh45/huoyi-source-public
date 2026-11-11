@@ -18,6 +18,7 @@ import 'remote_widgets.dart';
 import 'source_picker_sheet.dart';
 import 'widgets.dart';
 import 'sleep_timer.dart';
+import 'moyi_theme.dart';
 
 class LiveScreen extends StatefulWidget {
   const LiveScreen({
@@ -432,7 +433,7 @@ class _LiveScreenState extends State<LiveScreen> {
             const Center(
               child: Text(
                 '选择频道开始播放',
-                style: TextStyle(color: Color(0xFF8B8F99), fontSize: 12),
+                style: const TextStyle(color: moyiMutedOnDark, fontSize: 12),
               ),
             ),
           if (error == null)

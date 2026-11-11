@@ -220,6 +220,7 @@ class _ParseSettingsScreenState extends State<ParseSettingsScreen> {
                               crossAxisAlignment: WrapCrossAlignment.center,
                               children: [
                                 Switch(
+                                  activeTrackColor: Theme.of(context).colorScheme.tertiary,
                                   value: item.enabled,
                                   onChanged: (value) =>
                                       _toggleEnabled(item, value),

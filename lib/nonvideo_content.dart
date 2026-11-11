@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import 'models.dart';
+import 'moyi_theme.dart';
 
 enum NonVideoKind { novel, pics }
 
@@ -384,7 +385,7 @@ class _NovelReaderViewState extends State<NovelReaderView>
 
   Widget _pageBody(int index) {
     return Container(
-      color: const Color(0xFFF7F1E3),
+      color: moyiSheetFill,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(18, 14, 18, 24),
         child: Text(
@@ -392,7 +393,7 @@ class _NovelReaderViewState extends State<NovelReaderView>
           style: TextStyle(
             fontSize: _fontSize,
             height: 1.7,
-            color: Colors.black87,
+            color: moyiBodyOnDark,
           ),
         ),
       ),
@@ -476,7 +477,7 @@ class _NovelReaderViewState extends State<NovelReaderView>
                 gradient: LinearGradient(
                   begin: forward ? Alignment.centerLeft : Alignment.centerRight,
                   end: forward ? Alignment.centerRight : Alignment.centerLeft,
-                  colors: const [Color(0xFFCFC3A5), Color(0xFFEDE4CC)],
+                  colors: const [moyiPurpleDeep, moyiPurple],
                 ),
               ),
             ),
@@ -536,15 +537,15 @@ class _NovelReaderViewState extends State<NovelReaderView>
             Expanded(
               child: LinearProgressIndicator(
                 value: _pages.isEmpty ? 0 : (displayedPage + 1) / _pages.length,
-                backgroundColor: Colors.black12,
-                color: Colors.brown,
+                backgroundColor: Colors.white12,
+                color: moyiPink,
                 minHeight: 2,
               ),
             ),
             const SizedBox(width: 8),
             Text(
               '${displayedPage + 1} / ${_pages.length}',
-              style: const TextStyle(fontSize: 12, color: Colors.black54),
+              style: const TextStyle(fontSize: 12, color: moyiMutedOnDark),
             ),
           ],
         ),
@@ -566,7 +567,7 @@ class _NovelReaderViewState extends State<NovelReaderView>
         ? widget.content.title
         : widget.title;
     return Container(
-      color: const Color(0xFFF7F1E3),
+      color: moyiSheetFill,
       child: Column(
         children: [
           Padding(
@@ -581,7 +582,7 @@ class _NovelReaderViewState extends State<NovelReaderView>
                     style: const TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                      color: Colors.white,
                     ),
                   ),
                 ),
@@ -594,7 +595,7 @@ class _NovelReaderViewState extends State<NovelReaderView>
                 ),
                 Text(
                   '${_fontSize.toInt()}',
-                  style: const TextStyle(color: Colors.black54),
+                  style: const TextStyle(color: moyiMutedOnDark),
                 ),
                 IconButton(
                   tooltip: '增大字号',

@@ -4,6 +4,7 @@ import 'app_page_route.dart';
 import 'audio_history.dart';
 import 'content_detail_screen.dart';
 import 'content_models.dart';
+import 'moyi_theme.dart';
 
 String _formatMs(int ms) {
   final total = ms < 0 ? 0 : ms ~/ 1000;
@@ -187,49 +188,53 @@ class _AudioHistoryScreenState extends State<AudioHistoryScreen>
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _cover(cover, colors),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    line,
-                    style: TextStyle(
-                      color: colors.onSurfaceVariant,
-                      fontSize: 12,
+        child: Container(
+          decoration: moyiCardDecoration(radius: 12),
+          padding: const EdgeInsets.all(10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _cover(cover, colors),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleSmall,
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    sourceName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: colors.onSurfaceVariant,
-                      fontSize: 12,
+                    const SizedBox(height: 4),
+                    Text(
+                      line,
+                      style: TextStyle(
+                        color: colors.onSurfaceVariant,
+                        fontSize: 12,
+                      ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 2),
+                    Text(
+                      sourceName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: colors.onSurfaceVariant,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            IconButton(
-              key: ValueKey(removeKey),
-              tooltip: removeTooltip,
-              icon: const Icon(Icons.delete_outline),
-              onPressed: onRemove,
-            ),
-          ],
+              IconButton(
+                key: ValueKey(removeKey),
+                tooltip: removeTooltip,
+                icon: const Icon(Icons.delete_outline),
+                onPressed: onRemove,
+              ),
+            ],
+          ),
         ),
       ),
     );

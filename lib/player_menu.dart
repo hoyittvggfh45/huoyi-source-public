@@ -8,6 +8,7 @@ import 'playback_preferences.dart';
 import 'picture_quality_ui.dart';
 import 'video_enhancement.dart';
 import 'video_enhancement_settings.dart';
+import 'moyi_theme.dart';
 
 enum PlayerMenuSection {
   episodes,
@@ -95,7 +96,6 @@ class _PlayerMenuState extends State<PlayerMenu> {
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
     final landscape = size.width > size.height;
-    final colors = Theme.of(context).colorScheme;
     final title = switch (widget.section) {
       PlayerMenuSection.episodes => '选集 · 共 ${widget.episodes.length} 集',
       PlayerMenuSection.speed => '播放倍速',
@@ -108,7 +108,7 @@ class _PlayerMenuState extends State<PlayerMenu> {
       key: const ValueKey('player-menu'),
       alignment: landscape ? Alignment.centerRight : Alignment.bottomCenter,
       insetPadding: const EdgeInsets.all(12),
-      backgroundColor: colors.surface,
+      backgroundColor: moyiSheetFill,
       child: SizedBox(
         width: landscape ? math.min(440, size.width * .6) : 600,
         height: landscape ? size.height : size.height * .72,
@@ -141,7 +141,7 @@ class _PlayerMenuState extends State<PlayerMenu> {
                 ),
                 child: Text(
                   _error!,
-                  style: const TextStyle(color: Color(0xFFFFB4A8)),
+                  style: const TextStyle(color: moyiPink),
                 ),
               ),
             Expanded(

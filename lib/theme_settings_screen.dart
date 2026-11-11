@@ -2,6 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import 'local_store.dart';
+import 'moyi_theme.dart';
 import 'theme_settings.dart';
 
 class ThemeSettingsScreen extends StatefulWidget {
@@ -367,6 +368,9 @@ class _ThemeSettingsScreenState extends State<ThemeSettingsScreen> {
   }
 
   List<Color> _stylePreview(String id) {
+    if (id == 'moyi') {
+      return const [moyiBandTop, moyiPink, moyiPurple];
+    }
     if (id == 'neon') {
       return const [
         Color(0xFFB8D4F0),
@@ -607,6 +611,7 @@ class _ThemeSettingsScreenState extends State<ThemeSettingsScreen> {
     'paper' => '纸底·衬线标题·重分隔线',
     'glass' => '半透卡面·白描边·顶部柔光',
     'aurora' => '紫青氛围光·大圆角·冷调',
+    'moyi' => '深紫蓝渐变·粉紫按钮·金字强调',
     _ => '',
   };
 

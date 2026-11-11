@@ -31,6 +31,7 @@ import 'watchroom/controller.dart';
 import 'watchroom/models.dart';
 import 'watchroom/room_screen.dart';
 import 'hongguo_series.dart';
+import 'moyi_theme.dart';
 
 typedef DetailTagTap =
     void Function(String sourceId, String tagId, String tagName);
@@ -370,7 +371,7 @@ class _DetailScreenState extends State<DetailScreen> {
         ? '正在阅读'
         : '正在浏览图片';
     return Container(
-      color: Colors.black,
+      color: moyiSheetFill,
       padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
       child: Row(
         children: [
