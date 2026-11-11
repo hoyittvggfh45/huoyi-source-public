@@ -610,6 +610,70 @@ func nativeDispatch(input nativeInput) (any, error) {
 		status := engine.downloader.hongguoDeviceStatus()
 		status["changed"] = changed
 		return status, nil
+	case "hongguoAccountSendSms":
+		params, err := hongguoAccountContentParams(input.Content)
+		if err != nil {
+			return nil, err
+		}
+		return engine.downloader.hongguoAccountSendSms(ctx, mapString(params, "mobile"))
+	case "hongguoAccountVerifySms":
+		params, err := hongguoAccountContentParams(input.Content)
+		if err != nil {
+			return nil, err
+		}
+		return engine.downloader.hongguoAccountVerifySms(ctx, mapString(params, "mobile"), mapString(params, "code"))
+	case "hongguoAccountQrCode":
+		return engine.downloader.hongguoAccountQrCode(ctx)
+	case "hongguoAccountQrPoll":
+		return engine.downloader.hongguoAccountQrPoll(ctx)
+	case "hongguoAccountQrConfirm":
+		return engine.downloader.hongguoAccountQrConfirm(ctx)
+	case "hongguoAccountProfile":
+		params, err := hongguoAccountContentParams(input.Content)
+		if err != nil {
+			return nil, err
+		}
+		return engine.downloader.hongguoAccountProfile(ctx, mapString(params, "cookie"))
+	case "hongguoAccountFavorites":
+		params, err := hongguoAccountContentParams(input.Content)
+		if err != nil {
+			return nil, err
+		}
+		return engine.downloader.hongguoAccountFavorites(ctx, mapString(params, "cookie"))
+	case "hongguoAccountSetFavorite":
+		params, err := hongguoAccountContentParams(input.Content)
+		if err != nil {
+			return nil, err
+		}
+		return engine.downloader.hongguoAccountSetFavorite(ctx, mapString(params, "cookie"), mapString(params, "seriesId"), hongguoAccountContentBool(params, "add"))
+	case "hongguoAccountHistory":
+		params, err := hongguoAccountContentParams(input.Content)
+		if err != nil {
+			return nil, err
+		}
+		return engine.downloader.hongguoAccountHistory(ctx, mapString(params, "cookie"))
+	case "hongguoAccountUploadProgress":
+		params, err := hongguoAccountContentParams(input.Content)
+		if err != nil {
+			return nil, err
+		}
+		progress, _ := params["progress"].(map[string]any)
+		if progress == nil {
+			progress = map[string]any{}
+		}
+		return engine.downloader.hongguoAccountUploadProgress(ctx, mapString(params, "cookie"), progress)
+	case "hongguoAccountReservations":
+		params, err := hongguoAccountContentParams(input.Content)
+		if err != nil {
+			return nil, err
+		}
+		return engine.downloader.hongguoAccountReservations(ctx, mapString(params, "cookie"), hongguoAccountContentBool(params, "online"))
+	case "hongguoAccountReserve":
+		params, err := hongguoAccountContentParams(input.Content)
+		if err != nil {
+			return nil, err
+		}
+		return engine.downloader.hongguoAccountReserve(ctx, mapString(params, "cookie"), mapString(params, "seriesId"))
 	case "sourceJob":
 		return engine.startSourceTask(input.Source, input.Command, input.Drama)
 	case "cancelSourceJob":

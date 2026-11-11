@@ -52,7 +52,7 @@ func TestHongguoAppMediaFallsBackToOverseaLine(t *testing.T) {
 			oversea++
 		}
 	}
-	if mainland != 1+2*(1+hongguoDeviceRotations) || oversea != 1 {
+	if mainland != 2+2*(1+hongguoDeviceRotations) || oversea != 1 {
 		t.Fatal("unexpected line fallback counts", *requests)
 	}
 }

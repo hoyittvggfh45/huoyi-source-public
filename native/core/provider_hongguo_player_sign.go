@@ -24,6 +24,20 @@ func newHongguoPlayerNonce() (hongguoPlayerNonce, error) {
 }
 
 func signHongguoPlayerRequest(request *http.Request, body []byte, now time.Time) {
+	ticket := now.UnixMilli()
+	if raw := request.URL.Query().Get("_rticket"); raw != "" {
+		if parsed, err := strconv.ParseInt(raw, 10, 64); err == nil {
+			ticket = parsed
+		}
+	}
+	signHongguoPlayerRequestTicket(request, body, now, ticket, false)
+}
+
+func signHongguoPlayerRequestTicket(request *http.Request, body []byte, now time.Time, ticket int64, minimal bool) {
+	signHongguoPlayerRequestTicketMedusa(request, body, now, ticket, minimal, sixGodMedusaOpts{})
+}
+
+func signHongguoPlayerRequestTicketMedusa(request *http.Request, body []byte, now time.Time, ticket int64, minimal bool, medusaOpts sixGodMedusaOpts) {
 	stamp := uint32(now.Unix())
 	queryHash := md5.Sum([]byte(request.URL.RawQuery))
 	var payload [20]byte
@@ -45,8 +59,7 @@ func signHongguoPlayerRequest(request *http.Request, body []byte, now time.Time)
 	}
 	signature := append([]byte{0x84, 0x04, 0x40, 0x1c, 0, 0}, payload[:]...)
 	request.Header.Set("X-Khronos", strconv.FormatUint(uint64(stamp), 10))
-	request.Header.Set("X-Gorgon", hex.EncodeToString(signature))
-	request.Header.Set("X-SS-Req-Ticket", strconv.FormatInt(now.UnixMilli(), 10))
+	request.Header.Set("X-SS-Req-Ticket", strconv.FormatInt(ticket, 10))
 
 	nonce, err := newHongguoPlayerNonce()
 	if err != nil {
@@ -54,8 +67,12 @@ func signHongguoPlayerRequest(request *http.Request, body []byte, now time.Time)
 	}
 	request.Header.Set("X-Argus", hongguoPlayerArgus(request.URL.RawQuery, body, stamp, request.URL.Query().Get("device_id"), nonce))
 	request.Header.Set("X-Ladon", hongguoPlayerLadon(request.URL.Query().Get("aid"), stamp, nonce[2:6]))
+	if minimal {
+		return
+	}
+	request.Header.Set("X-Gorgon", hex.EncodeToString(signature))
 	request.Header.Set("X-Helios", sixGodHelios(stamp, 0))
-	if medusa, err := sixGodGenMedusa(request.URL.String(), body, stamp, sixGodMedusaOpts{}); err == nil {
+	if medusa, err := sixGodGenMedusa(request.URL.String(), body, stamp, medusaOpts); err == nil {
 		request.Header.Set("X-Medusa", medusa)
 	}
 }

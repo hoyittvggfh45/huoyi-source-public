@@ -56,6 +56,19 @@ func hongguoDeviceSuspectError(err error) bool {
 	return strings.HasPrefix(err.Error(), "红果 App 接口 HTTP 4")
 }
 
+func hongguoIsDeviceRejectedCode(code string) bool {
+	switch code {
+	case "10001", "10002", "110001":
+		return true
+	}
+	return false
+}
+
+func hongguoIsDeviceRejected(err error) bool {
+	code, ok := hongguoAppCode(err)
+	return ok && hongguoIsDeviceRejectedCode(code)
+}
+
 func (downloader *Downloader) rotateHongguoDeviceOnSuspectError(ctx context.Context, err error, tried *bool) bool {
 	if *tried || ctx.Err() != nil || !hongguoDeviceSuspectError(err) {
 		return false
@@ -190,6 +203,20 @@ func (downloader *Downloader) registerHongguoDevice(ctx context.Context) (string
 	response.Body.Close()
 	if err != nil {
 		return "", "", err
+	}
+	if cookies := response.Cookies(); len(cookies) > 0 {
+		parts := make([]string, 0, len(cookies))
+		for _, item := range cookies {
+			if item.Name != "" {
+				parts = append(parts, item.Name+"="+item.Value)
+			}
+		}
+		if len(parts) > 0 {
+			client := downloader.hongguoClient()
+			client.mu.Lock()
+			client.cookie = strings.Join(parts, "; ")
+			client.mu.Unlock()
+		}
 	}
 	if response.StatusCode != http.StatusOK {
 		return "", "", fmt.Errorf("红果设备注册 HTTP %d", response.StatusCode)

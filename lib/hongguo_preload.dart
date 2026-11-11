@@ -21,8 +21,10 @@ class HongguoPreloadWindow {
   final Map<String, (Drama, Episode)> _upcomingTargets = {};
   final Set<String> _detailLoading = {};
   bool _closed = false;
+  int _quality = 0;
 
-  String _key(String dramaId, int episodeNumber) => '$dramaId\u0000$episodeNumber';
+  String _key(String dramaId, int episodeNumber) =>
+      '$dramaId\u0000$episodeNumber\u0000$_quality';
 
   PlaybackPlan? take(Drama drama, Episode episode) {
     final slot = _slots.remove(_key(drama.id, episode.number));
@@ -37,8 +39,10 @@ class HongguoPreloadWindow {
     required List<Episode> episodes,
     required int episodeIndex,
     required List<Drama> upcoming,
+    int quality = 0,
   }) {
     if (_closed) return;
+    _quality = quality;
     final wanted = <String>{};
     final wantedPlans = <String, (Drama, Episode)>{};
     for (var offset = 1; offset <= episodeWindow; offset++) {
@@ -69,7 +73,7 @@ class HongguoPreloadWindow {
         entry.key,
         () => PlaybackPreloader(repository),
       );
-      slot.prepare(entry.value.$1, entry.value.$2);
+      slot.prepare(entry.value.$1, entry.value.$2, quality: _quality);
     }
     final stale = _slots.keys.where((key) => !wanted.contains(key)).toList();
     for (final key in stale) {
@@ -89,7 +93,7 @@ class HongguoPreloadWindow {
         _key(drama.id, target.$2.number),
         () => PlaybackPreloader(repository),
       );
-      slot.prepare(drama, target.$2);
+      slot.prepare(drama, target.$2, quality: _quality);
     } catch (_) {
     } finally {
       _detailLoading.remove(drama.id);

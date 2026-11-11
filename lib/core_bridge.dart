@@ -108,6 +108,41 @@ abstract class AppRepository {
       throw AppFailure('当前环境不支持设备注册档案');
   Future<Map<String, dynamic>> hongguoDeviceRefresh() async =>
       throw AppFailure('当前环境不支持设备注册档案');
+  Future<Map<String, dynamic>> hongguoAccountSendSms(String mobile) async =>
+      throw AppFailure('当前环境不支持红果账号');
+  Future<Map<String, dynamic>> hongguoAccountVerifySms(
+    String mobile,
+    String code,
+  ) async => throw AppFailure('当前环境不支持红果账号');
+  Future<Map<String, dynamic>> hongguoAccountQrCode() async =>
+      throw AppFailure('当前环境不支持红果账号');
+  Future<Map<String, dynamic>> hongguoAccountQrPoll() async =>
+      throw AppFailure('当前环境不支持红果账号');
+  Future<Map<String, dynamic>> hongguoAccountQrConfirm() async =>
+      throw AppFailure('当前环境不支持红果账号');
+  Future<Map<String, dynamic>> hongguoAccountProfile(String cookie) async =>
+      throw AppFailure('当前环境不支持红果账号');
+  Future<Map<String, dynamic>> hongguoAccountFavorites(String cookie) async =>
+      throw AppFailure('当前环境不支持红果账号');
+  Future<Map<String, dynamic>> hongguoAccountSetFavorite(
+    String cookie,
+    String seriesId,
+    bool add,
+  ) async => throw AppFailure('当前环境不支持红果账号');
+  Future<Map<String, dynamic>> hongguoAccountHistory(String cookie) async =>
+      throw AppFailure('当前环境不支持红果账号');
+  Future<Map<String, dynamic>> hongguoAccountUploadProgress(
+    String cookie,
+    Map<String, dynamic> progress,
+  ) async => throw AppFailure('当前环境不支持红果账号');
+  Future<Map<String, dynamic>> hongguoAccountReservations(
+    String cookie,
+    bool online,
+  ) async => throw AppFailure('当前环境不支持红果账号');
+  Future<Map<String, dynamic>> hongguoAccountReserve(
+    String cookie,
+    String seriesId,
+  ) async => throw AppFailure('当前环境不支持红果账号');
   Future<dynamic> legadoRun(
     String sourceJson,
     String action,
@@ -733,6 +768,96 @@ class NativeRepository extends AppRepository {
   @override
   Future<Map<String, dynamic>> hongguoDeviceRefresh() =>
       _call({'action': 'hongguoDeviceRefresh'});
+
+  @override
+  Future<Map<String, dynamic>> hongguoAccountSendSms(String mobile) =>
+      _call({
+        'action': 'hongguoAccountSendSms',
+        'content': jsonEncode({'mobile': mobile}),
+      });
+
+  @override
+  Future<Map<String, dynamic>> hongguoAccountVerifySms(
+    String mobile,
+    String code,
+  ) => _call({
+    'action': 'hongguoAccountVerifySms',
+    'content': jsonEncode({'mobile': mobile, 'code': code}),
+  });
+
+  @override
+  Future<Map<String, dynamic>> hongguoAccountQrCode() =>
+      _call({'action': 'hongguoAccountQrCode'});
+
+  @override
+  Future<Map<String, dynamic>> hongguoAccountQrPoll() =>
+      _call({'action': 'hongguoAccountQrPoll'});
+
+  @override
+  Future<Map<String, dynamic>> hongguoAccountQrConfirm() =>
+      _call({'action': 'hongguoAccountQrConfirm'});
+
+  @override
+  Future<Map<String, dynamic>> hongguoAccountProfile(String cookie) =>
+      _call({
+        'action': 'hongguoAccountProfile',
+        'content': jsonEncode({'cookie': cookie}),
+      });
+
+  @override
+  Future<Map<String, dynamic>> hongguoAccountFavorites(String cookie) =>
+      _call({
+        'action': 'hongguoAccountFavorites',
+        'content': jsonEncode({'cookie': cookie}),
+      });
+
+  @override
+  Future<Map<String, dynamic>> hongguoAccountSetFavorite(
+    String cookie,
+    String seriesId,
+    bool add,
+  ) => _call({
+    'action': 'hongguoAccountSetFavorite',
+    'content': jsonEncode({
+      'cookie': cookie,
+      'seriesId': seriesId,
+      'add': add,
+    }),
+  });
+
+  @override
+  Future<Map<String, dynamic>> hongguoAccountHistory(String cookie) =>
+      _call({
+        'action': 'hongguoAccountHistory',
+        'content': jsonEncode({'cookie': cookie}),
+      });
+
+  @override
+  Future<Map<String, dynamic>> hongguoAccountUploadProgress(
+    String cookie,
+    Map<String, dynamic> progress,
+  ) => _call({
+    'action': 'hongguoAccountUploadProgress',
+    'content': jsonEncode({'cookie': cookie, 'progress': progress}),
+  });
+
+  @override
+  Future<Map<String, dynamic>> hongguoAccountReservations(
+    String cookie,
+    bool online,
+  ) => _call({
+    'action': 'hongguoAccountReservations',
+    'content': jsonEncode({'cookie': cookie, 'online': online}),
+  });
+
+  @override
+  Future<Map<String, dynamic>> hongguoAccountReserve(
+    String cookie,
+    String seriesId,
+  ) => _call({
+    'action': 'hongguoAccountReserve',
+    'content': jsonEncode({'cookie': cookie, 'seriesId': seriesId}),
+  });
 
   @override
   Future<Map<String, dynamic>> crackConfigSummary() =>

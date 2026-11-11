@@ -91,6 +91,7 @@ class RoomPlayerHandle extends ChangeNotifier {
     required AppRepository repository,
     required LocalStore store,
     PlaybackPlan? preloadedPlan,
+    int quality = 0,
   }) async {
     await _closeCurrent();
     if (episodeIndex < 0 || episodeIndex >= detail.episodes.length) {
@@ -109,6 +110,7 @@ class RoomPlayerHandle extends ChangeNotifier {
         plan = await loader.load(
           detail.drama,
           detail.episodes[episodeIndex],
+          quality: quality,
         );
       }
       if (plan == null || plan.url.isEmpty) {
@@ -255,6 +257,8 @@ class RoomPlayerView extends StatelessWidget {
     required this.onRetry,
     this.onFullscreen,
     this.isFullscreen = false,
+    this.fit = BoxFit.contain,
+    this.quarterTurns = 0,
   });
 
   final RoomPlayerHandle handle;
@@ -264,6 +268,8 @@ class RoomPlayerView extends StatelessWidget {
   final VoidCallback onRetry;
   final VoidCallback? onFullscreen;
   final bool isFullscreen;
+  final BoxFit fit;
+  final int quarterTurns;
 
   @override
   Widget build(BuildContext context) {
@@ -306,12 +312,15 @@ class RoomPlayerView extends StatelessWidget {
         }
         final controller = handle.videoController;
         if (controller != null) {
-          final video = Video(controller: controller, fit: BoxFit.contain);
-          if (onFullscreen == null) return video;
+          final video = Video(controller: controller, fit: fit);
+          final rotated = quarterTurns % 4 == 0
+              ? video
+              : RotatedBox(quarterTurns: quarterTurns % 4, child: video);
+          if (onFullscreen == null) return rotated;
           return Stack(
             fit: StackFit.expand,
             children: [
-              video,
+              rotated,
               Positioned(
                 right: 8,
                 bottom: 8,

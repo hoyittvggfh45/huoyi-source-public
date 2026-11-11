@@ -38,11 +38,8 @@ void main() {
           'ylxs',
           'cheniyo',
           'hwg4',
-          'lbwen',
-          'cjg',
           'buliang',
           'yinse',
-          'ssxxs',
           'mhbl',
           'ho5ho',
         ]),
@@ -78,12 +75,12 @@ void main() {
         'ylxs',
         'cheniyo',
         'hwg4',
-        'lbwen',
-        'cjg',
         'buliang',
         'yinse',
-        'ssxxs',
         'mhbl',
+        'ho5ho',
+        'modu18',
+        'h528',
       ]);
       expect(
         ContentRegistry.sourcesFor(ContentSection.novel).first.name,
@@ -106,12 +103,12 @@ void main() {
         'ylxs',
         'cheniyo',
         'hwg4',
-        'lbwen',
-        'cjg',
         'buliang',
         'yinse',
-        'ssxxs',
         'mhbl',
+        'ho5ho',
+        'modu18',
+        'h528',
       ]);
     });
 

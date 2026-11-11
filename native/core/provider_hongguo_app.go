@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -52,6 +51,13 @@ type hongguoAppClient struct {
 	// 提速详情与播放页；窗口过后自动重试，App 恢复即可无缝切回。只由 /player/ 端点空 body 触发。
 	appSuspendedUntil time.Time
 	baseURL           string
+	cookie            string
+	accountMu         sync.Mutex
+	phoneAccount      *hongguoAccountPhoneSession
+	qrAccount         *hongguoAccountQRSession
+	routes            *hongguoPlaybackRoutes
+	models            map[string]hongguoCachedModel
+	handover          map[string]hongguoCachedModel
 	state             hongguoCatalogState
 	details           map[string]hongguoDetailEntry
 	pending           map[string]*hongguoDetailCall
@@ -64,17 +70,67 @@ type hongguoAppClient struct {
 	webFallback       hongguoWebFallbackState
 }
 
+type hongguoAppCodeError struct {
+	Code string
+}
+
+func (err *hongguoAppCodeError) Error() string {
+	return "红果 App 接口暂不可用（" + err.Code + "）"
+}
+
+func hongguoAppCode(err error) (string, bool) {
+	var coded *hongguoAppCodeError
+	if errors.As(err, &coded) {
+		return coded.Code, true
+	}
+	return "", false
+}
+
+type hongguoHTTPError struct {
+	Status int
+}
+
+func (err *hongguoHTTPError) Error() string {
+	return "红果 App 接口 HTTP " + strconv.Itoa(err.Status)
+}
+
+func hongguoHTTPStatus(err error) (int, bool) {
+	var httpErr *hongguoHTTPError
+	if errors.As(err, &httpErr) {
+		return httpErr.Status, true
+	}
+	return 0, false
+}
+
+func hongguoIsHTTPAuthRejected(err error) bool {
+	status, ok := hongguoHTTPStatus(err)
+	return ok && (status == http.StatusUnauthorized || status == http.StatusForbidden)
+}
+
 func (downloader *Downloader) hongguoClient() *hongguoAppClient {
 	downloader.hongguoOnce.Do(func() {
 		downloader.hongguo = &hongguoAppClient{
-			baseURL: hongguoAppBaseURL,
-			state:   hongguoCatalogState{Version: 1, DeviceID: newHongguoDeviceID(), InstallID: newHongguoDeviceID(), Feeds: map[string]hongguoCatalogCursor{}},
-			details: map[string]hongguoDetailEntry{}, pending: map[string]*hongguoDetailCall{},
+			baseURL:  hongguoAppBaseURL,
+			routes:   newHongguoPlaybackRoutes(),
+			models:   map[string]hongguoCachedModel{},
+			handover: map[string]hongguoCachedModel{},
+			state:    hongguoCatalogState{Version: 1, DeviceID: newHongguoDeviceID(), InstallID: newHongguoDeviceID(), Feeds: map[string]hongguoCatalogCursor{}},
+			details:  map[string]hongguoDetailEntry{}, pending: map[string]*hongguoDetailCall{},
 			searches: map[string]hongguoSearchEntry{}, searchPending: map[string]*hongguoSearchCall{},
 			suggestions: map[string]hongguoSuggestionEntry{}, suggestPending: map[string]*hongguoSuggestionCall{},
 		}
 	})
 	return downloader.hongguo
+}
+
+func (downloader *Downloader) hongguoPlaybackRoutes() *hongguoPlaybackRoutes {
+	client := downloader.hongguoClient()
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	if client.routes == nil {
+		client.routes = newHongguoPlaybackRoutes()
+	}
+	return client.routes
 }
 
 func cloneHongguoCatalogState(state *hongguoCatalogState) *hongguoCatalogState {
@@ -251,6 +307,12 @@ func (downloader *Downloader) hongguoAppRequestInternal(ctx context.Context, met
 		request.Header.Set("Accept", "application/json")
 		request.Header.Set("X-XS-From-Web", "0")
 		request.Header.Set("Sdk-Version", "2")
+		client.mu.Lock()
+		cookie := client.cookie
+		client.mu.Unlock()
+		if cookie != "" {
+			request.Header.Set("Cookie", cookie)
+		}
 		var commentNonce hongguoCommentNonce
 		if comment {
 			commentNonce, err = newHongguoCommentNonce()
@@ -270,7 +332,11 @@ func (downloader *Downloader) hongguoAppRequestInternal(ctx context.Context, met
 			if comment {
 				signHongguoCommentRequest(prepared, commentNonce, now)
 			} else if signed {
-				signHongguoPlayerRequest(prepared, body, now)
+				opts := hongguoSignOptions{Identity: hongguoSignerIdentity{DeviceID: deviceID, InstallID: installID}}
+				if playerOnly, ok := ctx.Value(hongguoSignOptionsKey{}).(hongguoSignOptions); ok && playerOnly.PlayerOnly {
+					opts.PlayerOnly = true
+				}
+				hongguoSignRequest(prepared, body, now, opts)
 			}
 		})
 		if err != nil {
@@ -288,7 +354,7 @@ func (downloader *Downloader) hongguoAppRequestInternal(ctx context.Context, met
 			continue
 		}
 		if response.StatusCode != http.StatusOK {
-			lastErr = fmt.Errorf("红果 App 接口 HTTP %d", response.StatusCode)
+			lastErr = &hongguoHTTPError{Status: response.StatusCode}
 			if response.StatusCode >= 400 && response.StatusCode < 500 {
 				return nil, lastErr
 			}
@@ -323,7 +389,7 @@ func (downloader *Downloader) hongguoAppRequestInternal(ctx context.Context, met
 		}
 		code := firstNonEmpty(mapString(result, "code", "Code", "status_code"), mapString(nestedMap(result, "BaseResp"), "StatusCode"))
 		if code != "" && code != "0" {
-			return nil, fmt.Errorf("红果 App 接口暂不可用（%s）", truncate(code, 20))
+			return nil, &hongguoAppCodeError{Code: code}
 		}
 		// 玩家 App 接口恢复正常，清除负缓存窗口，后续详情/取流重新走 App 档。
 		if strings.Contains(path, "/player/") {

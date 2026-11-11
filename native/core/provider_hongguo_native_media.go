@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -30,29 +31,85 @@ func (downloader *Downloader) resolveHongguoAppMedia(ctx context.Context, videoI
 	if !hongguoNumericID.MatchString(videoID) {
 		return providerMedia{}, errors.New("红果视频 ID 无效")
 	}
+	if entry, found := downloader.hongguoTakeUpcomingModel(videoID); found {
+		if media, err := downloader.hongguoMediaFromModelEntry(ctx, entry); err == nil {
+			return media, nil
+		}
+	} else if entry, found := downloader.hongguoTakeModel(videoID); found {
+		if media, err := downloader.hongguoMediaFromModelEntry(ctx, entry); err == nil {
+			return media, nil
+		}
+	}
 	if err := downloader.ensureHongguoDevice(ctx, ""); err != nil {
 		return providerMedia{}, err
 	}
 	if downloader.hongguoDeviceLimited() {
 		downloader.ensureHongguoDevice(ctx, downloader.hongguoDeviceID())
 	}
-	media, err := downloader.resolveHongguoAppMediaLine(ctx, videoID)
-	if err == nil {
-		return media, nil
+	routes := downloader.hongguoPlaybackRoutes()
+	plan := routes.plan(time.Now(), false)
+	var lastErr error
+	var lastEmpty, lastAuthRejected bool
+	rejectedRetried := false
+	attempt := func(route hongguoPlaybackRoute) (providerMedia, error) {
+		if route.Get {
+			return downloader.resolveHongguoVideoTab(ctx, videoID)
+		}
+		routeCtx := ctx
+		if route.Host == hongguoOverseaAppBaseURL {
+			routeCtx = context.WithValue(ctx, hongguoBaseURLOverrideKey{}, hongguoOverseaAppBaseURL)
+		}
+		return downloader.resolveHongguoAppMediaLine(routeCtx, videoID)
 	}
-	if !errors.Is(err, errHongguoAppEmptyBody) {
-		return providerMedia{}, err
+	for _, route := range plan {
+		media, err := attempt(route)
+		if err == nil {
+			routes.success(route, time.Now())
+			downloader.clearHongguoDeviceLimited()
+			return media, nil
+		}
+		if ctx.Err() != nil {
+			return providerMedia{}, ctx.Err()
+		}
+		if hongguoIsDeviceRejected(err) && !rejectedRetried {
+			rejectedRetried = true
+			if rerr := downloader.reregisterHongguoDevice(ctx); rerr == nil {
+				if media, rerr := attempt(route); rerr == nil {
+					routes.success(route, time.Now())
+					downloader.clearHongguoDeviceLimited()
+					return media, nil
+				} else if ctx.Err() != nil {
+					return providerMedia{}, ctx.Err()
+				} else {
+					err = rerr
+				}
+			}
+		}
+		empty := errors.Is(err, errHongguoAppEmptyBody)
+		routes.failed(route, time.Now(), empty)
+		lastErr, lastEmpty, lastAuthRejected = err, empty, hongguoIsHTTPAuthRejected(err)
+		if route.Get {
+			continue
+		}
+		if !empty && !hongguoIsDeviceRejected(err) {
+			return providerMedia{}, err
+		}
 	}
-	overseaCtx := context.WithValue(ctx, hongguoBaseURLOverrideKey{}, hongguoOverseaAppBaseURL)
-	media, overseaErr := downloader.resolveHongguoAppMediaLine(overseaCtx, videoID)
-	if overseaErr == nil {
-		return media, nil
+	if lastErr == nil {
+		return providerMedia{}, errHongguoAppEmptyBody
 	}
-	if errors.Is(overseaErr, errHongguoAppEmptyBody) {
+	if lastEmpty || lastAuthRejected {
+		if media, err := downloader.hongguoPlayerLadder(ctx, videoID); err == nil {
+			return media, nil
+		} else if ctx.Err() != nil {
+			return providerMedia{}, ctx.Err()
+		}
+	}
+	if errors.Is(lastErr, errHongguoAppEmptyBody) {
 		downloader.markHongguoPlayerSuspended()
-		return providerMedia{}, fmt.Errorf("红果 App 大陆线与海外线轮换后仍未返回有效数据，可能被限流: %w", overseaErr)
+		return providerMedia{}, fmt.Errorf("红果 App 大陆线与海外线轮换后仍未返回有效数据，可能被限流: %w", lastErr)
 	}
-	return providerMedia{}, overseaErr
+	return providerMedia{}, lastErr
 }
 
 func (downloader *Downloader) resolveHongguoAppMediaLine(ctx context.Context, videoID string) (providerMedia, error) {
@@ -125,12 +182,43 @@ func (downloader *Downloader) resolveHongguoVideoModel(ctx context.Context, vide
 			continue
 		}
 		downloader.clearHongguoDeviceLimited()
-		return selectHongguoAppMedia(model)
+		media, err := selectHongguoAppMedia(model)
+		if err == nil {
+			downloader.hongguoOfferModel(videoID, map[string]any{"video_model": model})
+		}
+		return media, err
 	}
 	if lastErr != nil {
 		return providerMedia{}, lastErr
 	}
 	return providerMedia{}, errHongguoAppEmptyBody
+}
+
+func (downloader *Downloader) resolveHongguoVideoTab(ctx context.Context, videoID string) (providerMedia, error) {
+	extra := url.Values{
+		"video_id": {videoID}, "video_id_type": {"0"}, "device_level": {"1"},
+		"need_all_video_definition": {"1"}, "need_mp4_align": {"0"}, "use_os_player": {"0"},
+		"video_platform": {"1024"}, "source": {"0"}, "from_video_id": {""},
+	}
+	result, err := downloader.hongguoAppRequestInternal(ctx, http.MethodGet, "/reading/bookapi/video_tab/multi_video_model/v1/", extra, nil, true)
+	if err != nil {
+		return providerMedia{}, err
+	}
+	data := nestedMap(result, "data")
+	rows := nestedMap(data, "video_model_data")
+	if len(rows) == 0 {
+		rows = data
+	}
+	entry := hongguoMultiEntry(rows, videoID)
+	if entry == nil {
+		return providerMedia{}, errHongguoAppEmptyBody
+	}
+	media, err := downloader.hongguoMediaFromModelEntry(ctx, entry, rows)
+	if err != nil {
+		return providerMedia{}, err
+	}
+	downloader.hongguoOfferModel(videoID, entry)
+	return media, nil
 }
 
 func (downloader *Downloader) resolveHongguoMultiModel(ctx context.Context, videoID string) (providerMedia, error) {
@@ -147,26 +235,20 @@ func (downloader *Downloader) resolveHongguoMultiModel(ctx context.Context, vide
 	if entry == nil {
 		return providerMedia{}, errHongguoAppEmptyBody
 	}
-	model, err := hongguoVideoModelValue(entry["video_model"])
-	if err != nil {
-		return providerMedia{}, errors.New("红果 App 播放信息格式异常")
-	}
-	if model == nil {
-		model = map[string]any{}
-	}
-	if len(model) == 0 {
-		if rows := anyList(entry["video_list"]); len(rows) > 0 {
-			model["video_list"] = entry["video_list"]
-			model["video_duration"] = entry["video_duration"]
-			model["duration"] = entry["duration"]
+	for key, value := range data {
+		if key == videoID {
+			continue
+		}
+		if sibling, ok := value.(map[string]any); ok {
+			downloader.hongguoOfferUpcomingModel(key, sibling)
 		}
 	}
-	if len(model) == 0 {
-		return providerMedia{}, errHongguoAppEmptyBody
+	media, err := downloader.hongguoMediaFromModelEntry(ctx, entry, data)
+	if err != nil {
+		return providerMedia{}, err
 	}
-	hongguoAttachKeySeed(model, entry, data)
-	downloader.hongguoMergeFallbackAPI(ctx, model)
-	return selectHongguoAppMedia(model)
+	downloader.hongguoOfferModel(videoID, entry)
+	return media, nil
 }
 
 func hongguoMultiEntry(data map[string]any, videoID string) map[string]any {
@@ -386,7 +468,14 @@ func hongguoFallbackVideoRows(body string) ([]any, error) {
 	return out, nil
 }
 
-func selectHongguoAppMedia(model map[string]any) (providerMedia, error) {
+const hongguoDefaultMaxQuality = 1080
+
+func hongguoSupportedCodec(codec string) bool {
+	codec = strings.ToLower(codec)
+	return codec != "bytevc2" && codec != "bvc2" && !strings.Contains(codec, "bytevc2")
+}
+
+func hongguoSelectLadder(model map[string]any, maxQuality int, supported func(codec string, height int) bool) (providerMedia, bool, error) {
 	variants := anyList(model["video_list"])
 	if rows, ok := model["video_list"].(map[string]any); ok && len(variants) == 0 {
 		keys := make([]string, 0, len(rows))
@@ -410,7 +499,19 @@ func selectHongguoAppMedia(model map[string]any) (providerMedia, error) {
 		variant, _ := row.(map[string]any)
 		meta := nestedMap(variant, "video_meta")
 		codec := strings.ToLower(mapString(meta, "codec_type"))
-		if codec == "bytevc2" || strings.Contains(strings.ToLower(mapString(variant, "gear_des_key")), "bytevc2") {
+		if codec == "" {
+			codec = strings.ToLower(mapString(variant, "codec_type"))
+		}
+		height, _ := strconv.Atoi(mapString(meta, "vheight"))
+		if definition, err := strconv.Atoi(hongguoQualityNumber.FindString(mapString(meta, "definition"))); err == nil && definition > 0 {
+			height = definition
+		} else if width, _ := strconv.Atoi(mapString(meta, "vwidth")); width > 0 && (height == 0 || width < height) {
+			height = width
+		}
+		if supported != nil && !supported(codec, height) {
+			continue
+		}
+		if strings.Contains(strings.ToLower(mapString(variant, "gear_des_key")), "bytevc2") {
 			continue
 		}
 		addresses := hongguoMediaAddressesWithSeed(variant, seed)
@@ -428,12 +529,6 @@ func selectHongguoAppMedia(model map[string]any) (providerMedia, error) {
 				continue
 			}
 		}
-		height, _ := strconv.Atoi(mapString(meta, "vheight"))
-		if definition, err := strconv.Atoi(hongguoQualityNumber.FindString(mapString(meta, "definition"))); err == nil && definition > 0 {
-			height = definition
-		} else if width, _ := strconv.Atoi(mapString(meta, "vwidth")); width > 0 && (height == 0 || width < height) {
-			height = width
-		}
 		media.Quality = height
 		quality := height * 10
 		if codec == "h264" || codec == "avc1" {
@@ -446,16 +541,82 @@ func selectHongguoAppMedia(model map[string]any) (providerMedia, error) {
 	}
 	if len(choices) > 0 {
 		sort.SliceStable(choices, func(i, j int) bool { return choices[i].score > choices[j].score })
-		selected := choices[0].media
-		for _, choice := range choices {
-			selected.Variants = append(selected.Variants, choice.media)
+		selected := -1
+		for index, choice := range choices {
+			if choice.media.Quality > 0 && choice.media.Quality <= maxQuality {
+				selected = index
+				break
+			}
 		}
-		return selected, nil
+		if selected < 0 {
+			for index, choice := range choices {
+				if choice.media.Quality > 0 {
+					selected = index
+				}
+			}
+		}
+		if selected < 0 {
+			selected = 0
+		}
+		picked := choices[selected].media
+		compatible := picked.Quality > maxQuality
+		for _, choice := range choices {
+			picked.Variants = append(picked.Variants, choice.media)
+		}
+		return picked, compatible, nil
 	}
 	if keyErr != nil {
-		return providerMedia{}, fmt.Errorf("红果 App 媒体密钥不可用: %w", keyErr)
+		return providerMedia{}, false, fmt.Errorf("红果 App 媒体密钥不可用: %w", keyErr)
 	}
-	return providerMedia{}, errors.New("红果 App 未返回兼容的媒体，已跳过不支持的编码")
+	return providerMedia{}, false, errors.New("红果 App 未返回兼容的媒体，已跳过不支持的编码")
+}
+
+func selectHongguoAppMedia(model map[string]any) (providerMedia, error) {
+	media, _, err := hongguoSelectLadder(model, hongguoDefaultMaxQuality, func(codec string, height int) bool {
+		return hongguoSupportedCodec(codec)
+	})
+	return media, err
+}
+
+func (downloader *Downloader) hongguoPlayerLadder(ctx context.Context, videoID string) (providerMedia, error) {
+	playerCtx := context.WithValue(ctx, hongguoSignOptionsKey{}, hongguoSignOptions{PlayerOnly: true})
+	rejectedRetried := false
+	rejected := false
+	var lastErr error
+	for source := 0; source < 2; source++ {
+		var media providerMedia
+		var err error
+		if source == 0 {
+			media, err = downloader.resolveHongguoVideoTab(playerCtx, videoID)
+		} else {
+			media, err = downloader.resolveHongguoMultiModel(playerCtx, videoID)
+		}
+		if err == nil {
+			return media, nil
+		}
+		if ctx.Err() != nil {
+			return providerMedia{}, ctx.Err()
+		}
+		if hongguoIsDeviceRejected(err) {
+			rejected = true
+			lastErr = err
+			if !rejectedRetried {
+				rejectedRetried = true
+				if downloader.reregisterHongguoDevice(ctx) == nil {
+					source--
+				}
+			}
+			continue
+		}
+		lastErr = err
+	}
+	if rejected {
+		return providerMedia{}, lastErr
+	}
+	if lastErr != nil {
+		return providerMedia{}, lastErr
+	}
+	return providerMedia{}, errors.New("红果播放器设备源未返回可用媒体")
 }
 
 func hongguoMediaAddresses(info map[string]any) []string {

@@ -108,6 +108,8 @@ class _HongguoCommentSheetState extends State<HongguoCommentSheet> {
   late String _cursor;
   late bool _hasMore;
   late int _total;
+  late double _score;
+  late int _scoreCount;
   bool _loading = false;
   bool _loadingMore = false;
   String? _error;
@@ -120,6 +122,8 @@ class _HongguoCommentSheetState extends State<HongguoCommentSheet> {
     _cursor = initial?.cursor ?? '';
     _hasMore = initial?.hasMore ?? false;
     _total = initial?.total ?? 0;
+    _score = initial?.score ?? 0;
+    _scoreCount = initial?.scoreCount ?? 0;
     if (initial == null) unawaited(_loadFirst());
   }
 
@@ -137,6 +141,8 @@ class _HongguoCommentSheetState extends State<HongguoCommentSheet> {
         _cursor = page.cursor;
         _hasMore = page.hasMore;
         _total = page.total;
+        _score = page.score;
+        _scoreCount = page.scoreCount;
         _loading = false;
       });
     } catch (error) {
@@ -162,6 +168,8 @@ class _HongguoCommentSheetState extends State<HongguoCommentSheet> {
         _cursor = page.cursor;
         _hasMore = page.hasMore;
         if (page.total > 0) _total = page.total;
+        if (page.score > 0) _score = page.score;
+        if (page.scoreCount > 0) _scoreCount = page.scoreCount;
         _loadingMore = false;
       });
     } catch (error) {
@@ -192,7 +200,11 @@ class _HongguoCommentSheetState extends State<HongguoCommentSheet> {
               children: [
                 Expanded(
                   child: Text(
-                    _total > 0 ? '评论 · $_total条' : '评论',
+                    _score > 0 && _scoreCount > 0
+                        ? '评论 · $_total条 · 评分 ${_score.toStringAsFixed(1)}（$_scoreCount人评）'
+                        : _total > 0
+                        ? '评论 · $_total条'
+                        : '评论',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),

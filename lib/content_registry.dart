@@ -70,18 +70,6 @@ class ContentRegistry {
       section: ContentSection.novel,
     ),
     PyContentSource(
-      id: 'lbwen',
-      name: '🔞刘备文',
-      assetPath: 'assets/novel_spiders/lbwen.py',
-      section: ContentSection.novel,
-    ),
-    PyContentSource(
-      id: 'cjg',
-      name: '🔞藏精阁',
-      assetPath: 'assets/novel_spiders/cjg.py',
-      section: ContentSection.novel,
-    ),
-    PyContentSource(
       id: 'buliang',
       name: '🔞不良小说网',
       assetPath: 'assets/novel_spiders/buliang.py',
@@ -91,12 +79,6 @@ class ContentRegistry {
       id: 'yinse',
       name: '🔞淫色小说网',
       assetPath: 'assets/novel_spiders/yinse.py',
-      section: ContentSection.novel,
-    ),
-    PyContentSource(
-      id: 'ssxxs',
-      name: '🔞涩涩小说',
-      assetPath: 'assets/novel_spiders/ssxxs.py',
       section: ContentSection.novel,
     ),
     PyContentSource(
