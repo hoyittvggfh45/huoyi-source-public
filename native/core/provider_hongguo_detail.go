@@ -47,11 +47,11 @@ func (downloader *Downloader) hongguoAppDetail(ctx context.Context, seriesID str
 	pending := &hongguoDetailCall{done: make(chan struct{})}
 	client.pending[seriesID] = pending
 	client.mu.Unlock()
-	result, err := downloader.hongguoAppRequest(ctx, http.MethodPost, "/novel/player/video_detail/v1/", nil, map[string]any{"series_id": seriesID})
+	result, err := downloader.hongguoAppRequest(ctx, http.MethodPost, "/novel/player/video_detail/v1/", nil, map[string]any{"series_id": seriesID, "need_video_detail_info": true, "biz_param": hongguoPlayerBizParam(1)})
 	if err != nil && ctx.Err() == nil && hongguoDeviceSuspectError(err) {
 		tried := false
 		if downloader.rotateHongguoDeviceOnSuspectError(ctx, err, &tried) {
-			result, err = downloader.hongguoAppRequest(ctx, http.MethodPost, "/novel/player/video_detail/v1/", nil, map[string]any{"series_id": seriesID})
+			result, err = downloader.hongguoAppRequest(ctx, http.MethodPost, "/novel/player/video_detail/v1/", nil, map[string]any{"series_id": seriesID, "need_video_detail_info": true, "biz_param": hongguoPlayerBizParam(1)})
 		}
 	}
 	var entry hongguoDetailEntry

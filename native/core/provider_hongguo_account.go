@@ -1153,3 +1153,151 @@ func (downloader *Downloader) hongguoAccountReserve(ctx context.Context, cookie,
 	}
 	return map[string]any{"ok": true}, nil
 }
+
+const hongguoLoginRewardInfoPath = "/luckycat/novel/v1/task/getLoginRewardInfo"
+const hongguoLoginRewardDonePath = "/luckycat/novel/v1/task/done/login_reward"
+
+func hongguoAccountLuckycatCall(ctx context.Context, client *http.Client, deviceID, installID, cookie, path string, params map[string]string, body []byte) (map[string]any, error) {
+	versionCode, versionName := "72232", "7.2.2.32"
+	if body != nil {
+		versionCode, versionName = "73932", "7.3.9.32"
+	}
+	call := func(playerOnly bool) (map[string]any, error) {
+		query := hongguoAccountQuery(deviceID, installID, versionCode, versionName, true)
+		for key, value := range params {
+			if value != "" {
+				query.Set(key, value)
+			}
+		}
+		method := http.MethodGet
+		if body != nil {
+			method = http.MethodPost
+		}
+		request, err := http.NewRequestWithContext(ctx, method, strings.TrimRight(hongguoAccountCloudBaseURL, "/")+path+"?"+query.Encode(), bytes.NewReader(body))
+		if err != nil {
+			return nil, err
+		}
+		request.Header.Set("User-Agent", hongguoAppUserAgent)
+		request.Header.Set("Accept", "application/json")
+		if cookie != "" {
+			request.Header.Set("Cookie", cookie)
+		}
+		if body != nil {
+			request.Header.Set("Content-Type", "application/json; charset=utf-8")
+		}
+		opts := hongguoSignOptions{Identity: hongguoSignerIdentity{DeviceID: deviceID, InstallID: installID}}
+		if playerOnly {
+			opts.PlayerOnly = true
+		}
+		hongguoSignRequest(request, body, time.Now(), opts)
+		callCtx, cancel := context.WithTimeout(ctx, hongguoAccountRequestTimeout)
+		defer cancel()
+		response, err := client.Do(request.WithContext(callCtx))
+		if err != nil {
+			return nil, err
+		}
+		return hongguoAccountReadJSON(response)
+	}
+	result, err := call(false)
+	if errors.Is(err, errHongguoAccountEmptyBody) {
+		return call(true)
+	}
+	return result, err
+}
+
+func (downloader *Downloader) hongguoAccountLuckycat(ctx context.Context, cookie, path string, params map[string]string, body []byte) (map[string]any, error) {
+	deviceID, installID, err := downloader.hongguoAccountDevice(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return hongguoAccountLuckycatCall(ctx, downloader.client, deviceID, installID, cookie, path, params, body)
+}
+
+func hongguoLoginRewardExtra(nodeIndex int) (string, error) {
+	raw, err := json.Marshal(map[string]any{"cur_node_index": nodeIndex})
+	if err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
+func (downloader *Downloader) hongguoAccountLoginRewardInfo(ctx context.Context, cookie string) (map[string]any, error) {
+	extra, err := hongguoLoginRewardExtra(0)
+	if err != nil {
+		return nil, err
+	}
+	reply, err := downloader.hongguoAccountLuckycat(ctx, cookie, hongguoLoginRewardInfoPath, map[string]string{"271_extra_info": extra}, nil)
+	if err != nil {
+		return nil, err
+	}
+	if hongguoAccountInt(reply, "err_no", -1) != 0 {
+		tips := mapString(reply, "err_tips")
+		if tips == "" {
+			tips = "登入奖励接口不可用"
+		}
+		return nil, fmt.Errorf("%s（错误码 %d）", tips, hongguoAccountInt(reply, "err_no", -1))
+	}
+	data, _ := reply["data"].(map[string]any)
+	if data == nil {
+		return nil, errors.New("登入奖励状态为空")
+	}
+	return map[string]any{
+		"status":          mapString(data, "status"),
+		"title":           mapString(data, "title"),
+		"buttonTag":       mapString(data, "button_tag"),
+		"rewardType":      mapString(data, "reward_type"),
+		"rewardAmount":    hongguoAccountInt(data, "reward_amount", 0),
+		"cooldownEndTime": hongguoAccountInt64(data, "cooldown_end_time", 0),
+	}, nil
+}
+
+func (downloader *Downloader) hongguoAccountClaimLoginReward(ctx context.Context, cookie string) (map[string]any, error) {
+	body, err := json.Marshal(map[string]any{
+		"271_extra_info": map[string]any{"cur_node_index": 0},
+		"growth_novel_base": map[string]any{
+			"path":      hongguoLoginRewardDonePath,
+			"timestamp": time.Now().UnixMilli(),
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	reply, err := downloader.hongguoAccountLuckycat(ctx, cookie, hongguoLoginRewardDonePath, nil, body)
+	if err != nil {
+		return nil, err
+	}
+	errNo := hongguoAccountInt(reply, "err_no", -1)
+	data, _ := reply["data"].(map[string]any)
+	if data == nil {
+		data = map[string]any{}
+	}
+	result := map[string]any{
+		"claimed":         errNo == 0 && hongguoAccountInt(data, "reward_amount", 0) > 0,
+		"errNo":           errNo,
+		"errTips":         mapString(reply, "err_tips"),
+		"rewardType":      mapString(data, "reward_type"),
+		"rewardAmount":    hongguoAccountInt(data, "reward_amount", 0),
+		"toast":           mapString(data, "toast"),
+		"toastText":       mapString(data, "toast_text"),
+		"cooldownEndTime": hongguoAccountInt64(data, "cooldown_end_time", 0),
+	}
+	return result, nil
+}
+
+func (downloader *Downloader) hongguoAccountClaimDailyCoins(ctx context.Context, cookie string) (map[string]any, error) {
+	info, err := downloader.hongguoAccountLoginRewardInfo(ctx, cookie)
+	if err != nil {
+		return map[string]any{"claimed": false, "reason": "info-failed"}, nil
+	}
+	status := mapString(info, "status")
+	rewardType := strings.ToLower(mapString(info, "rewardType"))
+	if !strings.EqualFold(status, "AVAILABLE") || (rewardType != "" && rewardType != "gold" && rewardType != "rmb" && rewardType != "rmb_cash") {
+		return map[string]any{"claimed": false, "status": status, "reason": "not-available"}, nil
+	}
+	claimed, err := downloader.hongguoAccountClaimLoginReward(ctx, cookie)
+	if err != nil {
+		return map[string]any{"claimed": false, "status": status, "reason": "claim-failed"}, nil
+	}
+	claimed["status"] = status
+	return claimed, nil
+}

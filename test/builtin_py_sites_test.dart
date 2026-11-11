@@ -650,4 +650,68 @@ void main() {
       expect(isVodZoneSource(BuiltinPySites.xhongyanSite), isFalse);
     });
   });
+
+  group('内置 py 点播站', () {
+    test('鬼片网 站注册值：视频分区、内置来源、py 类型、无 🔞 名', () {
+      final site = BuiltinPySites.guipianSite;
+      expect(site.id, 'guipian');
+      expect(site.name, '鬼片网');
+      expect(site.section, SourceSite.sectionVideo);
+      expect(site.origin, SourceSite.originBuiltin);
+      expect(site.importType, 'py');
+      expect(BuiltinPySites.guipianAssetPath, 'assets/py_spiders/guipian.py');
+    });
+    test('鬼片网 站进点播区；按现行分区谓词也进午夜区', () {
+      expect(isVodZoneSource(BuiltinPySites.guipianSite), isTrue);
+      expect(isMidnightZoneSource(BuiltinPySites.guipianSite), isTrue);
+    });
+    test('青空次元 站注册值：视频分区、内置来源、py 类型、无 🔞 名', () {
+      final site = BuiltinPySites.qingkongSite;
+      expect(site.id, 'qingkong');
+      expect(site.name, '青空次元');
+      expect(site.section, SourceSite.sectionVideo);
+      expect(site.origin, SourceSite.originBuiltin);
+      expect(site.importType, 'py');
+      expect(BuiltinPySites.qingkongAssetPath, 'assets/py_spiders/qingkong.py');
+    });
+    test('青空次元 站进点播区；按现行分区谓词也进午夜区', () {
+      expect(isVodZoneSource(BuiltinPySites.qingkongSite), isTrue);
+      expect(isMidnightZoneSource(BuiltinPySites.qingkongSite), isTrue);
+    });
+  });
+
+  group('内置 py 短剧站', () {
+    test('野果短剧 站注册值：短剧分区、内置来源、py 类型、🔞 名', () {
+      final site = BuiltinPySites.yeguoSite;
+      expect(site.id, 'yeguo');
+      expect(site.name, '🔞野果短剧');
+      expect(site.section, SourceSite.sectionDrama);
+      expect(site.origin, SourceSite.originBuiltin);
+      expect(site.importType, 'py');
+      expect(BuiltinPySites.yeguoAssetPath, 'assets/py_spiders/yeguo.py');
+    });
+    test('野果短剧 站进短剧区、不进午夜区、不进点播区', () {
+      expect(BuiltinPySites.yeguoSite.isDramaSection, isTrue);
+      expect(isMidnightZoneSource(BuiltinPySites.yeguoSite), isFalse);
+      expect(isVodZoneSource(BuiltinPySites.yeguoSite), isFalse);
+      expect(BuiltinPySites.yeguoSite.onlineSearch, isTrue);
+      expect(BuiltinPySites.yeguoSite.pagedSearch, isTrue);
+    });
+    test('剧果 站注册值：短剧分区、内置来源、py 类型、🔞 名', () {
+      final site = BuiltinPySites.huangjuSite;
+      expect(site.id, 'huangju');
+      expect(site.name, '🔞剧果');
+      expect(site.section, SourceSite.sectionDrama);
+      expect(site.origin, SourceSite.originBuiltin);
+      expect(site.importType, 'py');
+      expect(BuiltinPySites.huangjuAssetPath, 'assets/py_spiders/huangju.py');
+    });
+    test('剧果 站进短剧区、不进午夜区、不进点播区', () {
+      expect(BuiltinPySites.huangjuSite.isDramaSection, isTrue);
+      expect(isMidnightZoneSource(BuiltinPySites.huangjuSite), isFalse);
+      expect(isVodZoneSource(BuiltinPySites.huangjuSite), isFalse);
+      expect(BuiltinPySites.huangjuSite.onlineSearch, isTrue);
+      expect(BuiltinPySites.huangjuSite.pagedSearch, isTrue);
+    });
+  });
 }

@@ -121,7 +121,11 @@ func (downloader *Downloader) hongguoMediaFromModelEntry(ctx context.Context, en
 	}
 	hongguoAttachKeySeed(model, append([]map[string]any{entry}, sources...)...)
 	downloader.hongguoMergeFallbackAPI(ctx, model)
-	return selectHongguoAppMedia(model)
+	media, err := selectHongguoAppMedia(model)
+	if err != nil {
+		return providerMedia{}, err
+	}
+	return downloader.hongguoApplyPlayAuth(ctx, media, append([]map[string]any{entry}, sources...)...), nil
 }
 
 func (downloader *Downloader) hongguoPrefetchModels(ctx context.Context, videoIDs []string) {
@@ -142,7 +146,7 @@ func (downloader *Downloader) hongguoPrefetchModels(ctx context.Context, videoID
 	}
 	payload := map[string]any{
 		"mixed_video_id_map": map[string]any{"1004": ids},
-		"biz_param":          map[string]any{"need_all_video_definition": true, "video_platform": 3},
+		"biz_param":          hongguoPlayerBizParam(0),
 	}
 	result, err := downloader.hongguoAppRequestInternal(ctx, http.MethodPost, "/novel/player/multi_video_model/v1/", nil, payload, true)
 	if err != nil {

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:duanju_app/core_bridge.dart';
 import 'package:duanju_app/hongguo_account.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'fixtures.dart';
 
@@ -76,6 +77,21 @@ class _StubAccountRepository extends FixtureRepository {
   Map<String, dynamic>? lastUploadProgress;
   String? lastSetFavoriteId;
   bool? lastSetFavoriteAdd;
+  Map<String, dynamic> claimDailyCoinsResult = {
+    'claimed': true,
+    'status': 'AVAILABLE',
+    'rewardType': 'gold',
+    'rewardAmount': 100,
+  };
+  int claimDailyCoinsCalls = 0;
+
+  @override
+  Future<Map<String, dynamic>> hongguoAccountClaimDailyCoins(
+    String cookie,
+  ) async {
+    claimDailyCoinsCalls++;
+    return claimDailyCoinsResult;
+  }
 
   @override
   Future<Map<String, dynamic>> hongguoAccountSendSms(String mobile) async =>
@@ -247,5 +263,42 @@ void main() {
     expect(offline, hasLength(1));
     expect(offline.first.drama.id, 'reservation:999');
     await transport.reserveWork(credentials, seriesId: '999');
+  });
+
+  test('claimDailyCoins maps claimed gold reward', () async {
+    final transport = GoHongguoAccountTransport(_StubAccountRepository());
+    final claim = await transport.claimDailyCoins(credentials);
+    expect(claim.claimed, isTrue);
+    expect(claim.isCoins, isTrue);
+    expect(claim.rewardAmount, 100);
+  });
+
+  test('claimDailyCoins maps cooldown as not claimed', () async {
+    final repository = _StubAccountRepository();
+    repository.claimDailyCoinsResult = {
+      'claimed': false,
+      'status': 'COOLDOWN',
+      'reason': 'not-available',
+    };
+    final transport = GoHongguoAccountTransport(repository);
+    final claim = await transport.claimDailyCoins(credentials);
+    expect(claim.claimed, isFalse);
+    expect(claim.status, 'COOLDOWN');
+  });
+
+  test('loginWithSms claims daily coins once after login', () async {
+    SharedPreferences.setMockInitialValues({});
+    final repository = _StubAccountRepository();
+    final controller = HongguoAccountController.withTransport(
+      GoHongguoAccountTransport(repository),
+    );
+    await controller.loginWithSms(mobile: '13800138000', code: '123456');
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+    expect(repository.claimDailyCoinsCalls, 1);
+    expect(controller.lastDailyCoinClaim?.claimed, isTrue);
+    expect(controller.lastDailyCoinClaim?.rewardAmount, 100);
+    await controller.claimDailyCoins();
+    expect(repository.claimDailyCoinsCalls, 1);
   });
 }

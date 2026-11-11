@@ -674,6 +674,18 @@ func nativeDispatch(input nativeInput) (any, error) {
 			return nil, err
 		}
 		return engine.downloader.hongguoAccountReserve(ctx, mapString(params, "cookie"), mapString(params, "seriesId"))
+	case "hongguoAccountLoginRewardInfo":
+		params, err := hongguoAccountContentParams(input.Content)
+		if err != nil {
+			return nil, err
+		}
+		return engine.downloader.hongguoAccountLoginRewardInfo(ctx, mapString(params, "cookie"))
+	case "hongguoAccountClaimDailyCoins":
+		params, err := hongguoAccountContentParams(input.Content)
+		if err != nil {
+			return nil, err
+		}
+		return engine.downloader.hongguoAccountClaimDailyCoins(ctx, mapString(params, "cookie"))
 	case "sourceJob":
 		return engine.startSourceTask(input.Source, input.Command, input.Drama)
 	case "cancelSourceJob":

@@ -513,6 +513,32 @@ class BuiltinPySites {
     importType: 'py',
   );
 
+  static const guipianSiteId = 'guipian';
+  static const guipianAssetPath = 'assets/py_spiders/guipian.py';
+  static const guipianFileId = 'builtin_guipian';
+
+  static const guipianSite = SourceSite(
+    guipianSiteId,
+    '鬼片网',
+    '内置 py · guipian',
+    section: SourceSite.sectionVideo,
+    origin: SourceSite.originBuiltin,
+    importType: 'py',
+  );
+
+  static const qingkongSiteId = 'qingkong';
+  static const qingkongAssetPath = 'assets/py_spiders/qingkong.py';
+  static const qingkongFileId = 'builtin_qingkong';
+
+  static const qingkongSite = SourceSite(
+    qingkongSiteId,
+    '青空次元',
+    '内置 py · qingkong',
+    section: SourceSite.sectionVideo,
+    origin: SourceSite.originBuiltin,
+    importType: 'py',
+  );
+
   static const jinguoSiteId = 'jinguo';
   static const jinguoAssetPath = 'assets/py_spiders/jinguo.py';
   static const jinguoFileId = 'builtin_jinguo';
@@ -533,6 +559,32 @@ class BuiltinPySites {
     jinguoJgSiteId,
     '🔞禁果短剧',
     '内置 py · jinguo',
+    section: SourceSite.sectionDrama,
+    origin: SourceSite.originBuiltin,
+    importType: 'py',
+  );
+
+  static const yeguoSiteId = 'yeguo';
+  static const yeguoAssetPath = 'assets/py_spiders/yeguo.py';
+  static const yeguoFileId = 'builtin_yeguo';
+
+  static const yeguoSite = SourceSite(
+    yeguoSiteId,
+    '🔞野果短剧',
+    '内置 py · yeguo',
+    section: SourceSite.sectionDrama,
+    origin: SourceSite.originBuiltin,
+    importType: 'py',
+  );
+
+  static const huangjuSiteId = 'huangju';
+  static const huangjuAssetPath = 'assets/py_spiders/huangju.py';
+  static const huangjuFileId = 'builtin_huangju';
+
+  static const huangjuSite = SourceSite(
+    huangjuSiteId,
+    '🔞剧果',
+    '内置 py · huangju',
     section: SourceSite.sectionDrama,
     origin: SourceSite.originBuiltin,
     importType: 'py',
@@ -586,8 +638,12 @@ class BuiltinPySites {
       await _registerTanhuavip14();
       await _registerFuchou();
       await _registerHeitao();
+      await _registerGuipian();
+      await _registerQingkong();
       await _registerJinguo();
       await _registerJinguoJg();
+      await _registerYeguo();
+      await _registerHuangju();
       return true;
     } catch (_) {
       return false;
@@ -1088,6 +1144,32 @@ class BuiltinPySites {
     } catch (_) {}
   }
 
+  static Future<void> _registerGuipian() async {
+    try {
+      final bytes = await rootBundle.load(guipianAssetPath);
+      final fileName = await ImportFileStore.save(
+        guipianFileId,
+        'py',
+        bytes.buffer.asUint8List(),
+      );
+      SourceSite.importedSites[guipianSiteId] = guipianSite;
+      SourceSite.importedPyFiles[guipianSiteId] = fileName;
+    } catch (_) {}
+  }
+
+  static Future<void> _registerQingkong() async {
+    try {
+      final bytes = await rootBundle.load(qingkongAssetPath);
+      final fileName = await ImportFileStore.save(
+        qingkongFileId,
+        'py',
+        bytes.buffer.asUint8List(),
+      );
+      SourceSite.importedSites[qingkongSiteId] = qingkongSite;
+      SourceSite.importedPyFiles[qingkongSiteId] = fileName;
+    } catch (_) {}
+  }
+
   static Future<void> _registerJinguo() async {
     try {
       final bytes = await rootBundle.load(jinguoAssetPath);
@@ -1111,6 +1193,32 @@ class BuiltinPySites {
       );
       SourceSite.importedSites[jinguoJgSiteId] = jinguoJgSite;
       SourceSite.importedPyFiles[jinguoJgSiteId] = fileName;
+    } catch (_) {}
+  }
+
+  static Future<void> _registerYeguo() async {
+    try {
+      final bytes = await rootBundle.load(yeguoAssetPath);
+      final fileName = await ImportFileStore.save(
+        yeguoFileId,
+        'py',
+        bytes.buffer.asUint8List(),
+      );
+      SourceSite.importedSites[yeguoSiteId] = yeguoSite;
+      SourceSite.importedPyFiles[yeguoSiteId] = fileName;
+    } catch (_) {}
+  }
+
+  static Future<void> _registerHuangju() async {
+    try {
+      final bytes = await rootBundle.load(huangjuAssetPath);
+      final fileName = await ImportFileStore.save(
+        huangjuFileId,
+        'py',
+        bytes.buffer.asUint8List(),
+      );
+      SourceSite.importedSites[huangjuSiteId] = huangjuSite;
+      SourceSite.importedPyFiles[huangjuSiteId] = fileName;
     } catch (_) {}
   }
 }

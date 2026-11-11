@@ -28,6 +28,46 @@ import 'moyi_theme.dart';
 
 bool isHongguoDramaGroup(String groupId) => groupId == 'hongguo';
 
+({int drama, int episode})? hongguoFeedNext({
+  required int drama,
+  required int episode,
+  required int dramaCount,
+  required int episodeCount,
+}) {
+  if (episode + 1 < episodeCount) return (drama: drama, episode: episode + 1);
+  if (drama + 1 < dramaCount) return (drama: drama + 1, episode: 0);
+  return null;
+}
+
+({int drama, int episode})? hongguoFeedPrevious({
+  required int drama,
+  required int episode,
+  required int previousEpisodeCount,
+}) {
+  if (episode > 0) return (drama: drama, episode: episode - 1);
+  if (drama <= 0) return null;
+  if (previousEpisodeCount <= 0) return (drama: drama - 1, episode: 0);
+  return (drama: drama - 1, episode: previousEpisodeCount - 1);
+}
+
+String hongguoFeedHeat(String raw) {
+  final text = raw.trim();
+  if (text.isEmpty) return '';
+  if (text.contains('万') || text.contains('亿')) return text;
+  final value = double.tryParse(text.replaceAll(',', ''));
+  if (value == null) return text;
+  String trimmed(double number) {
+    final fixed = number.toStringAsFixed(1);
+    return fixed.endsWith('.0')
+        ? fixed.substring(0, fixed.length - 2)
+        : fixed;
+  }
+
+  if (value >= 100000000) return '${trimmed(value / 100000000)}亿';
+  if (value >= 10000) return '${trimmed(value / 10000)}万';
+  return value.toInt().toString();
+}
+
 class HongguoDramaHome extends StatefulWidget {
   const HongguoDramaHome({
     super.key,
@@ -112,8 +152,12 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
   );
   final Map<String, DramaDetail> _details = {};
   final Map<String, HongguoCommentPage> _commentPages = {};
+  final HongguoRankCache _rankCache = HongguoRankCache();
+  final Map<String, ({String boardLabel, int rank, String heat})>
+  _rankBadges = {};
   int _index = 0;
   int _episode = 0;
+  int? _jumpEpisode;
   double _startPosition = 0;
   bool _detailLoading = false;
   String? _detailError;
@@ -127,12 +171,15 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
   String _videoKeys = '';
   HongguoDiscoverySelection _discovery =
       const HongguoDiscoverySelection();
-  bool _trialEnded = false;
   int _trialRecoveryAttempts = 0;
   Timer? _trialRecoveryTimer;
   String? _trialRecoveryMessage;
   String? _trialErrorSeen;
   final Map<String, DateTime> _trialSavedAt = {};
+  Offset? _feedDragStart;
+  DateTime? _feedDragStartTime;
+  Offset _feedDragLast = Offset.zero;
+  DateTime? _feedDragLastTime;
 
   @override
   void initState() {
@@ -194,6 +241,7 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
         _episode = (data['episode'] as num? ?? 0).toInt();
         _startPosition = (data['position'] as num? ?? 0).toDouble();
       });
+      _jumpEpisode = _episode;
       _scheduleGoTo(index);
     } catch (_) {}
   }
@@ -227,12 +275,15 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
     final allowed = {
       for (var i = start; i < end; i++) _keyFor(videos[i]),
     };
+    final currentKey =
+        _keyFor(videos[_index.clamp(0, videos.length - 1)]);
     final now = DateTime.now();
     final stale = <String>[];
     for (final key in _details.keys) {
       final savedAt = _trialSavedAt[key];
       if (!allowed.contains(key) ||
-          (savedAt != null &&
+          (key != currentKey &&
+              savedAt != null &&
               now.difference(savedAt) > const Duration(seconds: 90))) {
         stale.add(key);
       }
@@ -244,7 +295,6 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
   }
 
   void _resetTrialState() {
-    _trialEnded = false;
     _trialRecoveryAttempts = 0;
     _trialRecoveryTimer?.cancel();
     _trialRecoveryTimer = null;
@@ -291,6 +341,15 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
         }
       },
     );
+  }
+
+  CatalogCategory? _theaterGenreCategory(({String id, String label}) genre) {
+    for (final category in widget.categories) {
+      if (category.name == genre.label || category.id == genre.id) {
+        return category;
+      }
+    }
+    return null;
   }
 
   void _onDiscoveryGenreTap(String genreId) {
@@ -602,6 +661,7 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
     if (_pages.hasClients && (_pages.page?.round() ?? 0) != index) {
       _pages.jumpToPage(index);
     } else {
+      _jumpEpisode = null;
       unawaited(_playCurrent());
       unawaited(_prefetch(index + 1));
     }
@@ -609,9 +669,11 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
 
   void _onPageChanged(int index) {
     _resetTrialState();
+    final jumpEpisode = _jumpEpisode;
+    _jumpEpisode = null;
     setState(() {
       _index = index;
-      _episode = 0;
+      _episode = jumpEpisode ?? 0;
       _synopsisExpanded = false;
       _detailError = null;
     });
@@ -639,16 +701,31 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
           _detailLoading = true;
           _detailError = null;
         });
-        try {
-          detail = await widget.repository.detail(drama);
-        } catch (error) {
+        DramaDetail? fetched;
+        Object? lastError;
+        for (var attempt = 0; attempt < 3; attempt++) {
+          if (attempt > 0) {
+            await Future<void>.delayed(
+              Duration(milliseconds: 400 * attempt),
+            );
+          }
+          if (!mounted || token != _playToken) return;
+          try {
+            fetched = await widget.repository.detail(drama);
+            break;
+          } catch (error) {
+            lastError = error;
+          }
+        }
+        if (fetched == null) {
           if (!mounted || token != _playToken) return;
           setState(() {
             _detailLoading = false;
-            _detailError = error.toString();
+            _detailError = lastError.toString();
           });
           return;
         }
+        detail = fetched;
         if (!mounted || token != _playToken) return;
         _details[_keyFor(drama)] = detail;
         _trialSavedAt[_keyFor(drama)] = DateTime.now();
@@ -692,6 +769,7 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
           unawaited(PlaybackForeground.acquire(drama.title));
         }
         unawaited(_loadCommentCounts(drama, plan));
+        unawaited(_loadRankBadge(drama));
       }
       final nextVideos = <Drama>[];
       for (var i = index + 1; i < videos.length && nextVideos.length < 3; i++) {
@@ -737,11 +815,57 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
   void _onCompleted() {
     final videos = _videos;
     if (videos.isEmpty) return;
-    setState(() => _trialEnded = true);
-    if (_player.hasVideo) unawaited(_player.pause());
+    unawaited(_advanceOneStep());
   }
 
-  void _advanceFeed() {
+  Future<DramaDetail?> _ensureDetail(Drama drama) async {
+    final key = _keyFor(drama);
+    final cached = _details[key];
+    if (cached != null) return cached;
+    try {
+      final detail = await widget.repository.detail(drama);
+      if (!mounted) return null;
+      _details[key] = detail;
+      _trialSavedAt[key] = DateTime.now();
+      return detail;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _advanceOneStep() async {
+    final videos = _videos;
+    if (videos.isEmpty) return;
+    final index = _index.clamp(0, videos.length - 1);
+    final drama = videos[index];
+    final fromIndex = _index;
+    final fromEpisode = _episode;
+    final detail = await _ensureDetail(drama);
+    if (!mounted || _index != fromIndex || _episode != fromEpisode) return;
+    final count = detail?.episodes.length ?? 0;
+    if (count <= 0) {
+      _advanceDrama();
+      return;
+    }
+    final next = hongguoFeedNext(
+      drama: index,
+      episode: _episode,
+      dramaCount: videos.length,
+      episodeCount: count,
+    );
+    if (next == null) {
+      unawaited(_playCurrent());
+      return;
+    }
+    if (next.drama == index) {
+      setState(() => _episode = next.episode);
+      unawaited(_playCurrent());
+    } else {
+      _advanceDrama();
+    }
+  }
+
+  void _advanceDrama() {
     final videos = _videos;
     if (videos.isEmpty) return;
     if (_index + 1 < videos.length) {
@@ -753,6 +877,125 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
       );
     } else {
       unawaited(_playCurrent());
+    }
+  }
+
+  Future<void> _swipePrevious() async {
+    final videos = _videos;
+    if (videos.isEmpty) return;
+    if (_episode > 0) {
+      setState(() => _episode--);
+      unawaited(_playCurrent());
+      return;
+    }
+    if (_index <= 0) return;
+    final fromIndex = _index;
+    final prev = videos[_index - 1];
+    final detail = await _ensureDetail(prev);
+    if (!mounted || _index != fromIndex || _episode != 0) return;
+    final count = detail?.episodes.length ?? 0;
+    _jumpEpisode = count > 0 ? count - 1 : 0;
+    unawaited(
+      _pages.previousPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      ),
+    );
+  }
+
+  void _onFeedPointerDown(PointerDownEvent event) {
+    _feedDragStart = event.position;
+    _feedDragStartTime = DateTime.now();
+    _feedDragLast = event.position;
+    _feedDragLastTime = DateTime.now();
+  }
+
+  void _onFeedPointerMove(PointerMoveEvent event) {
+    _feedDragLast = event.position;
+    _feedDragLastTime = DateTime.now();
+  }
+
+  void _onFeedPointerUp(PointerUpEvent event) {
+    final start = _feedDragStart;
+    final startTime = _feedDragStartTime;
+    final lastTime = _feedDragLastTime;
+    _feedDragStart = null;
+    _feedDragStartTime = null;
+    _feedDragLastTime = null;
+    if (start == null || startTime == null || lastTime == null) return;
+    final dy = _feedDragLast.dy - start.dy;
+    final elapsed = lastTime.difference(startTime).inMilliseconds;
+    final velocity = elapsed > 0 ? dy / (elapsed / 1000.0) : 0.0;
+    if (dy <= -64 || (dy <= -24 && velocity <= -600)) {
+      unawaited(_advanceOneStep());
+    } else if (dy >= 64 || (dy >= 24 && velocity >= 600)) {
+      unawaited(_swipePrevious());
+    }
+  }
+
+  void _onFeedPointerCancel(PointerCancelEvent event) {
+    _feedDragStart = null;
+    _feedDragStartTime = null;
+    _feedDragLastTime = null;
+  }
+
+  bool _isComicDrama(Drama drama) =>
+      _channel == 'comic' ||
+      drama.category == 'comic_series' ||
+      drama.category.contains('漫') ||
+      drama.category.contains('comic');
+
+  (String, String) _rankBoardFor(Drama drama) {
+    if (drama.category == 'ai_series') return ('hongguo-ai', 'AI剧热播榜');
+    if (_isComicDrama(drama)) return ('hongguo-comic', '漫剧热播榜');
+    if (drama.category == 'short_play' || _channel == 'real') {
+      return ('hongguo-real', '真人剧热播榜');
+    }
+    return ('hongguo-hot', '热播榜');
+  }
+
+  ({String boardLabel, int rank, String heat})? _rankBadgeFor(Drama drama) =>
+      _rankBadges[_keyFor(drama)];
+
+  Future<void> _loadRankBadge(Drama drama) async {
+    final key = _keyFor(drama);
+    if (_rankBadges.containsKey(key)) return;
+    final (boardId, boardLabel) = _rankBoardFor(drama);
+    if (!_rankCache.isFresh(boardId)) {
+      if (!_rankCache.beginRefresh(boardId)) return;
+      try {
+        final result = await widget.repository.rankings(boardId, page: 1);
+        if (!mounted) {
+          _rankCache.endRefresh(boardId, null);
+          return;
+        }
+        _rankCache.endRefresh(
+          boardId,
+          HongguoRankSnapshot(
+            boardId: boardId,
+            items: result.items,
+            updatedText: result.updatedText,
+            fetchedAt: DateTime.now(),
+          ),
+        );
+      } catch (_) {
+        _rankCache.endRefresh(boardId, null);
+        return;
+      }
+    }
+    final items = _rankCache.snapshots[boardId]?.items ?? const [];
+    for (final item in items) {
+      if (item.drama.id == drama.id) {
+        if (!mounted) return;
+        setState(() {
+          _rankBadges[key] = (
+            boardLabel: boardLabel,
+            rank: item.rank,
+            heat: hongguoFeedHeat(drama.heat),
+          );
+        });
+        return;
+      }
     }
   }
 
@@ -912,14 +1155,21 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
     }
     return Stack(
       children: [
-        PageView.builder(
-          scrollDirection: Axis.vertical,
-          controller: _pages,
-          onPageChanged: _onPageChanged,
-          itemCount: videos.length,
-          itemBuilder: (context, index) {
-            return _buildFeedPage(context, videos[index], index == _index);
-          },
+        Listener(
+          onPointerDown: _onFeedPointerDown,
+          onPointerMove: _onFeedPointerMove,
+          onPointerUp: _onFeedPointerUp,
+          onPointerCancel: _onFeedPointerCancel,
+          child: PageView.builder(
+            scrollDirection: Axis.vertical,
+            physics: const NeverScrollableScrollPhysics(),
+            controller: _pages,
+            onPageChanged: _onPageChanged,
+            itemCount: videos.length,
+            itemBuilder: (context, index) {
+              return _buildFeedPage(context, videos[index], index == _index);
+            },
+          ),
         ),
         Positioned(
           top: 0,
@@ -1198,21 +1448,110 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
   Widget _feedInfo(BuildContext context, Drama drama) {
     final detail = _details[_keyFor(drama)];
     final episodeCount = detail?.episodes.length ?? drama.episodes;
-    final synopsis =
-        detail?.drama.description ?? drama.description;
-    final episodeLine = detail != null && _episode < detail.episodes.length
-        ? '第${_episode + 1}集 | ${detail.episodes[_episode].title}'
-        : null;
-    final isComic = _channel == 'comic' ||
-        drama.category == 'comic_series' ||
-        drama.category.contains('漫') ||
-        drama.category.contains('comic');
+    final synopsis = detail?.drama.description ?? drama.description;
+    final isComic = _isComicDrama(drama);
     final kindLabel = isComic ? '漫剧' : '短剧';
+    final badge = _rankBadgeFor(drama);
+    final episodeTitle = detail != null && _episode < detail.episodes.length
+        ? detail.episodes[_episode].title
+        : null;
+    final String? episodeLine;
+    if (synopsis.isNotEmpty) {
+      episodeLine = '第${_episode + 1}集 | $synopsis';
+    } else if (episodeTitle != null &&
+        episodeTitle.isNotEmpty &&
+        episodeTitle != '第${_episode + 1}集') {
+      episodeLine = '第${_episode + 1}集 | $episodeTitle';
+    } else if (detail != null) {
+      episodeLine = '第${_episode + 1}集';
+    } else {
+      episodeLine = null;
+    }
+    final showAiNote = isComic || drama.category == 'ai_series';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (drama.tags.isNotEmpty)
+        if (badge != null) ...[
+          GestureDetector(
+            onTap: () => unawaited(_openRanking()),
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 6,
+              ),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFFF7A00), Color(0xFFFFB020)],
+                ),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.emoji_events,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${badge.boardLabel} No.${badge.rank}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                  if (badge.heat.isNotEmpty) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      width: 1,
+                      height: 12,
+                      color: Colors.white.withValues(alpha: 0.5),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${badge.heat}热度',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(width: 2),
+                  const Icon(
+                    Icons.chevron_right,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+        GestureDetector(
+          onTap: () => unawaited(_openPlayback(drama)),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  drama.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: Colors.white),
+            ],
+          ),
+        ),
+        if (drama.tags.isNotEmpty) ...[
+          const SizedBox(height: 8),
           Wrap(
             spacing: 6,
             children: drama.tags
@@ -1238,97 +1577,8 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
                 )
                 .toList(),
           ),
-        const SizedBox(height: 8),
-        GestureDetector(
-          onTap: () => unawaited(_openPlayback(drama)),
-          child: Text(
-            drama.title,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-        if (episodeLine != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(
-              episodeLine,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: Colors.white70),
-            ),
-          ),
-        if (_episode == 0 && episodeCount > 0)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(
-              '第一集试播 · 共$episodeCount集',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: Colors.white70),
-            ),
-          ),
-        if (_trialEnded) ...[
-          const SizedBox(height: 12),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: moyiCardDecoration(radius: 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  '本集试播结束 · 看全集或按 ↓ 换一部',
-                  style: TextStyle(color: Colors.white),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => unawaited(_openPlayback(drama)),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.24),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Text(
-                            '观看全集',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: _advanceFeed,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.24),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Text(
-                            '换一部',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
         ],
-        if (synopsis.isNotEmpty)
+        if (episodeLine != null)
           Padding(
             padding: const EdgeInsets.only(top: 4),
             child: Row(
@@ -1336,18 +1586,18 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
               children: [
                 Expanded(
                   child: Text(
-                    synopsis,
+                    episodeLine,
                     style: Theme.of(context)
                         .textTheme
                         .bodyMedium
                         ?.copyWith(color: Colors.white70),
-                    maxLines: _synopsisExpanded ? null : 2,
+                    maxLines: _synopsisExpanded ? null : 1,
                     overflow: _synopsisExpanded
                         ? TextOverflow.visible
                         : TextOverflow.ellipsis,
                   ),
                 ),
-                if (synopsis.length > 80)
+                if (synopsis.isNotEmpty)
                   GestureDetector(
                     onTap: () => setState(
                       () => _synopsisExpanded = !_synopsisExpanded,
@@ -1363,12 +1613,43 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
               ],
             ),
           ),
+        if (_episode == 0 && episodeCount > 0)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              '第一集试播 · 共$episodeCount集',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(color: Colors.white70),
+            ),
+          ),
+        if (showAiNote)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  size: 14,
+                  color: Colors.white.withValues(alpha: 0.6),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '作者声明：内容由AI生成',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Colors.white.withValues(alpha: 0.6),
+                  ),
+                ),
+              ],
+            ),
+          ),
         if (drama.heat.isNotEmpty || drama.views.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 4),
             child: Text(
               drama.heat.isNotEmpty
-                  ? '热度 ${drama.heat}'
+                  ? '热度 ${hongguoFeedHeat(drama.heat)}'
                   : '播放 ${drama.views}',
               style: Theme.of(context)
                   .textTheme
@@ -1382,7 +1663,10 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
           child: Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: moyiCardDecoration(radius: 8),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.55),
+              borderRadius: BorderRadius.circular(12),
+            ),
             child: Row(
               children: [
                 const Icon(Icons.play_arrow, color: Colors.white),
@@ -1668,17 +1952,17 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
                     ),
                   ),
                   for (final genre in hongguoDiscoveryGenres)
-                    if (widget.categories.any(
-                      (category) => category.id == genre.id,
-                    ))
+                    if (_theaterGenreCategory(genre) != null)
                       Padding(
                         padding: const EdgeInsets.only(right: 3),
                         child: CompactFilterChip(
                           key: ValueKey('theater-genre-${genre.id}'),
                           label: genre.label,
-                          selected: _discovery.genre == genre.id,
-                          onSelected: () =>
-                              _onDiscoveryGenreTap(genre.id),
+                          selected: _discovery.genre ==
+                              _theaterGenreCategory(genre)!.id,
+                          onSelected: () => _onDiscoveryGenreTap(
+                            _theaterGenreCategory(genre)!.id,
+                          ),
                         ),
                       ),
                 ],

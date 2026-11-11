@@ -194,12 +194,6 @@ class SourceSite {
     section: sectionDrama,
   );
   static const dsd = SourceSite('dsd', '帝果', '分类视频 · 在线搜索');
-  static const guipian = SourceSite(
-    'guipian',
-    '鬼片',
-    '鬼片 · 电视剧 · 动漫',
-    section: sectionDrama,
-  );
   static const ikanbot = SourceSite(
     'ikanbot',
     '爱看机器人',
@@ -732,10 +726,7 @@ class SourceSite {
     ikanbot,
     a123,
     hanxiaoquan,
-    guipian,
     SourceSite('huangdou', 'whos识图', '识图', section: sectionDrama),
-    SourceSite('huangju', '剧果', '热门 · 最新 · 分类短剧', section: sectionDrama),
-    SourceSite('yeguo', '野果', '分类短剧 · 在线搜索', section: sectionDrama),
     dsd,
     SourceSite('huangguo-video', '黄果视频', '视频剧集'),
     SourceSite('huangguoai', '黄果 AI', 'AI 短剧'),
@@ -756,10 +747,7 @@ class SourceSite {
     ikanbot,
     a123,
     hanxiaoquan,
-    guipian,
     SourceSite('huangdou', 'whos识图', '识图', section: sectionDrama),
-    SourceSite('huangju', '剧果', '热门 · 最新 · 分类短剧', section: sectionDrama),
-    SourceSite('yeguo', '野果', '分类短剧 · 在线搜索', section: sectionDrama),
     dsd,
     SourceSite('huangguo-video', '黄果视频', '视频剧集'),
     SourceSite('huangguoai', '黄果 AI', 'AI 短剧'),

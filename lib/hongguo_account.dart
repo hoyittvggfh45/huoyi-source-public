@@ -776,6 +776,33 @@ class HongguoFavoriteUpdate {
   }
 }
 
+class HongguoDailyCoinClaim {
+  const HongguoDailyCoinClaim({
+    required this.claimed,
+    this.status = '',
+    this.rewardType = '',
+    this.rewardAmount = 0,
+    this.reason = '',
+  });
+
+  factory HongguoDailyCoinClaim.fromJson(Map<String, dynamic> json) =>
+      HongguoDailyCoinClaim(
+        claimed: json['claimed'] as bool? ?? false,
+        status: json['status'] as String? ?? '',
+        rewardType: json['rewardType'] as String? ?? '',
+        rewardAmount: (json['rewardAmount'] as num?)?.toInt() ?? 0,
+        reason: json['reason'] as String? ?? '',
+      );
+
+  final bool claimed;
+  final String status;
+  final String rewardType;
+  final int rewardAmount;
+  final String reason;
+
+  bool get isCoins => rewardType.toLowerCase() == 'gold';
+}
+
 abstract class HongguoAccountTransport {
   const HongguoAccountTransport();
 
@@ -816,6 +843,9 @@ abstract class HongguoAccountTransport {
     HongguoAccountCredentials credentials, {
     required String seriesId,
   });
+  Future<HongguoDailyCoinClaim> claimDailyCoins(
+    HongguoAccountCredentials credentials,
+  );
 }
 
 class _HongguoUnavailableTransport extends HongguoAccountTransport {
@@ -884,6 +914,11 @@ class _HongguoUnavailableTransport extends HongguoAccountTransport {
     HongguoAccountCredentials credentials, {
     required String seriesId,
   }) async => throw const HongguoAccountUnavailable(_message);
+
+  @override
+  Future<HongguoDailyCoinClaim> claimDailyCoins(
+    HongguoAccountCredentials credentials,
+  ) async => throw const HongguoAccountUnavailable(_message);
 }
 
 class GoHongguoAccountTransport extends HongguoAccountTransport {
@@ -1041,6 +1076,16 @@ class GoHongguoAccountTransport extends HongguoAccountTransport {
   }) async {
     await _repository.hongguoAccountReserve(credentials.cookie, seriesId);
   }
+
+  @override
+  Future<HongguoDailyCoinClaim> claimDailyCoins(
+    HongguoAccountCredentials credentials,
+  ) async {
+    final result = await _repository.hongguoAccountClaimDailyCoins(
+      credentials.cookie,
+    );
+    return HongguoDailyCoinClaim.fromJson(result);
+  }
 }
 
 class HongguoAccountController extends ChangeNotifier {
@@ -1059,6 +1104,8 @@ class HongguoAccountController extends ChangeNotifier {
   List<HongguoCloudReservation> _upcomingReservations = const [];
   List<HongguoCloudProgress> _uploadQueue = const [];
   HongguoFavoriteUpdate? _favoriteUpdate;
+  HongguoDailyCoinClaim? _lastDailyCoinClaim;
+  bool _dailyCoinClaimAttempted = false;
   bool _uploading = false;
 
   bool get loggedIn =>
@@ -1076,6 +1123,18 @@ class HongguoAccountController extends ChangeNotifier {
   List<HongguoCloudProgress> get pendingUploads =>
       List.unmodifiable(_uploadQueue);
   HongguoFavoriteUpdate? get favoriteUpdate => _favoriteUpdate;
+
+  HongguoDailyCoinClaim? get lastDailyCoinClaim => _lastDailyCoinClaim;
+
+  Future<void> claimDailyCoins() async {
+    final credentials = _credentials;
+    if (credentials == null || !credentials.valid) return;
+    if (_dailyCoinClaimAttempted) return;
+    _dailyCoinClaimAttempted = true;
+    try {
+      _lastDailyCoinClaim = await _transport.claimDailyCoins(credentials);
+    } catch (_) {}
+  }
 
   Set<String> get cloudFavoriteIds =>
       _cloudFavorites.map((item) => item.drama.id).toSet();
@@ -1184,6 +1243,8 @@ class HongguoAccountController extends ChangeNotifier {
     );
     await saveHongguoAccount(account);
     await refreshCloudData();
+    _dailyCoinClaimAttempted = false;
+    unawaited(claimDailyCoins());
     notifyListeners();
     return account;
   }
@@ -1195,6 +1256,8 @@ class HongguoAccountController extends ChangeNotifier {
     _onlineReservations = const [];
     _upcomingReservations = const [];
     _favoriteUpdate = null;
+    _lastDailyCoinClaim = null;
+    _dailyCoinClaimAttempted = false;
     final preferences = await SharedPreferences.getInstance();
     await preferences.remove(hongguoCloudHistoryKey);
     await preferences.remove(hongguoCloudFavoritesKey);

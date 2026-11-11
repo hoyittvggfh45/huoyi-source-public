@@ -143,6 +143,12 @@ abstract class AppRepository {
     String cookie,
     String seriesId,
   ) async => throw AppFailure('当前环境不支持红果账号');
+  Future<Map<String, dynamic>> hongguoAccountLoginRewardInfo(
+    String cookie,
+  ) async => throw AppFailure('当前环境不支持红果账号');
+  Future<Map<String, dynamic>> hongguoAccountClaimDailyCoins(
+    String cookie,
+  ) async => throw AppFailure('当前环境不支持红果账号');
   Future<dynamic> legadoRun(
     String sourceJson,
     String action,
@@ -857,6 +863,22 @@ class NativeRepository extends AppRepository {
   ) => _call({
     'action': 'hongguoAccountReserve',
     'content': jsonEncode({'cookie': cookie, 'seriesId': seriesId}),
+  });
+
+  @override
+  Future<Map<String, dynamic>> hongguoAccountLoginRewardInfo(
+    String cookie,
+  ) => _call({
+    'action': 'hongguoAccountLoginRewardInfo',
+    'content': jsonEncode({'cookie': cookie}),
+  });
+
+  @override
+  Future<Map<String, dynamic>> hongguoAccountClaimDailyCoins(
+    String cookie,
+  ) => _call({
+    'action': 'hongguoAccountClaimDailyCoins',
+    'content': jsonEncode({'cookie': cookie}),
   });
 
   @override

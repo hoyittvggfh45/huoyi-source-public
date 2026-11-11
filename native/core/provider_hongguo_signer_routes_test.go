@@ -303,9 +303,10 @@ func TestHongguoCode101000HasNoDeviceBranch(t *testing.T) {
 	}
 }
 
-func TestHongguoPlayerLadderFallsBackOnEmptyBody(t *testing.T) {
+func TestHongguoVideoModelPlayerOnlyDirect(t *testing.T) {
 	var requests []string
 	registered := 0
+	sawPlayerOnlyModel := false
 	d := sourceFixtureDownloader(t, func(request *http.Request) (*http.Response, error) {
 		if strings.Contains(request.URL.Path, "device_register") {
 			registered++
@@ -314,6 +315,9 @@ func TestHongguoPlayerLadderFallsBackOnEmptyBody(t *testing.T) {
 			return sourceFixtureResponse(request, http.StatusOK, `{"device_id_str":"`+id+`","install_id_str":"`+id+`9"}`), nil
 		}
 		requests = append(requests, "model@"+request.URL.Query().Get("device_id"))
+		if strings.Contains(request.URL.Path, "video_model") && request.Header.Get("X-Gorgon") == "" {
+			sawPlayerOnlyModel = true
+		}
 		if request.Header.Get("X-Gorgon") != "" {
 			return sourceFixtureResponse(request, http.StatusOK, ""), nil
 		}
@@ -327,9 +331,45 @@ func TestHongguoPlayerLadderFallsBackOnEmptyBody(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !strings.HasSuffix(media.URL, "high.mp4") {
+		t.Fatal("video_model direct with player-only signing must return the stream", media)
+	}
+	if !sawPlayerOnlyModel {
+		t.Fatal("video_model direct must go out without X-Gorgon", requests)
+	}
+	if state := d.hongguoCatalogSnapshot(); state.DeviceID != "7" {
+		t.Fatal("player-only direct must not burn device rotations", state)
+	}
+}
+
+func TestHongguoPlayerLadderFallsBackOnEmptyBody(t *testing.T) {
+	var requests []string
+	registered := 0
+	sawLadderTab := false
+	d := sourceFixtureDownloader(t, func(request *http.Request) (*http.Response, error) {
+		if strings.Contains(request.URL.Path, "device_register") {
+			registered++
+			requests = append(requests, "register")
+			id := strconv.Itoa(1000 + registered)
+			return sourceFixtureResponse(request, http.StatusOK, `{"device_id_str":"`+id+`","install_id_str":"`+id+`9"}`), nil
+		}
+		requests = append(requests, "model@"+request.URL.Query().Get("device_id"))
+		if strings.Contains(request.URL.Path, "video_tab") && request.Header.Get("X-Gorgon") == "" {
+			sawLadderTab = true
+			return sourceFixtureResponse(request, http.StatusOK, hongguoRotationModelOK), nil
+		}
+		return sourceFixtureResponse(request, http.StatusOK, ""), nil
+	})
+	d.cfg.Retries = 1
+	client := d.hongguoClient()
+	client.state.DeviceID, client.state.InstallID, client.state.Registered = "7", "8", true
+	media, err := d.resolveHongguoAppMedia(context.Background(), "12345")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(media.URL, "high.mp4") {
 		t.Fatal("player ladder did not rescue the empty-body stream", media)
 	}
-	if state := d.hongguoCatalogSnapshot(); state.DeviceID != "1006" {
-		t.Fatal("main ladder rotations must run before the player ladder", state)
+	if !sawLadderTab {
+		t.Fatal("player ladder must reach video_tab with player-only signing", requests)
 	}
 }

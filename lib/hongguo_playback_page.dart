@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'app_page_route.dart';
 import 'core_bridge.dart';
@@ -51,6 +52,16 @@ class HongguoPlaybackPage extends StatefulWidget {
 String _formatSpeed(double value) =>
     value == value.roundToDouble() ? '${value.toInt()}.0' : '$value';
 
+String _formatHongguoCount(int value) {
+  if (value >= 10000) {
+    final text = (value / 10000).toStringAsFixed(1);
+    return text.endsWith('.0')
+        ? '${text.substring(0, text.length - 2)}万'
+        : '$text万';
+  }
+  return '$value';
+}
+
 String _formatClock(double seconds) {
   if (!seconds.isFinite || seconds < 0) return '00:00';
   final total = seconds.round();
@@ -61,8 +72,10 @@ String _formatClock(double seconds) {
   return '${two(minutes)}:${two(rest)}';
 }
 
-class _HongguoPlaybackPageState extends State<HongguoPlaybackPage> {
+class _HongguoPlaybackPageState extends State<HongguoPlaybackPage>
+    with WidgetsBindingObserver {
   final RoomPlayerHandle _player = RoomPlayerHandle();
+  bool _resumeOnReturn = false;
   late final HongguoPreloadWindow _preloadWindow = HongguoPreloadWindow(
     widget.repository,
     detailOf: (drama) async {
@@ -85,8 +98,12 @@ class _HongguoPlaybackPageState extends State<HongguoPlaybackPage> {
   bool _synopsisExpanded = false;
   bool _fullscreen = false;
   bool _playbackServiceHeld = false;
-  String? _commentDramaId;
+  String? _commentKey;
+  String? _commentPlanKey;
   HongguoCommentPage? _commentPage;
+  bool? _cloudFavorite;
+  bool _cloudFavoriteLoaded = false;
+  bool _cloudFavoriteLoading = false;
   late HongguoPlaybackSettings _settings;
   late HongguoDecoderLessons _lessons;
   final HongguoSleepTimer _sleepTimer = HongguoSleepTimer();
@@ -102,6 +119,7 @@ class _HongguoPlaybackPageState extends State<HongguoPlaybackPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _detail = widget.detail;
     _episode = widget.initialEpisode;
     _settings = HongguoPlaybackSettings.load(widget.store.preferences);
@@ -136,6 +154,7 @@ class _HongguoPlaybackPageState extends State<HongguoPlaybackPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _playToken++;
     _crossSeasonTimer?.cancel();
     _sleepPoll?.cancel();
@@ -149,16 +168,62 @@ class _HongguoPlaybackPageState extends State<HongguoPlaybackPage> {
     super.dispose();
   }
 
-  Future<void> _loadCommentCounts(PlaybackPlan plan) async {
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      _resumeOnReturn = _player.hasVideo && _player.playing;
+    } else if (state == AppLifecycleState.resumed) {
+      final resume = _resumeOnReturn;
+      _resumeOnReturn = false;
+      if (resume && mounted && _player.hasVideo) {
+        unawaited(_player.play());
+      }
+    }
+  }
+
+  String _commentKeyFor() => '${widget.drama.id}|$_episode';
+
+  Future<void> _loadCommentCounts(PlaybackPlan? plan, String key) async {
     final seriesId = hongguoNumericId(widget.drama.id);
-    if (plan.session.isEmpty && seriesId == null) return;
+    final planLevel = plan != null && plan.session.isNotEmpty;
+    if (!planLevel && seriesId == null) return;
     try {
-      final page = plan.session.isEmpty
-          ? await widget.repository.commentsBySeries(seriesId!)
-          : await widget.repository.comments(plan);
-      if (!mounted || _commentDramaId != widget.drama.id) return;
+      final page = planLevel
+          ? await widget.repository.comments(plan)
+          : await widget.repository.commentsBySeries(seriesId!);
+      if (!mounted || _commentKey != key) return;
+      if (!planLevel && _commentPlanKey == key) return;
       setState(() => _commentPage = page);
-    } catch (_) {}
+    } catch (_) {
+      if (planLevel) {
+        if (_commentPlanKey == key) _commentPlanKey = null;
+      } else if (_commentKey == key && _commentPlanKey != key) {
+        _commentKey = null;
+      }
+    }
+  }
+
+  Future<void> _loadCloudFavorite() async {
+    final controller = widget.accountController;
+    final seriesId = hongguoNumericId(widget.drama.id);
+    if (controller == null ||
+        !controller.loggedIn ||
+        seriesId == null ||
+        _cloudFavoriteLoaded ||
+        _cloudFavoriteLoading) {
+      return;
+    }
+    _cloudFavoriteLoading = true;
+    try {
+      await controller.refreshCloudFavorites();
+      if (!mounted) return;
+      _cloudFavoriteLoaded = true;
+      setState(() => _cloudFavorite = controller.isCloudFavorite(seriesId));
+    } catch (_) {
+    } finally {
+      _cloudFavoriteLoading = false;
+    }
   }
 
   Future<void> _openComments() async {
@@ -238,6 +303,12 @@ class _HongguoPlaybackPageState extends State<HongguoPlaybackPage> {
         setState(() => _episode = episodeIndex);
       }
       if (!mounted || token != _playToken) return;
+      final commentKey = _commentKeyFor();
+      if (_commentKey != commentKey) {
+        _commentKey = commentKey;
+        unawaited(_loadCommentCounts(null, commentKey));
+      }
+      unawaited(_loadCloudFavorite());
       final preloaded = _preloadWindow.take(
         widget.drama,
         detail.episodes[episodeIndex],
@@ -270,9 +341,16 @@ class _HongguoPlaybackPageState extends State<HongguoPlaybackPage> {
           _playbackServiceHeld = true;
           unawaited(PlaybackForeground.acquire(widget.drama.title));
         }
-        if (_commentDramaId != widget.drama.id) {
-          _commentDramaId = widget.drama.id;
-          unawaited(_loadCommentCounts(plan));
+        final commentKey = _commentKeyFor();
+        if (plan.session.isNotEmpty) {
+          if (_commentPlanKey != commentKey) {
+            _commentPlanKey = commentKey;
+            _commentKey = commentKey;
+            unawaited(_loadCommentCounts(plan, commentKey));
+          }
+        } else if (_commentKey != commentKey) {
+          _commentKey = commentKey;
+          unawaited(_loadCommentCounts(null, commentKey));
         }
       }
       _preloadWindow.recenter(
@@ -497,7 +575,36 @@ class _HongguoPlaybackPageState extends State<HongguoPlaybackPage> {
     }
   }
 
+  bool _isFavoriteShown() =>
+      _cloudFavorite ?? widget.store.isFavorite(widget.drama.id);
+
   Future<void> _toggleFavorite() async {
+    final controller = widget.accountController;
+    final seriesId = hongguoNumericId(widget.drama.id);
+    final shown = _isFavoriteShown();
+    if (controller != null && controller.loggedIn && seriesId != null) {
+      try {
+        await controller.changeCloudFavorite(
+          Drama(
+            id: seriesId,
+            source: widget.drama.source,
+            title: widget.drama.title,
+          ),
+          !shown,
+        );
+        if (widget.store.isFavorite(widget.drama.id) != !shown) {
+          await widget.store.toggleFavorite(widget.drama);
+        }
+        if (!mounted) return;
+        setState(() => _cloudFavorite = !shown);
+        return;
+      } catch (_) {
+        if (mounted) {
+          setState(() => _cloudFavorite = null);
+          _note('云端同步失败，已只存本地');
+        }
+      }
+    }
     await widget.store.toggleFavorite(widget.drama);
     if (mounted) setState(() {});
   }
@@ -508,6 +615,15 @@ class _HongguoPlaybackPageState extends State<HongguoPlaybackPage> {
       prefs.copyWith(danmaku: !prefs.danmaku),
     );
     if (mounted) setState(() {});
+  }
+
+  Future<void> _shareDrama() async {
+    await Clipboard.setData(
+      ClipboardData(
+        text: '${widget.drama.title} 第${_episode + 1}集',
+      ),
+    );
+    if (mounted) _note('已复制，可粘贴分享');
   }
 
   void _note(String message) {
@@ -548,6 +664,7 @@ class _HongguoPlaybackPageState extends State<HongguoPlaybackPage> {
         store: widget.store,
         currentEpisode: _episode,
         initialTab: initialTab,
+        isFavorite: _isFavoriteShown(),
         accountController: widget.accountController,
         onSelect: (index) {
           Navigator.of(context).pop();
@@ -878,7 +995,7 @@ class _HongguoPlaybackPageState extends State<HongguoPlaybackPage> {
   }
 
   Future<void> _openMoreSheet() async {
-    final favorite = widget.store.isFavorite(widget.drama.id);
+    final favorite = _isFavoriteShown();
     final prefs = widget.store.playbackPreferences;
     await showModalBottomSheet<void>(
       context: context,
@@ -1048,7 +1165,6 @@ class _HongguoPlaybackPageState extends State<HongguoPlaybackPage> {
   }
 
   Widget _topBar() {
-    final prefs = widget.store.playbackPreferences;
     return Row(
       children: [
         IconButton(
@@ -1084,25 +1200,11 @@ class _HongguoPlaybackPageState extends State<HongguoPlaybackPage> {
                   size: 20,
                 ),
                 const SizedBox(width: 4),
-                Text(
-                  '${_formatSpeed(prefs.speed)}x',
-                  style: const TextStyle(color: Colors.white),
+                const Text(
+                  '倍速',
+                  style: TextStyle(color: Colors.white),
                 ),
               ],
-            ),
-          ),
-        ),
-        GestureDetector(
-          onTap: _openQualitySheet,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Text(
-              _player.plan?.quality != null && _player.plan!.quality > 0
-                  ? '${_player.plan!.quality}P'
-                  : prefs.quality > 0
-                  ? '${prefs.quality}P'
-                  : '自动',
-              style: const TextStyle(color: Colors.white),
             ),
           ),
         ),
@@ -1205,6 +1307,12 @@ class _HongguoPlaybackPageState extends State<HongguoPlaybackPage> {
         : '第${_episode + 1}集 | $episodeTitle';
     final synopsis = detail?.drama.description ?? widget.drama.description;
     final status = _releaseStatusLabel();
+    final category = detail?.drama.category ?? widget.drama.category;
+    final showAiNote =
+        category == 'comic_series' ||
+        category.contains('漫') ||
+        category.contains('comic') ||
+        category == 'ai_series';
     return Container(
       color: moyiSheetFill,
       child: SingleChildScrollView(
@@ -1308,44 +1416,59 @@ class _HongguoPlaybackPageState extends State<HongguoPlaybackPage> {
                         ),
                       ),
                       const SizedBox(height: 6),
-                      Text(
-                        episodeLine,
-                        style: const TextStyle(color: Colors.white70),
-                      ),
-                      if (synopsis.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              synopsis.isEmpty
+                                  ? episodeLine
+                                  : '$episodeLine | $synopsis',
+                              style: const TextStyle(color: Colors.white70),
+                              maxLines: _synopsisExpanded ? null : 1,
+                              overflow: _synopsisExpanded
+                                  ? TextOverflow.visible
+                                  : TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (synopsis.length > 80)
+                            GestureDetector(
+                              onTap: () => setState(
+                                () => _synopsisExpanded =
+                                    !_synopsisExpanded,
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.only(left: 8),
                                 child: Text(
-                                  synopsis,
+                                  _synopsisExpanded ? '收起' : '展开',
                                   style: const TextStyle(
-                                    color: Colors.white70,
+                                    color: Colors.white,
                                   ),
-                                  maxLines: _synopsisExpanded ? null : 2,
-                                  overflow: _synopsisExpanded
-                                      ? TextOverflow.visible
-                                      : TextOverflow.ellipsis,
                                 ),
                               ),
-                              if (synopsis.length > 80)
-                                GestureDetector(
-                                  onTap: () => setState(
-                                    () => _synopsisExpanded =
-                                        !_synopsisExpanded,
-                                  ),
-                                  child: Padding(
-                                    padding: const EdgeInsets.only(left: 8),
-                                    child: Text(
-                                      _synopsisExpanded ? '收起' : '展开',
-                                      style: const TextStyle(
-                                        color: Colors.white,
+                            ),
+                        ],
+                      ),
+                      if (showAiNote)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.info_outline,
+                                size: 14,
+                                color: Colors.white.withValues(alpha: 0.6),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                '作者声明：内容由AI生成',
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.6,
                                       ),
                                     ),
-                                  ),
-                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -1387,13 +1510,15 @@ class _HongguoPlaybackPageState extends State<HongguoPlaybackPage> {
                 Column(
                   children: [
                     _action(
-                      icon: widget.store.isFavorite(widget.drama.id)
+                      icon: _isFavoriteShown()
                           ? Icons.star_rounded
                           : Icons.star_outline_rounded,
                       label: '收藏',
                       count: _commentPage != null &&
                               _commentPage!.collectorsCount > 0
-                          ? '${_commentPage!.collectorsCount}'
+                          ? _formatHongguoCount(
+                              _commentPage!.collectorsCount,
+                            )
                           : null,
                       onTap: () => unawaited(_toggleFavorite()),
                     ),
@@ -1402,7 +1527,7 @@ class _HongguoPlaybackPageState extends State<HongguoPlaybackPage> {
                       icon: Icons.chat_bubble_outline_rounded,
                       label: '评论',
                       count: _commentPage != null && _commentPage!.total > 0
-                          ? '${_commentPage!.total}'
+                          ? _formatHongguoCount(_commentPage!.total)
                           : null,
                       onTap: () => unawaited(_openComments()),
                     ),
@@ -1411,6 +1536,12 @@ class _HongguoPlaybackPageState extends State<HongguoPlaybackPage> {
                       icon: Icons.favorite_outline_rounded,
                       label: '点赞',
                       onTap: () => _note('该剧暂无点赞数据'),
+                    ),
+                    const SizedBox(height: 20),
+                    _action(
+                      icon: Icons.share_rounded,
+                      label: '分享',
+                      onTap: () => unawaited(_shareDrama()),
                     ),
                   ],
                 ),
@@ -1606,6 +1737,7 @@ class _EpisodeSheet extends StatefulWidget {
     required this.onToggleFavorite,
     required this.onOpenRelated,
     this.initialTab = 1,
+    this.isFavorite,
     this.accountController,
   });
 
@@ -1614,6 +1746,7 @@ class _EpisodeSheet extends StatefulWidget {
   final AppRepository repository;
   final LocalStore store;
   final int currentEpisode;
+  final bool? isFavorite;
   final ValueChanged<int> onSelect;
   final VoidCallback onToggleFavorite;
   final ValueChanged<Drama> onOpenRelated;
@@ -1627,7 +1760,8 @@ class _EpisodeSheet extends StatefulWidget {
 class _EpisodeSheetState extends State<_EpisodeSheet> {
   late int _tab = widget.initialTab;
   late int _range = widget.currentEpisode ~/ 30;
-  late bool _favorite = widget.store.isFavorite(widget.drama.id);
+  late bool _favorite =
+      widget.isFavorite ?? widget.store.isFavorite(widget.drama.id);
 
   List<String> get _ranges {
     final count = widget.detail.episodes.length;

@@ -20,7 +20,7 @@ const hongguoOverseaAppBaseURL = "https://api5-normal-sinfonlinea.fqnovel.com"
 
 type hongguoBaseURLOverrideKey struct{}
 
-const hongguoAppUserAgent = "com.phoenix.read/73532 (Linux; U; Android 16; zh_CN; 25053RT47C; Build/BP2A.250605.031.A3; Cronet/TTNetVersion:04657795 2026-01-23 QuicVersion:c67e9834 2025-09-08)"
+const hongguoAppUserAgent = "com.phoenix.read/74332 (Linux; U; Android 16; zh_CN; 25053RT47C; Build/BP2A.250605.031.A3; Cronet/TTNetVersion:04657795 2026-01-23 QuicVersion:c67e9834 2025-09-08)"
 
 type hongguoCatalogCursor struct {
 	Offset        int       `json:"offset"`
@@ -36,6 +36,7 @@ type hongguoCatalogState struct {
 	Version    int                             `json:"version"`
 	DeviceID   string                          `json:"deviceId"`
 	InstallID  string                          `json:"installId"`
+	CDID       string                          `json:"cdid,omitempty"`
 	Registered bool                            `json:"registered,omitempty"`
 	Feeds      map[string]hongguoCatalogCursor `json:"feeds"`
 }
@@ -114,7 +115,7 @@ func (downloader *Downloader) hongguoClient() *hongguoAppClient {
 			routes:   newHongguoPlaybackRoutes(),
 			models:   map[string]hongguoCachedModel{},
 			handover: map[string]hongguoCachedModel{},
-			state:    hongguoCatalogState{Version: 1, DeviceID: newHongguoDeviceID(), InstallID: newHongguoDeviceID(), Feeds: map[string]hongguoCatalogCursor{}},
+			state:    hongguoCatalogState{Version: 1, DeviceID: newHongguoDeviceID(), InstallID: newHongguoDeviceID(), CDID: uuidLike(), Feeds: map[string]hongguoCatalogCursor{}},
 			details:  map[string]hongguoDetailEntry{}, pending: map[string]*hongguoDetailCall{},
 			searches: map[string]hongguoSearchEntry{}, searchPending: map[string]*hongguoSearchCall{},
 			suggestions: map[string]hongguoSuggestionEntry{}, suggestPending: map[string]*hongguoSuggestionCall{},
@@ -150,6 +151,9 @@ func (downloader *Downloader) restoreHongguoCatalog(state *hongguoCatalogState) 
 		return
 	}
 	cloned := cloneHongguoCatalogState(state)
+	if cloned.CDID == "" {
+		cloned.CDID = uuidLike()
+	}
 	for name, cursor := range cloned.Feeds {
 		known := false
 		for _, genre := range hongguoAppGenres {
@@ -198,12 +202,25 @@ func hongguoCatalogHasMore(state *hongguoCatalogState) bool {
 
 func hongguoAppQuery(deviceID, installID string) url.Values {
 	return url.Values{
-		"aid": {"8662"}, "app_name": {"novelread"}, "version_code": {"73532"}, "version_name": {"7.3.5.32"},
-		"manifest_version_code": {"73532"}, "update_version_code": {"73532"}, "channel": {"update_64"},
+		"aid": {"8662"}, "app_name": {"novelread"}, "version_code": {"74332"}, "version_name": {"7.4.3.32"},
+		"manifest_version_code": {"74332"}, "update_version_code": {"74332"}, "channel": {"update_64"},
 		"device_platform": {"android"}, "os": {"android"}, "ssmix": {"a"}, "device_type": {"25053RT47C"},
 		"device_brand": {"Redmi"}, "language": {"zh"}, "os_api": {"36"}, "os_version": {"16"},
 		"resolution": {"1280*2772"}, "dpi": {"520"}, "ac": {"wifi"}, "device_id": {deviceID}, "iid": {installID},
+		"host_abi": {"arm64-v8a"}, "dragon_device_type": {"phone"}, "pv_player": {"74332"},
+		"compliance_status": {"0"}, "need_personal_recommend": {"1"}, "player_so_load": {"1"},
+		"is_android_pad_screen": {"0"},
 	}
+}
+
+func (downloader *Downloader) hongguoCDID() string {
+	client := downloader.hongguoClient()
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	if client.state.CDID == "" {
+		client.state.CDID = uuidLike()
+	}
+	return client.state.CDID
 }
 
 // clearHongguoPlayerSuspended 重置玩家 App 接口的负缓存窗口（App 恢复可用时调用）。
@@ -272,6 +289,7 @@ func (downloader *Downloader) hongguoAppRequestInternal(ctx context.Context, met
 		base = hongguoOverseaAppBaseURL
 	}
 	query := hongguoAppQuery(deviceID, installID)
+	query.Set("cdid", downloader.hongguoCDID())
 	for key, values := range extra {
 		query[key] = append([]string(nil), values...)
 	}
