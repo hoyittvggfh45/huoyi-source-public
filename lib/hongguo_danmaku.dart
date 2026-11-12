@@ -21,9 +21,11 @@ double hongguoVideoAspect(RoomPlayerHandle handle) {
 
 String? hongguoNumericId(String value) {
   final trimmed = value.trim();
-  final digits = trimmed.startsWith('hongguo:')
+  final stripped = trimmed.startsWith('hongguo:')
       ? trimmed.substring('hongguo:'.length)
       : trimmed;
+  final segments = stripped.split(':');
+  final digits = segments.isEmpty ? '' : segments.last;
   if (digits.length < 10) return null;
   for (var i = 0; i < digits.length; i++) {
     final code = digits.codeUnitAt(i);

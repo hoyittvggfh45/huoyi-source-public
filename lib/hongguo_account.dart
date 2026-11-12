@@ -1088,6 +1088,18 @@ class GoHongguoAccountTransport extends HongguoAccountTransport {
   }
 }
 
+class _PendingVerifiedLogin {
+  const _PendingVerifiedLogin({
+    required this.credentials,
+    required this.method,
+    required this.mobile,
+  });
+
+  final HongguoAccountCredentials credentials;
+  final String method;
+  final String mobile;
+}
+
 class HongguoAccountController extends ChangeNotifier {
   HongguoAccountController({
     this._transport = HongguoAccountTransport.unavailable,
@@ -1098,6 +1110,7 @@ class HongguoAccountController extends ChangeNotifier {
   final HongguoAccountTransport _transport;
 
   HongguoAccountCredentials? _credentials;
+  _PendingVerifiedLogin? _pendingVerifiedSession;
   List<HongguoCloudFavorite> _cloudFavorites = const [];
   List<HongguoCloudProgress> _cloudHistory = const [];
   List<HongguoCloudReservation> _onlineReservations = const [];
@@ -1192,10 +1205,17 @@ class HongguoAccountController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<HongguoSmsSent> transportSendSmsCode(String mobile) =>
-      _transport.sendSmsCode(mobile);
+  Future<HongguoSmsSent> transportSendSmsCode(String mobile) async {
+    final sent = await _transport.sendSmsCode(mobile);
+    _pendingVerifiedSession = null;
+    return sent;
+  }
 
-  Future<HongguoQrCode> transportFetchQrCode() => _transport.fetchQrCode();
+  Future<HongguoQrCode> transportFetchQrCode() async {
+    final qr = await _transport.fetchQrCode();
+    _pendingVerifiedSession = null;
+    return qr;
+  }
 
   Future<HongguoQrPollResult> transportPollQrCode() =>
       _transport.pollQrCode();
@@ -1204,15 +1224,20 @@ class HongguoAccountController extends ChangeNotifier {
     required String mobile,
     required String code,
   }) async {
-    final credentials = await _transport.verifySmsCode(
-      mobile: mobile,
-      code: code,
-    );
+    final pending = _pendingVerifiedSession;
+    final credentials =
+        pending != null && pending.method == 'sms' && pending.mobile == mobile
+            ? pending.credentials
+            : await _transport.verifySmsCode(mobile: mobile, code: code);
     return _acceptCredentials(credentials, method: 'sms', mobile: mobile);
   }
 
   Future<HongguoAccount> loginWithQr() async {
-    final credentials = await _transport.confirmQrCode();
+    final pending = _pendingVerifiedSession;
+    final credentials =
+        pending != null && pending.method == 'qr'
+            ? pending.credentials
+            : await _transport.confirmQrCode();
     return _acceptCredentials(credentials, method: 'qr', mobile: '');
   }
 
@@ -1221,35 +1246,46 @@ class HongguoAccountController extends ChangeNotifier {
     required String method,
     required String mobile,
   }) async {
-    final profile = await _transport.fetchProfile(credentials);
-    if (profile.id.isEmpty) {
-      throw const HongguoLoginFailure(
-        '该手机号还没有红果账号资料，请先用官方红果 App 登录一次再回来试',
+    try {
+      final profile = await _transport.fetchProfile(credentials);
+      if (profile.id.isEmpty) {
+        throw const HongguoLoginFailure(
+          '该手机号还没有红果账号资料，请先用官方红果 App 登录一次再回来试',
+        );
+      }
+      await saveHongguoAccountCredentials(credentials);
+      _credentials = credentials;
+      final account = HongguoAccount(
+        userId: profile.id,
+        displayName:
+            profile.nickname.isNotEmpty ? profile.nickname : '红果用户',
+        maskedPhone:
+            mobile.isEmpty
+                ? ''
+                : mobile.length == 11
+                ? HongguoAccount.maskPhone(mobile)
+                : mobile,
+        method: method,
       );
+      await saveHongguoAccount(account);
+      await refreshCloudData();
+      _pendingVerifiedSession = null;
+      _dailyCoinClaimAttempted = false;
+      unawaited(claimDailyCoins());
+      notifyListeners();
+      return account;
+    } catch (_) {
+      _pendingVerifiedSession = _PendingVerifiedLogin(
+        credentials: credentials,
+        method: method,
+        mobile: mobile,
+      );
+      rethrow;
     }
-    _credentials = credentials;
-    await saveHongguoAccountCredentials(credentials);
-    final account = HongguoAccount(
-      userId: profile.id,
-      displayName:
-          profile.nickname.isNotEmpty ? profile.nickname : '红果用户',
-      maskedPhone:
-          mobile.isEmpty
-              ? ''
-              : mobile.length == 11
-              ? HongguoAccount.maskPhone(mobile)
-              : mobile,
-      method: method,
-    );
-    await saveHongguoAccount(account);
-    await refreshCloudData();
-    _dailyCoinClaimAttempted = false;
-    unawaited(claimDailyCoins());
-    notifyListeners();
-    return account;
   }
 
   Future<void> logout() async {
+    _pendingVerifiedSession = null;
     _credentials = null;
     _cloudFavorites = const [];
     _cloudHistory = const [];
@@ -1296,7 +1332,9 @@ class HongguoAccountController extends ChangeNotifier {
     final now = DateTime.now().millisecondsSinceEpoch;
     _favoriteUpdate =
         _favoriteUpdate == null
-            ? HongguoFavoriteUpdate.first(favorites.length, now)
+            ? (favorites.isEmpty
+                  ? null
+                  : HongguoFavoriteUpdate.first(favorites.length, now))
             : _favoriteUpdate!.observe(favorites.length, now);
     final preferences = await SharedPreferences.getInstance();
     await preferences.setString(

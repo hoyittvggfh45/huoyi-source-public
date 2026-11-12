@@ -403,6 +403,11 @@ func (d *Downloader) resolveHGTVMedia(ctx context.Context, task Task) (providerM
 	} else if err := ctx.Err(); err != nil {
 		return providerMedia{}, err
 	}
+	if media, err := d.resolveHongguoWebFallback(ctx, seriesID, videoID); err == nil {
+		add(media)
+	} else if err := ctx.Err(); err != nil {
+		return providerMedia{}, err
+	}
 	lines = append(lines, providerMedia{
 		URL:     hongguoBaseURL + "/video/public/" + videoID + "/360p.mp4",
 		Referer: hongguoBaseURL + "/",

@@ -34,6 +34,10 @@ class PlayerControls extends StatefulWidget {
     required this.qualityLabel,
     required this.onFocusSurface,
     this.showDanmaku = false,
+    this.showTopBackButton = true,
+    this.showComments = false,
+    this.commentCount,
+    this.onOpenComments,
     this.danmakuEnabled = false,
     this.danmakuStatus = '',
     this.swipeEnabled = false,
@@ -82,6 +86,10 @@ class PlayerControls extends StatefulWidget {
   final String qualityLabel;
   final VoidCallback onFocusSurface;
   final bool showDanmaku;
+  final bool showTopBackButton;
+  final bool showComments;
+  final String? commentCount;
+  final VoidCallback? onOpenComments;
   final bool danmakuEnabled;
   final String danmakuStatus;
   final bool swipeEnabled;
@@ -390,15 +398,16 @@ class _PlayerControlsState extends State<PlayerControls> {
         padding: EdgeInsets.only(top: compact ? 8 : 0),
         child: Row(
           children: [
-            _overlayIconButton(
-              tooltip: widget.fullscreen ? '退出全屏' : '返回',
-              onPressed: widget.fullscreen
-                  ? (widget.onExitFullscreen ?? widget.onFullscreen)
-                  : widget.onBack,
-              icon: widget.fullscreen
-                  ? Icons.arrow_back_rounded
-                  : Icons.arrow_back_ios_new_rounded,
-            ),
+            if (widget.showTopBackButton)
+              _overlayIconButton(
+                tooltip: widget.fullscreen ? '退出全屏' : '返回',
+                onPressed: widget.fullscreen
+                    ? (widget.onExitFullscreen ?? widget.onFullscreen)
+                    : widget.onBack,
+                icon: widget.fullscreen
+                    ? Icons.arrow_back_rounded
+                    : Icons.arrow_back_ios_new_rounded,
+              ),
             if (!compact)
               Expanded(
                 child: Text(
@@ -524,12 +533,22 @@ class _PlayerControlsState extends State<PlayerControls> {
   );
 
   Widget _sideDanmakuControl() {
-    if (!widget.showDanmaku) return const SizedBox.shrink();
+    if (!widget.showDanmaku && !widget.showComments) {
+      return const SizedBox.shrink();
+    }
     return Align(
       alignment: Alignment.centerRight,
       child: Padding(
         padding: EdgeInsets.only(right: widget.swipeEnabled ? 0 : 4),
-        child: _danmakuTool(),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (widget.showDanmaku) _danmakuTool(),
+            if (widget.showDanmaku && widget.showComments)
+              const SizedBox(height: 12),
+            if (widget.showComments) _commentTool(),
+          ],
+        ),
       ),
     );
   }
@@ -772,6 +791,35 @@ class _PlayerControlsState extends State<PlayerControls> {
                   : Colors.white.withValues(alpha: .86),
             ),
           ),
+  );
+
+  Widget _commentTool() => Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      _toolButton(
+        key: const ValueKey('player-comment'),
+        tooltip: widget.commentCount == null
+            ? '评论'
+            : '评论 · ${widget.commentCount}条',
+        onPressed: widget.enabled ? widget.onOpenComments : null,
+        child: const Text(
+          '评',
+          style: TextStyle(
+            fontSize: 12,
+            height: 1,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
+      if (widget.commentCount != null)
+        Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Text(
+            widget.commentCount!,
+            style: const TextStyle(color: Colors.white70, fontSize: 11),
+          ),
+        ),
+    ],
   );
 
   Widget? _routeTool() {

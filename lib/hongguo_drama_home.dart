@@ -21,6 +21,7 @@ import 'hongguo_tv_search_panel.dart';
 import 'local_store.dart';
 import 'models.dart';
 import 'playback_foreground.dart';
+import 'ranking_models.dart';
 import 'tvbox_player_bridge.dart';
 import 'watchroom/player.dart';
 import 'widgets.dart';
@@ -28,26 +29,19 @@ import 'moyi_theme.dart';
 
 bool isHongguoDramaGroup(String groupId) => groupId == 'hongguo';
 
-({int drama, int episode})? hongguoFeedNext({
+int? hongguoFeedNextDrama({
   required int drama,
-  required int episode,
   required int dramaCount,
-  required int episodeCount,
 }) {
-  if (episode + 1 < episodeCount) return (drama: drama, episode: episode + 1);
-  if (drama + 1 < dramaCount) return (drama: drama + 1, episode: 0);
+  if (drama + 1 < dramaCount) return drama + 1;
   return null;
 }
 
-({int drama, int episode})? hongguoFeedPrevious({
-  required int drama,
-  required int episode,
-  required int previousEpisodeCount,
-}) {
-  if (episode > 0) return (drama: drama, episode: episode - 1);
-  if (drama <= 0) return null;
-  if (previousEpisodeCount <= 0) return (drama: drama - 1, episode: 0);
-  return (drama: drama - 1, episode: previousEpisodeCount - 1);
+String hongguoRankBadgeHeat(RankingItem item) {
+  final heat = hongguoFeedHeat(hongguoRankHeat(item));
+  return heat.endsWith('热度')
+      ? heat.substring(0, heat.length - 2)
+      : heat;
 }
 
 String hongguoFeedHeat(String raw) {
@@ -176,10 +170,6 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
   String? _trialRecoveryMessage;
   String? _trialErrorSeen;
   final Map<String, DateTime> _trialSavedAt = {};
-  Offset? _feedDragStart;
-  DateTime? _feedDragStartTime;
-  Offset _feedDragLast = Offset.zero;
-  DateTime? _feedDragLastTime;
 
   @override
   void initState() {
@@ -533,9 +523,7 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
     final seriesId = hongguoNumericId(drama.id);
     if (plan.session.isEmpty && seriesId == null) return;
     try {
-      final page = plan.session.isEmpty
-          ? await widget.repository.commentsBySeries(seriesId!)
-          : await widget.repository.comments(plan);
+      final page = await _fetchCommentPage(plan, seriesId);
       if (!mounted || _videos.isEmpty) return;
       final current = _videos[_index.clamp(0, _videos.length - 1)];
       if (_keyFor(current) != key) return;
@@ -544,6 +532,20 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
       }
       setState(() => _commentPages[key] = page);
     } catch (_) {}
+  }
+
+  Future<HongguoCommentPage> _fetchCommentPage(
+    PlaybackPlan plan,
+    String? seriesId,
+  ) async {
+    if (plan.session.isNotEmpty) {
+      try {
+        return await widget.repository.comments(plan);
+      } catch (_) {
+        if (seriesId == null) rethrow;
+      }
+    }
+    return widget.repository.commentsBySeries(seriesId!);
   }
 
   Future<void> _openComments(Drama drama) async {
@@ -813,130 +815,27 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
   }
 
   void _onCompleted() {
-    final videos = _videos;
-    if (videos.isEmpty) return;
-    unawaited(_advanceOneStep());
-  }
-
-  Future<DramaDetail?> _ensureDetail(Drama drama) async {
-    final key = _keyFor(drama);
-    final cached = _details[key];
-    if (cached != null) return cached;
-    try {
-      final detail = await widget.repository.detail(drama);
-      if (!mounted) return null;
-      _details[key] = detail;
-      _trialSavedAt[key] = DateTime.now();
-      return detail;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  Future<void> _advanceOneStep() async {
-    final videos = _videos;
-    if (videos.isEmpty) return;
-    final index = _index.clamp(0, videos.length - 1);
-    final drama = videos[index];
-    final fromIndex = _index;
-    final fromEpisode = _episode;
-    final detail = await _ensureDetail(drama);
-    if (!mounted || _index != fromIndex || _episode != fromEpisode) return;
-    final count = detail?.episodes.length ?? 0;
-    if (count <= 0) {
-      _advanceDrama();
-      return;
-    }
-    final next = hongguoFeedNext(
-      drama: index,
-      episode: _episode,
-      dramaCount: videos.length,
-      episodeCount: count,
-    );
-    if (next == null) {
-      unawaited(_playCurrent());
-      return;
-    }
-    if (next.drama == index) {
-      setState(() => _episode = next.episode);
-      unawaited(_playCurrent());
-    } else {
-      _advanceDrama();
-    }
+    if (_videos.isEmpty) return;
+    _advanceDrama();
   }
 
   void _advanceDrama() {
     final videos = _videos;
     if (videos.isEmpty) return;
-    if (_index + 1 < videos.length) {
-      unawaited(
-        _pages.nextPage(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        ),
-      );
-    } else {
-      unawaited(_playCurrent());
-    }
-  }
-
-  Future<void> _swipePrevious() async {
-    final videos = _videos;
-    if (videos.isEmpty) return;
-    if (_episode > 0) {
-      setState(() => _episode--);
+    final next = hongguoFeedNextDrama(
+      drama: _index.clamp(0, videos.length - 1),
+      dramaCount: videos.length,
+    );
+    if (next == null) {
       unawaited(_playCurrent());
       return;
     }
-    if (_index <= 0) return;
-    final fromIndex = _index;
-    final prev = videos[_index - 1];
-    final detail = await _ensureDetail(prev);
-    if (!mounted || _index != fromIndex || _episode != 0) return;
-    final count = detail?.episodes.length ?? 0;
-    _jumpEpisode = count > 0 ? count - 1 : 0;
     unawaited(
-      _pages.previousPage(
+      _pages.nextPage(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOut,
       ),
     );
-  }
-
-  void _onFeedPointerDown(PointerDownEvent event) {
-    _feedDragStart = event.position;
-    _feedDragStartTime = DateTime.now();
-    _feedDragLast = event.position;
-    _feedDragLastTime = DateTime.now();
-  }
-
-  void _onFeedPointerMove(PointerMoveEvent event) {
-    _feedDragLast = event.position;
-    _feedDragLastTime = DateTime.now();
-  }
-
-  void _onFeedPointerUp(PointerUpEvent event) {
-    final start = _feedDragStart;
-    final startTime = _feedDragStartTime;
-    final lastTime = _feedDragLastTime;
-    _feedDragStart = null;
-    _feedDragStartTime = null;
-    _feedDragLastTime = null;
-    if (start == null || startTime == null || lastTime == null) return;
-    final dy = _feedDragLast.dy - start.dy;
-    final elapsed = lastTime.difference(startTime).inMilliseconds;
-    final velocity = elapsed > 0 ? dy / (elapsed / 1000.0) : 0.0;
-    if (dy <= -64 || (dy <= -24 && velocity <= -600)) {
-      unawaited(_advanceOneStep());
-    } else if (dy >= 64 || (dy >= 24 && velocity >= 600)) {
-      unawaited(_swipePrevious());
-    }
-  }
-
-  void _onFeedPointerCancel(PointerCancelEvent event) {
-    _feedDragStart = null;
-    _feedDragStartTime = null;
-    _feedDragLastTime = null;
   }
 
   bool _isComicDrama(Drama drama) =>
@@ -954,47 +853,61 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
     return ('hongguo-hot', '热播榜');
   }
 
+  String _rankBoardLabel(String boardId) {
+    for (final board in hongguoRankBoards) {
+      if (board.id == boardId) {
+        return boardId == 'hongguo-hot'
+            ? '热播榜'
+            : '${board.label}热播榜';
+      }
+    }
+    return '热播榜';
+  }
+
   ({String boardLabel, int rank, String heat})? _rankBadgeFor(Drama drama) =>
       _rankBadges[_keyFor(drama)];
+
+  Future<HongguoRankSnapshot?> _ensureRankSnapshot(String boardId) async {
+    if (_rankCache.isFresh(boardId)) return _rankCache.snapshots[boardId];
+    if (!_rankCache.beginRefresh(boardId)) return null;
+    try {
+      final result = await widget.repository.rankings(boardId, page: 1);
+      final snapshot = HongguoRankSnapshot(
+        boardId: boardId,
+        items: result.items,
+        updatedText: result.updatedText,
+        fetchedAt: DateTime.now(),
+      );
+      _rankCache.endRefresh(boardId, snapshot);
+      return snapshot;
+    } catch (_) {
+      _rankCache.endRefresh(boardId, null);
+      return null;
+    }
+  }
 
   Future<void> _loadRankBadge(Drama drama) async {
     final key = _keyFor(drama);
     if (_rankBadges.containsKey(key)) return;
-    final (boardId, boardLabel) = _rankBoardFor(drama);
-    if (!_rankCache.isFresh(boardId)) {
-      if (!_rankCache.beginRefresh(boardId)) return;
-      try {
-        final result = await widget.repository.rankings(boardId, page: 1);
-        if (!mounted) {
-          _rankCache.endRefresh(boardId, null);
+    final boardIds = <String>[_rankBoardFor(drama).$1];
+    for (final board in hongguoRankBoards) {
+      if (!boardIds.contains(board.id)) boardIds.add(board.id);
+    }
+    for (final boardId in boardIds) {
+      final snapshot = await _ensureRankSnapshot(boardId);
+      if (!mounted) return;
+      if (snapshot == null) continue;
+      for (final item in snapshot.items) {
+        if (item.drama.id == drama.id) {
+          setState(() {
+            _rankBadges[key] = (
+              boardLabel: _rankBoardLabel(boardId),
+              rank: item.rank,
+              heat: hongguoRankBadgeHeat(item),
+            );
+          });
           return;
         }
-        _rankCache.endRefresh(
-          boardId,
-          HongguoRankSnapshot(
-            boardId: boardId,
-            items: result.items,
-            updatedText: result.updatedText,
-            fetchedAt: DateTime.now(),
-          ),
-        );
-      } catch (_) {
-        _rankCache.endRefresh(boardId, null);
-        return;
-      }
-    }
-    final items = _rankCache.snapshots[boardId]?.items ?? const [];
-    for (final item in items) {
-      if (item.drama.id == drama.id) {
-        if (!mounted) return;
-        setState(() {
-          _rankBadges[key] = (
-            boardLabel: boardLabel,
-            rank: item.rank,
-            heat: hongguoFeedHeat(drama.heat),
-          );
-        });
-        return;
       }
     }
   }
@@ -1155,21 +1068,14 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
     }
     return Stack(
       children: [
-        Listener(
-          onPointerDown: _onFeedPointerDown,
-          onPointerMove: _onFeedPointerMove,
-          onPointerUp: _onFeedPointerUp,
-          onPointerCancel: _onFeedPointerCancel,
-          child: PageView.builder(
-            scrollDirection: Axis.vertical,
-            physics: const NeverScrollableScrollPhysics(),
-            controller: _pages,
-            onPageChanged: _onPageChanged,
-            itemCount: videos.length,
-            itemBuilder: (context, index) {
-              return _buildFeedPage(context, videos[index], index == _index);
-            },
-          ),
+        PageView.builder(
+          scrollDirection: Axis.vertical,
+          controller: _pages,
+          onPageChanged: _onPageChanged,
+          itemCount: videos.length,
+          itemBuilder: (context, index) {
+            return _buildFeedPage(context, videos[index], index == _index);
+          },
         ),
         Positioned(
           top: 0,
@@ -1436,7 +1342,7 @@ class _HongguoDramaHomeState extends State<HongguoDramaHome> {
             Padding(
               padding: const EdgeInsets.only(top: 2),
               child: Text(
-                '$count',
+                hongguoFeedHeat('$count'),
                 style: const TextStyle(color: Colors.white70, fontSize: 11),
               ),
             ),

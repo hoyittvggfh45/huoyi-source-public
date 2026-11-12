@@ -66,14 +66,17 @@ class _HongguoLoginPageState extends State<HongguoLoginPage> {
       _mobile = mobile;
       setState(() => _countdown = null);
       _startCountdown(sent.retrySeconds);
-    } catch (error) {
+    } on HongguoLoginFailure catch (error) {
       if (!mounted) return;
-      if (error is HongguoLoginFailure && error.errorCode == 7) {
+      if (error.errorCode == 7) {
         setState(() => _error = error.message);
         _startCountdown(60);
       } else {
-        setState(() => _error = error.toString());
+        setState(() => _error = error.message);
       }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _error = '发送失败，请稍后重试');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -97,9 +100,12 @@ class _HongguoLoginPageState extends State<HongguoLoginPage> {
       await widget.controller.loginWithSms(mobile: _mobile, code: code);
       if (!mounted) return;
       Navigator.of(context).pop(true);
-    } catch (error) {
+    } on HongguoLoginFailure catch (error) {
       if (!mounted) return;
-      setState(() => _error = error.toString());
+      setState(() => _error = error.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _error = '登录失败，请稍后重试');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -144,12 +150,20 @@ class _HongguoLoginPageState extends State<HongguoLoginPage> {
           }
         } catch (error) {
           _pollTimer?.cancel();
-          if (mounted) setState(() => _error = error.toString());
+          if (!mounted) return;
+          if (error is HongguoLoginFailure) {
+            setState(() => _error = error.message);
+          } else {
+            setState(() => _error = '登录失败，请稍后重试');
+          }
         }
       });
-    } catch (error) {
+    } on HongguoLoginFailure catch (error) {
       if (!mounted) return;
-      setState(() => _error = error.toString());
+      setState(() => _error = error.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _error = '取二维码失败，请稍后重试');
     } finally {
       if (mounted) setState(() => _busy = false);
     }

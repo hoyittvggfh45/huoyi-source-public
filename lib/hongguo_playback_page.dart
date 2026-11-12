@@ -62,6 +62,22 @@ String _formatHongguoCount(int value) {
   return '$value';
 }
 
+int? hongguoPlaybackSwipeEpisode({
+  required int episode,
+  required int episodeCount,
+  required double dy,
+  required double velocity,
+}) {
+  if (episodeCount <= 0) return null;
+  if (dy <= -64 || (dy <= -24 && velocity <= -600)) {
+    return episode + 1 < episodeCount ? episode + 1 : null;
+  }
+  if (dy >= 64 || (dy >= 24 && velocity >= 600)) {
+    return episode > 0 ? episode - 1 : null;
+  }
+  return null;
+}
+
 String _formatClock(double seconds) {
   if (!seconds.isFinite || seconds < 0) return '00:00';
   final total = seconds.round();
@@ -115,6 +131,8 @@ class _HongguoPlaybackPageState extends State<HongguoPlaybackPage>
   String _decodeRetriedFor = '';
   Timer? _crossSeasonTimer;
   bool _crossSeasonPending = false;
+  Offset? _videoDragStart;
+  Offset _videoDragLast = Offset.zero;
 
   @override
   void initState() {
@@ -565,6 +583,31 @@ class _HongguoPlaybackPageState extends State<HongguoPlaybackPage>
 
   Future<void> _saveSettings() =>
       _settings.save(widget.store.preferences);
+
+  void _onVideoDragStart(DragStartDetails details) {
+    _videoDragStart = details.globalPosition;
+    _videoDragLast = details.globalPosition;
+  }
+
+  void _onVideoDragUpdate(DragUpdateDetails details) {
+    _videoDragLast = details.globalPosition;
+  }
+
+  void _onVideoDragEnd(DragEndDetails details) {
+    final start = _videoDragStart;
+    _videoDragStart = null;
+    if (start == null) return;
+    final detail = _detail;
+    if (detail == null || detail.episodes.isEmpty) return;
+    final dy = _videoDragLast.dy - start.dy;
+    final target = hongguoPlaybackSwipeEpisode(
+      episode: _episode,
+      episodeCount: detail.episodes.length,
+      dy: dy,
+      velocity: details.velocity.pixelsPerSecond.dy,
+    );
+    if (target != null) _playEpisode(target);
+  }
 
   Future<void> _togglePlay() async {
     if (!_player.hasVideo) return;
@@ -1220,6 +1263,9 @@ class _HongguoPlaybackPageState extends State<HongguoPlaybackPage>
   Widget _videoArea() {
     return GestureDetector(
       onTap: _togglePlay,
+      onVerticalDragStart: _onVideoDragStart,
+      onVerticalDragUpdate: _onVideoDragUpdate,
+      onVerticalDragEnd: _onVideoDragEnd,
       child: ListenableBuilder(
         listenable: _player,
         builder: (context, _) {

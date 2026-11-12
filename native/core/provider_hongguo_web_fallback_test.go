@@ -185,3 +185,23 @@ func TestHongguoResolveJointErrorMentionsThrottling(t *testing.T) {
 		t.Fatal("joint error must name tiers and throttling honestly", text)
 	}
 }
+
+func TestHGTVMediaPrefersWebFallbackOverPublic360p(t *testing.T) {
+	stub := &hongguoWebStub{homeCookies: []string{"s1"}, postBodies: []string{`{"main_url":"https://cdn.example.test/v.mp4"}`}, appStatus: http.StatusInternalServerError}
+	d := sourceFixtureDownloader(t, stub.handler)
+	task := Task{DramaID: providerDramaID(sourceHGTV, "111"), Chapter: Chapter{VideoURL: "hongguo-cenc://222"}}
+	media, err := d.resolveHGTVMedia(context.Background(), task)
+	if err != nil || media.URL != "https://cdn.example.test/v.mp4" {
+		t.Fatal("HGTV chain must use fallback-play-info before public 360p", media, err)
+	}
+	if len(stub.postCalls) == 0 {
+		t.Fatal("HGTV chain must call fallback-play-info", stub.paths)
+	}
+	if len(media.Variants) == 0 {
+		t.Fatal("HGTV resolve must keep variants")
+	}
+	last := media.Variants[len(media.Variants)-1]
+	if !strings.HasSuffix(last.URL, "/360p.mp4") {
+		t.Fatal("public 360p must stay the last variant", media.Variants)
+	}
+}

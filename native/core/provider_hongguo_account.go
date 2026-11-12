@@ -9,8 +9,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"sort"
 	"strconv"
@@ -133,10 +135,43 @@ func hongguoAccountDescribe(data map[string]any) string {
 	return description + "（错误码 " + mapString(data, "error_code") + "）"
 }
 
+func hongguoAccountServerMessage(result map[string]any) string {
+	for _, key := range []string{"message", "msg", "description"} {
+		if value := mapString(result, key); value != "" {
+			return value
+		}
+	}
+	if data, ok := result["data"].(map[string]any); ok {
+		return mapString(data, "description")
+	}
+	return ""
+}
+
+func hongguoAccountTransportError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, context.Canceled) {
+		return err
+	}
+	if errors.Is(err, context.DeadlineExceeded) || os.IsTimeout(err) {
+		return errors.New("请求超时，请检查网络后重试")
+	}
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		return errors.New("网络连接失败，请检查网络后重试")
+	}
+	var netErr *net.OpError
+	if errors.As(err, &netErr) {
+		return errors.New("网络连接失败，请检查网络后重试")
+	}
+	return err
+}
+
 func hongguoAccountReadJSON(response *http.Response) (map[string]any, error) {
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("账号请求失败（HTTP %d）", response.StatusCode)
+		return nil, fmt.Errorf("账号接口返回 HTTP %d，请稍后重试", response.StatusCode)
 	}
 	content, err := io.ReadAll(io.LimitReader(response.Body, hongguoAccountMaxBodyBytes+1))
 	if err != nil {
@@ -241,7 +276,7 @@ func hongguoAccountPassportCall(ctx context.Context, client *http.Client, baseUR
 	defer cancel()
 	response, err := client.Do(request.WithContext(callCtx))
 	if err != nil {
-		return nil, err
+		return nil, hongguoAccountTransportError(err)
 	}
 	for _, cookie := range response.Cookies() {
 		if cookie.Name == "" || cookie.Value == "" {
@@ -312,7 +347,7 @@ func hongguoAccountCloudCall(ctx context.Context, client *http.Client, baseURL, 
 	defer cancel()
 	response, err := client.Do(request.WithContext(callCtx))
 	if err != nil {
-		return nil, err
+		return nil, hongguoAccountTransportError(err)
 	}
 	result, err := hongguoAccountReadJSON(response)
 	if err != nil {
@@ -323,6 +358,9 @@ func hongguoAccountCloudCall(ctx context.Context, client *http.Client, baseURL, 
 	}
 	code := hongguoAccountInt(result, "code", -1)
 	if code != 0 {
+		if message := hongguoAccountServerMessage(result); message != "" {
+			return nil, fmt.Errorf("%s（错误码 %d）", message, code)
+		}
 		return nil, fmt.Errorf("账号接口不可用（错误码 %d），请重新登录或稍后重试", code)
 	}
 	return result, nil
@@ -456,7 +494,7 @@ func hongguoAccountWebCall(ctx context.Context, client *http.Client, baseURL str
 	defer cancel()
 	response, err := webClient.Do(request.WithContext(callCtx))
 	if err != nil {
-		return nil, err
+		return nil, hongguoAccountTransportError(err)
 	}
 	hongguoAccountCollectCookies(session, response)
 	result, err := hongguoAccountReadJSON(response)
@@ -510,7 +548,7 @@ func hongguoAccountFinishRedirect(ctx context.Context, client *http.Client, sess
 		response, err := webClient.Do(request.WithContext(callCtx))
 		cancel()
 		if err != nil {
-			return err
+			return hongguoAccountTransportError(err)
 		}
 		hongguoAccountCollectCookies(session, response)
 		if response.StatusCode >= 300 && response.StatusCode < 400 {
@@ -1194,7 +1232,7 @@ func hongguoAccountLuckycatCall(ctx context.Context, client *http.Client, device
 		defer cancel()
 		response, err := client.Do(request.WithContext(callCtx))
 		if err != nil {
-			return nil, err
+			return nil, hongguoAccountTransportError(err)
 		}
 		return hongguoAccountReadJSON(response)
 	}

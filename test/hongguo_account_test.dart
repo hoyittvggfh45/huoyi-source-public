@@ -3,6 +3,7 @@ import 'package:duanju_app/hongguo_account.dart';
 import 'package:duanju_app/hongguo_related.dart';
 import 'package:duanju_app/models.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'fixtures.dart';
 
@@ -16,6 +17,102 @@ class _SendSmsRepository extends FixtureRepository {
       throw AppFailure(_error);
 }
 
+class _RetryFakeTransport extends HongguoAccountTransport {
+  var verifyCalls = 0;
+  var confirmCalls = 0;
+  var profileFailures = 0;
+
+  @override
+  Future<HongguoSmsSent> sendSmsCode(String mobile) async =>
+      const HongguoSmsSent(maskedMobile: '138****8000', retrySeconds: 60);
+
+  @override
+  Future<HongguoAccountCredentials> verifySmsCode({
+    required String mobile,
+    required String code,
+  }) async {
+    verifyCalls++;
+    return const HongguoAccountCredentials(cookie: 'sessionid=s1');
+  }
+
+  @override
+  Future<HongguoQrCode> fetchQrCode() async =>
+      const HongguoQrCode(imageBytes: [1, 2, 3, 4], expiresInSeconds: 180);
+
+  @override
+  Future<HongguoQrPollResult> pollQrCode() async =>
+      HongguoQrPollResult.waiting;
+
+  @override
+  Future<HongguoAccountCredentials> confirmQrCode() async {
+    confirmCalls++;
+    return const HongguoAccountCredentials(cookie: 'sessionid=s1');
+  }
+
+  @override
+  Future<HongguoCloudProfile> fetchProfile(
+    HongguoAccountCredentials credentials,
+  ) async {
+    if (profileFailures > 0) {
+      profileFailures--;
+      throw const HongguoLoginFailure('账号资料读取失败，请稍后重试');
+    }
+    return const HongguoCloudProfile(id: 'u1', nickname: '小明');
+  }
+
+  @override
+  Future<List<HongguoCloudFavorite>> fetchCloudFavorites(
+    HongguoAccountCredentials credentials,
+  ) async => [
+    HongguoCloudFavorite(
+      drama: hongguoDrama('111', '剧一'),
+      collectedAt: 1700000000000,
+    ),
+  ];
+
+  @override
+  Future<void> setCloudFavorite(
+    HongguoAccountCredentials credentials, {
+    required String seriesId,
+    required bool add,
+  }) async {}
+
+  @override
+  Future<List<HongguoCloudProgress>> fetchCloudHistory(
+    HongguoAccountCredentials credentials,
+  ) async => const [];
+
+  @override
+  Future<void> uploadCloudProgress(
+    HongguoAccountCredentials credentials, {
+    required HongguoCloudProgress progress,
+  }) async {}
+
+  @override
+  Future<List<HongguoCloudReservation>> fetchReservations(
+    HongguoAccountCredentials credentials, {
+    required bool online,
+  }) async => const [];
+
+  @override
+  Future<void> reserveWork(
+    HongguoAccountCredentials credentials, {
+    required String seriesId,
+  }) async {}
+
+  @override
+  Future<HongguoDailyCoinClaim> claimDailyCoins(
+    HongguoAccountCredentials credentials,
+  ) async => const HongguoDailyCoinClaim(claimed: false);
+}
+
+class _EmptyFavoritesTransport extends _RetryFakeTransport {
+  @override
+  Future<List<HongguoCloudFavorite>> fetchCloudFavorites(
+    HongguoAccountCredentials credentials,
+  ) async => const [];
+}
+
 Drama hongguoDrama(String id, String title) => Drama(
   id: id,
   source: SourceSite.hongguo.id,
@@ -23,6 +120,8 @@ Drama hongguoDrama(String id, String title) => Drama(
 );
 
 void main() {
+  tearDown(() => hongguoAccountNotifier.value = null);
+
   test('phone format accepts mainland 11 digits', () {
     expect(formatHongguoPhone('86', '13800138000'), '13800138000');
     expect(formatHongguoPhone('86', '138-0013-8000'), '13800138000');
@@ -312,5 +411,89 @@ void main() {
       HongguoAccountTransport.unavailable.fetchQrCode(),
       throwsA(isA<HongguoAccountUnavailable>()),
     );
+  });
+
+  test('sms login retries profile check without re-verifying', () async {
+    SharedPreferences.setMockInitialValues({});
+    final transport = _RetryFakeTransport()..profileFailures = 1;
+    final controller = HongguoAccountController.withTransport(transport);
+    await expectLater(
+      controller.loginWithSms(mobile: '13800138000', code: '123456'),
+      throwsA(isA<HongguoLoginFailure>()),
+    );
+    expect(transport.verifyCalls, 1);
+    final account = await controller.loginWithSms(
+      mobile: '13800138000',
+      code: '123456',
+    );
+    expect(transport.verifyCalls, 1);
+    expect(account.userId, 'u1');
+    expect(controller.loggedIn, isTrue);
+  });
+
+  test('resending code clears the pending verified session', () async {
+    SharedPreferences.setMockInitialValues({});
+    final transport = _RetryFakeTransport()..profileFailures = 2;
+    final controller = HongguoAccountController.withTransport(transport);
+    await expectLater(
+      controller.loginWithSms(mobile: '13800138000', code: '123456'),
+      throwsA(isA<HongguoLoginFailure>()),
+    );
+    expect(transport.verifyCalls, 1);
+    await controller.transportSendSmsCode('13800138000');
+    await expectLater(
+      controller.loginWithSms(mobile: '13800138000', code: '654321'),
+      throwsA(isA<HongguoLoginFailure>()),
+    );
+    expect(transport.verifyCalls, 2);
+  });
+
+  test('logout clears the pending verified session', () async {
+    SharedPreferences.setMockInitialValues({});
+    final transport = _RetryFakeTransport()..profileFailures = 2;
+    final controller = HongguoAccountController.withTransport(transport);
+    await expectLater(
+      controller.loginWithSms(mobile: '13800138000', code: '123456'),
+      throwsA(isA<HongguoLoginFailure>()),
+    );
+    expect(transport.verifyCalls, 1);
+    await controller.logout();
+    await expectLater(
+      controller.loginWithSms(mobile: '13800138000', code: '123456'),
+      throwsA(isA<HongguoLoginFailure>()),
+    );
+    expect(transport.verifyCalls, 2);
+  });
+
+  test('zero favorites do not break cloud refresh on login', () async {
+    SharedPreferences.setMockInitialValues({});
+    final transport = _EmptyFavoritesTransport();
+    final controller = HongguoAccountController.withTransport(transport);
+    final account = await controller.loginWithSms(
+      mobile: '13800138000',
+      code: '123456',
+    );
+    expect(account.userId, 'u1');
+    expect(controller.loggedIn, isTrue);
+    expect(controller.cloudFavorites, isEmpty);
+    expect(controller.favoriteUpdate, isNull);
+    await controller.refreshCloudFavorites();
+    expect(controller.cloudFavorites, isEmpty);
+    expect(controller.favoriteUpdate, isNull);
+  });
+
+  test('qr login retries profile check without re-confirming', () async {
+    SharedPreferences.setMockInitialValues({});
+    final transport = _RetryFakeTransport()..profileFailures = 1;
+    final controller = HongguoAccountController.withTransport(transport);
+    await expectLater(
+      controller.loginWithQr(),
+      throwsA(isA<HongguoLoginFailure>()),
+    );
+    expect(transport.confirmCalls, 1);
+    final account = await controller.loginWithQr();
+    expect(transport.confirmCalls, 1);
+    expect(account.method, 'qr');
+    expect(controller.loggedIn, isTrue);
   });
 }

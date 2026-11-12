@@ -1,5 +1,7 @@
-import 'package:flutter_test/flutter_test.dart';
 import 'package:duanju_app/hongguo_drama_home.dart';
+import 'package:duanju_app/models.dart';
+import 'package:duanju_app/ranking_models.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('hongguo drama group detection', () {
@@ -9,87 +11,22 @@ void main() {
     expect(isHongguoDramaGroup('hongguo2'), isFalse);
   });
 
-  group('hongguoFeedNext', () {
-    test('same drama next episode', () {
-      expect(
-        hongguoFeedNext(
-          drama: 0,
-          episode: 0,
-          dramaCount: 3,
-          episodeCount: 5,
-        ),
-        (drama: 0, episode: 1),
-      );
+  group('hongguoFeedNextDrama', () {
+    test('moves to the next drama', () {
+      expect(hongguoFeedNextDrama(drama: 0, dramaCount: 3), 1);
+      expect(hongguoFeedNextDrama(drama: 1, dramaCount: 3), 2);
     });
 
-    test('last episode goes to next drama first episode', () {
-      expect(
-        hongguoFeedNext(
-          drama: 0,
-          episode: 4,
-          dramaCount: 3,
-          episodeCount: 5,
-        ),
-        (drama: 1, episode: 0),
-      );
+    test('last drama returns null', () {
+      expect(hongguoFeedNextDrama(drama: 2, dramaCount: 3), isNull);
     });
 
-    test('last episode of last drama returns null', () {
-      expect(
-        hongguoFeedNext(
-          drama: 2,
-          episode: 4,
-          dramaCount: 3,
-          episodeCount: 5,
-        ),
-        isNull,
-      );
-    });
-  });
-
-  group('hongguoFeedPrevious', () {
-    test('same drama previous episode', () {
-      expect(
-        hongguoFeedPrevious(
-          drama: 1,
-          episode: 2,
-          previousEpisodeCount: 5,
-        ),
-        (drama: 1, episode: 1),
-      );
+    test('single drama returns null', () {
+      expect(hongguoFeedNextDrama(drama: 0, dramaCount: 1), isNull);
     });
 
-    test('first episode goes to previous drama last episode', () {
-      expect(
-        hongguoFeedPrevious(
-          drama: 1,
-          episode: 0,
-          previousEpisodeCount: 5,
-        ),
-        (drama: 0, episode: 4),
-      );
-    });
-
-    test('unknown previous count falls back to its first episode', () {
-      expect(
-        hongguoFeedPrevious(
-          drama: 1,
-          episode: 0,
-          previousEpisodeCount: 0,
-        ),
-        (drama: 0, episode: 0),
-      );
-    });
-
-    test('first episode of first drama returns null', () {
-      expect(
-        hongguoFeedPrevious(
-          drama: 0,
-          episode: 0,
-          previousEpisodeCount: 0,
-        ),
-        isNull,
-      );
+    test('empty feed returns null', () {
+      expect(hongguoFeedNextDrama(drama: 0, dramaCount: 0), isNull);
     });
   });
 
@@ -105,6 +42,41 @@ void main() {
       expect(hongguoFeedHeat(''), '');
       expect(hongguoFeedHeat('7703万'), '7703万');
       expect(hongguoFeedHeat('115.6万'), '115.6万');
+    });
+  });
+
+  group('hongguoRankBadgeHeat', () {
+    test('uses the ranking item heat without duplicating the suffix', () {
+      const item = RankingItem(
+        3,
+        Drama(id: 'hongguo:1', source: 'hongguo', title: '剧名', heat: '7351万热度'),
+      );
+      expect(hongguoRankBadgeHeat(item), '7351万');
+    });
+
+    test('falls back to the ranking metric', () {
+      const item = RankingItem(
+        1,
+        Drama(id: 'hongguo:1', source: 'hongguo', title: '剧名'),
+        metric: '8835万热度',
+      );
+      expect(hongguoRankBadgeHeat(item), '8835万');
+    });
+
+    test('formats a raw ranking heat count', () {
+      const item = RankingItem(
+        2,
+        Drama(id: 'hongguo:1', source: 'hongguo', title: '剧名', heat: '77030000'),
+      );
+      expect(hongguoRankBadgeHeat(item), '7703万');
+    });
+
+    test('keeps an empty heat empty', () {
+      const item = RankingItem(
+        5,
+        Drama(id: 'hongguo:1', source: 'hongguo', title: '剧名'),
+      );
+      expect(hongguoRankBadgeHeat(item), '');
     });
   });
 }

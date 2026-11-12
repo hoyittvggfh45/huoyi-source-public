@@ -27,6 +27,8 @@ import 'jar_youtube_takeover.dart';
 import 'danmaku_controller.dart';
 import 'danmaku_overlay.dart';
 import 'follow_state.dart';
+import 'hongguo_comment.dart';
+import 'hongguo_danmaku.dart';
 import 'local_store.dart';
 import 'models.dart';
 import 'nonvideo_content.dart';
@@ -118,6 +120,9 @@ class _PlayerScreenState extends State<PlayerScreen>
   late final PlaybackPreloader _preloader;
   bool _preloadEnabled = true;
   late final DanmakuController _danmaku;
+  String? _commentKey;
+  String? _commentPlanKey;
+  HongguoCommentPage? _commentPage;
   int _seekSequence = 0;
   bool _danmakuEnabled = true;
   late final PlayerInteractions _interactions;
@@ -1743,11 +1748,24 @@ class _PlayerScreenState extends State<PlayerScreen>
           await _interactions.applySpeed();
         }
         if (mounted && !_closed && ticket == _generation) {
+          final clearComments =
+              widget.detail.drama.source == 'hongguo' &&
+              _commentKey != _commentKeyFor();
           setState(() {
             _loading = false;
+            if (clearComments) _commentPage = null;
           });
           _danmaku.setPlan(plan);
+          if (widget.detail.drama.source == 'hongguo') {
+            _danmaku.setById(
+              hongguoNumericId(widget.detail.drama.id),
+              _index >= 0 && _index < widget.detail.episodes.length
+                  ? hongguoNumericId(widget.detail.episodes[_index].id)
+                  : null,
+            );
+          }
           _syncDanmaku();
+          _loadCommentsForCurrentPlan(plan);
           _acknowledgeHandoff();
           _menuRevision.value++;
           _applyLifecycleVisibility();
@@ -2248,6 +2266,68 @@ class _PlayerScreenState extends State<PlayerScreen>
     } catch (_) {
       _notice('弹幕重试失败，请稍后再试');
     }
+  }
+
+  String _commentKeyFor() => '${widget.detail.drama.id}|$_index';
+
+  Future<void> _loadCommentCounts(PlaybackPlan? plan, String key) async {
+    if (widget.detail.drama.source != 'hongguo') return;
+    final seriesId = hongguoNumericId(widget.detail.drama.id);
+    final planLevel = plan != null && plan.session.isNotEmpty;
+    if (!planLevel && seriesId == null) return;
+    try {
+      final page = planLevel
+          ? await widget.repository.comments(plan)
+          : await widget.repository.commentsBySeries(seriesId!);
+      if (!mounted || _commentKey != key) return;
+      if (!planLevel && _commentPlanKey == key) return;
+      setState(() => _commentPage = page);
+    } catch (_) {
+      if (planLevel) {
+        if (_commentPlanKey == key) _commentPlanKey = null;
+      } else if (_commentKey == key && _commentPlanKey != key) {
+        _commentKey = null;
+      }
+    }
+  }
+
+  void _loadCommentsForCurrentPlan(PlaybackPlan plan) {
+    if (widget.detail.drama.source != 'hongguo') return;
+    final commentKey = _commentKeyFor();
+    if (plan.session.isNotEmpty) {
+      if (_commentPlanKey != commentKey) {
+        _commentPlanKey = commentKey;
+        _commentKey = commentKey;
+        unawaited(_loadCommentCounts(plan, commentKey));
+      }
+    } else if (_commentKey != commentKey) {
+      _commentKey = commentKey;
+      unawaited(_loadCommentCounts(null, commentKey));
+    }
+  }
+
+  Future<void> _openComments() async {
+    if (widget.detail.drama.source != 'hongguo') {
+      _notice('本集暂不支持评论');
+      return;
+    }
+    final plan = _plan;
+    if (plan == null) {
+      _notice('本集暂不支持评论');
+      return;
+    }
+    final seriesId = hongguoNumericId(widget.detail.drama.id);
+    if (plan.session.isEmpty && seriesId == null) {
+      _notice('本集暂不支持评论');
+      return;
+    }
+    await showHongguoComments(
+      context,
+      plan,
+      widget.repository,
+      initialPage: _commentPage,
+      seriesId: plan.session.isEmpty ? seriesId : null,
+    );
   }
 
   Future<void> _openPanel(PlayerMenuSection section) async {
@@ -3183,6 +3263,17 @@ class _PlayerScreenState extends State<PlayerScreen>
         '${widget.detail.drama.title} · 第 ${widget.detail.episodes[_index].number} 集${_audioMode ? ' · 听书' : ''}${_plan?.local == true ? ' · 本地' : ''}${widget.detail.episodes[_index].vip ? ' · VIP 试看' : ''}${(_plan?.routeIndex ?? 0) > 0 ? ' · 线路 ${_plan!.routeIndex + 1}' : ''}';
     final hideOverlayForPictureInPicture = _pictureInPictureVisible;
     final errorKind = _error == null ? null : classifyPlaybackError(_error!);
+    final permanentBackVisible =
+        _mobile &&
+        !_television &&
+        !_useNativeHandle &&
+        !_useIjkCore &&
+        !hideOverlayForPictureInPicture &&
+        !((_loading || _error != null) && _showFullscreen);
+    final hideTopBarBack =
+        _mobile &&
+        !(widget.embedded ? widget.embeddedFullscreen : _showFullscreen) &&
+        permanentBackVisible;
     final Widget controls = hideOverlayForPictureInPicture
         ? const SizedBox.shrink()
         : _television
@@ -3238,6 +3329,14 @@ class _PlayerScreenState extends State<PlayerScreen>
             showDanmaku: widget.detail.drama.source == 'hongguo',
             danmakuEnabled: _danmakuEnabled,
             danmakuStatus: _danmaku.status,
+            showComments: widget.detail.drama.source == 'hongguo',
+            commentCount: _commentPage != null && _commentPage!.total > 0
+                ? _formatHongguoCount(_commentPage!.total)
+                : null,
+            onOpenComments: widget.detail.drama.source == 'hongguo'
+                ? _openComments
+                : null,
+            showTopBackButton: !hideTopBarBack,
             onEpisodes: () async {
               if (!_mobile && !_showFullscreen) {
                 _toggleEpisodePanel();
@@ -3563,12 +3662,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                     ),
                   ),
                 ),
-              if (_mobile &&
-                  !_television &&
-                  !_useNativeHandle &&
-                  !_useIjkCore &&
-                  !hideOverlayForPictureInPicture &&
-                  !((_loading || _error != null) && _showFullscreen))
+              if (permanentBackVisible)
                 Positioned(
                   top: 0,
                   left: 0,
@@ -4133,4 +4227,14 @@ class _PlayerScreenState extends State<PlayerScreen>
       ],
     );
   }
+}
+
+String _formatHongguoCount(int value) {
+  if (value >= 10000) {
+    final text = (value / 10000).toStringAsFixed(1);
+    return text.endsWith('.0')
+        ? '${text.substring(0, text.length - 2)}万'
+        : '$text万';
+  }
+  return '$value';
 }
