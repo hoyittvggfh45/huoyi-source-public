@@ -1,9 +1,8 @@
 name: Build app packages
 
 on:
-  #push:
-    #branches: [main, master]
-    #tags: ['v*']
+  push:
+    tags: ['v*']
   #pull_request:
   workflow_dispatch:
 
@@ -112,6 +111,35 @@ jobs:
           path: dist/android/*
           if-no-files-found: error
           retention-days: 14
+
+  release:
+    needs: android
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: huoyi-android
+          path: release-assets
+      - name: Create release and upload APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          APK_COUNT=$(ls release-assets/*.apk | wc -l)
+          if [ "$APK_COUNT" -ne 1 ]; then echo "expected exactly 1 APK, found $APK_COUNT"; ls -l release-assets/; exit 1; fi
+          APK=$(ls release-assets/*.apk)
+          SHA256=$(sha256sum "$APK" | awk '{print $1}')
+          {
+            echo "火蚁TV ${GITHUB_REF_NAME}（安卓包，包名 com.seku.huoyi，只含 arm64-v8a）。"
+            echo "内容：首页滑动纠错（首页按部滑、全集页上下滑换集、评论收藏弹幕恢复、榜单条修复）、红果两问题同步修、通用播放页补修。"
+            echo "装前须先卸载旧版（签名每轮都换，直接覆盖装不上）。"
+            echo "SHA-256: $SHA256"
+          } > release-notes.txt
+          gh release create "$GITHUB_REF_NAME" "$APK" -R hoyittvggfh45/huoyi-source-public --title "$GITHUB_REF_NAME" --notes-file release-notes.txt
 
   ios:
     runs-on: macos-15
